@@ -1,0 +1,89 @@
+/* Round 15 (SPEC 31): the artifact box in the conversation, the artifact panel beside it, and the
+   «Tekst» mark on text blocks. Tokens only; only transform and opacity move. */
+
+/* 31.1 The box: one calm row in the answer, where a whole app would otherwise be a long block. */
+.artifact-box { margin: 0.4em 0 1em; max-width: 540px; container-type: inline-size; }
+.artifact-box-main {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 10px 12px 10px 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--text);
+  text-align: left; line-height: 1.35; box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.artifact-box-main:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 100%, var(--text) 2.5%); }
+.artifact-box-main:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.artifact-box-icon {
+  flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 9px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+  transition: color var(--dur-1) var(--ease-out);
+}
+.artifact-box-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.artifact-box-title { font-size: 13.5px; font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artifact-box-meta { font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.artifact-box-version {
+  flex: none; height: 20px; padding: 0 7px; border-radius: var(--radius-full); border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-2); font: var(--weight-medium) var(--text-2xs) / 18px var(--font-sans); font-variant-numeric: tabular-nums;
+}
+.artifact-box-saved { flex: none; font-size: var(--text-2xs); font-weight: var(--weight-medium); color: var(--ok); }
+.artifact-box-version[hidden], .artifact-box-saved[hidden] { display: none; }
+.artifact-box-go { flex: none; display: inline-flex; align-items: center; gap: 2px; padding-left: 2px; font-size: var(--text-xs); color: var(--text-3); transition: color var(--dur-1) var(--ease-out); }
+.artifact-box-go .icon { transition: transform var(--dur-2) var(--ease-out); }
+.artifact-box-main:hover:not(:disabled) .artifact-box-go { color: var(--text); }
+.artifact-box-main:hover:not(:disabled) .artifact-box-go .icon { transform: translateX(2px); }
+/* The one that is open in the panel. */
+.artifact-box.active .artifact-box-main { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.artifact-box.active .artifact-box-icon { color: var(--accent-text); }
+.artifact-box.active .artifact-box-go { color: var(--accent-text); }
+/* While it is written: no click, the lines counting. */
+.artifact-box.writing .artifact-box-main:disabled { opacity: 1; cursor: default; box-shadow: none; }
+.artifact-box.writing .artifact-box-meta { color: var(--text-2); }
+.artifact-box-spinner {
+  display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid var(--border-strong); border-top-color: var(--text-2); animation: spin 0.9s linear infinite;
+}
+:root[data-motion="reduce"] .artifact-box-spinner { animation: none; border-top-color: var(--border-strong); }
+@media (prefers-reduced-motion: reduce) { .artifact-box-spinner { animation: none; } }
+@container (max-width: 360px) {
+  .artifact-box-go-label { display: none; }
+  .artifact-box-main { gap: 10px; }
+}
+
+/* 31.1 The panel: the right side of the window, wider than the tool panel by default. */
+/* The conversation keeps room for its message field: at least 400 px, the panel at least 340 px. */
+.app.artifact-open { --c-panel: clamp(340px, var(--artifact-w), calc(100vw - var(--c-side) - 400px)); }
+.artifact-panel {
+  grid-area: panel; position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  background: var(--bg-panel); border-left: 1px solid var(--outliner, var(--border)); container-type: inline-size;
+  animation: ad-side-right var(--dur-3) var(--ease-emphasized);
+}
+:root:not([data-motion-ready]) .artifact-panel { animation-duration: 0s; }
+/* Åpne stort: over the conversation's width, beside the sidebar. */
+.app.artifact-open.artifact-big { grid-template-columns: var(--c-side) 0 minmax(0, 1fr); }
+.app.artifact-big > .main { display: none; }
+.app.artifact-big .artifact-panel { border-left-color: transparent; }
+.app.artifact-big .artifact-panel .panel-resize { display: none; }
+/* A detached pane in its own window: the panel beside it, the same way. */
+.app.solo.artifact-open { grid-template-columns: minmax(0, 1fr) min(var(--artifact-w), 60vw); grid-template-areas: "main panel"; }
+.app.solo.artifact-open.artifact-big { grid-template-columns: 0 minmax(0, 1fr); }
+/* A narrow window: a route of its own over the conversation, closed with ✕ or Esc. */
+@media (max-width: 860px) {
+  .app.artifact-open, .app.artifact-open.artifact-big { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--topbar-h) minmax(0, 1fr) 0; grid-template-areas: "top" "panel" "main"; }
+  .app.solo.artifact-open, .app.solo.artifact-open.artifact-big { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 0; grid-template-areas: "panel" "main"; }
+  .app.artifact-open > .main { display: none; }
+  .artifact-panel { border-left: 0; }
+  .artifact-panel .panel-resize { display: none; }
+  .artifact-panel [aria-label="Åpne stort"], .artifact-panel [aria-label="Vanlig størrelse"] { display: none; }
+}
+
+/* The Artifacts room: what kind each one is, on its tile. */
+.artifact-thumb-kind { position: absolute; left: var(--space-2); bottom: 6px; font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: 0.01em; }
+
+/* 31.3 Text blocks: a small «Tekst» mark instead of a language, and lines that wrap. */
+.md-lang.md-lang-text {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: var(--radius-full);
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);
+  font: var(--weight-medium) var(--text-2xs) / 1 var(--font-sans); letter-spacing: 0.01em;
+}
+.md-code[data-text] { background: var(--surface); }
+.md-code[data-text] pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Declared as text, it is prose to copy: the body font, at the size of the answer around it. */
+.md-code[data-text="declared"] pre { font: 14px/1.6 var(--font-sans); padding: 10px 14px 12px; }

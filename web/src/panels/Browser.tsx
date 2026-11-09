@@ -1,0 +1,1075 @@
+// The real headless Chrome, shown as a CDP screencast on a canvas. Mouse, keyboard and wheel go
+// back the same way. Frames are decoded off the main thread and acked after drawing, and the ack
+// is the back-pressure: a slow panel simply gets fewer frames.
+//
+// v0.5: a new-tab page while no address is open, and a ⋯ menu with find on the page (run by the
+// browser itself in an isolated world), zoom (a smaller or larger viewport, scaled to the panel),
+// a screenshot of the frame on screen, the panel's history and clearing browsing data.
+//
+// Round 10 (SPEC 23.1), a small Chrome: tabs with favicon and close, a + that makes a tab on click
+// and shows Ny fane / Ny fane i fullvisning on hover, the downloads button, full view, and a new
+// tab page whose tools and suggestions fit the panel's width, with ⋯ only for what does not fit.
+// The tabs live on the server (one page each), so two windows, a reload and the agent all see the
+// same tabs; the agent works in the tab shown last.
+import { batch, createEffect, createMemo, createSignal, For, on as watch, onCleanup, onMount, Show, untrack, type JSX } from "solid-js";
+import { Portal } from "solid-js/web";
+import { onNextFrame } from "../lib/frame";
+import { observeResize } from "../lib/resize";
+import { on, onOpen, send } from "../lib/socket";
+import type { BrowserInput, BrowserState, BrowserTabInfo, ClientMessage } from "../../../shared/protocol";
+import { app, LOCAL_SCOPE, mode, toast } from "../state/app";
+import { focusedThread, actions } from "../state/actions";
+import { browserTabRequest, panelFull, setPanelFull, takeBrowserTabRequest } from "../state/panel";
+import { offerCookieImport } from "../ui/CookieImport";
+import { sideChat } from "../state/thread-actions";
+import { displayKeys, keysFor } from "../state/shortcuts";
+import { servers } from "../state/servers";
+import { artifacts } from "../state/artifacts";
+import { ContextMenu, type MenuAnchor, type MenuEntry } from "../ui/ContextMenu";
+import { confirmDialog } from "../ui/dialogs";
+import { IconArtifact, IconBack, IconBookmark, IconChevron, IconClose, IconDiff, IconDots, IconDownload, IconFile, IconForward, IconGamepad, IconGlobe, IconPlus, IconPlusCircle, IconReload, IconSearch, IconTerminal, IconTrash } from "../ui/icons";
+import { IconExitFullView, IconFullView, IconHistory, IconImage } from "../ui/nav-icons";
+import { ProjectGlyph } from "../ui/ProjectGlyph";
+import { DownloadsList } from "../ui/DownloadsList";
+import { activeDownloads, loadDownloads } from "../state/downloads";
+import { imported, loadImported, openChromeImport } from "../ui/ChromeImport";
+import { AnnotateButton } from "./Annotate"; // round 11b (SPEC 25.1)
+import { nativeBridge, placeNative } from "./browser-native"; // SPEC 29.3: the page as a view in the Electron window
+
+// The panel's own history, per project, kept in this browser.
+interface Visit {
+  url: string;
+  title: string;
+  at: number;
+}
+const historyKey = (projectId: string) => `ad-browser-history:${projectId}`;
+function loadHistory(projectId: string): Visit[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(historyKey(projectId)) ?? "[]");
+    return Array.isArray(list) ? list.filter((v) => typeof v?.url === "string").slice(0, 50) : [];
+  } catch {
+    return [];
+  }
+}
+function saveHistory(projectId: string, list: Visit[]): void {
+  try {
+    if (list.length) localStorage.setItem(historyKey(projectId), JSON.stringify(list.slice(0, 50)));
+    else localStorage.removeItem(historyKey(projectId));
+  } catch {
+    // Not kept this time.
+  }
+}
+
+const ZOOMS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+const zoomKey = (projectId: string) => `ad-browser-zoom:${projectId}`;
+const TIP_KEY = "ad-browser-import-tip";
+const MAX_TABS = 12;
+
+// The tab each project showed last in this window, so the panel opens where you left it.
+const lastTab = new Map<string, string>();
+// Favicons seen in tabs, by origin, for the suggestions on Ny fane.
+const iconByOrigin = new Map<string, string>();
+
+function hostOf(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.host || u.protocol.replace(":", "");
+  } catch {
+    return url;
+  }
+}
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+function modifiers(event: KeyboardEvent | MouseEvent | WheelEvent): number {
+  return (event.altKey ? 1 : 0) | (event.ctrlKey ? 2 : 0) | (event.metaKey ? 4 : 0) | (event.shiftKey ? 8 : 0);
+}
+
+const BUTTONS = ["left", "middle", "right"] as const;
+
+function decode(base64: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+const newTabId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const isBlank = (url: string | undefined) => !url || url === "about:blank";
+const tabTitle = (tab: Pick<BrowserTabInfo, "title" | "url">) => (isBlank(tab.url) ? "Ny fane" : tab.title.trim() || hostOf(tab.url));
+
+// The + in the tab row: a click makes a tab; resting on it shows Ny fane and Ny fane i fullvisning
+// with their keys. The menu waits a moment before it shows and before it goes, so moving from + to
+// the menu never makes it blink. ↓ (or ↑) on + opens it from the keyboard, Esc closes it and gives
+// focus back to +. A click on + while the menu shows closes it and makes the tab, and the menu does
+// not come back until the pointer has left + (the rule for every menu: the button that opened it
+// closes it).
+const HOVER_OPEN_MS = 220;
+const HOVER_CLOSE_MS = 220;
+
+function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean }) {
+  let button!: HTMLButtonElement;
+  let menu: HTMLDivElement | undefined;
+  const [open, setOpen] = createSignal<"hover" | "keys" | null>(null);
+  let openTimer: ReturnType<typeof setTimeout> | undefined;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  let suppressed = false;
+  const clear = () => {
+    clearTimeout(openTimer);
+    clearTimeout(closeTimer);
+  };
+  const close = (focusButton = false) => {
+    clear();
+    const inside = !!menu?.contains(document.activeElement);
+    setOpen(null);
+    if (focusButton || inside) button.focus({ preventScroll: true });
+  };
+  const hoverIn = () => {
+    clearTimeout(closeTimer);
+    if (open() || suppressed || props.disabled) return;
+    clearTimeout(openTimer);
+    openTimer = setTimeout(() => setOpen("hover"), HOVER_OPEN_MS);
+  };
+  const hoverOut = () => {
+    clearTimeout(openTimer);
+    if (open() !== "hover") return;
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => setOpen(null), HOVER_CLOSE_MS);
+  };
+  const items = () => [...(menu?.querySelectorAll<HTMLButtonElement>(".menu-item") ?? [])];
+  const openFromKeys = (last = false) => {
+    clear();
+    setOpen("keys");
+    requestAnimationFrame(() => (last ? items().at(-1) : items()[0])?.focus());
+  };
+  const pick = (full: boolean) => {
+    close(true);
+    props.onNew(full);
+  };
+
+  createEffect(() => {
+    if (!open()) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menu?.contains(target) || button.contains(target)) return;
+      close();
+    };
+    const onBlur = () => close();
+    document.addEventListener("pointerdown", onDown, true);
+    addEventListener("blur", onBlur);
+    addEventListener("resize", onBlur);
+    onCleanup(() => {
+      document.removeEventListener("pointerdown", onDown, true);
+      removeEventListener("blur", onBlur);
+      removeEventListener("resize", onBlur);
+    });
+  });
+  onCleanup(clear);
+
+  const place = (el: HTMLDivElement) => {
+    menu = el;
+    const r = button.getBoundingClientRect();
+    requestAnimationFrame(() => {
+      const w = el.offsetWidth;
+      el.style.left = `${Math.round(Math.max(8, Math.min(r.right - w, innerWidth - w - 8)))}px`;
+      el.style.top = `${Math.round(r.bottom + 4)}px`;
+      el.style.visibility = "";
+    });
+  };
+
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        class="icon-button browser-newtab-button"
+        aria-label="Ny fane"
+        aria-haspopup="menu"
+        aria-expanded={!!open()}
+        aria-keyshortcuts={keysFor("browser.newTab").replace("Mod", "Control")}
+        disabled={props.disabled}
+        onPointerEnter={(e) => e.pointerType === "mouse" && hoverIn()}
+        onPointerLeave={() => {
+          suppressed = false;
+          hoverOut();
+        }}
+        onClick={() => {
+          suppressed = true;
+          close();
+          props.onNew(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            openFromKeys(e.key === "ArrowUp");
+          } else if (e.key === "Escape" && open()) {
+            e.preventDefault();
+            e.stopPropagation();
+            close(true);
+          }
+        }}
+      >
+        <IconPlus size={15} />
+      </button>
+      <Show when={open()}>
+        <Portal>
+          <div
+            ref={place}
+            class="popover context-menu newtab-menu"
+            role="menu"
+            aria-label="Ny fane"
+            style="visibility:hidden"
+            onPointerEnter={() => clearTimeout(closeTimer)}
+            onPointerLeave={hoverOut}
+            onKeyDown={(e) => {
+              const list = items();
+              const at = list.indexOf(document.activeElement as HTMLButtonElement);
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                list[(at + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus();
+              } else if (e.key === "Home" || e.key === "End") {
+                e.preventDefault();
+                (e.key === "Home" ? list[0] : list.at(-1))?.focus();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                close(true);
+              } else if (e.key === "Tab") {
+                close(true);
+              }
+            }}
+          >
+            <button type="button" role="menuitem" class="menu-item" onClick={() => pick(false)}>
+              <IconPlus size={15} /><span class="menu-name">Ny fane</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTab"))}</kbd>
+            </button>
+            <button type="button" role="menuitem" class="menu-item" onClick={() => pick(true)}>
+              <IconFullView size={15} /><span class="menu-name">Ny fane i fullvisning</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTabFull"))}</kbd>
+            </button>
+          </div>
+        </Portal>
+      </Show>
+    </>
+  );
+}
+
+function TabIcon(props: { tab: BrowserTabInfo }) {
+  return (
+    <span class="browser-tab-icon" aria-hidden="true">
+      <Show when={!props.tab.loading || isBlank(props.tab.url)} fallback={<span class="spinner" />}>
+        <Show when={props.tab.favicon} fallback={<IconGlobe size={14} />}>{(src) => <img src={src()} alt="" width="14" height="14" />}</Show>
+      </Show>
+    </span>
+  );
+}
+
+// A suggestion on Ny fane: a running server, an artifact, a page you visited, or a bookmark from Chrome.
+interface Suggestion {
+  url: string;
+  label: string;
+  hint: string;
+  kind: "server" | "artifact" | "history" | "bookmark";
+  projectId?: string | null;
+}
+
+function SuggestionIcon(props: { item: Suggestion; size: number }): JSX.Element {
+  const project = () => (props.item.projectId ? app.projects[props.item.projectId] : undefined);
+  const icon = () => iconByOrigin.get(originOf(props.item.url));
+  return (
+    <Show when={props.item.kind !== "server" || !project()} fallback={<ProjectGlyph project={project()!} size={props.size} />}>
+      <Show when={props.item.kind !== "artifact"} fallback={<IconArtifact size={props.size} />}>
+        <Show when={icon()} fallback={props.item.kind === "bookmark" ? <IconBookmark size={props.size} /> : <IconGlobe size={props.size} />}>
+          {(src) => <img src={src()} alt="" width={props.size} height={props.size} />}
+        </Show>
+      </Show>
+    </Show>
+  );
+}
+
+// head: round 12 (SPEC 26.3), a stacked panel's slim top line, where the tabs and + go instead.
+export default function BrowserPanel(props: { projectId: string; head?: () => HTMLElement | undefined }) {
+  let canvas!: HTMLCanvasElement;
+  let stage!: HTMLDivElement;
+  let addressInput!: HTMLInputElement;
+  const [state, setState] = createSignal<BrowserState | null>(null);
+  const [address, setAddress] = createSignal("");
+  const [editing, setEditing] = createSignal(false);
+  const [closed, setClosed] = createSignal("");
+  const [hasFrame, setHasFrame] = createSignal(false);
+  const [history, setHistory] = createSignal<Visit[]>(loadHistory(props.projectId));
+  const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
+  const [finding, setFinding] = createSignal(false);
+  const [findText, setFindText] = createSignal("");
+  const [findMiss, setFindMiss] = createSignal(false);
+  const [showDownloads, setShowDownloads] = createSignal(false);
+  // The tabs from the server, and the one this panel shows. null until the server has said which.
+  const [serverTabs, setServerTabs] = createSignal<BrowserTabInfo[]>([]);
+  const [active, setActive] = createSignal<string | null>(lastTab.get(props.projectId) ?? null);
+  const [zoom, setZoomSignal] = createSignal((() => {
+    try {
+      const saved = Number(localStorage.getItem(zoomKey(props.projectId)));
+      return ZOOMS.includes(saved) ? saved : 1;
+    } catch {
+      return 1;
+    }
+  })());
+  const size = { width: 0, height: 0 };
+  // The page is laid out in a viewport the size of the panel divided by the zoom, and the frame is
+  // scaled back up to fill the panel: 125 % shows less of the page, larger.
+  const viewport = () => ({ width: Math.round(size.width / zoom()), height: Math.round(size.height / zoom()) });
+  let frameWidth = 0;
+  let frameHeight = 0;
+  let alive = true;
+  let latest: { sessionId: number; jpegBase64: string; width: number; height: number; tabId: string } | null = null;
+  let drawing = false;
+  // SPEC 29.3: in the Electron app the page is a real view over the stage, not frames on the canvas.
+  // still: a picture of it while a menu or dialog lies over the panel.
+  const native = () => !!nativeBridge && state()?.native === true;
+  const [still, setStill] = createSignal<string | null>(null);
+  const hasPage = () => (native() ? !closed() && !!state() : hasFrame());
+
+  const tabOf = (message: { tabId?: string }) => message.tabId ?? "";
+  const mine = (message: { projectId: string; tabId?: string }) => message.projectId === props.projectId && active() !== null && tabOf(message) === active();
+  // Sends a browser message for the tab on screen.
+  const sendTab = (message: ClientMessage) => {
+    const tab = active();
+    send(tab === null ? message : ({ ...message, tabId: tab } as ClientMessage));
+  };
+
+  // The tabs to show: the server's, and the one on screen while the server is still opening it.
+  const tabs = createMemo<BrowserTabInfo[]>(() => {
+    const list = serverTabs();
+    const tab = active();
+    if (tab === null || list.some((t) => t.id === tab)) return list;
+    return [...list, { id: tab, url: "about:blank", title: "", loading: false }];
+  });
+
+  const open = () => {
+    if (!size.width || !size.height) return;
+    const tab = active();
+    send({ type: "browser.open", projectId: props.projectId, ...viewport(), ...(tab === null ? {} : { tabId: tab }), ...(nativeBridge ? { native: true } : {}) });
+  };
+
+  const draw = async () => {
+    if (drawing || !latest) return;
+    drawing = true;
+    const frame = latest;
+    latest = null;
+    try {
+      const bitmap = await createImageBitmap(new Blob([decode(frame.jpegBase64)], { type: "image/jpeg" }));
+      if (alive && frame.tabId === active()) {
+        frameWidth = frame.width;
+        frameHeight = frame.height;
+        if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+        }
+        canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+        setHasFrame(true);
+      }
+      bitmap.close();
+    } catch {
+      // A broken frame: the next one replaces it.
+    }
+    drawing = false;
+    if (alive) send({ type: "browser.frame-ack", projectId: props.projectId, sessionId: frame.sessionId, tabId: frame.tabId });
+    if (latest) void draw();
+  };
+
+  // The frame covers the stage from the top left (object-fit: cover), so a frame from before the
+  // panel changed height is cropped for a moment, never shown with grey bands. One scale for both
+  // axes, the same as the picture.
+  const toPage = (event: MouseEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    const scale = frameWidth && frameHeight ? Math.max(rect.width / frameWidth, rect.height / frameHeight) : 1;
+    return { x: (event.clientX - rect.left) / scale, y: (event.clientY - rect.top) / scale };
+  };
+
+  const input = (event: BrowserInput) => sendTab({ type: "browser.input", projectId: props.projectId, event });
+
+  let pendingMove: MouseEvent | null = null;
+  const flushMove = () => {
+    if (!pendingMove) return;
+    const event = pendingMove;
+    pendingMove = null;
+    input({ kind: "mouse", action: "move", ...toPage(event), button: event.buttons & 1 ? "left" : "none", clicks: 0, modifiers: modifiers(event) });
+  };
+
+  const mouse = (action: "down" | "up", event: MouseEvent) => {
+    flushMove();
+    canvas.focus();
+    input({ kind: "mouse", action, ...toPage(event), button: BUTTONS[event.button] ?? "left", clicks: event.detail || 1, modifiers: modifiers(event) });
+  };
+
+  const key = (action: "down" | "up", event: KeyboardEvent) => {
+    if (event.key === "Tab" || event.key === " " || event.key.startsWith("Arrow") || event.key === "Enter" || event.key === "Backspace") event.preventDefault();
+    input({ kind: "key", action, key: event.key, code: event.code, modifiers: modifiers(event), text: action === "down" && event.key.length === 1 ? event.key : undefined });
+  };
+
+  const navigate = (event: Event) => {
+    event.preventDefault();
+    const url = address().trim();
+    if (!url) return;
+    setEditing(false);
+    sendTab({ type: "browser.navigate", projectId: props.projectId, url });
+  };
+
+  // Another tab on screen: its frames, its state and its address. The server stops sending the
+  // frames of the tab that was shown.
+  const showTab = (id: string) => {
+    if (id === active()) return;
+    batch(() => {
+      setActive(id);
+      setState(null);
+      setHasFrame(false);
+      setClosed("");
+      setFinding(false);
+      setEditing(false);
+      setAddress("");
+    });
+    lastTab.set(props.projectId, id);
+    latest = null;
+    open();
+  };
+
+  // A tab made here comes in with a small slide (styles/motion.css); tabs that were already open do not.
+  const [fresh, setFresh] = createSignal<string | null>(null);
+  let freshTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(freshTimer));
+  const newTab = (full = false) => {
+    if (tabs().length >= MAX_TABS) return toast(`Høyst ${MAX_TABS} faner. Lukk en fane først.`, "info");
+    if (full) setPanelFull(true);
+    const id = newTabId();
+    setFresh(id);
+    clearTimeout(freshTimer);
+    freshTimer = setTimeout(() => setFresh(null), 400);
+    showTab(id);
+    requestAnimationFrame(() => addressInput?.focus());
+  };
+
+  const closeTab = (id: string) => {
+    const list = tabs();
+    const at = list.findIndex((t) => t.id === id);
+    if (at < 0) return;
+    if (id === active()) {
+      const next = list[at + 1] ?? list[at - 1];
+      if (next) showTab(next.id);
+      else showTab(newTabId()); // The last tab: a fresh one takes its place.
+    }
+    setServerTabs(serverTabs().filter((t) => t.id !== id));
+    send({ type: "browser.close-tab", projectId: props.projectId, tabId: id });
+  };
+
+  // Round 12 (SPEC 26.4): the first time the panel opens, the offer to stay signed in, once, until
+  // it is answered; it does nothing when there is no browser profile to import from.
+  onMount(() => void offerCookieImport());
+
+  onMount(() => {
+    loadDownloads();
+    void loadImported();
+    const stops = [
+      on("browser.tabs", (message) => {
+        if (message.projectId !== props.projectId) return;
+        for (const tab of message.tabs) if (tab.favicon) iconByOrigin.set(originOf(tab.url), tab.favicon);
+        setServerTabs(message.tabs);
+        if (active() === null) {
+          setActive(message.active);
+          lastTab.set(props.projectId, message.active);
+        }
+      }),
+      on("browser.state", (message) => {
+        if (message.projectId !== props.projectId) return;
+        if (active() === null) setActive(tabOf(message));
+        if (!mine(message)) return;
+        setClosed("");
+        setState(message.state);
+        if (!editing()) setAddress(message.state.url === "about:blank" ? "" : message.state.url);
+        remember(message.state);
+      }),
+      on("browser.found", (message) => {
+        if (!mine(message) || message.text !== findText()) return;
+        setFindMiss(!message.found);
+      }),
+      on("browser.cleared", (message) => {
+        if (message.projectId === props.projectId) toast("Nettlesingsdata er tømt.", "info");
+      }),
+      on("browser.frame", (message) => {
+        if (message.projectId !== props.projectId) return;
+        if (!mine(message)) {
+          // A frame from the tab that was shown a moment ago: let it go.
+          send({ type: "browser.frame-ack", projectId: props.projectId, sessionId: message.sessionId, tabId: tabOf(message) });
+          return;
+        }
+        latest = { ...message, tabId: tabOf(message) };
+        void draw();
+      }),
+      on("browser.closed", (message) => {
+        if (!mine(message)) return;
+        setClosed(message.reason);
+        setHasFrame(false);
+      }),
+      onOpen(open),
+    ];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const placement = nativeBridge
+      ? placeNative({ stage, projectId: props.projectId, tab: active, wanted: () => native() && !showNewtab() && !closed() && !!state(), zoom, still: setStill })
+      : undefined;
+    if (placement) createEffect(watch([active, native, showNewtab, closed, zoom, () => state()?.url], () => placement.measure(), { defer: true }));
+    const stopResize = observeResize(stage, (entry) => {
+      const width = Math.round(entry.contentRect.width);
+      const height = Math.round(entry.contentRect.height);
+      if (!width || !height) return;
+      const first = !size.width;
+      size.width = width;
+      size.height = height;
+      if (first) return open();
+      clearTimeout(timer);
+      timer = setTimeout(() => sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() }), 120);
+    });
+    onCleanup(() => {
+      alive = false;
+      clearTimeout(timer);
+      placement?.stop();
+      stopResize();
+      stops.forEach((stop) => stop());
+      send({ type: "browser.close", projectId: props.projectId });
+    });
+  });
+
+  // A new tab asked for by a shortcut: taken once, also when the request is what opened the panel.
+  createEffect(() => {
+    const request = browserTabRequest();
+    if (!request) return;
+    untrack(() => {
+      takeBrowserTabRequest();
+      newTab(request.full);
+    });
+  });
+
+  // Playtest opens its page on the server. Showing the panel again is all that is needed here.
+  createEffect(() => {
+    const playtest = app.playtest[props.projectId];
+    if (playtest?.status === "running" && closed()) open();
+  });
+
+  const [gameCard, setGameCard] = createSignal(false);
+
+  const go = (url: string) => {
+    setEditing(false);
+    setAddress(url);
+    sendTab({ type: "browser.navigate", projectId: props.projectId, url });
+  };
+
+  // A finished load of a real address goes first in the history, once.
+  function remember(next: BrowserState): void {
+    if (next.loading || !/^https?:/.test(next.url)) return;
+    const list = history();
+    if (list[0]?.url === next.url) {
+      if (next.title && list[0].title !== next.title) {
+        const updated = [{ ...list[0], title: next.title }, ...list.slice(1)];
+        setHistory(updated);
+        saveHistory(props.projectId, updated);
+      }
+      return;
+    }
+    const updated = [{ url: next.url, title: next.title, at: Date.now() }, ...list.filter((v) => v.url !== next.url)].slice(0, 50);
+    setHistory(updated);
+    saveHistory(props.projectId, updated);
+  }
+
+  const setZoom = (value: number) => {
+    setZoomSignal(value);
+    try {
+      if (value === 1) localStorage.removeItem(zoomKey(props.projectId));
+      else localStorage.setItem(zoomKey(props.projectId), String(value));
+    } catch {
+      // Kept until the panel closes.
+    }
+    if (size.width && size.height) sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() });
+  };
+  const zoomStep = (dir: 1 | -1) => {
+    const at = ZOOMS.indexOf(zoom());
+    setZoom(ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, at + dir))]);
+  };
+
+  const find = (backwards = false) => {
+    const text = findText().trim();
+    if (!text) return;
+    sendTab({ type: "browser.find", projectId: props.projectId, text, backwards });
+  };
+  const openFind = () => {
+    setFinding(true);
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>(".browser-find input")?.select());
+  };
+
+  // The frame on screen, as a PNG the user saves. Nothing is sent anywhere.
+  const screenshot = () => {
+    if (!hasPage()) return toast("Det er ingen side å ta bilde av ennå.", "info");
+    const name = `skjermbilde-${hostOf(state()?.url ?? "side").replace(/[^a-z0-9.-]+/gi, "-")}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
+    const save = (href: string) => {
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = name;
+      link.click();
+    };
+    const tab = active();
+    if (native() && tab !== null) {
+      void nativeBridge!.freeze(props.projectId, tab).then((url) => (url ? save(url) : toast("Fikk ikke laget bildet.")));
+      return;
+    }
+    canvas.toBlob((blob) => {
+      if (!blob) return toast("Fikk ikke laget bildet.");
+      const href = URL.createObjectURL(blob);
+      save(href);
+      setTimeout(() => URL.revokeObjectURL(href), 10_000);
+    }, "image/png");
+  };
+
+  const clearData = async () => {
+    const ok = await confirmDialog({
+      title: "Tømme nettlesingsdata?",
+      text: "Informasjonskapsler og hurtigbuffer i panelets nettleser slettes, sammen med lagrede data for siden som er åpen og historikken her. Nettleserprofilen deles av alle prosjektene.",
+      confirm: "Tøm",
+      danger: true,
+    });
+    if (!ok) return;
+    setHistory([]);
+    saveHistory(props.projectId, []);
+    send({ type: "browser.clear-data", projectId: props.projectId });
+  };
+
+  const bookmarks = () => imported()?.bookmarks ?? [];
+  const menuEntries = (): MenuEntry[] => [
+    { label: "Ny fane", icon: IconPlus, keys: "browser.newTab", run: () => newTab(false), disabled: tabs().length >= MAX_TABS },
+    { label: panelFull() ? "Avslutt fullvisning" : "Fullvisning", icon: panelFull() ? IconExitFullView : IconFullView, run: () => setPanelFull(!panelFull()) },
+    "sep",
+    { label: "Finn på siden", icon: IconSearch, run: openFind, disabled: !hasPage() || blank() },
+    {
+      custom: () => (
+        <div class="browser-zoom-row">
+          <span class="menu-name">Zoom</span>
+          <button type="button" class="icon-button" aria-label="Zoom ut" disabled={zoom() === ZOOMS[0]} onClick={() => zoomStep(-1)}>−</button>
+          <button type="button" class="browser-zoom-value" title="Tilbake til 100 %" aria-label="Faktisk størrelse" onClick={() => setZoom(1)}>{Math.round(zoom() * 100)} %</button>
+          <button type="button" class="icon-button" aria-label="Zoom inn" disabled={zoom() === ZOOMS.at(-1)} onClick={() => zoomStep(1)}>+</button>
+        </div>
+      ),
+    },
+    { label: "Ta et skjermbilde", icon: IconImage, run: screenshot, disabled: !hasPage() || blank() },
+    { label: "Spilltesting headless", icon: IconGamepad, demo: true, run: () => setGameCard(!gameCard()), title: "Hva spilltesting uten vindu skal bli" },
+    "sep",
+    {
+      label: "Historikk",
+      icon: IconHistory,
+      children: history().length || imported()?.history.length
+        ? [
+            ...history().slice(0, 12).map((v) => ({ label: v.title || hostOf(v.url), hint: hostOf(v.url), title: v.url, run: () => go(v.url) })),
+            ...(imported()?.history.length
+              ? [{ heading: <span class="menu-heading">Fra Chrome</span> } as MenuEntry, ...imported()!.history.slice(0, 12).map((v) => ({ label: v.title, hint: hostOf(v.url), title: v.url, run: () => go(v.url) }))]
+              : []),
+          ]
+        : [{ label: "Ingen historikk ennå", disabled: true }],
+    },
+    {
+      label: "Bokmerker",
+      icon: IconBookmark,
+      children: bookmarks().length
+        ? bookmarks().slice(0, 30).map((b) => ({ label: b.title, hint: hostOf(b.url), title: b.folder ? `${b.folder}\n${b.url}` : b.url, run: () => go(b.url) }))
+        : [{ label: "Ingen bokmerker ennå", disabled: true }, "sep", { label: "Importer fra Chrome…", run: openChromeImport }],
+    },
+    { label: "Nedlastinger", icon: IconDownload, hint: activeDownloads() ? `${activeDownloads()} pågår` : undefined, run: () => setShowDownloads(true) },
+    { label: "Importer fra Chrome…", icon: IconBookmark, run: openChromeImport },
+    { label: "Tøm nettlesingsdata…", icon: IconTrash, run: clearData },
+  ];
+
+  const blank = () => !state() || state()!.url === "about:blank" || state()!.url === "";
+  const playtestUrl = () => {
+    const p = app.playtest[props.projectId];
+    return p?.status === "running" ? p.url : undefined;
+  };
+
+  // Ny fane's suggestions, built from your projects: this project's running servers, artifacts and
+  // recent pages first, then the other projects', then bookmarks imported from Chrome.
+  const suggestions = createMemo<Suggestion[]>(() => {
+    const out: Suggestion[] = [];
+    const seen = new Set<string>();
+    const add = (item: Suggestion) => {
+      if (seen.has(item.url) || out.length >= 40) return;
+      seen.add(item.url);
+      out.push(item);
+    };
+    const here = props.projectId === LOCAL_SCOPE ? null : props.projectId;
+    const projectIds = [here, ...Object.keys(app.projects).filter((id) => id !== here)];
+    const play = playtestUrl();
+    if (play) add({ url: play, label: "Playtest", hint: hostOf(play), kind: "server", projectId: here });
+    for (const id of projectIds) {
+      const name = id ? app.projects[id]?.name : undefined;
+      // A server once: Playtest's is already there under its own name.
+      for (const server of servers().filter((s) => s.projectId === id && (!play || originOf(s.url) !== originOf(play)))) {
+        add({ url: server.url, label: name ? `${name} · ${server.port}` : hostOf(server.url), hint: hostOf(server.url), kind: "server", projectId: id });
+      }
+      for (const artifact of artifacts().filter((a) => a.projectId === id).slice(0, 6)) {
+        add({ url: artifact.previewUrl, label: artifact.title, hint: name ? `Artifact · ${name}` : "Artifact", kind: "artifact", projectId: id });
+      }
+      const visits = id === props.projectId ? history() : id ? loadHistory(id) : [];
+      for (const v of visits.slice(0, id === props.projectId ? 12 : 4)) add({ url: v.url, label: v.title || hostOf(v.url), hint: hostOf(v.url), kind: "history", projectId: id });
+    }
+    if (props.projectId === LOCAL_SCOPE) for (const v of history().slice(0, 12)) add({ url: v.url, label: v.title || hostOf(v.url), hint: hostOf(v.url), kind: "history" });
+    for (const b of bookmarks().slice(0, 16)) add({ url: b.url, label: b.title, hint: hostOf(b.url), kind: "bookmark" });
+    return out;
+  });
+
+  // The tools on Ny fane, with their keys.
+  const tools = (): Array<{ id: string; label: string; icon: (p: { size?: number }) => JSX.Element; keys?: string; title?: string; run: () => void }> => [
+    { id: "files", label: "Filer", icon: IconFile, keys: "panel.files", run: () => actions.showTab("files") },
+    { id: "terminal", label: "Terminal", icon: IconTerminal, keys: "panel.terminal", run: () => actions.showTab("terminal") },
+    { id: "changes", label: "Endringer", icon: IconDiff, keys: "panel.changes", run: () => actions.showTab("changes") },
+    {
+      id: "side",
+      label: "Sidechat",
+      icon: IconPlusCircle,
+      keys: "thread.side",
+      title: "En ny tråd i prosjektet, ved siden av den du har åpen",
+      run: () => {
+        const thread = focusedThread();
+        if (thread?.projectId === props.projectId) void sideChat(thread);
+        else actions.newThread();
+      },
+    },
+  ];
+
+  // How much fits in the width of Ny fane. Tools are at least 150 px; the suggestions are tiles of at
+  // least 92 px in two rows. What does not fit goes behind one ⋯, which is only there when needed.
+  let newtab: HTMLDivElement | undefined;
+  const [width, setWidth] = createSignal(0);
+  const GAP = 8;
+  const toolsShown = createMemo(() => {
+    const all = tools();
+    const w = width();
+    if (!w) return { shown: all, rest: [] as typeof all, compact: false };
+    const fits = (n: number) => n * 150 + (n - 1) * GAP;
+    let n = all.length;
+    if (fits(n) > w) {
+      n = all.length - 1;
+      while (n > 1 && fits(n) + GAP + 32 > w) n--;
+    }
+    // The keys go when a tool is too narrow to show them beside its name; the tip still has them.
+    const each = (w - (n < all.length ? 32 + GAP : 0) - (n - 1) * GAP) / n;
+    return { shown: all.slice(0, n), rest: all.slice(n), compact: each < 200 };
+  });
+  const tileColumns = createMemo(() => Math.max(2, Math.floor((width() + GAP) / (92 + GAP)) || 4));
+  const suggestionsShown = createMemo(() => {
+    const all = suggestions();
+    const room = tileColumns() * 2;
+    if (all.length <= room) return { shown: all, rest: [] as Suggestion[] };
+    return { shown: all.slice(0, room - 1), rest: all.slice(room - 1) };
+  });
+  const [moreTools, setMoreTools] = createSignal<MenuAnchor | null>(null);
+  const [moreSites, setMoreSites] = createSignal<MenuAnchor | null>(null);
+  const [tipHidden, setTipHidden] = createSignal((() => {
+    try {
+      return localStorage.getItem(TIP_KEY) === "hidden";
+    } catch {
+      return false;
+    }
+  })());
+  const hideTip = () => {
+    setTipHidden(true);
+    try {
+      localStorage.setItem(TIP_KEY, "hidden");
+    } catch {
+      // Hidden for now.
+    }
+  };
+  const showNewtab = () => blank() && !closed() && !!state();
+
+  createEffect(watch(showNewtab, (shown) => {
+    if (!shown) return;
+    requestAnimationFrame(() => {
+      if (!newtab) return;
+      const stop = observeResize(newtab, (entry) => setWidth(Math.round(entry.contentRect.width)));
+      onCleanup(stop);
+    });
+  }));
+
+  const FullButton = () => (
+    <button
+      type="button"
+      class="icon-button browser-full"
+      aria-label={panelFull() ? "Avslutt fullvisning" : "Fullvisning"}
+      title={panelFull() ? "Avslutt fullvisning" : "Fullvisning: panelet over hele bredden"}
+      aria-pressed={panelFull()}
+      onClick={() => setPanelFull(!panelFull())}
+    >
+      <Show when={panelFull()} fallback={<IconFullView size={15} />}><IconExitFullView size={15} /></Show>
+    </button>
+  );
+
+  const tabList = () => (
+        <div
+          class="browser-tablist"
+          role="tablist"
+          aria-label="Faner i nettleseren"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+            const list = [...e.currentTarget.querySelectorAll<HTMLButtonElement>(".browser-tab-main")];
+            const at = list.indexOf(document.activeElement as HTMLButtonElement);
+            if (at < 0) return;
+            e.preventDefault();
+            const next = e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + list.length) % list.length;
+            list[next]?.focus();
+          }}
+        >
+          <For each={tabs()}>
+            {(tab) => (
+              <div class="browser-tab" classList={{ active: tab.id === active() }} data-tab={tab.id} data-fresh={tab.id === fresh() ? "" : undefined} title={isBlank(tab.url) ? "Ny fane" : `${tabTitle(tab)}\n${tab.url}`}>
+                <button
+                  type="button"
+                  role="tab"
+                  class="browser-tab-main"
+                  aria-selected={tab.id === active()}
+                  tabindex={tab.id === active() ? 0 : -1}
+                  onClick={() => showTab(tab.id)}
+                  onAuxClick={(e) => {
+                    if (e.button === 1) {
+                      e.preventDefault();
+                      closeTab(tab.id);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Delete") {
+                      e.preventDefault();
+                      closeTab(tab.id);
+                    }
+                  }}
+                >
+                  <TabIcon tab={tab} />
+                  <span class="browser-tab-title">{tabTitle(tab)}</span>
+                </button>
+                <button type="button" class="browser-tab-close" tabindex="-1" aria-label={`Lukk fanen ${tabTitle(tab)}`} onClick={() => closeTab(tab.id)}><IconClose size={12} /></button>
+              </div>
+            )}
+          </For>
+          <NewTabButton onNew={newTab} disabled={tabs().length >= MAX_TABS} />
+        </div>
+  );
+
+  return (
+    <div class="browser-panel" data-testid="browser-panel">
+      <Show when={props.head?.()} fallback={<div class="browser-tabs">{tabList()}<FullButton /></div>}>
+        {(head) => <Portal mount={head()}><div class="browser-tabs in-head">{tabList()}</div></Portal>}
+      </Show>
+      <form class="browser-bar" onSubmit={navigate}>
+        <span class="browser-nav">
+          <button type="button" class="icon-button" aria-label="Tilbake" title="Tilbake" disabled={!state()?.canGoBack} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "back" })}><IconBack size={15} /></button>
+          <button type="button" class="icon-button" aria-label="Frem" title="Frem" disabled={!state()?.canGoForward} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "forward" })}><IconForward size={15} /></button>
+          <button type="button" class="icon-button" aria-label="Last på nytt" title="Last siden på nytt" onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "reload" })}><IconReload size={15} /></button>
+        </span>
+        <input
+          ref={addressInput}
+          class="input address"
+          aria-label="Adresse"
+          placeholder="Skriv en adresse, for eksempel localhost:3000"
+          spellcheck={false}
+          value={address()}
+          onFocus={(e) => {
+            setEditing(true);
+            e.currentTarget.select();
+          }}
+          onBlur={() => setEditing(false)}
+          onInput={(e) => setAddress(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && editing()) {
+              setAddress(blank() ? "" : state()?.url ?? "");
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <AnnotateButton projectId={props.projectId} tab={active} ready={() => hasPage() && !blank()} url={() => state()?.url ?? ""} />
+        <button
+          type="button"
+          class="icon-button browser-downloads-button"
+          aria-label="Nedlastinger"
+          title={activeDownloads() ? `Nedlastinger: ${activeDownloads()} pågår` : "Nedlastinger"}
+          aria-pressed={showDownloads()}
+          onClick={() => setShowDownloads(!showDownloads())}
+        >
+          <IconDownload size={15} />
+          <Show when={activeDownloads()}><span class="browser-download-dot" aria-hidden="true" /></Show>
+        </button>
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Mer for nettleseren"
+          title="Mer: faner, finn, zoom, skjermbilde, historikk og bokmerker"
+          aria-haspopup="menu"
+          aria-expanded={!!menu()}
+          onClick={(e) => setMenu(menu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
+        >
+          <IconDots size={15} />
+        </button>
+        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label="Nettlesermeny" entries={menuEntries()} onClose={() => setMenu(null)} class="browser-menu" />}</Show>
+      </form>
+      <Show when={finding()}>
+        <form class="browser-find" role="search" aria-label="Finn på siden" onSubmit={(e) => { e.preventDefault(); find(false); }}>
+          <IconSearch size={14} />
+          <input
+            class="search-input"
+            aria-label="Finn på siden"
+            placeholder="Finn på siden"
+            value={findText()}
+            classList={{ miss: findMiss() }}
+            onInput={(e) => { setFindText(e.currentTarget.value); setFindMiss(false); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setFinding(false); }
+              if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); find(true); }
+            }}
+          />
+          <Show when={findMiss()}><span class="browser-find-miss" role="status">Ikke funnet</span></Show>
+          <button type="button" class="icon-button" aria-label="Forrige treff" onClick={() => find(true)}><span class="rot-up"><IconChevron size={13} /></span></button>
+          <button type="button" class="icon-button" aria-label="Neste treff" onClick={() => find(false)}><span class="rot-down"><IconChevron size={13} /></span></button>
+          <button type="button" class="icon-button" aria-label="Lukk søket på siden" onClick={() => setFinding(false)}><IconClose size={13} /></button>
+        </form>
+      </Show>
+      <Show when={gameCard()}>
+        <div class="game-card" role="note" aria-label="Spilltesting headless">
+          <div class="card-head">
+            <strong>Spilltesting headless <span class="demo-badge">Demo</span></strong>
+            <button type="button" class="icon-button" aria-label="Lukk kortet" onClick={() => setGameCard(false)}><IconClose size={13} /></button>
+          </div>
+          <p class="muted">Nettleserpanelet tester nettsider og webapper. Det samme skal kunne gjøres med spill og skrivebordsprogrammer uten vindu, for eksempel en headless Minecraft-klient med Sodium, der modellen styrer spillet, leser skjermbildet og ser i loggen.</p>
+          <ul class="demo-list">
+            <li>Kjøres i en egen, usynlig skjerm, aldri på skrivebordet ditt.</li>
+            <li>Skjermbilder og logg vises her, som for nettsider.</li>
+            <li>Ingenting lastes ned eller startes i denne versjonen.</li>
+          </ul>
+        </div>
+      </Show>
+      <div class="browser-stage" ref={stage}>
+        <Show when={showDownloads()}><DownloadsList onClose={() => setShowDownloads(false)} /></Show>
+        <canvas
+          ref={canvas}
+          class="browser-canvas"
+          tabindex="0"
+          aria-label="Nettsiden"
+          data-testid="browser-canvas"
+          classList={{ hidden: !hasFrame() || native() }}
+          onMouseDown={(e) => mouse("down", e)}
+          onMouseUp={(e) => mouse("up", e)}
+          onMouseMove={(e) => {
+            pendingMove = e;
+            onNextFrame(flushMove);
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+          onKeyDown={(e) => key("down", e)}
+          onKeyUp={(e) => key("up", e)}
+          on:wheel={{
+            passive: true,
+            handleEvent: (e: WheelEvent) => input({ kind: "wheel", ...toPage(e), deltaX: e.deltaX, deltaY: e.deltaY, modifiers: modifiers(e) }),
+          }}
+        />
+        <Show when={showNewtab()}>
+          <div class="browser-newtab" data-testid="browser-newtab" ref={newtab}>
+            {/* Chat has the Browser panel only, so the tools are Kode's. */}
+            <Show when={mode() === "code"}>
+            <h3 class="newtab-title">Verktøy</h3>
+            <div class="newtab-tools" classList={{ compact: toolsShown().compact }}>
+              <For each={toolsShown().shown}>
+                {(tool) => (
+                  <button type="button" class="newtab-tool" title={tool.title ?? (toolsShown().compact && tool.keys ? `${tool.label} (${displayKeys(keysFor(tool.keys))})` : undefined)} onClick={tool.run}>
+                    <tool.icon size={15} /><span>{tool.label}</span>
+                    <Show when={tool.keys && keysFor(tool.keys!)}><kbd class="menu-keys">{displayKeys(keysFor(tool.keys!))}</kbd></Show>
+                  </button>
+                )}
+              </For>
+              <Show when={toolsShown().rest.length}>
+                <button
+                  type="button"
+                  class="icon-button newtab-more"
+                  aria-label="Flere verktøy"
+                  title="Flere verktøy"
+                  aria-haspopup="menu"
+                  aria-expanded={!!moreTools()}
+                  onClick={(e) => setMoreTools(moreTools() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
+                >
+                  <IconDots size={15} />
+                </button>
+              </Show>
+              <Show when={moreTools()}>
+                {(anchor) => <ContextMenu anchor={anchor()} label="Flere verktøy" entries={toolsShown().rest.map((t) => ({ label: t.label, icon: t.icon, keys: t.keys, run: t.run }))} onClose={() => setMoreTools(null)} />}
+              </Show>
+            </div>
+            </Show>
+            <h3 class="newtab-title">Foreslått</h3>
+            <Show
+              when={suggestions().length}
+              fallback={<p class="newtab-empty">Servere som kjører, artifacts og sider du besøker i prosjektene dine, foreslås her.</p>}
+            >
+              <div class="newtab-suggestions" style={`--cols:${tileColumns()}`}>
+                <For each={suggestionsShown().shown}>
+                  {(s) => (
+                    <button type="button" class="newtab-site" data-kind={s.kind} title={s.url} onClick={() => go(s.url)}>
+                      <span class="newtab-site-icon"><SuggestionIcon item={s} size={20} /></span>
+                      <span class="newtab-site-label">{s.label}</span>
+                      <span class="newtab-site-host">{s.hint}</span>
+                    </button>
+                  )}
+                </For>
+                <Show when={suggestionsShown().rest.length}>
+                  <button
+                    type="button"
+                    class="newtab-site newtab-site-more"
+                    aria-haspopup="menu"
+                    aria-expanded={!!moreSites()}
+                    onClick={(e) => setMoreSites(moreSites() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}
+                  >
+                    <span class="newtab-site-icon"><IconDots size={18} /></span>
+                    <span class="newtab-site-label">Flere</span>
+                    <span class="newtab-site-host">{suggestionsShown().rest.length} til</span>
+                  </button>
+                </Show>
+              </div>
+              <Show when={moreSites()}>
+                {(anchor) => (
+                  <ContextMenu
+                    anchor={anchor()}
+                    label="Flere forslag"
+                    class="newtab-more-menu"
+                    entries={suggestionsShown().rest.map((s) => ({ label: s.label, hint: s.hint, title: s.url, icon: s.kind === "artifact" ? IconArtifact : s.kind === "bookmark" ? IconBookmark : IconGlobe, run: () => go(s.url) }))}
+                    onClose={() => setMoreSites(null)}
+                  />
+                )}
+              </Show>
+            </Show>
+            <Show when={!tipHidden() && imported() && !imported()!.importedAt}>
+              <div class="newtab-tip" role="note" aria-label="Tips: importer fra Chrome">
+                <IconBookmark size={15} />
+                <span>Har du bokmerker i Chrome? Ta dem med hit, så blir de foreslått her.</span>
+                <button type="button" class="btn btn-small" onClick={openChromeImport}>Importer…</button>
+                <button type="button" class="icon-button" aria-label="Skjul tipset" title="Skjul tipset" onClick={hideTip}><IconClose size={13} /></button>
+              </div>
+            </Show>
+          </div>
+        </Show>
+        <Show when={native() && !showNewtab() ? still() : null}>
+          {(src) => <img class="browser-still" src={src()} alt="" aria-hidden="true" draggable={false} style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;user-select:none" />}
+        </Show>
+        <Show when={!hasPage() && !showNewtab()}>
+          <div class="browser-empty">
+            {closed() ? (
+              <>
+                <p>Nettleseren ble lukket fordi ingen har brukt den på en stund.</p>
+                <button type="button" class="btn btn-small" onClick={open}>Start igjen</button>
+              </>
+            ) : (
+              <p>Starter nettleseren…</p>
+            )}
+          </div>
+        </Show>
+      </div>
+    </div>
+  );
+}

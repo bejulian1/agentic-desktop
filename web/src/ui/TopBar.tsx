@@ -1,0 +1,584 @@
+// The top of the window. Left: the menu, the sidebar button, and back and forward, small and
+// quiet, in the column they belong to: past the row of icons when the sidebar is that row, and with
+// no sidebar button then, since the row has its own (SPEC 24.1). Middle: Chat and Kode, only when the
+// sidebar is out of sight, and the focused thread's name. Right, in a fixed order so nothing jumps:
+// in Kode the project's name, Stopp alt only while something runs, Playtest and the changes chip;
+// then the pane buttons (Del til høyre, Del nedover, and Lukk ruten only with more than one pane
+// where the panes have no head of their own); then the panel buttons in the style chosen in
+// Innstillinger → Utseende (SPEC 24.2), and last an empty place for the window controls of the
+// Electron version, which takes no width in a browser.
+import { createMemo, createSignal, For, Show } from "solid-js";
+import type { ReasoningEffort } from "../../../shared/protocol";
+import { formatCost, formatTokens } from "../lib/format";
+import { app, currentProject, mode, modelFor, modelName, panelOpen, pinnedSummary, railEnabled, renameThread, report, scope, setPanelOpen, setPinnedSummary, setSidebarOpen, sidebarOpen, untitled } from "../state/app";
+import { actions, focusedThread, focusedThreadId, forkThread } from "../state/actions";
+import { openPalette, profileOpen } from "../state/nav";
+import { openThread } from "../state/navigate";
+import { peekModel } from "../state/thread-model";
+import { openInWindow, setPinned, toggleArchived } from "../state/thread-actions";
+import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
+import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
+import { IconFullView, IconWindow } from "./nav-icons";
+import { Popover } from "./Popover";
+import { gridFor, MAX_PANES } from "../state/grid";
+import { openDetachedWindow } from "../state/windows";
+import { openVscode, runningInProject, startPlaytest, stopAll, stopPlaytest } from "../state/project-actions";
+import { onPanelHome, panelFull, setPanelFull, showPanel, showPanelHome, togglePanel } from "../state/panel";
+import { artifactPanel } from "../state/artifact-panel";
+import { room } from "../state/artifacts";
+import { displayKeys, keysFor } from "../state/shortcuts";
+import {
+  IconArchive, IconBack, IconBranch, IconChat, IconChevron, IconChevronDown, IconClose, IconCode, IconLaptop, IconDetach, IconDots, IconDownload, IconForward, IconKeyboard, IconPanel, IconPanelAdd,
+  IconPin, IconPlay, IconSearch, IconSidebar, IconSplitDown, IconSplitRight, IconStop, IconTerminal,
+} from "./icons";
+import { MainMenu } from "./MenuBar";
+import { WindowControls } from "./WindowControls";
+import { openProjectPicker } from "./Composer";
+import { ModeSwitch } from "./ModeSwitch";
+import { ProjectGlyph } from "./ProjectGlyph";
+import { paneTools } from "./Pane";
+import { PANEL_TOOLS, NEEDS_PROJECT_TIP, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
+import { inStack, placement, setPlacement, stacking, stackTools } from "../state/stack";
+
+const EFFORT_LABELS: Record<ReasoningEffort, string> = { none: "Ingen", low: "Lav", medium: "Middels", high: "Høy", xhigh: "Svært høy", max: "Maks" };
+const PERMISSION_LABELS: Record<string, string> = { ask: "Spør", "accept-edits": "Godta redigeringer", full: "Full tilgang" };
+
+// The focused pane's thread name at the top of the middle. A click opens a small card to rename it,
+// and › shows what the thread runs with and what it has used, with the thread actions.
+function ThreadTitle() {
+  const [open, setOpen] = createSignal(false);
+  const [details, setDetails] = createSignal(false);
+  const thread = createMemo(() => (room() || profileOpen() ? undefined : focusedThread()));
+  const model = createMemo(() => (thread() ? peekModel(thread()!.id) : undefined));
+  let input!: HTMLInputElement;
+
+  const close = () => {
+    setOpen(false);
+    setDetails(false);
+  };
+  const save = () => {
+    const t = thread();
+    const title = input?.value.trim();
+    if (t && title && title !== t.title) renameThread(t.id, title).catch(report);
+    close();
+  };
+  const messages = () => {
+    let n = 0;
+    for (const chunk of model()?.chunks() ?? []) for (const row of chunk.rows()) if (row.kind === "user") n++;
+    return n;
+  };
+  const effort = () => {
+    const t = thread();
+    const value = t?.reasoning ?? modelFor(t?.modelId)?.effort;
+    return value ? EFFORT_LABELS[value] : "Standard";
+  };
+  const usage = () => model()?.usage();
+  const run = (fn: () => unknown) => {
+    close();
+    void fn();
+  };
+
+  return (
+    <Show when={!untitled(thread()) && thread()}>
+      {(t) => (
+        <Popover
+          open={open()}
+          onClose={close}
+          below
+          class="topbar-title"
+          trigger={
+            <button
+              type="button"
+              class="topbar-title-button"
+              data-testid="topbar-title"
+              title={t().title}
+              aria-haspopup="dialog"
+              aria-expanded={open()}
+              onClick={() => {
+                if (open()) return close();
+                setOpen(true);
+                requestAnimationFrame(() => input?.select());
+              }}
+            >
+              {t().title}
+            </button>
+          }
+        >
+          <div class="title-card" role="dialog" aria-label="Tråden">
+            <div class="title-card-field">
+              <input
+                ref={input}
+                class="title-card-input"
+                aria-label="Gi nytt navn"
+                value={t().title}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    save();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    close();
+                  }
+                }}
+              />
+              <button type="button" class="icon-button title-card-more" aria-label={details() ? "Skjul detaljer" : "Vis detaljer"} aria-expanded={details()} title="Informasjon og innstillinger" onClick={() => setDetails(!details())}>
+                <span class="fold-chevron" classList={{ open: details() }}><IconChevron size={13} /></span>
+              </button>
+            </div>
+            <Show when={details()}>
+              <dl class="title-card-facts" data-testid="title-details">
+                <dt>Modell</dt><dd>{modelName(t().modelId)} · {effort()}</dd>
+                <Show when={t().mode === "code" && t().projectId}>
+                  <dt>Tillatelser</dt><dd>{PERMISSION_LABELS[app.projects[t().projectId!]?.permissionMode ?? "ask"]}{t().permissionCap ? ` (høyst ${PERMISSION_LABELS[t().permissionCap!]})` : ""}</dd>
+                </Show>
+                <dt>Prosjekt</dt><dd>{t().projectId ? app.projects[t().projectId!]?.name ?? "–" : "Ingen (Chat)"}</dd>
+                <Show when={t().forkedFrom}>
+                  <dt>Gaffel av</dt>
+                  <dd>
+                    <Show when={forkSource(t())} fallback={<>{t().forkedFrom!.title} (slettet)</>}>
+                      <button type="button" class="link-button title-card-link" onClick={() => run(() => openForkSource(t()))}>{forkSourceTitle(t())}</button>
+                    </Show>
+                  </dd>
+                </Show>
+                <dt>Opprettet</dt><dd>{new Date(t().createdAt).toLocaleString("nb-NO", { dateStyle: "medium", timeStyle: "short" })}</dd>
+                <dt>Meldinger</dt><dd>{model()?.hasOlder() ? `minst ${messages()}` : messages()}</dd>
+                <dt>Tokens</dt><dd>{usage() ? `${formatTokens(usage()!.inputTokens + usage()!.outputTokens)}${usage()!.costUsd !== null ? ` · ${formatCost(usage()!.costUsd!)}` : ""}` : "0"}</dd>
+                <dt>Festet sammendrag</dt>
+                <dd><label class="title-card-switch"><input type="checkbox" class="switch" checked={pinnedSummary()} onChange={(e) => setPinnedSummary(e.currentTarget.checked)} aria-label="Festet sammendrag" />{pinnedSummary() ? "På" : "Av"}</label></dd>
+              </dl>
+              <div class="title-card-actions">
+                <button type="button" class="btn btn-small" onClick={() => run(() => setPinned(t(), !t().pinned))}><IconPin size={13} />{t().pinned ? "Løsne" : "Fest"}</button>
+                <button type="button" class="btn btn-small" title="En ny tråd med hele historikken. Tråden her er som før." onClick={() => run(() => forkThread(t().id))}><IconBranch size={13} />Lag gaffel</button>
+                <button type="button" class="btn btn-small" onClick={() => run(() => openInWindow(t()))}><IconWindow size={13} />Åpne i nytt vindu</button>
+                <button type="button" class="btn btn-small" onClick={() => run(() => toggleArchived(t()))}><IconArchive size={13} />{t().archived ? "Gjenopprett" : "Arkiver"}</button>
+              </div>
+            </Show>
+          </div>
+        </Popover>
+      )}
+    </Show>
+  );
+}
+
+// "+109 −24 · 9 filer": what the focused thread has changed, shown only when it has changed
+// something. A click opens Endringer.
+function ChangesChip() {
+  const totals = createMemo(() => {
+    const thread = focusedThread();
+    if (!thread || mode() !== "code" || room() || profileOpen()) return null;
+    const rows = peekModel(thread.id)?.changes() ?? [];
+    let additions = 0;
+    let deletions = 0;
+    const files = new Set<string>();
+    for (const row of rows) {
+      if (row.reverted) continue;
+      for (const file of row.files) {
+        additions += file.additions;
+        deletions += file.deletions;
+        files.add(file.path);
+      }
+    }
+    return files.size ? { additions, deletions, files: files.size } : null;
+  });
+  return (
+    <Show when={totals()}>
+      {(t) => (
+        <button type="button" class="changes-chip" data-testid="changes-chip" title="Endringer i tråden: åpne Endringer" onClick={() => actions.showTab("changes")}>
+          <span class="add">+{t().additions}</span>
+          <span class="del">−{t().deletions}</span>
+          <span class="changes-chip-files">· {t().files} {t().files === 1 ? "fil" : "filer"}</span>
+        </button>
+      )}
+    </Show>
+  );
+}
+
+
+const narrowPanes = matchMedia("(max-width: 720px)");
+const [panesAsTabs, setPanesAsTabs] = createSignal(narrowPanes.matches);
+narrowPanes.addEventListener("change", () => setPanesAsTabs(narrowPanes.matches));
+const narrowWindow = matchMedia("(max-width: 860px)");
+const [narrow, setNarrow] = createSignal(narrowWindow.matches);
+narrowWindow.addEventListener("change", () => setNarrow(narrowWindow.matches));
+
+const away = () => !!room() || profileOpen();
+const grid = () => {
+  const key = scope();
+  return key ? gridFor(key) : null;
+};
+
+// Del til høyre, Del nedover, and Lukk ruten for the pane with focus. Always in the same place; they
+// are dimmed rather than gone in the Artifacts room. Lukk ruten is here only when there is more than
+// one pane and the panes have no head of their own (as tabs in a narrow window); in a wide window
+// each pane's head has its own (SPEC 24.1).
+function PaneButtons() {
+  const count = () => grid()?.count() ?? 1;
+  const full = () => count() >= MAX_PANES;
+  const split = (side: "right" | "bottom") => {
+    const g = grid();
+    if (!g || away()) return;
+    g.split(g.focused(), side); // At six it says so in a toast.
+  };
+  const tip = (name: string, keys?: string) => (away() ? `${name}: gå tilbake til trådene først` : full() ? `${name}: høyst ${MAX_PANES} ruter` : keys ? `${name} (${keys})` : name);
+  return (
+    <div class="topbar-group pane-buttons" role="group" aria-label="Ruter">
+      <button
+        type="button"
+        class="icon-button"
+        classList={{ "is-disabled": away() || full() }}
+        data-testid="new-pane"
+        title={tip("Del til høyre: ny rute ved siden av", displayKeys(keysFor("pane.new")))}
+        aria-label="Del til høyre"
+        aria-disabled={away() ? "true" : undefined}
+        onClick={() => split("right")}
+      >
+        <IconSplitRight />
+      </button>
+      <button
+        type="button"
+        class="icon-button"
+        classList={{ "is-disabled": away() || full() }}
+        title={tip("Del nedover: ny rute under")}
+        aria-label="Del nedover"
+        aria-disabled={away() ? "true" : undefined}
+        onClick={() => split("bottom")}
+      >
+        <IconSplitDown />
+      </button>
+      <Show when={count() > 1 && panesAsTabs() && !away()}>
+        <button type="button" class="icon-button" title="Lukk ruten" aria-label="Lukk ruten" onClick={() => grid()?.close(grid()!.focused())}><IconClose /></button>
+      </Show>
+    </div>
+  );
+}
+
+// ⋯ Flere valg: what used to stand on the pane's own row, for the pane with focus, and the project's
+// less used tools. Never empty: the command palette and the shortcuts are always there.
+function MoreMenu() {
+  const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
+  const entries = (): MenuEntry[] => {
+    const out: MenuEntry[] = [];
+    const project = mode() === "code" && !away() ? currentProject() : undefined;
+    const thread = away() ? undefined : focusedThread();
+    const model = thread ? peekModel(thread.id) : undefined;
+    const rows = !!model && (model.chunks().length > 0 || model.hasOlder());
+    const g = grid();
+    const paneId = g?.focused();
+    if (rows && paneId) {
+      out.push(
+        { label: "Søk i samtalen", icon: IconSearch, hint: displayKeys("Mod+F"), run: () => paneTools.get(paneId)?.search() },
+        { label: "Eksporter til Markdown", icon: IconDownload, title: "Lagrer samtalen som en .md-fil", run: () => paneTools.get(paneId)?.exportMarkdown() },
+      );
+    }
+    if (thread?.mode === "code") out.push({ label: "Festet sammendrag", icon: IconPin, toggle: pinnedSummary(), keys: "view.summary", title: "Mål, plan og et kort sammendrag øverst i samtalen", run: () => setPinnedSummary(!pinnedSummary()) });
+    if (g && paneId && thread && !untitled(thread)) {
+      out.push({
+        label: "Løsriv ruten til eget vindu",
+        icon: IconDetach,
+        run: () => {
+          const entry = g.detach(paneId);
+          if (entry) openDetachedWindow(entry);
+        },
+      });
+    }
+    if (project) {
+      if (out.length) out.push("sep");
+      out.push({ label: "Åpne i VS Code", icon: IconCode, title: "Åpne prosjektmappen i VS Code", run: () => openVscode(project.id) });
+    }
+    if (out.length) out.push("sep");
+    out.push(
+      { label: "Kommandopalett", icon: IconTerminal, keys: "palette.open", run: () => openPalette() },
+      { label: "Hurtigtaster", icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts },
+    );
+    return out;
+  };
+  return (
+    <>
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Flere valg"
+        title="Flere valg"
+        aria-haspopup="menu"
+        aria-expanded={!!anchor()}
+        data-testid="more-options"
+        onClick={(e) => setAnchor(anchor() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
+      >
+        <IconDots />
+      </button>
+      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Flere valg" entries={entries()} onClose={() => setAnchor(null)} class="more-options-menu" />}</Show>
+    </>
+  );
+}
+
+// + Legg til sidepanel: every panel there is, and where it stands. One place to steer the panels from.
+function AddPanelMenu() {
+  const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
+  const place = (full: boolean, where?: "right" | "below") => {
+    setPanelFull(full);
+    if (where) setPlacement(where);
+    if (!panelOpen()) setPanelOpen(true);
+  };
+  // Round 12 (SPEC 26.3): stacked, a tool joins the panels that are open, where Plassering says:
+  // in a new column to the right, or under the panel used last. Under is there once a panel is open.
+  const stacked = () => stacking();
+  const anyOpen = () => stacked() && panelOpen() && stackTools().length > 0;
+  const entries = (): MenuEntry[] => [
+    { heading: <span class="menu-heading">Sidepanel</span> },
+    ...(stacked()
+      ? []
+      : [{ label: "Startside", icon: IconPanel, chosen: panelOpen() && onPanelHome() && app.settings.panelStart !== "tabs", disabled: app.settings.panelStart === "tabs", title: app.settings.panelStart === "tabs" ? "Startsiden er av: Innstillinger → Utseende → Sidepanel" : "Verktøyene som fliser", run: showPanelHome } as MenuEntry]),
+    ...PANEL_TOOLS.map((tool) => ({
+      label: tool.label,
+      icon: tool.icon,
+      keys: tool.keys,
+      chosen: stacked() ? panelOpen() && inStack(tool.id) : shownTool() === tool.id,
+      disabled: toolBlocked(tool),
+      title: toolBlocked(tool) ? NEEDS_PROJECT_TIP : tool.tip,
+      run: () => showPanel(tool.id),
+    })),
+    "sep",
+    { heading: <span class="menu-heading">Plassering</span> },
+    {
+      label: "Til høyre",
+      icon: IconPanel,
+      chosen: panelOpen() && !panelFull() && (!anyOpen() || placement() === "right"),
+      title: anyOpen() ? "Neste panel får en egen kolonne til høyre" : "Ved siden av samtalen. Under 860 px legger panelet seg over samtalen.",
+      run: () => place(false, stacked() ? "right" : undefined),
+    },
+    ...(anyOpen()
+      ? [{ label: "Under", icon: IconSplitDown, chosen: !panelFull() && placement() === "below", title: "Neste panel legger seg under det du brukte sist", run: () => place(false, "below") } as MenuEntry]
+      : []),
+    { label: "Fullvisning", icon: IconFullView, chosen: panelOpen() && panelFull(), title: "Over hele bredden ved siden av sidefanen", run: () => place(true) },
+  ];
+  return (
+    <>
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Legg til sidepanel"
+        title="Legg til sidepanel"
+        aria-haspopup="menu"
+        aria-expanded={!!anchor()}
+        data-testid="add-panel"
+        onClick={(e) => setAnchor(anchor() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
+      >
+        <IconPanelAdd />
+      </button>
+      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Legg til sidepanel" entries={entries()} onClose={() => setAnchor(null)} class="add-panel-menu" />}</Show>
+    </>
+  );
+}
+
+// The separate buttons (Hver for seg): Økt (round 12, SPEC 26.2), then Terminal, Endringer, Nettleser
+// and Filer, each on and off. Oversikt is on the start page and in +. Stacked (SPEC 26.3), each
+// button opens and closes its own panel beside the others.
+const SEPARATE: Array<{ id: "session" | "terminal" | "changes" | "browser" | "files"; on: string; off: string }> = [
+  { id: "session", on: "Skjul øktpanel", off: "Vis øktpanel" },
+  { id: "terminal", on: "Skjul Terminal", off: "Terminal" },
+  { id: "changes", on: "Skjul Endringer", off: "Endringer" },
+  { id: "browser", on: "Skjul Nettleser", off: "Nettleser" },
+  { id: "files", on: "Skjul Filer", off: "Filer" },
+];
+
+// Round 11 (SPEC 24.2): Samlet is ⋯, the panel on and off, a thin line and +. Hver for seg is ⋯ and one
+// button per panel, then the line and +. Chat has no panels (SPEC 24.5), so only ⋯ is left there. In
+// a narrow window Hver for seg takes too much room, so it is Samlet there.
+function PanelButtons() {
+  const separate = () => app.settings.panelButtons === "separate" && !narrow();
+  const code = () => mode() === "code";
+  return (
+    <div class="topbar-group panel-buttons" role="group" aria-label="Panelknapper" data-style={separate() ? "separate" : "together"}>
+      <MoreMenu />
+      <Show when={code()}>
+        <Show
+          when={separate()}
+          fallback={
+            <button
+              type="button"
+              class="icon-button panel-toggle"
+              classList={{ "is-disabled": away() }}
+              title={`Vis eller skjul panelet (${displayKeys(keysFor("view.panel"))})`}
+              aria-label="Vis eller skjul panelet"
+              aria-pressed={panelOpen() && !away() && !artifactPanel()}
+              aria-disabled={away() ? "true" : undefined}
+              onClick={() => !away() && togglePanel()}
+            >
+              <IconPanel />
+            </button>
+          }
+        >
+          <For each={SEPARATE}>
+            {(item) => {
+              const tool = toolById(item.id);
+              const on = () => toolOpen(item.id) && !away();
+              const blocked = () => toolBlocked(tool);
+              return (
+                <button
+                  type="button"
+                  class="icon-button panel-toggle"
+                  classList={{ "is-disabled": away() || blocked() }}
+                  data-tool={item.id}
+                  title={blocked() ? `${tool.label}: ${NEEDS_PROJECT_TIP}` : toolTitle(tool, on() ? item.on : item.off)}
+                  aria-label={item.id === "session" ? "Øktpanel" : tool.label}
+                  aria-pressed={on()}
+                  aria-disabled={away() || blocked() ? "true" : undefined}
+                  onClick={() => !away() && !blocked() && toggleTool(item.id)}
+                >
+                  <tool.icon />
+                </button>
+              );
+            }}
+          </For>
+        </Show>
+        <span class="topbar-divider" aria-hidden="true" />
+        <AddPanelMenu />
+      </Show>
+    </div>
+  );
+}
+
+export function TopBar() {
+  const project = currentProject;
+  const running = createMemo(() => {
+    const p = project();
+    return p && mode() === "code" ? runningInProject(p.id) : 0;
+  });
+  const playtest = createMemo(() => {
+    const p = project();
+    return p ? app.playtest[p.id] : undefined;
+  });
+  const playing = () => playtest()?.status === "running" || playtest()?.status === "starting";
+  // The row of icons has its own Vis sidefanen (SPEC 24.1), so it is not here as well. Below 860 px
+  // there is no row, and the button is back.
+  const railShown = () => !sidebarOpen() && railEnabled() && !narrow();
+
+  return (
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-nav">
+          <MainMenu />
+          <Show when={!railShown()}>
+            <button type="button" class="icon-button" title={`Sidefane (${displayKeys(keysFor("view.sidebar"))})`} aria-label="Vis eller skjul sidefanen" aria-pressed={sidebarOpen()} onClick={() => setSidebarOpen(!sidebarOpen())}><IconSidebar /></button>
+          </Show>
+          <button type="button" class="icon-button" title={`Tilbake (${displayKeys(keysFor("thread.back"))})`} aria-label="Forrige tråd" disabled={!actions.canGoBack()} onClick={actions.back}><IconBack /></button>
+          <button type="button" class="icon-button" title={`Frem (${displayKeys(keysFor("thread.forward"))})`} aria-label="Neste tråd" disabled={!actions.canGoForward()} onClick={actions.forward}><IconForward /></button>
+        </div>
+        <Show when={!sidebarOpen()}><StartCrumb /></Show>
+      </div>
+      <div class="topbar-mid">
+        {/* With the sidebar open the left column is only as wide as the sidebar, so the crumb stands
+            where the main area starts instead, with room for the project's whole name. */}
+        <Show when={sidebarOpen()}><StartCrumb /></Show>
+        <ModeSwitch class="topbar-mode" />
+        <ThreadTitle />
+        <OriginTag />
+      </div>
+      <div class="topbar-right">
+        <Show when={mode() === "code" && project()}>
+          <div class="project-label" title={project()!.path}>
+            <ProjectGlyph project={project()!} size={14} /><span class="project-name">{project()!.name}</span>
+          </div>
+          <Show when={running() > 0}>
+            <button type="button" class="top-chip danger" data-testid="stop-all" title="Stopper alle tråder i prosjektet" aria-label={`Stopp alt (${running()})`} onClick={() => stopAll(project()!.id).catch(report)}>
+              <IconStop size={12} /><span class="hide-small">Stopp alt</span><span class="count">{running()}</span>
+            </button>
+          </Show>
+          <Show
+            when={!playing()}
+            fallback={
+              <button
+                type="button"
+                class="top-chip playtest-chip"
+                data-state={playtest()?.status}
+                title={playtest()?.status === "starting" ? "Playtest starter. Trykk for å stoppe." : `Playtest kjører${playtest()?.url ? ` på ${playtest()!.url}` : ""}. Trykk for å stoppe.`}
+                aria-label="Stopp playtest"
+                onClick={() => stopPlaytest(project()!.id)}
+              >
+                <span class="playtest-dot" aria-hidden="true" /><span class="playtest-label">Playtest</span><span class="playtest-stop" aria-hidden="true"><IconStop size={11} />Stopp</span>
+              </button>
+            }
+          >
+            <button type="button" class="icon-button" title="Playtest: start prosjektet og åpne det i Nettleser-panelet" aria-label="Playtest" onClick={() => startPlaytest(project()!.id)}><IconPlay /></button>
+          </Show>
+        </Show>
+        <ChangesChip />
+        <PaneButtons />
+        <span class="topbar-divider" aria-hidden="true" />
+        <PanelButtons />
+        {/* The window controls of the Electron version (minimise, maximise, close), right of the panel
+            buttons. Empty and without width in a browser (WindowControls.tsx). */}
+        <WindowControls />
+      </div>
+    </header>
+  );
+}
+
+// On a start page, where the thread has no name yet, the left of the top bar says where you are:
+// Kode › the project (or Denne datamaskinen), and a click on the project opens the project picker
+// of the focused pane. In Chat it is just Chat. With a named thread the name in the middle says it.
+function StartCrumb() {
+  const show = () => !away() && untitled(focusedThread());
+  const paneKey = () => focusedThreadId() ?? grid()?.focused() ?? null;
+  const project = () => (mode() === "code" ? currentProject() : undefined);
+  return (
+    <Show when={show()}>
+      <nav class="topbar-crumb" aria-label="Hvor du er" data-testid="topbar-crumb">
+        <span class="crumb-mode">
+          <Show when={mode() === "code"} fallback={<><IconChat size={14} />Chat</>}><IconCode size={14} />Kode</Show>
+        </span>
+        <Show when={mode() === "code"}>
+          <span class="crumb-sep" aria-hidden="true"><IconChevron size={11} /></span>
+          <button
+            type="button"
+            class="crumb-project"
+            title={project() ? `${project()!.path}: bytt prosjekt` : "Velg prosjekt"}
+            onClick={() => {
+              const key = paneKey();
+              if (key) openProjectPicker(key);
+            }}
+          >
+            <Show when={project()} fallback={<><IconLaptop size={13} /><span>Denne datamaskinen</span></>}>
+              {(p) => <><ProjectGlyph project={p()} size={13} /><span>{p().name}</span></>}
+            </Show>
+            <IconChevronDown size={11} />
+          </button>
+        </Show>
+      </nav>
+    </Show>
+  );
+}
+
+// With one pane its head is gone (SPEC 24.1), so «Laget av …» stands beside the name up here.
+// Round 14 (SPEC 30.3): a fork shows where it came from the same way.
+function OriginTag() {
+  const solo = () => {
+    const g = grid();
+    return !!g && g.count() <= 1 && !away();
+  };
+  const parent = createMemo(() => {
+    if (!solo()) return undefined;
+    const id = focusedThread()?.parentThreadId;
+    return id ? app.threads[id] : undefined;
+  });
+  const fork = createMemo(() => (solo() && !parent() && forkSource(focusedThread()) ? focusedThread() : undefined));
+  return (
+    <>
+      <Show when={parent()}>
+        {(p) => (
+          <button type="button" class="origin-tag topbar-origin" title={`Laget av ${p().title}`} onClick={() => void openThread(p())}>
+            <IconBranch size={12} /><span>{p().title}</span>
+          </button>
+        )}
+      </Show>
+      <Show when={fork()}>
+        {(t) => (
+          <button type="button" class="origin-tag topbar-origin" data-testid="fork-origin" title={`Gaffel av ${forkSourceTitle(t())}. Trykk for å åpne den.`} onClick={() => void openForkSource(t())}>
+            <IconBranch size={12} /><span>{forkSourceTitle(t())}</span>
+          </button>
+        )}
+      </Show>
+    </>
+  );
+}

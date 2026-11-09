@@ -1,0 +1,26 @@
+/* The Electron app (SPEC 29.1): the window has no frame, so the top bar moves it, and the window
+   controls stand at its right end. Only with data-shell="electron" on the root; a browser never
+   gets it, and the place for the controls keeps no width there (runde11.css). */
+:root[data-shell="electron"] { --window-controls-w: 116px; }
+
+:root[data-shell="electron"] .topbar { -webkit-app-region: drag; user-select: none; }
+/* Everything you can press, type in or open stays clickable, also menus and dialogs that come out
+   over the top bar. */
+:root[data-shell="electron"] .topbar :is(button, a, input, textarea, select, label, summary, [role="button"], [role="tab"], [role="menuitem"], [contenteditable="true"], [tabindex]:not([tabindex="-1"])),
+:root[data-shell="electron"] :is(.popover, .context-menu, [role="menu"], [role="dialog"], [role="listbox"], .toasts) { -webkit-app-region: no-drag; }
+
+.window-controls[data-shell] {
+  display: flex; align-items: center; justify-content: flex-end; gap: 2px;
+  margin-left: var(--space-1); -webkit-app-region: no-drag;
+}
+.window-control {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 36px; height: 28px;
+  border-radius: var(--radius-sm); color: var(--text-3);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.window-control:hover { background: var(--hover); color: var(--text); }
+.window-control:active { background: var(--active); }
+.window-control:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+/* Lukk turns red on hover, as close buttons do; white on it holds 4.5:1 in both themes. */
+.window-control.close:hover { background: #d4372c; color: #ffffff; }
+.window-control.close:active { background: #b52d23; color: #ffffff; }

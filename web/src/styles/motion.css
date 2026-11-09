@@ -1,0 +1,202 @@
+/* Motion: one set of durations and curves for the whole app, and the animations that use them.
+   Loaded last, after the other stylesheets.
+
+   Rules, from SPEC 8: only transform and opacity move, so every animation here can run on the
+   compositor. Nothing animates width, height, top, left or box-shadow, and nothing loops unless
+   something is running. Enter animations use a `from` keyframe and no fill mode, so the element
+   ends on its own style and a finished animation leaves nothing behind in getAnimations().
+   Reduced motion, from the system or from Innstillinger → Reduser bevegelse, sets every duration
+   to zero and stops the loops. */
+
+/* 1. Tokens */
+
+:root {
+  --dur-1: 90ms; /* hover, press, colour */
+  --dur-2: 160ms; /* popovers, tooltips, folds, chevrons, markers */
+  --dur-3: 240ms; /* dialogs, toasts, panels, new messages */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); /* the standard curve; the pane FLIP in GridView uses it too */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1); /* fast start, long soft landing, for bigger surfaces */
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1); /* a small overshoot, for things that pop */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* for what leaves */
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1); /* for the calm loops while something runs */
+  --fast: var(--dur-1); /* the old name, kept for anything still using it */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; }
+}
+:root[data-motion="reduce"] { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after { animation-delay: 0ms !important; }
+
+/* 2. Keyframes. Each one only says where it starts; the element's own style is where it ends. */
+
+@keyframes ad-fade { from { opacity: 0; } }
+@keyframes ad-pop { from { opacity: 0; transform: translate(var(--pop-x, 0px), var(--pop-y, 4px)) scale(var(--pop-scale, 0.97)); } }
+@keyframes ad-lift { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+@keyframes ad-rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes ad-unfold { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes ad-toast { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes ad-toast-out { to { opacity: 0; transform: translateX(24px); } }
+@keyframes ad-side-left { from { opacity: 0; transform: translateX(-12px); } }
+@keyframes ad-side-right { from { opacity: 0; transform: translateX(12px); } }
+@keyframes ad-icon-in { from { opacity: 0; transform: scale(0.6); } }
+@keyframes ad-breathe { 50% { opacity: 0.5; } }
+@keyframes ad-dot { 0%, 100% { opacity: 1; transform: none; } 50% { opacity: 0.45; transform: scale(0.8); } }
+@keyframes ad-skeleton { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* 3. Popovers, menus, submenus and hover cards: fade and scale from the point they open from. */
+
+.popover, .slash-menu, .help-card, .ring-pop, .chat-search, .browser-downloads {
+  transform-origin: bottom left;
+  animation: ad-pop var(--dur-2) var(--ease-out);
+}
+.popover.right { transform-origin: bottom right; }
+.popover.below, .popover.main-menu-drop { transform-origin: top left; --pop-y: -4px; }
+.popover.below.right { transform-origin: top right; }
+/* A fixed popover opens down when Popover gave it a top, and up when it gave it a bottom. */
+.popover.fixed { transform-origin: bottom right; }
+.popover.fixed[style*="top"] { transform-origin: top right; --pop-y: -4px; }
+.popover.context-menu { transform-origin: top left; --pop-y: -4px; }
+.popover.context-menu:not([data-depth="0"]), .popover.submenu { transform-origin: top left; --pop-x: -4px; --pop-y: 0px; }
+.popover.hover-card { transform-origin: left top; --pop-x: -4px; --pop-y: 0px; }
+.ring-pop { transform-origin: bottom right; }
+.chat-search, .browser-downloads { transform-origin: top right; --pop-y: -4px; }
+.slash-menu, .help-card { --pop-scale: 0.985; }
+/* Round 10: the + menu in the Browser panel opens from its right edge, and a tab made with + slides in. */
+.popover.newtab-menu { transform-origin: top right; }
+.browser-tab[data-fresh] { animation: ad-pop var(--dur-2) var(--ease-out); transform-origin: left center; --pop-x: -6px; --pop-y: 0px; --pop-scale: 0.96; }
+.minimap-card { animation: ad-fade var(--dur-1) var(--ease-out); }
+
+/* 4. Dialogs: a fade and a small lift. The backdrop only fades. */
+
+dialog[open] { animation: ad-lift var(--dur-3) var(--ease-emphasized); }
+dialog[open]::backdrop { animation: ad-fade var(--dur-2) var(--ease-out); }
+.image-viewer { animation: ad-fade var(--dur-2) var(--ease-out); }
+.image-viewer img { animation: ad-lift var(--dur-3) var(--ease-emphasized); }
+.settings-page { animation: ad-fade var(--dur-2) var(--ease-out); }
+.settings-section { animation: ad-rise var(--dur-2) var(--ease-out); }
+.profile-page, .artifacts-room { animation: ad-fade var(--dur-2) var(--ease-out); }
+
+/* 5. Toasts slide in from below. The one that leaves is a copy made in ui/dialogs.tsx. */
+
+.toast { animation: ad-toast var(--dur-3) var(--ease-spring); }
+.toast-ghost { position: fixed; z-index: 81; margin: 0; pointer-events: none; animation: ad-toast-out var(--dur-2) var(--ease-in) forwards; }
+
+/* 6. The tooltip: a quick fade and a 2 px settle. Moving from one tip to the next shows it at once
+   (ui/Tooltip.tsx adds .instant). */
+
+.app-tooltip { transform: translateY(2px); transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.app-tooltip.visible { transform: none; }
+.app-tooltip.instant { transition: none; }
+
+/* 7. New messages: a quiet rise. Only rows that arrived a moment ago have data-enter (ui/rows.tsx),
+   so loading history and scrolling back to old rows show them as they are. */
+
+.row[data-enter] { animation: ad-rise var(--dur-3) var(--ease-out); }
+.approval-card { animation: ad-rise var(--dur-3) var(--ease-out); }
+.to-bottom { animation: ad-pop var(--dur-2) var(--ease-out); --pop-y: 4px; --pop-scale: 0.9; }
+
+/* 8. Folding: the arrow turns, and what folds out fades in from just above. Only after a click on
+   the row's own button (ui/Motion.tsx marks it for a moment), so content that mounts open, or
+   mounts again while scrolling, is simply there. */
+
+.fold-chevron, .step-chevron, .work-chevron, .context-chevron { transition: transform var(--dur-2) var(--ease-out), opacity var(--dur-1) var(--ease-out); }
+[data-unfold] > .tool-body, [data-unfold] > .thinking-text, [data-unfold] > .steps-list, [data-unfold] > .agents-list, [data-unfold] > .bg-list, [data-unfold] > .pinned-body, [data-unfold] > .group-body, [data-unfold] > .smart-group-body {
+  animation: ad-unfold var(--dur-2) var(--ease-out);
+}
+
+/* 9. Something running: calm, slow and only while it runs. */
+
+.pulse { animation: ad-breathe 2.4s var(--ease-in-out) infinite; }
+/* Round 10 (SPEC 23.10): status text while something runs («Tenker…», «Jobber… 12s», a step that
+   runs) has a slow shimmer: one gradient clipped to the text, a light band moving left to right
+   over muted text. It runs only while the text is on screen (lib/visible.ts sets data-visible) and
+   stops when the class goes, when the turn is done. Reduced motion: still, muted text. */
+.shimmer {
+  color: transparent;
+  background-image: linear-gradient(100deg, var(--text-3) 0%, var(--text-3) 40%, var(--text) 50%, var(--text-3) 60%, var(--text-3) 100%);
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ad-shimmer 2.2s linear infinite;
+  animation-play-state: paused;
+}
+.shimmer[data-visible] { animation-play-state: running; }
+@keyframes ad-shimmer { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; color: var(--text-3); background: none; }
+}
+:root[data-motion="reduce"] .shimmer { animation: none; color: var(--text-3); background: none; }
+.thread-dot.running, .pane-dot.running, .smart-state[data-state="running"]::before { animation: ad-dot 2s var(--ease-in-out) infinite; }
+.agent-face[data-state="running"]::after { animation: ad-dot 2s var(--ease-in-out) infinite; }
+.spinner { animation-duration: 1s; }
+
+/* The stop button: a thin arc turns slowly round it while the turn runs. */
+.send-button { position: relative; }
+.send-button.stop::before {
+  content: ""; position: absolute; inset: -3px; border-radius: 50%; pointer-events: none;
+  border: 1.5px solid transparent; border-top-color: var(--accent); border-right-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  animation: spin 1.4s linear infinite;
+}
+.send-button > svg { animation: ad-icon-in var(--dur-2) var(--ease-spring); }
+
+/* 10. Markers that glide: ui/Motion.tsx moves a copy of the selected background from the old
+   choice to the new one, with transform only, and hides the real one meanwhile. */
+
+.glide-ghost { position: absolute; z-index: -1; pointer-events: none; transform-origin: 0 0; }
+.gliding { isolation: isolate; }
+.gliding [aria-pressed="true"], .gliding [aria-selected="true"], .gliding [aria-current="page"], .gliding .pane-tab.on { background: transparent !important; box-shadow: none !important; }
+
+/* 11. The sidebar and the right panel slide in a little as they open. Not when the app starts:
+   until ui/Motion.tsx sets data-motion-ready the same animations take no time. Only the duration
+   changes when it is set, so a panel that is already open does not slide in again. */
+
+.sidebar { animation: ad-side-left var(--dur-3) var(--ease-emphasized); }
+.right-panel { animation: ad-side-right var(--dur-3) var(--ease-emphasized); }
+.scrim { animation: ad-fade var(--dur-2) var(--ease-out); }
+:root:not([data-motion-ready]) .sidebar, :root:not([data-motion-ready]) .right-panel, :root:not([data-motion-ready]) .scrim { animation-duration: 0s; }
+/* Round 10 (SPEC 23.9): closing, the sidebar's text fades out first (app.ts waits for it), then the
+   thin row of icons fades in where the sidebar was. Opening, the sidebar slides in as before. */
+.sidebar-rail { animation: ad-fade var(--dur-2) var(--ease-out); }
+:root:not([data-motion-ready]) .sidebar-rail { animation-duration: 0s; }
+:root[data-sidebar-closing] .sidebar > * { opacity: 0; transition: opacity var(--dur-1) var(--ease-in); }
+
+/* 12. Press feedback: a small scale on icon buttons and round buttons, a darker row on rows. */
+
+.icon-button, .send-button, .foot-icon, .msg-action, .goal-button, .chip-image-x, .to-bottom, .mode-button {
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.icon-button:active:not(:disabled), .foot-icon:active:not(:disabled), .msg-action:active:not(:disabled), .goal-button:active:not(:disabled), .mode-button:active:not(:disabled) { transform: scale(0.94); }
+.send-button:active:not(:disabled), .to-bottom:active { transform: scale(0.92); }
+.btn { transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.menu-item:active:not(:disabled), .nav-item:active:not(:disabled), .thread-item:active:not(:disabled), .tree-item:active:not(:disabled), .fold:active:not(:disabled), .step-head:active:not(:disabled), .steps-head:active:not(:disabled), .changes-file:active:not(:disabled), .agent-row:active:not(:disabled), .palette-item:active:not(:disabled), .home-recent-item:active:not(:disabled), .overview-link:active:not(:disabled), .panel-tab:active:not(:disabled), .pane-tab:active:not(:disabled), .context-chip:active:not(:disabled), .foot-chip:active:not(:disabled) { background: var(--active); }
+
+/* 13. Copy receipts: the icon turns into a check and back.
+   The check and the "Kopiert" label are display: none until data-done, and fade in and out the
+   same way with @starting-style and a discrete display transition. Laid out with opacity 0 and a
+   transform under every message, they cost an extra paint chunk each, and Layerize then took up to
+   10 ms per frame while a long thread scrolled (npm run perf, docs/perf-latest.md). */
+
+.msg-action .copy-ok { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--ok); opacity: 0; transform: scale(0.6); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring), display var(--dur-2) allow-discrete; }
+.msg-action > svg { transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.msg-action[data-done] > svg { opacity: 0; transform: scale(0.6); }
+.msg-action[data-done] .copy-ok { display: inline-flex; opacity: 1; transform: none; }
+.msg-done { display: none; transform: translate(-50%, 3px); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out), display var(--dur-2) allow-discrete; }
+.msg-action[data-done] .msg-done { display: block; transform: translate(-50%, 0); }
+@starting-style {
+  .msg-action[data-done] .copy-ok { opacity: 0; transform: scale(0.6); }
+  .msg-action[data-done] .msg-done { opacity: 0; transform: translate(-50%, 3px); }
+}
+.md-copy { display: inline-flex; align-items: center; gap: 4px; }
+.md-copy[data-done] { color: var(--ok); }
+.md-copy[data-done]::before {
+  content: ""; width: 12px; height: 12px; background: currentColor; animation: ad-icon-in var(--dur-2) var(--ease-spring);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* 14. Loading: placeholders breathe slowly, and come in late, so a quick answer never flashes them. */
+
+.skeleton { border-radius: var(--radius-sm); background: var(--surface-3); animation: ad-fade var(--dur-3) var(--ease-out) 120ms backwards, ad-skeleton 1.6s var(--ease-in-out) 360ms infinite; }

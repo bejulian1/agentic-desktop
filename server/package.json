@@ -1,0 +1,17 @@
+{
+  "name": "@agentic-desktop/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ignore": "^7.0.5",
+    "node-pty": "^1.1.0",
+    "playwright-core": "^1.64.1",
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2"
+  }
+}

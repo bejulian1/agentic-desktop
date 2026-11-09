@@ -1,0 +1,22 @@
+# Avhengigheter og bygg (lages av npm ci, npm run build og npm run dist)
+node_modules/
+web/dist/
+desktop/build/
+dist-desktop/
+*.tsbuildinfo
+
+# Tester og bilder fra testene
+server/test/
+web/test/
+desktop/test/
+docs/screenshots/
+docs/perf/
+docs/perf-latest.md
+docs/review/
+docs/design-ref/
+
+# Lokale filer
+.env
+.env.*
+*.log
+.DS_Store

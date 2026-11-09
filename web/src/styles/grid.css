@@ -1,0 +1,71 @@
+/* Panes as multitasking: splitter handles, the drop preview and the motion between layouts.
+   Only transform and opacity move. The layout itself changes at once, see ui/GridView.tsx. */
+
+.grid-surface .pane { transform-origin: 0 0; transition: opacity var(--dur-2) var(--ease-out); }
+.grid-surface .pane.lifted { opacity: 0.45; }
+
+/* A closed pane fades where it was while the others grow into its place. */
+.pane-leaving { position: absolute; z-index: 1; padding: 3px; pointer-events: none; transform-origin: 0 0; }
+.pane-leaving::before {
+  content: ""; display: block; width: 100%; height: 100%;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+
+/* Splitter: a wide, invisible hit area with a small pill that shows on hover, drag and focus. */
+.splitter {
+  width: 12px; margin-left: -6px; display: flex; align-items: center; justify-content: center;
+  outline: none; cursor: col-resize; touch-action: none;
+}
+.splitter.col { width: auto; height: 12px; margin-left: 0; margin-top: -6px; cursor: row-resize; }
+.splitter::after {
+  content: ""; flex: none; width: 4px; height: min(40px, 40%); border-radius: var(--radius-full);
+  background: var(--text-3); opacity: 0; transform: scale(0.6);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring), background-color var(--dur-1) var(--ease-out);
+}
+.splitter.col::after { width: min(40px, 40%); height: 4px; }
+.splitter:hover::after, .splitter.active::after, .splitter:focus-visible::after { opacity: 1; transform: none; }
+.splitter.active::after { background: var(--text-2); }
+.splitter.snap::after, .splitter:focus-visible::after { background: var(--accent); }
+.grid-surface.dragging .splitter { pointer-events: none; }
+
+/* Drop preview: a soft, rounded box where the pane will land, and what will happen. */
+.drop-zone {
+  position: absolute; z-index: 40; background: none; opacity: 1; border-radius: 0;
+  pointer-events: none; transform-origin: 0 0;
+}
+.drop-zone::before {
+  content: ""; position: absolute; inset: 6px; border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.drop-zone.full::before {
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--warn) 60%, transparent);
+  box-shadow: none;
+}
+.drop-label {
+  position: absolute; z-index: 41; transform: translate(-50%, -50%); pointer-events: none;
+  padding: 5px 12px; border-radius: var(--radius-full); white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow-pop);
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--accent);
+}
+.drop-label.full { color: var(--warn); }
+
+.drag-ghost { border-radius: var(--radius-full); padding: 5px 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .splitter::after { transform: none; }
+}
+
+/* While the pointer is on a splitter, or drags it: small marks where it snaps (1/3, 1/2, 2/3). */
+.splitter-tick {
+  position: absolute; z-index: 4; width: 2px; height: 14px; margin: -7px 0 0 -1px; border-radius: var(--radius-full);
+  background: var(--text-3); opacity: 0.55; pointer-events: none; animation: ad-fade var(--dur-2) var(--ease-out);
+}
+.splitter-tick.col { width: 14px; height: 2px; margin: -1px 0 0 -7px; }
+
+/* Several panes: the one with focus carries the project row and the pinned summary. The others
+   keep only the message field, so half the window is not chrome repeated. */
+.grid-surface.multi .pane-inner:not(.focused) .pinned,
+.grid-surface.multi .pane-inner:not(.focused) .composer-context { display: none; }

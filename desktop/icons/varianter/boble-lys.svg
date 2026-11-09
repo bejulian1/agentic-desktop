@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Snakkeboble, lys: the same mark as an outline, as it stands on the start page. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eeede9"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="12" width="112" height="108" rx="26" fill="#c9c6bf"/>
+  <rect x="8" y="8" width="112" height="106" rx="26" fill="url(#tile)"/>
+  <rect x="8.75" y="8.75" width="110.5" height="104.5" rx="25.25" fill="none" stroke="#000000" stroke-opacity="0.06" stroke-width="1.5"/>
+  <g transform="translate(64 62) scale(0.94) translate(-64 -62)">
+  <path d="M64 28c19.9 0 35.5 13.3 35.5 30.3S83.9 88.6 64 88.6c-4.1 0-7.9-.53-11.5-1.5L36 97.5l3-15.1C31.9 76.9 28.5 68.2 28.5 58.3 28.5 41.3 44.1 28 64 28Z" fill="none" stroke="#1b1b1a" stroke-width="7.4" stroke-linejoin="round"/>
+  <path d="m50 51 9.4 7.3L50 65.6M65.6 68.3H79" fill="none" stroke="#2f6fe4" stroke-width="7.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

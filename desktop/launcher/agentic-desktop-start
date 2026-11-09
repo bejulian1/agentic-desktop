@@ -1,0 +1,90 @@
+#!/bin/sh
+# Starts Agentic Desktop (SPEC 29.2). In the package this script is `agentic-desktop` itself, and
+# Electron is `agentic-desktop-bin` next to it, so every way in goes through here: the .desktop file,
+# an Exec line GNOME Shell still holds from an older install (bygg 28 pointed straight at Electron,
+# and a running gnome-shell kept starting that on 8 November 2026), the .deb's /usr/bin link and the
+# AppImage. `agentic-desktop-start` is a link to this script, for the Exec line of bygg 29.
+#
+# Chromium's sandbox needs a user namespace, or a chrome-sandbox owned by root with the setuid bit.
+# Ubuntu 24.04 and later (kernel.apparmor_restrict_unprivileged_userns=1) give a user namespace only
+# to a program whose AppArmor profile allows it, and without one Chromium aborts before the app's own
+# code runs, so the window never shows. Electron decides this in its first milliseconds, before
+# main.js, so the choice has to be made here:
+#   - the sandbox can start: the app starts as before, with the sandbox
+#   - it cannot: the app starts with --no-sandbox, and main.ts then keeps web pages out of Electron
+#     (the Browser panel uses the server's Chrome, which has a sandbox of its own) and says so in
+#     Innstillinger -> Om
+# The check runs at every start, so the sandbox is back by itself once the profile is loaded.
+# The script replaces itself with the app (exec): the app keeps this PID, and nothing is left of it.
+#
+#   agentic-desktop-start --sandbox-status   prints the choice and why, and starts nothing
+set -u
+
+here=$(dirname -- "$(readlink -f -- "$0")")
+app="$here/agentic-desktop-bin"
+
+# The AppArmor label this script runs under, which the app inherits unless a profile is attached to
+# the app's own path.
+label() {
+  cat /proc/self/attr/apparmor/current 2>/dev/null || cat /proc/self/attr/current 2>/dev/null || echo unconfined
+}
+
+can_userns() {
+  command -v unshare >/dev/null 2>&1 && unshare --user --map-root-user true >/dev/null 2>&1
+}
+
+suid_helper() {
+  [ "$(stat -c %u:%a -- "$here/chrome-sandbox" 2>/dev/null)" = "0:4755" ]
+}
+
+# The profile from desktop/apparmor (installed with sudo) is loaded, is attached to this path
+# (@{HOME}/.local/opt/agentic-desktop/agentic-desktop-bin, where @{HOME} is /home/<name>/ or /root/),
+# and lets a process under it make a user namespace.
+profile_allows() {
+  case "$app" in
+    /root/.local/opt/agentic-desktop/agentic-desktop-bin) ;;
+    /home/*/.local/opt/agentic-desktop/agentic-desktop-bin)
+      rest=${app#/home/}
+      [ "${rest#*/}" = ".local/opt/agentic-desktop/agentic-desktop-bin" ] || return 1
+      ;;
+    *) return 1 ;;
+  esac
+  loaded=no
+  for dir in /sys/kernel/security/apparmor/policy/profiles/agentic-desktop.*; do
+    [ "$(cat "$dir/name" 2>/dev/null)" = agentic-desktop ] && loaded=yes
+  done
+  [ "$loaded" = yes ] || return 1
+  command -v aa-exec >/dev/null 2>&1 && command -v unshare >/dev/null 2>&1 || return 1
+  aa-exec -p agentic-desktop -- unshare --user --map-root-user true >/dev/null 2>&1
+}
+
+# Prints why the sandbox can start, or fails.
+sandbox_reason() {
+  restrict=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)
+  if [ "$restrict" != 1 ]; then
+    # No AppArmor rule for user namespaces: Chromium's own check, as before this script.
+    if can_userns; then echo "brukernavnerom virker"; return 0; fi
+    if suid_helper; then echo "chrome-sandbox er setuid root"; return 0; fi
+    return 1
+  fi
+  # Started from a program whose profile allows user namespaces (the app inherits it). Not tried as
+  # plain "unconfined", which always fails here and would only write a refusal to the journal.
+  if [ "$(label)" != unconfined ] && can_userns; then echo "arver en AppArmor-profil med userns ($(label))"; return 0; fi
+  if profile_allows; then echo "AppArmor-profilen agentic-desktop er lastet"; return 0; fi
+  if suid_helper; then echo "chrome-sandbox er setuid root"; return 0; fi
+  return 1
+}
+
+if reason=$(sandbox_reason); then
+  if [ "${1:-}" = --sandbox-status ]; then echo "sandkasse: på ($reason)"; exit 0; fi
+  exec "$app" "$@"
+fi
+if [ "${1:-}" = --sandbox-status ]; then
+  if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ]; then
+    echo "sandkasse: av (AppArmor-profilen for Agentic Desktop mangler)"
+  else
+    echo "sandkasse: av (maskinen gir ikke brukernavnerom, og chrome-sandbox er ikke setuid root)"
+  fi
+  exit 0
+fi
+exec "$app" --no-sandbox "$@"

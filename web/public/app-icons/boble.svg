@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Snakkeboble med terminal: the mark from the middle of the Kode start page (IconMark), as an app icon. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4483f2"/>
+      <stop offset="1" stop-color="#2459d1"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="12" width="112" height="108" rx="26" fill="#1a44a6"/>
+  <rect x="8" y="8" width="112" height="106" rx="26" fill="url(#tile)"/>
+  <rect x="8.75" y="8.75" width="110.5" height="104.5" rx="25.25" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1.5"/>
+  <g transform="translate(64 62) scale(0.9) translate(-64 -62)">
+  <path d="M64 25c21.6 0 39 14.5 39 33.3S85.6 91.6 64 91.6c-4.4 0-8.5-.57-12.4-1.6L34 101l3.2-16.3C29.4 78.7 25 69.1 25 58.3 25 39.5 42.4 25 64 25Z" fill="#ffffff"/>
+  <path d="m48 50.5 10.3 8L48 66.5M65.2 69H80.3" fill="none" stroke="#2459d1" stroke-width="8.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

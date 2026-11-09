@@ -1,0 +1,335 @@
+/* Innstillinger (runde 5, agent C). Lastes etter styles.css og bruker de samme tokenene.
+   Del 1 er innstillingene som virker i hele appen: state/look.ts setter data-attributter og
+   variabler på <html>, og public/theme.js gjør det samme før første maling. Del 2 er selve siden. */
+
+/* 1. Hele appen */
+
+/* Aksentfarge. Blå er standard og står i styles.css. */
+/* In dark mode the lighter accents carry dark text (--on-accent), as graphite does: white on them
+   is under 4.5:1. node scripts/kontrast.ts checks every accent in both modes. */
+:root[data-accent="violet"] { --accent: #7247d6; --accent-hover: #6139c2; --accent-soft: rgba(114, 71, 214, 0.1); --accent-text: #6139c2; --selection: #e2d8fb; }
+:root[data-theme="dark"][data-accent="violet"] { --accent: #9d7af2; --accent-hover: #b296ff; --on-accent: #1b1b1b; --accent-soft: rgba(157, 122, 242, 0.18); --accent-text: #bba2ff; --selection: #46386f; }
+:root[data-accent="green"] { --accent: #1d8350; --accent-hover: #177244; --accent-soft: rgba(29, 131, 80, 0.1); --accent-text: #177244; --selection: #d3efdf; }
+:root[data-theme="dark"][data-accent="green"] { --accent: #3fb47b; --accent-hover: #5cc792; --on-accent: #1b1b1b; --accent-soft: rgba(63, 180, 123, 0.17); --accent-text: #74d6a4; --selection: #234a37; }
+:root[data-accent="orange"] { --accent: #b9531a; --accent-hover: #a4481a; --accent-soft: rgba(207, 95, 31, 0.1); --accent-text: #b3501a; --selection: #fbe1d1; }
+:root[data-theme="dark"][data-accent="orange"] { --accent: #ec8443; --accent-hover: #f39b63; --on-accent: #1b1b1b; --accent-soft: rgba(236, 132, 67, 0.17); --accent-text: #f5a674; --selection: #5a3a25; }
+:root[data-accent="pink"] { --accent: #cc3a80; --accent-hover: #b52f70; --accent-soft: rgba(204, 58, 128, 0.1); --accent-text: #b2306e; --selection: #f8d7e7; }
+:root[data-theme="dark"][data-accent="pink"] { --accent: #ea6aa8; --accent-hover: #f287bb; --on-accent: #1b1b1b; --accent-soft: rgba(234, 106, 168, 0.17); --accent-text: #f49cc6; --selection: #5c2f45; }
+:root[data-accent="red"] { --accent: #c62a2f; --accent-hover: #ad2229; --accent-soft: rgba(198, 42, 47, 0.1); --accent-text: #b0242a; --selection: #f8d5d5; }
+:root[data-theme="dark"][data-accent="red"] { --accent: #f2716b; --accent-hover: #f68c87; --on-accent: #1b1b1b; --accent-soft: rgba(242, 113, 107, 0.17); --accent-text: #f89a95; --selection: #5c2c2b; }
+:root[data-accent="graphite"] { --accent: #55565c; --accent-hover: #44454a; --accent-soft: rgba(85, 86, 92, 0.1); --accent-text: #44454a; --selection: #dcdcdf; }
+:root[data-theme="dark"][data-accent="graphite"] { --accent: #a9aab0; --accent-hover: #c0c1c5; --accent-soft: rgba(169, 170, 176, 0.18); --accent-text: #cacbcf; --on-accent: #1b1b1b; --selection: #45464b; }
+
+/* Tekststørrelse. 14 px er standard. */
+:root[data-ui-size="13"] { --text-2xs: 10px; --text-xs: 11px; --text-sm: 12px; --text-md: 13px; --text-lg: 14px; --text-xl: 16px; --text-2xl: 21px; --text-hero: 26px; }
+:root[data-ui-size="15"] { --text-2xs: 12px; --text-xs: 13px; --text-sm: 14px; --text-md: 15px; --text-lg: 16px; --text-xl: 18px; --text-2xl: 23px; --text-hero: 30px; }
+:root[data-ui-size="16"] { --text-2xs: 12.5px; --text-xs: 13.5px; --text-sm: 15px; --text-md: 16px; --text-lg: 17px; --text-xl: 19px; --text-2xl: 24px; --text-hero: 32px; }
+
+/* Tetthet: rader og kontroller. */
+:root[data-density="compact"] { --row-h: 28px; --control-h: 30px; --control-h-sm: 26px; --icon-button: 26px; }
+:root[data-density="comfortable"] { --row-h: 36px; --control-h: 34px; --control-h-sm: 30px; --icon-button: 30px; }
+:root[data-density="compact"] .setting { min-height: 52px; padding-block: 9px; }
+:root[data-density="comfortable"] .setting { min-height: 70px; padding-block: 15px; }
+:root[data-density="compact"] .settings-nav .nav-item { height: 30px; }
+:root[data-density="comfortable"] .settings-nav .nav-item { height: 38px; }
+
+/* Kodeskrift. Systemets stabel står igjen bak, i tilfelle skriften ikke er installert. */
+:root[data-code-font="ubuntu"] { --font-mono: "Ubuntu Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
+:root[data-code-font="dejavu"] { --font-mono: "DejaVu Sans Mono", ui-monospace, monospace; }
+:root[data-code-font="jetbrains"] { --font-mono: "JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
+:root[data-code-font="fira"] { --font-mono: "Fira Code", ui-monospace, "DejaVu Sans Mono", monospace; }
+:root[data-code-font="cascadia"] { --font-mono: "Cascadia Code", "Cascadia Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
+
+/* Skriftstørrelse for kode, bare når den er valgt. */
+:root[data-code-size] .md-code pre,
+:root[data-code-size] .md-raw,
+:root[data-code-size] .tool-output,
+:root[data-code-size] .diff-lines,
+:root[data-code-size] .approval-detail,
+:root[data-code-size] .code-area,
+:root[data-code-size] .code-view { font-size: var(--code-font-size); }
+
+/* Tabulatorbredde og linjebryting i kode i tråden. */
+pre, .tool-output, .diff-lines, .code-area, .code-view { tab-size: var(--tab-size, 4); }
+:root[data-wrap-code] .md-code pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Reduser bevegelse, også når systemet ikke ber om det. Samme regler som media-spørringen. */
+:root[data-motion="reduce"] .spinner,
+:root[data-motion="reduce"] .pulse,
+:root[data-motion="reduce"] .thread-dot.running { animation: none; }
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after { transition: none !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+
+/* 2. Siden */
+
+.settings-search {
+  position: relative; display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 2px var(--space-2); padding: 0 6px 0 10px;
+  border-radius: var(--radius-md); background: var(--hover); color: var(--text-3);
+}
+.settings-search:focus-within { background: var(--surface); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+.settings-search-input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--text); font: inherit; font-size: var(--text-md); }
+.settings-search-input::placeholder { color: var(--text-3); }
+.settings-search-input::-webkit-search-cancel-button { display: none; }
+.settings-search-clear { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: var(--radius-full); color: var(--text-3); }
+.settings-search-clear:hover { background: var(--active); color: var(--text); }
+
+button.setting.search-result { width: 100%; text-align: left; color: var(--text); font: inherit; min-height: 52px; transition: background-color var(--dur-1) var(--ease-out); }
+button.setting.search-result:hover { background: var(--hover); }
+.search-empty { margin: 0; }
+.search-hit { animation: settings-hit 1.6s ease-out; }
+@keyframes settings-hit { from { background: var(--accent-soft); } to { background: transparent; } }
+
+.settings-page .btn-quiet { background: none; border-color: transparent; color: var(--text-2); }
+.settings-page .btn-quiet:hover { background: var(--hover); color: var(--text); }
+.settings-page .link-button { align-self: flex-start; padding: 2px 0; color: var(--text-3); font-size: var(--text-sm); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.settings-page .link-button:hover { color: var(--text); }
+
+/* Merker i radene */
+.beta-badge {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--radius-xs); vertical-align: 1px;
+  font: var(--weight-semibold) var(--text-2xs)/16px var(--font-sans); letter-spacing: 0.02em; color: var(--accent-text); background: var(--accent-soft);
+}
+.key-tag {
+  display: inline-block; margin-left: 8px; padding: 0 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-xs); vertical-align: 1px;
+  font-size: var(--text-2xs); line-height: 16px; color: var(--text-2); font-weight: var(--weight-regular);
+}
+.beta-note { margin: calc(-1 * var(--space-4)) 0 var(--space-4); font-size: var(--text-xs); color: var(--text-3); }
+.settings-group + .beta-note { margin-top: calc(-1 * var(--space-5)); }
+
+/* Leverandører */
+/* Two letters and a fixed hue per provider, the same tint recipe as the task marks in Oversikt. */
+.provider-glyph {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; border-radius: var(--radius-sm);
+  background: hsl(var(--glyph-hue, 220) 55% 50% / 0.14); color: hsl(var(--glyph-hue, 220) 55% 38%);
+  font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: 0.02em;
+}
+:root[data-theme="dark"] .provider-glyph { background: hsl(var(--glyph-hue, 220) 50% 55% / 0.2); color: hsl(var(--glyph-hue, 220) 60% 72%); }
+.model-id { font: var(--text-xs) var(--font-mono); color: var(--text-3); }
+.provider-edit { padding-top: 0; }
+.setting .btn-small .icon { margin-right: 2px; }
+
+.connect-view { display: flex; flex-direction: column; gap: var(--space-4); max-width: 560px; }
+.connect-bar { display: flex; justify-content: space-between; margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-2)) 0; }
+.connect-title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); }
+.connect-title .beta-badge { margin-left: 0; }
+.connect-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.connect-text { margin: 0; color: var(--text-2); font-size: var(--text-md); }
+.connect-label { color: var(--text); font-weight: var(--weight-medium); font-size: var(--text-sm); }
+.connect-advanced { font-size: var(--text-sm); color: var(--text-3); }
+.connect-advanced summary { cursor: pointer; width: max-content; }
+.connect-advanced[open] { display: flex; flex-direction: column; gap: 6px; }
+.connect-advanced[open] summary { margin-bottom: 4px; }
+.connect-advanced a { color: var(--accent-text); }
+.connect-view .beta-note { margin: 0; }
+.connect-view .fetcher { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* Aksentfarger og sidefane */
+.swatches { display: flex; gap: 8px; }
+.swatch {
+  width: 22px; height: 22px; border-radius: var(--radius-full); background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); transition: box-shadow var(--dur-1) var(--ease-out);
+}
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--swatch); }
+.swatch[data-swatch="blue"] { --swatch: #2f6fe4; }
+.swatch[data-swatch="violet"] { --swatch: #7247d6; }
+.swatch[data-swatch="green"] { --swatch: #1d8350; }
+.swatch[data-swatch="orange"] { --swatch: #cf5f1f; }
+.swatch[data-swatch="pink"] { --swatch: #cc3a80; }
+.swatch[data-swatch="red"] { --swatch: #c62a2f; }
+.swatch[data-swatch="graphite"] { --swatch: #55565c; }
+:root[data-theme="dark"] .swatch[data-swatch="blue"] { --swatch: #3d8bfd; }
+:root[data-theme="dark"] .swatch[data-swatch="violet"] { --swatch: #9d7af2; }
+:root[data-theme="dark"] .swatch[data-swatch="green"] { --swatch: #3fb47b; }
+:root[data-theme="dark"] .swatch[data-swatch="orange"] { --swatch: #ec8443; }
+:root[data-theme="dark"] .swatch[data-swatch="pink"] { --swatch: #ea6aa8; }
+:root[data-theme="dark"] .swatch[data-swatch="red"] { --swatch: #f2716b; }
+:root[data-theme="dark"] .swatch[data-swatch="graphite"] { --swatch: #a9aab0; }
+
+.layout-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.layout-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: var(--space-3); text-align: left;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--text); font: inherit; transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.layout-card:hover { background: var(--hover); }
+.layout-card[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.layout-card strong { font-weight: var(--weight-medium); }
+.layout-card .muted { font-size: var(--text-sm); color: var(--text-3); }
+.layout-sketch { display: flex; flex-direction: column; gap: 4px; width: 100%; height: 64px; margin-bottom: var(--space-2); padding: 8px; border-radius: var(--radius-sm); background: var(--bg-sidebar); }
+.layout-sketch i { display: block; height: 5px; width: 70%; border-radius: 3px; background: var(--border-strong); }
+.layout-sketch i:nth-child(odd) { width: 52%; }
+.layout-sketch b { display: block; height: 12px; border-radius: var(--radius-xs); background: var(--surface-3); }
+.layout-sketch[data-layout="smart"] i { margin-top: auto; width: 40%; height: 4px; }
+.layout-sketch[data-layout="smart"] i + i { margin-top: 0; }
+
+@media (max-width: 860px) {
+  .settings-search { width: 100%; margin: 0 0 var(--space-1); }
+  .layout-cards { grid-template-columns: minmax(0, 1fr); }
+  .settings-page .setting { flex-wrap: wrap; }
+  .settings-page .setting-control { flex-wrap: wrap; }
+}
+
+/* Hurtigtaster */
+.shortcut-tools { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-6); }
+.shortcut-search { flex: 1; margin: 0; background: var(--surface-2); }
+.shortcut-row { min-height: 52px; }
+.shortcut-key { display: inline-flex; align-items: center; min-width: 96px; justify-content: flex-end; padding: 2px; border-radius: var(--radius-sm); }
+.shortcut-key:hover kbd { border-color: var(--border-strong); color: var(--text); }
+.shortcut-key kbd { min-width: 64px; text-align: center; font-size: var(--text-xs); padding: 3px 8px; }
+.shortcut-key kbd.empty { color: var(--text-3); font-family: var(--font-sans); }
+.settings-page kbd.fixed { font-size: var(--text-xs); padding: 3px 8px; opacity: 0.8; }
+.shortcut-problem { margin-top: 4px; font-size: var(--text-sm); color: var(--warn); }
+.shortcut-problem .link-button { font-size: var(--text-sm); color: var(--text-2); }
+
+/* Lagring */
+.storage-summary { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
+.storage-total { font-size: var(--text-hero); font-weight: var(--weight-medium); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.storage-bar { display: flex; gap: 2px; height: 12px; margin-bottom: var(--space-6); border-radius: var(--radius-full); overflow: hidden; background: var(--surface-2); }
+.storage-segment { flex-basis: 0; min-width: 3px; }
+.storage-dot { flex: none; width: 10px; height: 10px; border-radius: 3px; }
+.storage-row { min-height: 54px; }
+.storage-bytes { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: var(--text-sm); white-space: nowrap; }
+.storage-action { cursor: pointer; }
+.storage-action input[type="checkbox"] { flex: none; width: 16px; height: 16px; accent-color: var(--accent); }
+.storage-action.disabled { cursor: default; }
+.storage-action.disabled .setting-text strong { color: var(--text-3); }
+.storage-reason { font-style: normal; color: var(--text-2); }
+.storage-days { width: auto; min-width: 0; height: var(--control-h-sm); font-size: var(--text-sm); }
+.storage-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); margin: calc(-1 * var(--space-4)) 0 var(--space-8); }
+.storage-confirm { display: flex; flex-direction: column; gap: var(--space-2); margin: calc(-1 * var(--space-4)) 0 var(--space-8); padding: var(--space-4); border-color: var(--danger); }
+.storage-confirm ul { margin: 0; padding-left: 1.2em; color: var(--text-2); font-size: var(--text-sm); }
+.storage-confirm p { margin: 0; font-size: var(--text-sm); }
+.storage-result { margin: calc(-1 * var(--space-3)) 0 var(--space-6); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--accent-soft); color: var(--accent-text); font-size: var(--text-sm); }
+.storage-path { overflow-wrap: anywhere; }
+.storage-empty { margin: calc(-1 * var(--space-6)) 0 var(--space-8); }
+
+/* Personalisering og minner, and Skills (round 6, agent E) */
+.memory-actions { display: flex; gap: 6px; }
+.memory-tools { min-height: 52px; gap: var(--space-3); }
+.memory-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2); height: var(--control-h); padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--text-3); }
+.memory-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.memory-search-input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--text); }
+.memory-list, .skill-list { list-style: none; margin: 0; padding: 0; }
+.memory-list > .setting, .skill-list > .setting { border-top: 1px solid var(--border); }
+.memory-row { min-height: 54px; }
+.memory-text { overflow-wrap: anywhere; line-height: 1.45; }
+.memory-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.memory-row .setting-control, .skill-row .setting-control { opacity: 0.85; }
+.memory-row:hover .setting-control, .skill-row:hover .setting-control { opacity: 1; }
+.memory-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.memory-input { height: auto; min-height: 56px; padding: 8px 10px; line-height: 1.45; resize: vertical; }
+.memory-form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.memory-form-row .field { flex: 0 1 280px; }
+.memory-count { margin: 0 auto 0 0; align-self: flex-end; padding-bottom: 8px; font-variant-numeric: tabular-nums; }
+.memory-empty { min-height: 52px; }
+.memory-files { margin-top: calc(-1 * var(--space-4)); margin-bottom: var(--space-8); }
+.skill-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.skill-name { font-family: var(--font-mono); font-size: 0.95em; }
+.skill-path { font: var(--text-2xs) var(--font-mono); color: var(--text-3) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skill-row.off .skill-name, .skill-row.off .setting-text > .muted:not(.skill-path) { opacity: 0.6; }
+.skill-form .code-area { min-height: 220px; }
+
+@media (max-width: 860px) {
+  .memory-tools { flex-wrap: wrap; }
+  .memory-row, .skill-row { flex-wrap: wrap; }
+}
+
+/* Round 8 (UI fixes): the app's own select, choice rows, «Kommer senere», Bruk, and small things */
+
+/* Select: a button with the value and a chevron (ui/Select.tsx). */
+.select-button { justify-content: space-between; gap: 8px; min-width: 120px; max-width: 280px; font-weight: var(--weight-regular); }
+.select-button .select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-button > .icon { flex: none; color: var(--text-3); transition: transform var(--dur-2) var(--ease-out); }
+.select-button[aria-expanded="true"] > .icon { transform: rotate(180deg); }
+.field-select { width: 100%; max-width: none; height: var(--control-h); }
+.popover.context-menu.select-menu { min-width: 200px; }
+
+/* Tillatelser: rows with an icon and a check, like the permission menu in the message field. */
+.choice-list { display: flex; flex-direction: column; }
+.choice-row { width: 100%; text-align: left; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out); }
+.choice-row:hover { background: var(--hover); }
+.choice-icon { display: inline-flex; flex: none; color: var(--text-2); }
+.choice-check { display: inline-flex; flex: none; color: var(--accent-text); opacity: 0; transform: scale(0.8); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring); }
+.choice-row[aria-checked="true"] .choice-check { opacity: 1; transform: none; }
+.choice-row[aria-checked="true"] .choice-icon { color: var(--accent-text); }
+
+/* Pages that only describe what is coming: quieter, together at the bottom of the menu. */
+.settings-nav .nav-later { color: var(--text-3); }
+.settings-nav .nav-later .icon { opacity: 0.7; }
+.settings-nav .nav-later[aria-current="page"] { color: var(--text-2); }
+
+/* Generelt: Prøv is a small button of its own, apart from the switch. */
+.try-sound { gap: 4px; padding: 0 8px; }
+.setting-control-sep { width: 1px; height: 18px; margin: 0 4px; background: var(--border); }
+
+/* Bruk: the statistics card fills the card it sits in. */
+.usage-stats-row { padding: var(--space-3); }
+.settings-page .stats-card.usage-stats { display: block; max-width: none; margin: 0; background: none; padding: 0; }
+.usage-stats .stats-bar span { width: 100%; transform-origin: left center; }
+.usage-cost { font-size: var(--text-md); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+
+/* Lagring: cleaning the browser while a download runs. */
+.storage-warning { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-1) 0 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--warn-soft, color-mix(in srgb, var(--warn) 12%, transparent)); color: var(--text); font-size: var(--text-sm); }
+.storage-warning > .icon { flex: none; margin-top: 2px; color: var(--warn); }
+.storage-action input.switch { flex: none; }
+
+/* Om: the build's name with a line that says what it is. */
+.about-signature { display: flex; flex-direction: column; gap: 2px; margin: var(--space-4) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.about-signature .signature { margin: 0; text-align: left; color: var(--text-2); font-size: var(--text-sm); }
+.about-signature .muted { font-size: var(--text-xs); }
+.about-sandbox { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-4) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.about-sandbox .muted { margin: 0; font-size: var(--text-sm); }
+.about-sandbox-command { display: flex; align-items: flex-start; gap: var(--space-2); }
+.about-sandbox-command code { flex: 1; min-width: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-2); font: var(--text-xs)/1.5 var(--font-mono); overflow-wrap: anywhere; user-select: all; }
+
+/* Empty states use one size everywhere. */
+.memory-empty, .memory-empty p, .memory-empty .muted { font-size: var(--text-sm); color: var(--text-3); }
+
+/* The two groups in the menu are invisible in a wide window. */
+.settings-nav-top, .settings-nav-pages { display: contents; }
+
+/* A narrow window: back and search on the first row, and the pages on a second row that scrolls
+   sideways, never a pile of chips, and nothing past the window's edge. */
+@media (max-width: 720px) {
+  .settings-page .settings-nav { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: var(--space-1); max-height: none; min-width: 0; overflow: hidden; padding: var(--space-2) var(--space-2) var(--space-1); }
+  .settings-page .settings-nav-top { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+  .settings-page .settings-nav-top .settings-back { flex: none; width: auto; height: 32px; padding: 0 10px 0 6px; }
+  .settings-page .settings-nav-top .settings-search { flex: 1; min-width: 0; width: auto; margin: 0; }
+  .settings-page .settings-nav-pages { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+  .settings-page .settings-nav-pages .nav-item { flex: none; width: auto; height: 30px; padding: 0 10px; }
+  .settings-page .settings-nav-label { flex: none; width: auto; margin: 0 2px 0 10px; height: 30px; padding: 0 4px; font-size: var(--text-xs); }
+  .settings-page .settings-nav-pages > .settings-nav-label:first-child { margin-left: 2px; }
+  .settings-page .settings-host .host-picker { display: none; }
+}
+
+/* Round 9 */
+
+/* The version, at the bottom of the menu (SPEC 21.6): quiet, and a way to Om. */
+.settings-version {
+  margin-top: auto; align-self: flex-start; padding: var(--space-3) 10px var(--space-1); border-radius: var(--radius-sm);
+  color: var(--text-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; text-align: left;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.settings-version:hover { color: var(--text-2); }
+.settings-version:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+@media (max-width: 720px) { .settings-page .settings-version { display: none; } }
+
+/* Kode → Startsiden: a small drawing of each choice. */
+.start-choice-label { font-weight: var(--weight-medium); }
+.start-cards { margin-top: var(--space-2); }
+.start-card { text-align: left; }
+.start-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.start-sketch {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 100%; height: 76px; margin-bottom: var(--space-2);
+  padding: 8px; border-radius: var(--radius-sm); background: var(--bg-sidebar); overflow: hidden;
+}
+.start-sketch-mark { display: inline-flex; color: var(--text-3); }
+.start-sketch-title { display: block; width: 46%; height: 6px; border-radius: 3px; background: var(--text-3); opacity: 0.55; }
+.start-sketch-title.short { width: 38%; }
+.start-sketch-grid { display: grid; grid-template-columns: repeat(2, 34px); gap: 4px; }
+.start-sketch-grid b { display: block; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong); background: var(--surface); }
+.start-sketch-card { display: flex; flex-direction: column; gap: 3px; width: 58%; padding: 3px 5px; border-radius: 4px; border: 1px solid var(--border-strong); background: var(--surface); }
+.start-sketch-card.thin { padding-block: 2px; }
+.start-sketch-card i { display: block; width: 70%; height: 3px; border-radius: 2px; background: var(--border-strong); }
+.start-sketch-card i + i { width: 52%; }
+.start-card[aria-checked="true"] .start-sketch-mark { color: var(--accent-text); }

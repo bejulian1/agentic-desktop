@@ -1,0 +1,58 @@
+/* Round 15 (SPEC 31.1): the inside of the artifact panel. Loaded with its chunk (ui/ArtifactPanel.tsx),
+   the first time a box is opened; where the panel stands in the window is in runde15.css. */
+
+.artifact-panel-head { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 8px 8px 6px 14px; }
+.artifact-panel-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }
+.artifact-panel-icon .icon { width: 16px; height: 16px; }
+.artifact-panel-heading { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.artifact-panel-heading h2 { font-size: var(--text-md); font-weight: var(--weight-semibold); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-wrap: nowrap; }
+.artifact-panel-meta { font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.artifact-panel-saved { color: var(--ok); }
+.artifact-versions { flex: none; display: inline-flex; align-items: center; gap: 1px; height: 30px; padding: 0 2px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.artifact-versions .icon-button { width: 24px; height: 24px; }
+.artifact-versions-label { padding: 0 4px; font-size: var(--text-xs); color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.artifact-panel-bar { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px 8px 12px; border-bottom: 1px solid var(--border); }
+.artifact-tabs { flex: none; }
+.artifact-tabs .segment { min-width: 0; padding: 0 12px; }
+.artifact-tabs .segment[aria-selected="true"] { background: var(--selected); color: var(--text); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border); }
+.artifact-tabs .segment:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.artifact-panel-bar .spacer { flex: 1 1 auto; min-width: 0; }
+.artifact-action { gap: 5px; }
+.artifact-action[data-done] { color: var(--ok); }
+.artifact-action[data-done] .icon { animation: ad-icon-in var(--dur-2) var(--ease-out); }
+
+.artifact-panel-body { flex: 1 1 auto; min-height: 0; position: relative; display: flex; }
+/* The app runs on white, as a page does, in both themes. */
+.artifact-stage { flex: 1 1 auto; position: relative; min-width: 0; background: #fff; }
+.artifact-stage .artifact-iframe { position: absolute; inset: 0; }
+.artifact-stage-loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg-panel); animation: ad-fade-in var(--dur-2) var(--ease-out) 120ms both; }
+@keyframes ad-fade-in { from { opacity: 0; } }
+.artifact-stage-note { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; padding: var(--space-6, 24px); background: var(--bg-panel); color: var(--text-2); text-align: center; }
+.artifact-stage-note p { margin: 0; }
+
+.artifact-source {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-start; overflow: auto; overscroll-behavior: contain;
+  background: var(--surface); font: 12.5px/1.6 var(--font-mono); tab-size: 2;
+}
+.artifact-source:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.artifact-gutter {
+  flex: none; position: sticky; left: 0; z-index: 1; min-height: 100%; margin: 0; padding: 12px 10px 24px 12px;
+  font: inherit; text-align: right; color: var(--text-4); background: var(--surface); border-right: 1px solid var(--border);
+  user-select: none; font-variant-numeric: tabular-nums;
+}
+.artifact-code-text { flex: 1 0 auto; margin: 0; padding: 12px 16px 24px 14px; font: inherit; white-space: pre; color: var(--text); }
+.artifact-code-text code { font: inherit; background: none; padding: 0; }
+
+/* Narrow panels: the actions keep their icons, and their names go to the tooltip. */
+@container (max-width: 560px) {
+  .artifact-action-label { display: none; }
+  .artifact-action { width: var(--control-h-sm); padding: 0; }
+}
+@container (max-width: 400px) {
+  .artifact-panel-head { padding-left: 10px; gap: 8px; }
+  .artifact-panel-icon { display: none; }
+  .artifact-versions-label { display: none; }
+  .artifact-panel-bar { padding-left: 8px; }
+}
+

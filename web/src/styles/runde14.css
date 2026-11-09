@@ -1,0 +1,136 @@
+/* Round 14 (SPEC 30): keys in the keyring, the app icon, forks, the archive and the bar that takes
+   the message field's place when the project folder is gone. */
+
+/* 30.1 A field for a key or a token: dots, and an eye inside the field's right edge. */
+.secret-input { position: relative; display: flex; flex: 1; min-width: 0; }
+.secret-input .input { flex: 1; padding-right: 34px; font-family: var(--font-mono); letter-spacing: 0.01em; }
+.secret-input:not([data-shown]) .input:not(:placeholder-shown) { letter-spacing: 0.08em; }
+.secret-input .input::placeholder { font-family: var(--font-sans); letter-spacing: 0; }
+.secret-eye {
+  position: absolute; top: 50%; right: 4px; translate: 0 -50%;
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+  border-radius: var(--radius-sm); color: var(--text-3);
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.secret-eye:hover { color: var(--text); background: var(--hover); }
+.secret-eye:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.secret-eye[aria-pressed="true"] { color: var(--text-2); }
+
+/* 30.1 One calm line when the keyring cannot be used, or keys.json is still there. */
+.keyring-note {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: calc(-1 * var(--space-3)) 0 var(--space-5);
+  color: var(--text-2); font-size: var(--text-sm); line-height: 1.45;
+}
+.keyring-note > .icon { flex: none; align-self: center; color: var(--text-3); }
+.keyring-note > span { flex: 0 1 auto; min-width: 0; }
+.settings-page .keyring-note .link-button { align-self: baseline; padding: 0; color: var(--accent-text); text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent); }
+.settings-page .keyring-note .link-button:hover { color: var(--accent-text); text-decoration-color: currentColor; }
+.settings-page .keyring-note .link-button:disabled { color: var(--text-3); text-decoration: none; }
+
+/* 30.3 Forks. In the sidebar a small fork before the title; the hover card links back. */
+.thread-text:has(.thread-fork) { flex-direction: row; align-items: center; gap: 6px; }
+.thread-fork { display: inline-flex; flex: none; color: var(--text-3); }
+.thread-item.active .thread-fork, .thread-item:hover .thread-fork { color: var(--text-2); }
+.hover-card-fork .icon { flex: none; }
+.hover-card-fork span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.title-card-facts .title-card-link { padding: 0; font-size: inherit; color: var(--accent-text); text-align: left; text-decoration: none; }
+.title-card-facts .title-card-link:hover { text-decoration: underline; }
+
+/* At the top of a fork: where it came from, one quiet block in the column of the conversation. */
+.fork-banner {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: var(--content-max); margin: 0 auto var(--space-2);
+  padding: var(--space-2) var(--space-5) var(--space-1); text-align: center;
+}
+.fork-banner-line { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0; font-size: var(--text-sm); color: var(--text-2); }
+.fork-banner-line > .icon { flex: none; color: var(--text-3); }
+.fork-banner-line > span:not(.fork-banner-gone) { flex: none; }
+.fork-banner-link, .fork-banner-gone {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-medium); color: var(--text);
+}
+.fork-banner-link {
+  border-radius: var(--radius-xs); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.fork-banner-link:hover { color: var(--accent-text); text-decoration-color: currentColor; }
+.fork-banner-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fork-banner-gone { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+.fork-banner-note { font-size: var(--text-xs); color: var(--text-3); }
+
+/* Where the fork starts: a hairline with a small label, before the first message written in it. */
+.fork-divider {
+  display: flex; align-items: center; gap: var(--space-3); align-self: stretch; margin: var(--space-2) 0 var(--space-3);
+  font-size: var(--text-2xs); font-weight: var(--weight-medium); letter-spacing: 0.02em; color: var(--text-3);
+}
+.fork-divider::before, .fork-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.fork-divider > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.fork-end { padding-top: 0; padding-bottom: 0; }
+
+/* 30.4 The archive: a quiet row at the end of the sidebar, and a count in the project's menu. */
+.archived-link { gap: 10px; }
+.archived-link > .icon { flex: none; color: var(--text-3); }
+.archived-link:hover > .icon { color: var(--text-2); }
+.archived-count { margin-left: auto; font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--text-3); }
+.menu-icon-space { flex: none; width: 14px; }
+.archived-row > .icon { flex: none; color: var(--text-3); }
+.archived-title {
+  align-self: flex-start; max-width: 100%; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text); text-align: left; border-radius: var(--radius-xs);
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-1) var(--ease-out);
+}
+.archived-title:hover { text-decoration-color: var(--border-strong); }
+.archived-title:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.archive-scope { display: flex; align-items: baseline; gap: var(--space-2); margin: calc(-1 * var(--space-3)) 0 var(--space-5); color: var(--text-2); font-size: var(--text-sm); }
+.settings-page .archive-scope .link-button { padding: 0; color: var(--accent-text); }
+
+/* 30.5 The folder is gone: a bar with the message field's shape and height in its place. The text
+   takes the room of the text field (one line of --text-lg), the buttons the room of its foot. */
+.composer[hidden] { display: none; }
+.composer.folder-bar { gap: 0; background: var(--surface-2); border-color: var(--border); box-shadow: none; }
+.folder-bar-text {
+  display: flex; align-items: flex-start; gap: 8px; min-width: 0; min-height: 30.5px; margin: 0; padding: 3px 2px 6.5px;
+  font-size: var(--text-md); line-height: 21px; color: var(--text-2);
+}
+.folder-bar-icon { display: inline-flex; flex: none; margin-top: 3px; color: var(--warn); }
+.folder-bar-path { font-family: var(--font-mono); font-size: 0.93em; color: var(--text); overflow-wrap: anywhere; }
+.folder-bar-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); min-height: 32px; flex-wrap: wrap; }
+.folder-bar-foot .btn { gap: 6px; }
+.folder-bar-archive:disabled { opacity: 0.5; }
+@media (max-width: 520px) {
+  .folder-bar-foot { justify-content: stretch; }
+  .folder-bar-foot .btn { flex: 1 1 auto; justify-content: center; }
+}
+.sidebar-empty:has(.sidebar-empty-link) { gap: 6px; }
+.sidebar-empty-link { color: var(--text-3); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; border-radius: var(--radius-xs); }
+.sidebar-empty-link::before { content: "·"; display: inline-block; margin-right: 6px; text-decoration: none; }
+.sidebar-empty-link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+/* 30.2 Appikon: a preview of each icon, large and at the size of a browser tab. */
+.app-icon-setting { gap: var(--space-3); }
+.app-icon-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.app-icon-card {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: var(--space-2) var(--space-2) var(--space-3); text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text);
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.app-icon-card:hover { background: var(--hover); }
+.app-icon-card[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.app-icon-card:focus-visible { outline-offset: 2px; }
+.app-icon-preview {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100px; padding: 6px 6px 0;
+  border-radius: var(--radius-md); background: var(--bg-sidebar); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden;
+}
+.app-icon-large { display: block; width: 52px; height: 52px; filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.12)); user-select: none; }
+/* A browser tab in miniature at the top: the tab's icon at its real size, and a line for the title. */
+.app-icon-tab {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 4px;
+  border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px var(--border);
+}
+.app-icon-tab img { display: block; width: 16px; height: 16px; }
+.app-icon-tab i { display: block; width: 26px; height: 4px; border-radius: 2px; background: var(--border-strong); }
+.app-icon-name { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 2px; font-weight: var(--weight-medium); font-size: var(--text-sm); }
+.app-icon-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-icon-check { display: inline-flex; flex: none; color: var(--accent-text); opacity: 0; transform: scale(0.6); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring); }
+.app-icon-card[aria-checked="true"] .app-icon-check { opacity: 1; transform: none; }
+.app-icon-text { padding: 0 2px; color: var(--text-3); font-size: var(--text-xs); line-height: var(--leading-tight); text-wrap: pretty; }
+@media (max-width: 1100px) { .app-icon-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

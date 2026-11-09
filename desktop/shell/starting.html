@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="shell.css">
+  <script src="shell.js" defer></script>
+  <title>Agentic Desktop</title>
+</head>
+<body>
+  <header class="topbar">
+    <span class="name"><img src="icons/app-32.png" alt="">Agentic Desktop</span>
+    <span class="spacer"></span>
+    <div class="window-controls" role="group" aria-label="Vindu">
+      <button type="button" class="window-control" data-action="minimize" title="Minimer" aria-label="Minimer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8.5h9"/></svg></button>
+      <button type="button" class="window-control" data-action="maximize" title="Maksimer" aria-label="Maksimer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect class="max" x="3.5" y="3.5" width="9" height="9" rx="1.5"/><g class="restore" hidden><rect x="3.5" y="5.5" width="7" height="7" rx="1.25"/><path d="M5.75 3.5h5.25a1.5 1.5 0 0 1 1.5 1.5v5.25"/></g></svg></button>
+      <button type="button" class="window-control close" data-action="close" title="Lukk" aria-label="Lukk"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+    </div>
+  </header>
+  <main>
+    <div class="starting" role="status"><span class="spinner" aria-hidden="true"></span>Starter serveren …</div>
+  </main>
+</body>
+</html>

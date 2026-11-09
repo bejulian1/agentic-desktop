@@ -1,0 +1,181 @@
+/* Round 13 (SPEC 27.1 and 27.2): the steps of a Kode turn, the now-line, the summary after a turn,
+   the sources of a web search, and the tool menu and its chips in the Chat message field.
+   Tokens only. Only transform and opacity move. */
+
+/* 1. Steps. A turn's steps hang on a thin line through their icons, in a smaller and quieter type
+   than the agent's own text, so the two never run together. */
+
+.row-steps { padding-top: 2px; padding-bottom: 4px; }
+.row-steps > .steps-list { position: relative; }
+.row-steps > .steps-list:has(> .row + .row)::before {
+  content: ""; position: absolute; left: 14px; top: 14px; bottom: 14px; width: 1px; background: var(--border-strong);
+}
+.step-head, .run-head { min-height: 28px; gap: 8px; }
+.step-icon {
+  position: relative; z-index: 1; width: 22px; height: 22px; display: inline-grid; place-items: center; flex: none;
+  border-radius: var(--radius-full); background: var(--bg); color: var(--text-3);
+}
+.step-head:hover .step-icon, .run-head:hover .step-icon { background: transparent; }
+.step-text { display: inline-flex; align-items: baseline; gap: 0; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+.step-verb { flex: none; color: var(--text-2); }
+.step-target { min-width: 0; margin-left: 0.3em; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.step-target.mono, .step-text .tool-file { font: var(--text-xs) var(--font-mono); color: var(--text); }
+.row-thinking.step .step-text { display: block; text-overflow: ellipsis; }
+.step-head:hover .step-verb, .run-head:hover .step-verb, .step-head:hover .step-target { color: var(--text); }
+.row-tool[data-tool="run_command"] .step-text { font: inherit; }
+
+.step .tool-status, .run-head .tool-status { margin-left: auto; gap: 8px; }
+.step-result { color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.step-duration { color: var(--text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.step-failed-text { color: var(--danger); }
+.step-tag {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: var(--radius-full);
+  background: var(--surface-2); color: var(--text-2); font-size: var(--text-2xs); font-weight: var(--weight-medium); white-space: nowrap;
+}
+.step-tag.step-waiting { background: var(--warn-soft); color: var(--warn); }
+.step-tag.step-failed { background: var(--danger-soft); color: var(--danger); }
+.tool-status[data-status="error"], .tool-status[data-status="denied"] { color: var(--text-3); }
+
+.row-tool.step[data-status="awaiting-approval"] .step-icon, .row-run[data-status="awaiting-approval"] > .run-head .step-icon { color: var(--warn); background: var(--warn-soft); }
+.row-tool.step[data-status="error"] .step-icon { color: var(--danger); }
+.row-tool.step[data-status="denied"] .step-icon, .row-tool.step[data-status="cancelled"] .step-icon { color: var(--text-4); }
+.row-tool.step[data-status="denied"] .step-verb, .row-tool.step[data-status="cancelled"] .step-verb { text-decoration: line-through; text-decoration-color: var(--text-4); }
+
+/* A failed step says why in one quiet line under it, without folding out. */
+.step-note {
+  margin: -2px 0 4px 34px; font-size: var(--text-xs); color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.step .thinking-text, .step .tool-body, .step-thumb { margin-left: 34px; }
+.step-thumb { max-width: calc(100% - 34px); }
+
+/* A run: several steps of the same kind as one line. Folded out, its steps sit a step in. */
+.row-run > .run-list { position: relative; margin-left: 22px; padding-left: 0; }
+.row-run > .run-list:has(> .row + .row)::before { content: ""; position: absolute; left: 14px; top: 14px; bottom: 14px; width: 1px; background: var(--border); }
+.run-head:disabled { cursor: default; }
+.run-head:disabled:hover { background: transparent; }
+
+/* 2. The now-line: what the agent does now, under the turn. */
+
+.now-line { max-width: var(--content-max); margin: 2px auto 8px; padding: 0 var(--space-5); }
+.now-head {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; height: 30px; padding: 0 10px 0 4px;
+  border-radius: var(--radius-full); color: var(--text-2); font-size: var(--text-sm); text-align: left;
+}
+.now-head:not(:disabled):hover { background: var(--hover); }
+.now-head:disabled { cursor: default; }
+.now-icon { width: 22px; height: 22px; display: inline-grid; place-items: center; flex: none; color: var(--accent-text); }
+.now-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: ad-dot 2s var(--ease-in-out) infinite; }
+.now-text { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.now-label { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.now-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-3); }
+.now-detail::before { content: "· "; color: var(--text-4); }
+.now-time { flex: none; color: var(--text-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.now-line[data-state="waiting"] .now-head { background: var(--warn-soft); }
+.now-line[data-state="waiting"] .now-icon { color: var(--warn); }
+.now-line[data-state="waiting"] .now-label { color: var(--warn); font-weight: var(--weight-medium); }
+.now-line .bg-list { margin-top: 4px; }
+:root[data-motion="reduce"] .now-dot { animation: none; }
+
+/* 3. The summary after a turn. A quiet line that opens Endringer. */
+
+.row-summary { padding-top: 2px; padding-bottom: 6px; }
+.summary-line {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; height: 30px; padding: 0 6px 0 4px;
+  border-radius: var(--radius-md); color: var(--text-3); font-size: var(--text-sm); text-align: left;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.summary-line:hover { background: var(--hover); color: var(--text); }
+.summary-icon { width: 22px; height: 22px; display: inline-grid; place-items: center; flex: none; border-radius: 50%; color: var(--ok); }
+.summary-line[data-status="stopped"] .summary-icon { color: var(--text-3); }
+.summary-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.summary-diff { flex: none; font-size: var(--text-xs); }
+.summary-open { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: 4px; color: var(--accent-text); font-size: var(--text-xs); opacity: 0.85; }
+.summary-line:hover .summary-open { opacity: 1; }
+@container (max-width: 520px) {
+  .summary-open-text, .now-detail { display: none; }
+  .summary-open { margin-left: 0; }
+}
+
+/* 4. Sources: the pages a web search found, as small cards. */
+
+.sources { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px 34px; }
+.source-card {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 260px; min-width: 0; height: 40px; padding: 0 10px 0 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); text-decoration: none;
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+a.source-card:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.source-card.demo { border-style: dashed; }
+.source-icon { width: 16px; height: 16px; flex: none; border-radius: 3px; }
+.source-mono {
+  width: 16px; height: 16px; flex: none; display: inline-grid; place-items: center; border-radius: 4px;
+  background: var(--surface-3); color: var(--text-2); font-size: 10px; font-weight: var(--weight-semibold); line-height: 1;
+}
+.source-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.source-title { font-size: var(--text-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source-host { font-size: var(--text-2xs); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source-demo {
+  flex: none; height: 16px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: var(--radius-full);
+  background: var(--warn-soft); color: var(--warn); font-size: var(--text-2xs); font-weight: var(--weight-medium);
+}
+[data-unfold] > .sources { animation: ad-unfold var(--dur-2) var(--ease-out); }
+
+/* Chat: a tool row stands on its own between the texts, a little apart from them. */
+.chat-conversation .row-tool { padding-top: 4px; padding-bottom: 4px; }
+
+/* 5. Chat: the tool menu by + and the chips of the tools that are on. */
+
+.popover:has(> .chat-tools-menu) { max-height: none; }
+.chat-tools-menu { width: 300px; }
+.chat-tool-item { align-items: flex-start; gap: 10px; min-height: 0; padding-top: 6px; padding-bottom: 6px; }
+.chat-tool-item .menu-stack { flex: 1; min-width: 0; }
+.chat-tool-item > .icon { margin-top: 1px; flex: none; color: var(--text-2); }
+.chat-tool-item[aria-disabled="true"] { cursor: default; }
+.chat-tool-item[aria-disabled="true"] .menu-name, .chat-tool-item[aria-disabled="true"] > .icon { color: var(--text-4); }
+.chat-tool-why { display: block; margin-top: 2px; color: var(--text-3); font-size: var(--text-2xs); }
+.chat-tool-switch {
+  position: relative; flex: none; width: 28px; height: 16px; margin-top: 2px; border-radius: var(--radius-full); background: var(--surface-3);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.chat-tool-switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); transition: transform var(--dur-2) var(--ease-out);
+}
+.chat-tool-item[aria-checked="true"] .chat-tool-switch { background: var(--accent); }
+.chat-tool-item[aria-checked="true"] .chat-tool-switch::after { transform: translateX(12px); }
+.chat-tools-foot { padding: 6px 10px 4px; border-top: 1px solid var(--border); margin-top: 4px; color: var(--text-3); font-size: var(--text-2xs); }
+.chat-tools-foot button { color: var(--accent-text); font-size: inherit; }
+.chat-tools-foot button:hover { text-decoration: underline; }
+
+.tool-chips { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+/* Very narrow: the chips give way, and the tool button's colour says that tools are on. */
+@container (max-width: 440px) { .tool-chips { display: none; } }
+.tool-chip {
+  display: inline-flex; align-items: center; gap: 2px; flex: none; height: 26px; padding: 0 3px 0 7px; border-radius: var(--radius-full);
+  background: var(--accent-soft); color: var(--accent-text); font-size: var(--text-xs); white-space: nowrap;
+}
+.tool-chip > .icon { flex: none; }
+.tool-chip-x {
+  width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 50%; color: inherit; opacity: 0.75;
+  transition: opacity var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.tool-chip-x:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.tool-chip[data-enter] { animation: ad-pop var(--dur-2) var(--ease-out); }
+.foot-icon.tools-button[data-on] { color: var(--accent-text); }
+
+/* The chips are an icon and ×; the name is in the tip and for screen readers, so the row under
+   the field keeps room for the model and the effort at every width. */
+
+/* Innstillinger → Chat: the search page. */
+.search-url-row .input { width: 100%; font-family: var(--font-mono); font-size: var(--text-xs); }
+.search-url-row .field-error { margin-top: 4px; color: var(--danger); font-size: var(--text-xs); }
+
+/* Innstillinger → Modeller: a switch with its explanation in the model form. */
+.field-check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.field-check .switch { flex: none; margin-top: 2px; }
+.field-check-text { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
+.field-check-text .muted { font-size: var(--text-xs); }
+
+/* A running step in Chat shimmers as one text: its parts take the colour of the line. */
+.step-text.shimmer .step-verb, .step-text.shimmer .step-target { color: inherit; }

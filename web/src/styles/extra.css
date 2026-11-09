@@ -1,0 +1,415 @@
+/* Round 8 (agent G): colour themes, the mini editor, GitHub (Beta) and the theme picker.
+   Loaded last (main.tsx). Only tokens and new classes, so nothing here fights the other sheets.
+
+   1. Colour themes. Each one sets the same tokens as :root in styles.css, so the whole app follows,
+      the terminal and the editors too. data-palette sits on <html> next to data-theme, which still
+      picks the light or the dark variant (Lys, Mørk or System). The accent tokens are in their own
+      rule with :not([data-accent]), so an accent chosen in Innstillinger wins over the theme's own.
+      public/theme.js puts data-palette on <html> before the first paint (state/look.ts stores it).
+      scripts/kontrast.ts reads these rules and checks every pair against WCAG AA. */
+
+/* Høy kontrast */
+:root[data-palette="kontrast"] {
+  --bg: #ffffff; --bg-sidebar: #f4f4f4; --bg-panel: #fafafa; --surface: #ffffff; --surface-2: #efefef; --surface-3: #e0e0e0;
+  --hover: rgba(0, 0, 0, 0.07); --active: rgba(0, 0, 0, 0.12); --border: rgba(0, 0, 0, 0.42); --border-strong: rgba(0, 0, 0, 0.72);
+  --text: #000000; --text-2: #1a1a1a; --text-3: #333333; --text-4: #6b6b6b;
+  --primary: #000000; --primary-hover: #262626; --on-primary: #ffffff;
+  --danger: #8f0017; --danger-soft: #fde6e9; --ok: #075e29; --warn: #6e4300; --warn-soft: #fff0d4;
+  --add-bg: #d9f4e1; --add-text: #0a4f21; --del-bg: #fde0de; --del-text: #821a12;
+  --selected: #ffffff; --knob: #ffffff; --scrollbar: rgba(0, 0, 0, 0.5); --edge-shade: rgba(0, 0, 0, 0.1);
+  --highlight: rgba(255, 200, 0, 0.45); --highlight-current: #ff9d00; --on-highlight: #000000;
+  --tok-keyword: #6a1a8c; --tok-string: #0a5c25; --tok-comment: #474747; --tok-number: #7a3d00; --tok-type: #004f7f; --tok-function: #00379c; --tok-prop: #7a3200; --tok-meta: #2e2e2e;
+}
+:root[data-palette="kontrast"]:not([data-accent]) {
+  --accent: #0040b8; --accent-hover: #00338f; --on-accent: #ffffff; --accent-soft: rgba(0, 64, 184, 0.12); --accent-text: #003aa8; --selection: #b9d2ff;
+}
+:root[data-palette="kontrast"][data-theme="dark"] {
+  --bg: #000000; --bg-sidebar: #0c0c0c; --bg-panel: #070707; --surface: #111111; --surface-2: #191919; --surface-3: #2a2a2a;
+  --hover: rgba(255, 255, 255, 0.1); --active: rgba(255, 255, 255, 0.16); --border: rgba(255, 255, 255, 0.42); --border-strong: rgba(255, 255, 255, 0.72);
+  --text: #ffffff; --text-2: #f2f2f2; --text-3: #d2d2d2; --text-4: #9a9a9a;
+  --primary: #ffffff; --primary-hover: #e6e6e6; --on-primary: #000000;
+  --danger: #ff8a80; --danger-soft: #3a1210; --ok: #6af59a; --warn: #ffd466; --warn-soft: #332600;
+  --add-bg: #0b2e17; --add-text: #93f7b4; --del-bg: #3a0f0d; --del-text: #ffb1aa;
+  --selected: #2a2a2a; --knob: #ffffff; --scrollbar: rgba(255, 255, 255, 0.5); --edge-shade: rgba(0, 0, 0, 0.5);
+  --highlight: rgba(255, 214, 0, 0.36); --highlight-current: #ffb000; --on-highlight: #000000;
+  --tok-keyword: #e6aaff; --tok-string: #a3f2ad; --tok-comment: #cccccc; --tok-number: #ffc870; --tok-type: #85d7ff; --tok-function: #adcbff; --tok-prop: #ffb894; --tok-meta: #dddddd;
+}
+:root[data-palette="kontrast"][data-theme="dark"]:not([data-accent]) {
+  --accent: #5aa2ff; --accent-hover: #7db6ff; --on-accent: #000000; --accent-soft: rgba(90, 162, 255, 0.24); --accent-text: #93c4ff; --selection: #1f4f99;
+}
+
+/* Varm: papir, sand og terrakotta */
+:root[data-palette="varm"] {
+  --bg: #fdfaf5; --bg-sidebar: #f6f0e6; --bg-panel: #faf6ef; --surface: #fffdf9; --surface-2: #f3ede3; --surface-3: #e9e1d4;
+  --hover: rgba(80, 50, 20, 0.055); --active: rgba(80, 50, 20, 0.09); --border: rgba(80, 50, 20, 0.11); --border-strong: rgba(80, 50, 20, 0.2);
+  --text: #2b2118; --text-2: #54463a; --text-3: #6a5b4d; --text-4: #b3a593;
+  --primary: #2b2118; --primary-hover: #463629; --on-primary: #fffaf2;
+  --danger: #ad3620; --danger-soft: #fbe8e2; --ok: #3a7228; --warn: #855300; --warn-soft: #fbf0d9;
+  --add-bg: #e7f2dc; --add-text: #33622a; --del-bg: #fbe5df; --del-text: #9c301d;
+  --selected: #fffdf9; --knob: #fffdf9; --scrollbar: rgba(80, 50, 20, 0.22); --edge-shade: rgba(80, 50, 20, 0.07);
+  --tok-keyword: #983372; --tok-string: #48701c; --tok-comment: #74665a; --tok-number: #a15200; --tok-type: #2b6679; --tok-function: #91440f; --tok-prop: #82532a; --tok-meta: #6a5d52;
+}
+:root[data-palette="varm"]:not([data-accent]) {
+  --accent: #b14b22; --accent-hover: #9a401c; --on-accent: #ffffff; --accent-soft: rgba(177, 75, 34, 0.11); --accent-text: #9c421d; --selection: #f4d6c4;
+}
+:root[data-palette="varm"][data-theme="dark"] {
+  --bg: #1f1a16; --bg-sidebar: #27211c; --bg-panel: #221d18; --surface: #2a231e; --surface-2: #312923; --surface-3: #3c332b;
+  --hover: rgba(255, 235, 210, 0.06); --active: rgba(255, 235, 210, 0.1); --border: rgba(255, 235, 210, 0.09); --border-strong: rgba(255, 235, 210, 0.17);
+  --text: #f1e7db; --text-2: #cdbfae; --text-3: #b3a493; --text-4: #776a5d;
+  --primary: #f1e7db; --primary-hover: #fff8ef; --on-primary: #1f1a16;
+  --danger: #f2907a; --danger-soft: #42241c; --ok: #a6d281; --warn: #ebbd6c; --warn-soft: #3a2d18;
+  --add-bg: #263220; --add-text: #b4dc96; --del-bg: #42251f; --del-text: #f6ae9c;
+  --selected: #3c332b; --knob: #f6efe6; --scrollbar: rgba(255, 235, 210, 0.2); --edge-shade: rgba(0, 0, 0, 0.32);
+  --tok-keyword: #e8a0ca; --tok-string: #b8d68e; --tok-comment: #ab9c8a; --tok-number: #f2b96f; --tok-type: #92cad9; --tok-function: #f4b585; --tok-prop: #eab890; --tok-meta: #bdaf9f;
+}
+:root[data-palette="varm"][data-theme="dark"]:not([data-accent]) {
+  --accent: #e3855c; --accent-hover: #eb9a76; --on-accent: #1f1a16; --accent-soft: rgba(227, 133, 92, 0.18); --accent-text: #f1a580; --selection: #5a3a28;
+}
+
+/* Kald: blågrått og blågrønt */
+:root[data-palette="kald"] {
+  --bg: #f8fafc; --bg-sidebar: #eef2f6; --bg-panel: #f4f7fa; --surface: #ffffff; --surface-2: #eaf0f5; --surface-3: #dde5ed;
+  --hover: rgba(20, 40, 70, 0.05); --active: rgba(20, 40, 70, 0.09); --border: rgba(20, 40, 70, 0.1); --border-strong: rgba(20, 40, 70, 0.18);
+  --text: #15212e; --text-2: #3c4b5c; --text-3: #536276; --text-4: #9aa7b5;
+  --primary: #15212e; --primary-hover: #2a3a4c; --on-primary: #ffffff;
+  --danger: #b8372a; --danger-soft: #fbe9e7; --ok: #16724a; --warn: #835800; --warn-soft: #fbf2dc;
+  --add-bg: #e0f3ea; --add-text: #155f3e; --del-bg: #fbe6e5; --del-text: #a12f27;
+  --selected: #ffffff; --knob: #ffffff; --scrollbar: rgba(20, 40, 70, 0.2); --edge-shade: rgba(20, 40, 70, 0.06);
+  --tok-keyword: #5543b8; --tok-string: #19714f; --tok-comment: #5f6c7d; --tok-number: #9a520e; --tok-type: #0a6683; --tok-function: #2152ab; --tok-prop: #844572; --tok-meta: #586676;
+}
+:root[data-palette="kald"]:not([data-accent]) {
+  --accent: #0d7482; --accent-hover: #0b6470; --on-accent: #ffffff; --accent-soft: rgba(13, 116, 130, 0.11); --accent-text: #0a6571; --selection: #c6e6eb;
+}
+:root[data-palette="kald"][data-theme="dark"] {
+  --bg: #121820; --bg-sidebar: #18202a; --bg-panel: #141b24; --surface: #1b2430; --surface-2: #212c39; --surface-3: #2b3746;
+  --hover: rgba(200, 225, 255, 0.06); --active: rgba(200, 225, 255, 0.1); --border: rgba(200, 225, 255, 0.09); --border-strong: rgba(200, 225, 255, 0.17);
+  --text: #e4ecf4; --text-2: #b3c1d0; --text-3: #98a8ba; --text-4: #5e6c7c;
+  --primary: #e4ecf4; --primary-hover: #ffffff; --on-primary: #121820;
+  --danger: #f4948b; --danger-soft: #3b2427; --ok: #74d6a9; --warn: #e8c171; --warn-soft: #33301e;
+  --add-bg: #18332a; --add-text: #92dfb9; --del-bg: #3d2427; --del-text: #f6aaa3;
+  --selected: #2b3746; --knob: #eef3f8; --scrollbar: rgba(200, 225, 255, 0.18); --edge-shade: rgba(0, 0, 0, 0.32);
+  --tok-keyword: #b9adff; --tok-string: #84d9b1; --tok-comment: #8e9eb0; --tok-number: #f2bc7a; --tok-type: #76cfe8; --tok-function: #97b9ff; --tok-prop: #e6a8d2; --tok-meta: #a5b5c6;
+}
+:root[data-palette="kald"][data-theme="dark"]:not([data-accent]) {
+  --accent: #3cc2d3; --accent-hover: #62d0de; --on-accent: #0b1a20; --accent-soft: rgba(60, 194, 211, 0.16); --accent-text: #74d8e5; --selection: #1d4a55;
+}
+
+/* Fjord: polarnatt, snø og frost, i stil med en kjent arktisk kodepalett */
+:root[data-palette="fjord"] {
+  --bg: #eceff4; --bg-sidebar: #e5e9f0; --bg-panel: #e9edf2; --surface: #f6f8fb; --surface-2: #e2e7ee; --surface-3: #d8dee9;
+  --hover: rgba(46, 52, 64, 0.06); --active: rgba(46, 52, 64, 0.1); --border: rgba(46, 52, 64, 0.12); --border-strong: rgba(46, 52, 64, 0.22);
+  --text: #2e3440; --text-2: #3b4252; --text-3: #4c566a; --text-4: #8c95a6;
+  --primary: #2e3440; --primary-hover: #3b4252; --on-primary: #eceff4;
+  --danger: #a03f48; --danger-soft: #f3e1e3; --ok: #46703a; --warn: #7e5b00; --warn-soft: #f4ecd8;
+  --add-bg: #dde9d9; --add-text: #3c652d; --del-bg: #f3dee0; --del-text: #943841;
+  --selected: #f6f8fb; --knob: #f6f8fb; --scrollbar: rgba(46, 52, 64, 0.22); --edge-shade: rgba(46, 52, 64, 0.07);
+  --tok-keyword: #4b5f94; --tok-string: #4a7135; --tok-comment: #576276; --tok-number: #7e4f84; --tok-type: #2a6779; --tok-function: #39608d; --tok-prop: #964f37; --tok-meta: #4c566a;
+}
+:root[data-palette="fjord"]:not([data-accent]) {
+  --accent: #4c6e98; --accent-hover: #42618a; --on-accent: #ffffff; --accent-soft: rgba(94, 129, 172, 0.15); --accent-text: #3f5f88; --selection: #cbd8e8;
+}
+:root[data-palette="fjord"][data-theme="dark"] {
+  --bg: #2e3440; --bg-sidebar: #2a2f3a; --bg-panel: #2b313c; --surface: #3b4252; --surface-2: #353c4a; --surface-3: #434c5e;
+  --hover: rgba(216, 222, 233, 0.06); --active: rgba(216, 222, 233, 0.1); --border: rgba(216, 222, 233, 0.1); --border-strong: rgba(216, 222, 233, 0.18);
+  --text: #eceff4; --text-2: #d8dee9; --text-3: #bcc4d2; --text-4: #6b7589;
+  --primary: #eceff4; --primary-hover: #ffffff; --on-primary: #2e3440;
+  --danger: #f0a3a9; --danger-soft: #4a3540; --ok: #b0c99a; --warn: #ebcb8b; --warn-soft: #48443a;
+  --add-bg: #3a4a3f; --add-text: #bfd8a8; --del-bg: #4d3a42; --del-text: #f0b0b6;
+  --selected: #4c566a; --knob: #eceff4; --scrollbar: rgba(216, 222, 233, 0.2); --edge-shade: rgba(0, 0, 0, 0.25);
+  --tok-keyword: #a3bdd9; --tok-string: #b1c99c; --tok-comment: #a3adbf; --tok-number: #d2adcb; --tok-type: #93c2c1; --tok-function: #8fc6d6; --tok-prop: #e3a690; --tok-meta: #c4cbd8;
+}
+:root[data-palette="fjord"][data-theme="dark"]:not([data-accent]) {
+  --accent: #88c0d0; --accent-hover: #9fcfdc; --on-accent: #2e3440; --accent-soft: rgba(136, 192, 208, 0.16); --accent-text: #93c8d7; --selection: #4c566a;
+}
+
+/* Solbleket: sand og havblått, i stil med en kjent kodepalett med presise toner */
+:root[data-palette="solbleket"] {
+  --bg: #fdf6e3; --bg-sidebar: #f5eedb; --bg-panel: #faf3df; --surface: #fffbef; --surface-2: #eee8d5; --surface-3: #e4dcc6;
+  --hover: rgba(88, 110, 117, 0.07); --active: rgba(88, 110, 117, 0.12); --border: rgba(88, 110, 117, 0.16); --border-strong: rgba(88, 110, 117, 0.28);
+  --text: #073642; --text-2: #2f4b54; --text-3: #4c6168; --text-4: #93a1a1;
+  --primary: #073642; --primary-hover: #0d4654; --on-primary: #fdf6e3;
+  --danger: #b0281f; --danger-soft: #f8e2d6; --ok: #556600; --warn: #7d5e00; --warn-soft: #f6eacb;
+  --add-bg: #e9eecb; --add-text: #4d5c00; --del-bg: #f8dfd3; --del-text: #a8291f;
+  --selected: #fffbef; --knob: #fffbef; --scrollbar: rgba(88, 110, 117, 0.25); --edge-shade: rgba(88, 110, 117, 0.08);
+  --tok-keyword: #5a6900; --tok-string: #136c65; --tok-comment: #52676e; --tok-number: #a8256a; --tok-type: #7d5e00; --tok-function: #1a64a0; --tok-prop: #a33b10; --tok-meta: #4c6168;
+}
+:root[data-palette="solbleket"]:not([data-accent]) {
+  --accent: #1d72b0; --accent-hover: #1a659d; --on-accent: #ffffff; --accent-soft: rgba(38, 139, 210, 0.13); --accent-text: #19649e; --selection: #d5e3ea;
+}
+:root[data-palette="solbleket"][data-theme="dark"] {
+  --bg: #002b36; --bg-sidebar: #01313d; --bg-panel: #002e3a; --surface: #073642; --surface-2: #0a3c49; --surface-3: #134a57;
+  --hover: rgba(147, 161, 161, 0.08); --active: rgba(147, 161, 161, 0.14); --border: rgba(147, 161, 161, 0.14); --border-strong: rgba(147, 161, 161, 0.26);
+  --text: #eee8d5; --text-2: #cdd0c5; --text-3: #a3afae; --text-4: #5d7a80;
+  --primary: #eee8d5; --primary-hover: #fdf6e3; --on-primary: #002b36;
+  --danger: #f27a70; --danger-soft: #3a2a2d; --ok: #a9bb33; --warn: #dfae2a; --warn-soft: #33361f;
+  --add-bg: #1d3f2f; --add-text: #bccd62; --del-bg: #3d2c2f; --del-text: #f5a39b;
+  --selected: #134a57; --knob: #eee8d5; --scrollbar: rgba(147, 161, 161, 0.25); --edge-shade: rgba(0, 0, 0, 0.3);
+  --tok-keyword: #b0c132; --tok-string: #4cc4ba; --tok-comment: #98a6a6; --tok-number: #ef84b6; --tok-type: #ddb534; --tok-function: #5eaeea; --tok-prop: #ec8c5f; --tok-meta: #a6b2b2;
+}
+:root[data-palette="solbleket"][data-theme="dark"]:not([data-accent]) {
+  --accent: #3a9ae0; --accent-hover: #55a9e6; --on-accent: #002b36; --accent-soft: rgba(58, 154, 224, 0.2); --accent-text: #69b6ec; --selection: #1b4f63;
+}
+
+/* The activity map follows the accent, whichever it is. */
+:root[data-palette]:not([data-palette="standard"]) {
+  --heat-0: var(--surface-3);
+  --heat-1: color-mix(in srgb, var(--accent) 28%, var(--surface-2));
+  --heat-2: color-mix(in srgb, var(--accent) 52%, var(--surface-2));
+  --heat-3: color-mix(in srgb, var(--accent) 78%, var(--surface-2));
+  --heat-4: var(--accent);
+}
+/* The default accent swatch shows the theme's own accent, which is what "Blå" means then. */
+:root[data-palette]:not([data-palette="standard"]):not([data-accent]) .swatch[data-swatch="blue"] { --swatch: var(--accent); }
+/* High contrast: a thicker focus ring, and borders on the controls that only had a background. */
+:root[data-palette="kontrast"] :focus-visible { outline-width: 3px; outline-offset: 2px; }
+:root[data-palette="kontrast"] .segmented, :root[data-palette="kontrast"] .composer, :root[data-palette="kontrast"] .input { border-color: var(--border-strong); }
+
+/* 2. Changing theme: the old page fades into the new one (state/themes.ts). Opacity only. */
+
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-3); animation-timing-function: var(--ease-out); }
+
+/* 3. Fargetema in Innstillinger → Utseende (ui/ThemePicker.tsx) */
+
+.theme-setting { gap: var(--space-3); }
+.theme-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.theme-card {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: var(--space-2) var(--space-2) var(--space-3); text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text);
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.theme-card:hover { background: var(--hover); }
+.theme-card[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-card:focus-visible { outline-offset: 2px; }
+.theme-preview {
+  position: relative; display: grid; grid-template-columns: 26% 1fr; height: 76px; overflow: hidden;
+  border-radius: var(--radius-md); background: var(--p-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-text) 12%, transparent);
+}
+.tp-side { display: flex; flex-direction: column; gap: 5px; padding: 9px 7px; background: var(--p-side); }
+.tp-side i { display: block; height: 4px; border-radius: 2px; background: var(--p-muted); opacity: 0.45; }
+.tp-side i:first-child { background: var(--p-accent); opacity: 1; width: 70%; }
+.tp-main { display: flex; flex-direction: column; gap: 6px; padding: 9px 9px 0; min-width: 0; }
+.tp-title { display: block; width: 58%; height: 5px; border-radius: 2px; background: var(--p-text); }
+.tp-code { display: flex; gap: 4px; }
+.tp-code b { display: block; height: 4px; border-radius: 2px; }
+.tp-kw { width: 18%; background: var(--p-kw); }
+.tp-fn { width: 30%; background: var(--p-fn); }
+.tp-str { width: 26%; background: var(--p-str); }
+.tp-str.short { width: 34%; }
+.tp-muted { width: 22%; background: var(--p-muted); opacity: 0.7; }
+.tp-composer { display: flex; align-items: center; justify-content: flex-end; margin-top: auto; margin-bottom: 7px; height: 14px; padding: 0 3px; border-radius: 5px; background: var(--p-surface); }
+.tp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--p-accent); }
+.theme-card-name { display: flex; align-items: center; gap: 6px; padding: 0 2px; font-weight: var(--weight-medium); font-size: var(--text-sm); }
+.theme-card-check { display: inline-flex; color: var(--accent-text); opacity: 0; transform: scale(0.6); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring); }
+.theme-card[aria-checked="true"] .theme-card-check { opacity: 1; transform: none; }
+.theme-card-text { padding: 0 2px; color: var(--text-3); font-size: var(--text-xs); line-height: var(--leading-tight); text-wrap: pretty; }
+@media (max-width: 900px) { .theme-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 380px) { .theme-cards { gap: var(--space-2); } .theme-preview { height: 64px; } }
+
+/* 4. Openers for the mini editor in the conversation and in Endringer. */
+
+.md-open { padding: 1px 6px; border-radius: var(--radius-xs); font-size: var(--text-xs); color: var(--text-3); }
+.md-open:hover { background: var(--hover); color: var(--text); }
+.tool-file { border-radius: 3px; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 2px; cursor: pointer; }
+.tool-file:hover { color: var(--accent-text); text-decoration-color: currentColor; }
+.tool-open { margin-bottom: 4px; height: 24px; padding: 0 8px; font-size: var(--text-xs); color: var(--text-2); }
+.diff-open { width: 22px; height: 22px; margin-left: auto; }
+.diff-file-head .diff-open + * { margin-left: 0; }
+
+/* 5. The mini editor (ui/MiniEditor.tsx). A dialog with a header, an outline, the editor and a
+   status line, as one grid, so the dialog's own box is only ever hit on the backdrop. */
+
+dialog.mini-editor {
+  display: flex; flex-direction: column; width: min(1000px, calc(100vw - 48px)); height: min(720px, calc(100vh - 48px));
+  max-width: none; max-height: none; padding: 0; overflow: hidden; color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-pop);
+}
+dialog.mini-editor:not([open]) { display: none; }
+.mini-head, .mini-banner, .mini-status { flex: none; }
+.mini-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: 8px 8px 8px var(--space-4); border-bottom: 1px solid var(--border); }
+.mini-title { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); }
+.mini-file-icon { display: inline-flex; color: var(--text-3); }
+/* A long path gives up its folders first, and the file name stays whole as long as it can. */
+.mini-path { display: flex; flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+.mini-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-3); }
+.mini-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-semibold); }
+.mini-dirty { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text-2); animation: ad-icon-in var(--dur-2) var(--ease-spring); }
+.mini-pill { flex: none; height: 20px; font-size: var(--text-2xs); }
+.mini-tools { display: flex; align-items: center; gap: 2px; flex: none; }
+.mini-sep { width: 1px; height: 18px; margin: 0 4px; background: var(--border); }
+.mini-action { gap: 5px; color: var(--text-2); }
+.mini-action:hover:not(:disabled) { color: var(--text); }
+.mini-action[data-done] { color: var(--ok); }
+.mini-action[data-done] .icon { animation: ad-icon-in var(--dur-2) var(--ease-spring); }
+.mini-save { margin-left: 4px; min-width: 64px; }
+.mini-close { margin-left: 2px; }
+.mini-modes { margin-right: 4px; }
+.mini-modes .segment { display: inline-flex; align-items: center; gap: 5px; min-width: 0; height: 24px; padding: 0 9px; font-size: var(--text-xs); }
+
+.mini-banner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 8px var(--space-4); background: var(--warn-soft); color: var(--text); font-size: var(--text-sm); border-bottom: 1px solid var(--border); animation: ad-unfold var(--dur-2) var(--ease-out); }
+.mini-banner > span { flex: 1 1 220px; min-width: 0; }
+
+.mini-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; background: var(--bg-panel); }
+.mini-body.with-outline { grid-template-columns: 220px minmax(0, 1fr); }
+.mini-outline { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); background: var(--bg-sidebar); animation: ad-side-left var(--dur-2) var(--ease-out); }
+.mini-outline-head { display: flex; align-items: center; justify-content: space-between; flex: none; height: 32px; padding: 0 var(--space-3); color: var(--text-3); font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: 0.04em; text-transform: uppercase; }
+.mini-outline-head .count { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.mini-outline .skeleton-lines { padding: var(--space-2) var(--space-3); }
+.mini-outline-empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--text-3); font-size: var(--text-xs); }
+.mini-outline-list { flex: 1; min-height: 0; margin: 0; padding: 0 var(--space-1) var(--space-3); overflow: auto; list-style: none; }
+.mini-symbol {
+  display: flex; align-items: center; gap: 6px; width: 100%; height: 26px; padding: 0 6px 0 calc(6px + var(--depth, 0) * 12px);
+  border-radius: var(--radius-sm); color: var(--text-2); font-size: var(--text-xs); text-align: left;
+}
+.mini-symbol:hover { background: var(--hover); color: var(--text); }
+.mini-symbol.active { background: var(--active); color: var(--text); }
+.mini-kind {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px;
+  font: var(--weight-semibold) 10px/1 var(--font-mono); color: var(--tok-function); background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.mini-kind[data-kind="class"], .mini-kind[data-kind="interface"], .mini-kind[data-kind="type"] { color: var(--tok-type); }
+.mini-kind[data-kind="const"] { color: var(--tok-number); }
+.mini-kind[data-kind="heading"] { color: var(--text-2); }
+.mini-kind[data-kind="rule"] { color: var(--tok-prop); font-size: 8px; }
+.mini-symbol-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); }
+.mini-symbol-line { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; font-size: var(--text-2xs); opacity: 0; transition: opacity var(--dur-1) var(--ease-out); }
+.mini-symbol:hover .mini-symbol-line, .mini-symbol.active .mini-symbol-line, .mini-symbol:focus-visible .mini-symbol-line { opacity: 1; }
+
+.mini-main { position: relative; min-width: 0; min-height: 0; }
+.mini-cm { position: absolute; inset: 0; }
+.mini-cm[hidden] { display: none; }
+.mini-loading { padding: var(--space-4) var(--space-5); }
+.mini-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); height: 100%; padding: var(--space-6); color: var(--text-2); text-align: center; }
+
+.mini-find {
+  position: absolute; z-index: 5; top: 8px; right: 16px; display: flex; align-items: center; gap: 4px; width: min(420px, calc(100% - 32px)); height: 34px; padding: 0 4px 0 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-pop); color: var(--text-3);
+  transform-origin: top right; animation: ad-pop var(--dur-2) var(--ease-out); --pop-y: -4px;
+}
+.mini-find-input { flex: 1; min-width: 0; height: 26px; padding: 0 4px; border: 0; background: none; color: var(--text); font-size: var(--text-sm); outline: none; }
+.mini-find-input::placeholder { color: var(--text-3); }
+.mini-find-count { flex: none; min-width: 64px; color: var(--text-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.mini-find .icon-button { width: 24px; height: 24px; }
+.mini-case { font: var(--weight-semibold) 11px/1 var(--font-sans); }
+.mini-case[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); }
+.mini-up { display: inline-flex; transform: rotate(180deg); }
+.mini-goto { width: min(360px, calc(100% - 32px)); }
+.mini-goto .btn { height: 24px; padding: 0 10px; }
+.mini-match { background: var(--highlight); border-radius: 2px; }
+.mini-match.current { background: var(--highlight-current); color: var(--on-highlight); }
+.mini-flash { position: relative; }
+.mini-flash::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--accent-soft); pointer-events: none; animation: mini-flash calc(var(--dur-3) * 3.5) var(--ease-out) forwards; }
+@keyframes mini-flash { 0%, 40% { opacity: 1; } 100% { opacity: 0; } }
+
+/* What changed: a bar in the gutter like a code editor, and the hunks in the Endringer view. */
+.mini-change-gutter .cm-gutterElement { width: 4px; padding: 0; }
+.mini-change { display: block; width: 3px; height: 100%; border-radius: 1px; }
+.mini-change.add { background: var(--ok); }
+.mini-change.mod { background: var(--accent); }
+.mini-change.del { position: relative; height: 0; }
+.mini-change.del::before { content: ""; position: absolute; left: 0; top: -4px; border: 4px solid transparent; border-left: 5px solid var(--danger); }
+.mini-diff-add { background: var(--add-bg); }
+.mini-diff-del { background: var(--del-bg); }
+.mini-diff-skip { color: var(--text-3); font-style: italic; background: var(--surface-2); }
+.mini-sign-gutter .cm-gutterElement { width: 14px; padding: 0 2px; text-align: center; font-weight: var(--weight-semibold); }
+
+.mini-status {
+  display: flex; align-items: center; gap: var(--space-3); min-width: 0; height: 28px; padding: 0 var(--space-4); overflow: hidden;
+  border-top: 1px solid var(--border); background: var(--surface); color: var(--text-3); font-size: var(--text-xs); white-space: nowrap;
+}
+.mini-status > * { flex: none; }
+.mini-status .spacer { flex: 1; }
+.mini-status-symbol { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); color: var(--text-2); }
+.mini-saved { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); animation: ad-fade var(--dur-2) var(--ease-out); }
+.mini-status span:last-child:not(.spacer) { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+
+/* Narrow windows: the dialog takes the whole window, the outline slides over the editor, and the
+   buttons keep their icons and lose their words (the words stay as tooltips). */
+@media (max-width: 720px) {
+  dialog.mini-editor { width: calc(100vw - 16px); height: calc(100vh - 16px); border-radius: var(--radius-lg); }
+  .mini-head { position: relative; flex-wrap: wrap; row-gap: 4px; padding: 6px; }
+  .mini-title { flex-basis: 100%; height: 28px; padding: 0 36px 0 6px; }
+  .mini-tools { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; gap: 0; row-gap: 2px; }
+  .mini-sep { display: none; }
+  .mini-action > span { display: none; }
+  .mini-action { width: 30px; padding: 0; }
+  .mini-save { margin-left: auto; }
+  .mini-close { position: absolute; top: 6px; right: 6px; }
+  .mini-body.with-outline { grid-template-columns: minmax(0, 1fr); }
+  .mini-outline { position: absolute; z-index: 6; top: 0; bottom: 0; left: 0; width: min(260px, 80%); box-shadow: var(--shadow-pop); }
+  .mini-body { position: relative; }
+  .mini-status { gap: var(--space-2); padding: 0 var(--space-3); }
+}
+
+/* 6. GitHub (Beta): the panel (ui/GitHubPanel.tsx) and Innstillinger (ui/GitHubSettings.tsx) */
+
+.github-panel { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; overflow: auto; padding: 0 var(--space-3) var(--space-4); }
+.github-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: 40px; background: var(--bg-panel); border-bottom: 1px solid var(--border); margin: 0 calc(-1 * var(--space-3)); padding: 0 var(--space-2) 0 var(--space-3); }
+.github-title { display: inline-flex; align-items: center; flex: none; font-weight: var(--weight-semibold); font-size: var(--text-sm); }
+.github-repo { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 2px 6px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--text-2); }
+.github-repo:hover { background: var(--hover); color: var(--text); }
+.github-owner { color: var(--text-3); }
+.github-name { font-weight: var(--weight-medium); color: var(--text); }
+.github-fetched { flex: none; color: var(--text-3); font-size: var(--text-xs); }
+.github-head .spinning .icon { animation: spin 0.9s linear infinite; }
+@media (max-width: 1100px) { .github-fetched { display: none; } }
+.github-about { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--text-2); }
+.github-about p { margin: 0; overflow-wrap: anywhere; }
+.github-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--text-3); font-size: var(--text-xs); }
+.github-facts code { font-size: inherit; color: var(--text-2); }
+.github-switch { align-self: flex-start; max-width: 100%; }
+.github-switch .segment { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.github-switch .count { color: var(--text-3); font-variant-numeric: tabular-nums; font-weight: var(--weight-regular); }
+.github-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.github-list > li + li { border-top: 1px solid var(--border); }
+.github-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 10px var(--space-3); text-align: left; color: var(--text); }
+.github-item:hover { background: var(--hover); }
+.github-item:focus-visible { outline-offset: -2px; }
+.github-item-icon { display: inline-flex; flex: none; margin-top: 2px; color: var(--ok); }
+.github-item-icon[data-kind="draft"] { color: var(--text-3); }
+.github-item-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.github-item-title { font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-tight); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.github-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--text-3); font-size: var(--text-xs); }
+.github-branch { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 5px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--text-2); font-size: var(--text-2xs); }
+.github-draft { height: 18px; padding: 0 6px; font-size: var(--text-2xs); }
+.github-labels { display: flex; flex-wrap: wrap; gap: 4px; }
+.github-label { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 0 7px 0 6px; border-radius: var(--radius-full); border: 1px solid var(--border); color: var(--text-2); font-size: var(--text-2xs); line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.github-label::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--label); }
+.github-comments { display: inline-flex; align-items: center; gap: 3px; flex: none; margin-top: 2px; color: var(--text-3); font-size: var(--text-xs); }
+.github-none { padding: var(--space-5) var(--space-3); color: var(--text-3); font-size: var(--text-sm); text-align: center; }
+.github-all { align-self: flex-start; gap: 6px; color: var(--text-2); }
+.github-error { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border-radius: var(--radius-lg); background: var(--warn-soft); font-size: var(--text-sm); color: var(--text); animation: ad-rise var(--dur-2) var(--ease-out); }
+.github-error[data-code="bad-token"], .github-error[data-code="not-found"] { background: var(--danger-soft); }
+.github-error[data-code="not-connected"] { background: var(--surface-2); }
+.github-error > span { color: var(--text-2); overflow-wrap: anywhere; }
+.github-error-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 6px; }
+.github-empty { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-8) var(--space-4); color: var(--text-2); text-align: center; font-size: var(--text-sm); text-wrap: pretty; }
+.github-empty > .icon { color: var(--text-3); }
+.github-empty p { margin: 0; overflow-wrap: anywhere; }
+.github-empty-title { color: var(--text); font-weight: var(--weight-medium); }
+.github-skeleton { display: flex; flex-direction: column; gap: var(--space-4); padding-top: var(--space-2); }
+.github-skeleton-row { display: flex; flex-direction: column; gap: 8px; }
+.github-skeleton-row .short { width: 45%; }
+/* The GitHub tab is an icon with a tooltip, also when chosen: the panel shows the name, and the
+   six tabs before it already fill a panel at its standard width. */
+.panel-tab[aria-label="GitHub"] { padding: 0 7px; }
+.panel-tab[aria-label="GitHub"] > span { display: none; }
+.panel-tab[aria-label="GitHub"] > .icon { display: block; }
+.nav-beta { margin-left: auto; }
+.github-beta-note { display: flex; align-items: baseline; gap: 8px; margin-top: 0; }
+.github-beta-note .beta-badge { margin-left: 0; flex: none; }
+.github-token-row { display: flex; gap: var(--space-2); }
+.github-token-row .input { flex: 1; min-width: 0; font-family: var(--font-mono); }
+.github-login { font-family: var(--font-mono); }
+@media (max-width: 520px) { .github-token-row { flex-direction: column; } .github-token-row .btn { align-self: flex-end; } }
+
+/* The file path over a file in Filer, with Rediger beside it (round 8). */
+.file-path-row { display: flex; align-items: center; flex: none; min-width: 0; border-bottom: 1px solid var(--border); }
+.file-path-row .file-path { flex: 1; min-width: 0; border-bottom: 0; }
+.file-edit { height: 22px; margin-right: 6px; padding: 0 8px; font-size: var(--text-xs); color: var(--text-2); }
+/* With the GitHub tab, the tab row at the panel's standard width (420 px) needs a little less air.
+   Same container range as in nav.css; see the report for the wider ranges that already overflowed. */
+@container (max-width: 520px) and (min-width: 381px) {
+  .panel-tabs { gap: 0; }
+  .panel-tab { padding: 0 5px; }
+  .panel-tab[aria-label="GitHub"] { padding: 0 6px; }
+}

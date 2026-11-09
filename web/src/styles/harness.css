@@ -1,0 +1,178 @@
+/* Round 9b (SPEC 22): Kode-harness, Chat-personalisering, the memory upgrade and skill import.
+   Only new classes; everything else comes from the settings rows in styles.css and settings.css. */
+
+/* Layer colours, the same in the bar and on each layer's dot. */
+.settings-page {
+  --layer-base: var(--accent);
+  --layer-env: color-mix(in srgb, var(--accent) 45%, var(--text-4));
+  --layer-memories: var(--seg-tools);
+  --layer-skills: color-mix(in srgb, var(--seg-tools) 50%, var(--text-4));
+  --layer-global: var(--seg-system);
+  --layer-project: color-mix(in srgb, var(--seg-system) 55%, var(--text-4));
+  --layer-thread: var(--text-3);
+}
+
+.inline-link.link-button { display: inline; padding: 0; font-size: inherit; color: var(--accent-text); text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent); }
+
+.harness-locked { margin-left: var(--space-2); font-size: var(--text-2xs); vertical-align: 1px; }
+
+/* «Gjenopprett standard»: what changes, before anything is written. */
+.harness-review { background: var(--surface-2); gap: var(--space-3); }
+.harness-review > strong { font-weight: var(--weight-medium, 500); }
+.harness-changes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); }
+.harness-changes li { display: flex; justify-content: space-between; gap: var(--space-3); }
+.harness-review .form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+.harness-diff-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.harness-diff-stats { font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.diff-add-count { color: var(--add-text); }
+.diff-del-count { color: var(--del-text); }
+.harness-diff {
+  margin: 0;
+  max-height: 340px;
+  overflow: auto;
+  padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: var(--text-xs)/1.6 var(--font-mono);
+}
+.harness-diff:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.diff-line { display: block; padding: 0 var(--space-3) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-sign { display: inline-block; width: 2.2ch; text-align: center; color: var(--text-4); user-select: none; }
+.diff-add { background: var(--add-bg); color: var(--add-text); }
+.diff-del { background: var(--del-bg); color: var(--del-text); }
+.diff-add .diff-sign, .diff-del .diff-sign { color: inherit; }
+.diff-fold { color: var(--text-4); font-style: italic; padding-left: 2.2ch; }
+
+.harness-agents { min-height: 260px; }
+
+/* The preview: a bar of the layers by size, then each layer to open. */
+.harness-preview-tools .setting-control { flex-wrap: wrap; justify-content: flex-end; }
+.harness-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.harness-total strong { font-weight: var(--weight-medium, 500); }
+.harness-bar { flex: 1 1 100%; display: flex; gap: 2px; height: 6px; border-radius: var(--radius-full); overflow: hidden; }
+.harness-bar i { display: block; min-width: 3px; }
+.harness-layers { margin: 0; padding: 0; list-style: none; }
+.harness-layer { border-top: 1px solid var(--border); }
+.harness-layer summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 46px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+.harness-layer summary::-webkit-details-marker { display: none; }
+.harness-layer summary::marker { content: ""; }
+.harness-layer summary:hover { background: var(--hover); }
+.harness-layer summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.harness-layer summary > .icon { color: var(--text-3); transition: transform 0.15s ease; }
+.harness-layer details[open] summary > .icon { transform: rotate(180deg); }
+.layer-title { flex: none; color: var(--text); }
+.layer-source { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); }
+.layer-tokens { flex: none; color: var(--text-2); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.layer-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.harness-layer-text { margin: 0 var(--space-4) var(--space-3); max-height: 420px; }
+
+.layer-base { background: var(--layer-base); }
+.layer-env { background: var(--layer-env); }
+.layer-memories, .layer-chat-memories { background: var(--layer-memories); }
+.layer-skills { background: var(--layer-skills); }
+.layer-global, .layer-chat-personal { background: var(--layer-global); }
+.layer-project, .layer-agentic { background: var(--layer-project); }
+.layer-thread { background: var(--layer-thread); }
+.layer-chat-base { background: var(--layer-base); }
+
+/* The memory upgrade: one row per change, the old text struck through, the new under it. */
+.upgrade { border-top: 1px solid var(--border); padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); background: var(--surface-2); }
+.upgrade-head { display: flex; gap: var(--space-3); align-items: flex-start; }
+.upgrade-head > .icon { margin-top: 2px; color: var(--accent-text); flex: none; }
+.upgrade-note { font-style: italic; }
+.upgrade-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+.upgrade-op {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: opacity 0.15s ease;
+}
+.upgrade-op.off { opacity: 0.55; }
+.upgrade-check { display: flex; padding-top: 2px; }
+.upgrade-check input { width: 15px; height: 15px; accent-color: var(--accent); }
+.upgrade-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: var(--text-sm); }
+.upgrade-kind { font-size: var(--text-2xs); font-weight: var(--weight-medium, 500); letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-3); }
+.upgrade-old { color: var(--del-text); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--del-text) 50%, transparent); overflow-wrap: anywhere; }
+.upgrade-new { color: var(--add-text); overflow-wrap: anywhere; }
+.upgrade-new::before { content: "→ "; color: var(--text-4); }
+.upgrade-reason { font-size: var(--text-xs); }
+.upgrade-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+/* Chat-personalisering */
+.chat-field-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); color: var(--text); }
+.chat-field-head strong { font-weight: var(--weight-regular); font-size: var(--text-md); }
+.chat-area { height: auto; min-height: 76px; padding: 8px var(--space-3); line-height: var(--leading-prose, 1.5); resize: vertical; margin-top: 4px; }
+.chat-count { font-variant-numeric: tabular-nums; }
+.chat-count.over { color: var(--danger); }
+
+/* Skill import: drop anywhere on the page, then a list of files to check. */
+.skills-drop { position: relative; min-height: 100%; }
+.skills-drop.dragging .settings-section { opacity: 0.6; }
+.skills-drop-hint {
+  position: sticky;
+  top: var(--space-3);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0 auto var(--space-3);
+  max-width: var(--settings-max, 760px);
+  padding: var(--space-4);
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  pointer-events: none;
+}
+.menu-note { padding: 6px 10px 4px; font-size: var(--text-xs); max-width: 220px; }
+.skill-import { border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.skill-import-head { background: transparent; }
+.import-list { margin: 0; padding: 0; list-style: none; max-height: 460px; overflow: auto; border-top: 1px solid var(--border); }
+.import-row { align-items: flex-start; background: var(--surface); }
+:root[data-theme="dark"] .import-row { background: var(--bg-panel); }
+.import-icon { display: flex; padding-top: 3px; color: var(--text-3); flex: none; }
+.import-ok .import-icon { color: var(--ok); }
+.import-conflict .import-icon { color: var(--seg-system); }
+.import-invalid .import-icon { color: var(--danger); }
+.import-ignored { opacity: 0.7; }
+.import-error { color: var(--danger); font-size: var(--text-sm); }
+.import-pill-ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--add-text); }
+.import-pill-conflict { background: color-mix(in srgb, var(--seg-system) 16%, transparent); color: var(--text); }
+.import-pill-invalid { background: var(--danger-soft); color: var(--danger); }
+.skill-import-actions { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); }
+.import-row .skill-path { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.import-row .skill-path .icon { flex: none; }
+
+@media (max-width: 600px) {
+  .harness-preview-tools, .skill-import-head, .import-row { flex-wrap: wrap; }
+  .harness-preview-tools .setting-control, .skill-import-head .setting-control { width: 100%; justify-content: flex-start; }
+  .import-row .setting-control { width: 100%; padding-left: 26px; flex-wrap: wrap; }
+  .layer-source { display: none; }
+  .harness-layer summary { padding: 0 var(--space-3); }
+  .upgrade { padding: var(--space-3); }
+}

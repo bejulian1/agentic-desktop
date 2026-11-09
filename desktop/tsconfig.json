@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["esnext", "dom"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true
+  },
+  "include": [".", "../scripts/build-desktop.ts", "../scripts/dist.ts", "../scripts/install-local.ts", "../scripts/test-desktop.ts", "../scripts/perf-desktop.ts"],
+  "exclude": ["build", "shell"]
+}
