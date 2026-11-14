@@ -171,6 +171,10 @@ Velg så modellen i meldingsfeltet.
 - **Snarveier** står i **Hjelp → Hurtigtaster** og kan endres. For eksempel gir Ctrl+J ny tråd, Ctrl+B skjuler sidefanen, og Alt+← og Alt+→ går tilbake og frem.
 - **Lukker du vinduet**, legger appen seg i statusfeltet. Ctrl+Q avslutter.
 
+## Versjoner og publisering
+
+Nye ferdigtestede appversjoner får oppdatert versjons- og byggnummer, commit på GitHub og en tilhørende [Release](https://github.com/bejulian1/agentic-desktop/releases) med versjonslogg, installasjonsfiler og kontrollsummer. Publiseringsrutinen står i [AGENTS.md](AGENTS.md).
+
 ## For utviklere
 
 GitHub-repoet inneholder appkoden, nødvendige byggeskript og brukerdokumentasjon. Automatiserte testpakker, lokale målerapporter, brukerdata og ferdigbygde installasjonspakker inngår ikke. `npm run typecheck` kontrollerer kildekoden som følger med.
