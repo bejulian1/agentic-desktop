@@ -4,6 +4,13 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.24.3: Renere prosjektlinje over meldingsfeltet (15. november 2026, bygg 70)
+
+- **Jevn glasstone i promptbaren:** prosjektlinjen bruker samme dempede flate som meldingsfeltet over bakgrunner, med en tynn kant.
+- **Fjerner grå stripe:** den gamle overlappen på 14 piksler er erstattet med en liten skjøt, slik at prosjektlinjen ikke skinner gjennom øverst i meldingsfeltet. Prosjektvelger, lokal vert og øvrige kontroller er beholdt.
+
+Vanlig visning uten bakgrunn beholdes. Kontrollert i bredt og smalt vindu, med prosjektvelger og bevart meldingsutkast.
+
 ## 0.24.2: Myk avgrensning av glassbakgrunnen (15. november 2026, bygg 69)
 
 - **Glass følger innholdet:** den uskarpe bakgrunnen begrenses til samtalens og meldingsfeltets bredde, med en rolig uttoning mot skarpe sidemarger. Bredden følger vinduet og temaets innholdsinnstilling.

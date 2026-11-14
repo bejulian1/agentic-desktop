@@ -1,9 +1,9 @@
 # Status
 
-## 0.24.2
+## 0.24.3
 
-**v0.24.2 (bygg 69):** glassbakgrunnen følger innholdskolonnen og meldingsfeltet, med myk uttoning mot skarpe sidemarger. Den vertikale uttoningen ved meldingsfeltet bruker samme sideavgrensning. Tilpasser seg vindusbredde og temaets innholdsbredde. Claudes øvrige glasspolering fra 0.24.1 beholdes.
+**v0.24.3 (bygg 70):** prosjektlinjen over meldingsfeltet følger samme glasstone som feltet. Den gamle grå flaten og brede overlappen er fjernet over bakgrunner. Tynn skjøt, eksisterende knapper og vanlig visning uten bakgrunn beholdes.
 
-Kontrollert med tre isolerte UI-forløp, inkludert bildebasert kontroll av skarpe marger og uskarp kolonne i Chat/Kode, smalt vindu, global bakgrunn og løsrevet chatvindu. Ingen serveratferd er endret.
+To isolerte UI-forløp bekrefter overgangen, prosjektvelger, bevart utkast, smalt vindu og avgrensningen av glassbakgrunnen i Chat/Kode. Ingen serveratferd er endret.
 
 Se [full versjonslogg](PATCHLOG.md) for tidligere versjoner.

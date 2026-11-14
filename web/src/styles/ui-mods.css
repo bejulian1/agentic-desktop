@@ -26,11 +26,14 @@ html[data-wallpaper]:has(.settings-page) .app{visibility:hidden}
 /* Progressive blur: the conversation and the image dissolve into the footer, strongest at the bottom. Text rows carry no panel of their own. */
 .pane-inner.background-pane .pane-foot{position:relative;z-index:1;background:none}
 .pane-inner.background-pane .pane-foot::before{content:"";position:absolute;inset:-72px 0 0;z-index:-1;pointer-events:none;background:linear-gradient(transparent,color-mix(in srgb,var(--bg) 40%,transparent));backdrop-filter:blur(18px) saturate(1.2);-webkit-mask-image:var(--glass-side-mask),linear-gradient(transparent,#000 72px);-webkit-mask-composite:source-in;mask-image:var(--glass-side-mask),linear-gradient(transparent,#000 72px);mask-composite:intersect}
+/* Match the project strip to the field, with only a one-pixel seam. The old
+   opaque surface and 14px overlap showed through the translucent input. */
+.pane-inner.background-pane .composer-context{margin-bottom:-1px;padding-bottom:4px;border:1px solid color-mix(in srgb,var(--text) 18%,transparent);border-bottom:0;background:color-mix(in srgb,var(--surface) 62%,transparent)}
 /* The only outlined surfaces: the message field and the user's own messages. Translucent, so their tone follows the image behind them. */
 .pane-inner.background-pane .composer,.pane-inner.background-pane .composer:focus-within{border-color:color-mix(in srgb,var(--text) 18%,transparent);background:color-mix(in srgb,var(--surface) 62%,transparent);box-shadow:0 8px 30px #0003}
 .pane-inner.background-pane .user-bubble{background:color-mix(in srgb,var(--surface) 62%,transparent);backdrop-filter:blur(14px)}
-html[data-theme=dark] .pane-inner.background-pane .composer,html[data-theme=dark] .pane-inner.background-pane .user-bubble{background:color-mix(in srgb,#000 42%,transparent)}
+html[data-theme=dark] .pane-inner.background-pane .composer-context,html[data-theme=dark] .pane-inner.background-pane .composer,html[data-theme=dark] .pane-inner.background-pane .user-bubble{background:color-mix(in srgb,#000 42%,transparent)}
 .pane-inner.background-pane .row-user:not([data-selected]) .user-bubble{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 18%,transparent)}
-@supports not (backdrop-filter:blur(1px)){.pane-inner.background-pane .pane-foot::before{background:linear-gradient(transparent,var(--bg) 72px)}.pane-inner.background-pane .composer,.pane-inner.background-pane .user-bubble{background:var(--surface)}}
+@supports not (backdrop-filter:blur(1px)){.pane-inner.background-pane .pane-foot::before{background:linear-gradient(transparent,var(--bg) 72px)}.pane-inner.background-pane .composer-context,.pane-inner.background-pane .composer,.pane-inner.background-pane .user-bubble{background:var(--surface)}}
 @supports not (backdrop-filter:blur(1px)){.pane-inner.ui-mod-glass::before{background:color-mix(in srgb,var(--bg) 88%,transparent)}}
 @media(max-width:600px){.wallpaper-range input{width:100px}.wallpaper-preview img{width:120px;height:68px}}
