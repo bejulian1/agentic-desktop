@@ -398,6 +398,9 @@ export class Api {
       if (!security.exchange(res, body.token)) throw new HttpError(401, "Ugyldig token");
     });
 
+    this.route("POST","/api/appearance/wallpaper",({body})=>this.deps.uiMods?.setWallpaper(body));
+    this.route("DELETE","/api/appearance/wallpaper",()=>this.deps.uiMods?.clearWallpaper());
+    this.route("GET","/api/appearance/wallpaper/:id",({res,params})=>{const image=this.deps.uiMods?.wallpaperImage(params.id);if(!image)throw new HttpError(404,"Fant ikke bakgrunnsbildet.");res.writeHead(200,{"content-type":image.mime,"cache-control":"private, no-store","x-content-type-options":"nosniff"});res.end(image.bytes);return HANDLED;});
     this.route("GET","/api/ui-mods",()=>this.deps.uiMods?.snapshot());
     this.route("PUT","/api/ui-mods/preferences",({body})=>this.deps.uiMods?.preferences(body));
     this.route("PUT","/api/ui-mods/library/:id",({body,params})=>{if(params.id!==body.id)throw new HttpError(400,"ID må stemme med adressen.");return this.deps.uiMods?.save(body);});

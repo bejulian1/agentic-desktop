@@ -1,15 +1,13 @@
 # Status
 
-## 0.23.0
+## 0.24.0
 
-**v0.23.0 (bygg 65):** visuelle mods og temaer per samtale. Modellen kan lage, endre, aktivere, nullstille og fjerne mods i Chat og Kode, også uten prosjekt. Endringer venter til turen er ferdig. Samtykke spørres per samtale; Full tilgang i Kode godtar visuelle endringer automatisk. Et manuelt bibliotekvalg gjelder straks.
+**v0.24.0 (bygg 66):** eget globalt bakgrunnsbilde under Utseende, med opplasting, bytte, fjerning, bildestyrke og uskarphet. Bildet brukes på tvers av Chat, Kode og innstillinger og beholdes ved omstart. Lokale bakgrunnsfiler er adskilt fra meldingsvedlegg og sendes ikke til modellen. Samtaletemaer beholder eget motiv inne i samtalen.
 
-Nordlys, Stjernehimmel og Hav følger med. Egne scener har figurer og pikselrader, og små informasjonsfelt kan vise klokke, notat, arbeidsområde eller tokenbruk for siste tur. Farger, kodefarger, tekstbredde og hjørner kan tilpasses. Mørke temaer endrer modus midlertidig; det vanlige lys-/mørkvalget beholdes. Ny samtale følger vanlig utseende når ingen standardmod er valgt.
+Glassflater bak modellsvar og tenkeutdrag kan slås av eller på. Filtrene brukes bare når en bakgrunn er aktiv. Meldingsfeltet har en mørk flate i mørk modus og tydelig kant. Chat har snarveier til tema og bakgrunn på startsiden og i verktøymenyen.
 
-Palettknappen og Utseende åpner bibliotek/editor. Filer lastes ved endring; ugyldig JSON eller kontrast beholder sist fungerende variant. Deklarative moddata kan ikke kjøre kode eller erstatte appens godkjenninger. Animasjon mellomlagrer pikselfigurer, begrenses til 24 bilder/sekund, følger redusert bevegelse og stopper når bakgrunnen er skjult.
+**Kontroll:** 445 servertester og typekontroll består. Headless-grensesnittkontrollen dekker opplasting, innstillinger, glassbryter, Chat/Kode, gjenåpning og uavhengige samtaletemaer. Electron-kontroller bekrefter samtykke og at globalt bilde beholdes ved ny tom oppstart. Tre kontroller av den ferdige pakken bekrefter oppstart/stopp, bakgrunn, glass, temaer og dokument/Python-funksjoner med pakkens egne biblioteker. Alle kontroller bruker midlertidige data og lokale modeller. Dette er ikke en full ytelsessammenligning med forrige versjon.
 
-**Kontroll:** 443 servertester, fem berørte UI-forløp og typekontroll består. Samtykke, pixelart, gjenåpning av samme samtale og ny tom oppstart er kontrollert i Electron, sammen med dokumentnedlasting og Python. Testene bruker lokale modellservere, demo og midlertidige data.
-
-Se [Tema og visuelle mods](UI-MODS.md), [versjonslogg](PATCHLOG.md) og README for bruk og format. Inspirasjon er hentet fra Anthropic-dokumentasjonen og brukerens Nordlys-eksempel; Agentic Desktop har sin egen implementasjon.
+Se [Tema, bakgrunn og mods](UI-MODS.md) og [versjonslogg](PATCHLOG.md).
 
 Se [full versjonslogg](PATCHLOG.md) for tidligere versjoner.

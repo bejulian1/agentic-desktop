@@ -1,3 +1,4 @@
+import {setModsOpen} from '../state/ui-mods';
 import {useTokenTooltip} from "./TokenTooltip";
 // The start page of an empty pane. Chat: a greeting and example cards. Kode, with or without a
 // project (round 11b, SPEC 25.2), shows one of three starts chosen in Innstillinger → Kode:
@@ -17,7 +18,7 @@ import { homeStats, loadHomeStats, runsFinished } from "../state/home";
 import { chatProjectFor, openThread } from "../state/navigate";
 import { startTemporaryChat, trackTemporary } from "./ChatTools";
 import { chooseProject, openProjectPicker, shortPath } from "./Composer";
-import { IconBranch, IconChat, IconCode, IconCheck, IconChevron, IconChevronDown, IconClock, IconLaptop, IconMark, IconSpark } from "./icons";
+import { IconPalette, IconBranch, IconChat, IconCode, IconCheck, IconChevron, IconChevronDown, IconClock, IconLaptop, IconMark, IconSpark } from "./icons";
 import { IconFolderPlus } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { shortTime } from "./rows";
@@ -206,7 +207,7 @@ export function Home(props: { projectId: string | null; code?: boolean; paneKey:
           </div>
           <Show when={!temporary()}>
             <RecentChats exclude={props.paneKey} />
-            <div class="home-actions">
+            <div class="home-actions"><button class="btn btn-small btn-quiet" onClick={()=>setModsOpen(true)}><IconPalette size={14}/> Tema og bakgrunn</button>
               <button type="button" class="btn btn-small" title="En chat som ikke lagres i historikken, og som slettes når du lukker den" onClick={() => void startTemporaryChat()}>
                 <IconClock size={14} />Midlertidig chat
               </button>

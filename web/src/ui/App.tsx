@@ -1,3 +1,4 @@
+import {GlobalWallpaper} from './GlobalWallpaper';
 import {UiModRoot} from "./UiModRoot";
 import {modsOpen} from "../state/ui-mods";
 import { windowTitle } from "../state/thread-status";
@@ -241,6 +242,7 @@ export function App() {
 export function Shell() {
   return (
     <>
+      <GlobalWallpaper/>
       <App />
       <Show when={settingsOpen()}>
         <Suspense><SettingsView /></Suspense>
@@ -263,6 +265,7 @@ export function SoloApp(props: { threadId: string }) {
   // Round 15: a box in a detached pane opens the artifact panel beside it, in this window.
   return (
     <>
+    <GlobalWallpaper/>
     <UiModRoot threadId={()=>props.threadId} mode={()=>thread()?.mode??"chat"}/>
     <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!settingsOpen() || undefined}>
       <main class="main">

@@ -16,4 +16,6 @@ export function effectiveUiMod(threadId:string|null,mode:Mode):UiMod|undefined {
 export async function chooseUiMod(id:string|null,target=modTarget()){if(target.threadId)await put(`/api/ui-mods/threads/${target.threadId}`,{modId:id});else await put('/api/ui-mods/preferences',{defaults:{[target.mode]:id}});await refreshUiMods();}
 export async function saveUiMod(mod:UiMod){await put(`/api/ui-mods/library/${mod.id}`,mod);await refreshUiMods();}
 export async function deleteUiMod(id:string){await del(`/api/ui-mods/library/${id}`);await refreshUiMods();}
-export async function modPreferences(patch:Partial<Pick<UiModsState,'enabled'|'animated'|'defaults'>>){await put('/api/ui-mods/preferences',patch);await refreshUiMods();}
+export async function modPreferences(patch:Partial<Pick<UiModsState,'enabled'|'animated'|'defaults'|'glass'>>){await put('/api/ui-mods/preferences',patch);await refreshUiMods();}
+
+export async function wallpaperPreferences(patch:{opacity?:number;blur?:number}){await put('/api/ui-mods/preferences',{wallpaper:patch});await refreshUiMods();}

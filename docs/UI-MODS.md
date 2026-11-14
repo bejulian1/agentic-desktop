@@ -1,5 +1,7 @@
 # Tema og visuelle mods
 
+I Chat kan du også åpne **Tema og bakgrunn** på startsiden eller i meldingsfeltets verktøymeny.
+
 Åpne **palettknappen øverst → Tema og mods**, eller **Innstillinger → Utseende → Egne temaer og mods**. Eksempeltemaene Nordlys, Stjernehimmel og Hav følger med. Biblioteket er lokalt, og hver samtale har sitt eget temavalg. Når du velger et tema på en tom startside, setter du standard for den aktuelle modusen. En samtale med et eget valg følger dette; **Tilbake til standard** viser appens vanlige utseende i akkurat den samtalen.
 
 Du kan be modellen om for eksempel:
@@ -39,3 +41,11 @@ Biblioteket viser mappen med lokale JSON-filer under appens datamappe, i `ui-mod
 Tekst må ha minst 4,5:1 kontrast mot de definerte hovedflatene, dempet tekst minst 3:1. Bilder og bakgrunner påvirker opplevelsen i tillegg; vurder alltid lesbarheten i appen. Godkjenninger og appkontroller tegnes av appen og kan ikke erstattes av moddata. En mod laget fra en samtale kan ikke overskrive eller slette en annen samtales egendefinerte mod gjennom modellverktøyet. Bibliotekets manuelle redigering er brukerens felles kontrollflate.
 
 Inspirasjon: Anthropic dokumenterer [farger og bakgrunner per økt](https://code.claude.com/docs/en/plugins/mods/interface) og [mods som pluginutvidelser](https://code.claude.com/docs/en/plugins/mods). Agentic Desktop har sin egen implementasjon og sitt eget format.
+
+## Globalt bakgrunnsbilde og glassflater
+
+**Innstillinger → Utseende → Bakgrunn og glassflater** lar deg velge et eget PNG-, JPEG- eller WebP-bilde for hele appen. Bildet brukes i både Chat, Kode, navigasjonen og innstillingene. Du kan bytte eller fjerne det straks, og justere bildestyrke og uskarphet. Valget beholdes etter omstart. Et samtaletema med eget motiv tegnes over den globale bakgrunnen inne i akkurat den samtalen. Nullstilling av samtaletemaet viser den globale bakgrunnen igjen.
+
+Bildet lagres lokalt under `appearance/images/`, adskilt fra meldingsvedlegg. Det sendes ikke til modellen. Originaler opptil 12 MB behandles lokalt, skaleres til høyst 2560 piksler på lengste side og lagres som et bilde på maks 3 MB. Bytte og fjerning rydder den gamle lokale bakgrunnsfilen. SVG og animerte GIF-bakgrunner er ikke støttet.
+
+**Glassflater bak svar** gir dempede, uskarpe flater bak modellsvar og tenkeutdrag når et bilde eller scenetema vises. Bryteren finnes også i modbiblioteket. Effekten kan slås av uten å fjerne bakgrunnen. Meldingsfeltet får en tydelig kant og mørk flate i mørk modus. Vanlig visning uten bakgrunn bruker ingen glassfiltre.

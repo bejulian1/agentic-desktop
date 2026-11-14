@@ -1,15 +1,17 @@
 import {constants,closeSync,fstatSync,mkdirSync,openSync,readFileSync,readdirSync,renameSync,rmSync,watch,writeFileSync,type FSWatcher} from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {BUILTIN_MODS,MOD_ID,validateUiMod,type UiMod,type UiModsState} from '../../shared/ui-mods.ts';
+import {BUILTIN_MODS,MOD_ID,validateUiMod,type UiMod,type UiModsState,type Wallpaper} from '../../shared/ui-mods.ts';
+import {saveImage,findImage} from './images.ts';
 import type {Store} from './db.ts';
 import {HttpError} from './errors.ts';
 type Pending={mods:Map<string,UiMod|null>;selection?:string|null};
-interface Preferences {enabled:boolean;animated:boolean;defaults:{chat:string|null;code:string|null};threads:Record<string,string|null>;owners:Record<string,string>;allowed:Record<string,boolean>}
+interface Preferences {glass:boolean;wallpaper:Wallpaper|null;enabled:boolean;animated:boolean;defaults:{chat:string|null;code:string|null};threads:Record<string,string|null>;owners:Record<string,string>;allowed:Record<string,boolean>}
 const THREAD=/^[a-f0-9-]{36}$/;
 export class UiMods {
  readonly directory:string;
- private prefs:Preferences={enabled:true,animated:true,defaults:{chat:null,code:null},threads:{},owners:{},allowed:{}};
+ private appearanceDir:string;
+ private prefs:Preferences={glass:true,wallpaper:null,enabled:true,animated:true,defaults:{chat:null,code:null},threads:{},owners:{},allowed:{}};
  private library=new Map<string,UiMod>();
  private pending=new Map<string,Pending>();
  private deferred=new Set<string>();
@@ -18,8 +20,11 @@ export class UiMods {
  private timer:NodeJS.Timeout|undefined;
  constructor(privateStore:Store,dataDir:string,changed:()=>void,isBusy:(id:string)=>boolean){
   this.store=privateStore;this.changed=changed;this.isBusy=isBusy;
+  this.appearanceDir=path.join(dataDir,'appearance');
   this.directory=path.join(dataDir,'ui-mods');mkdirSync(this.directory,{recursive:true,mode:0o700});
   try{const v=this.read(path.join(this.directory,'preferences.json'),500000) as Preferences;
+   if(typeof v.glass==='boolean')this.prefs.glass=v.glass;
+   const w=v.wallpaper;if(w&&THREAD.test(w.id)&&['image/png','image/jpeg','image/webp'].includes(w.mime)&&typeof w.name==='string'&&Number.isFinite(w.opacity)&&w.opacity>=0&&w.opacity<=1&&Number.isFinite(w.blur)&&w.blur>=0&&w.blur<=16&&findImage(this.appearanceDir,w.id))this.prefs.wallpaper={id:w.id,name:w.name.slice(0,160),mime:w.mime,opacity:w.opacity,blur:w.blur};
    if(typeof v.enabled==='boolean')this.prefs.enabled=v.enabled;if(typeof v.animated==='boolean')this.prefs.animated=v.animated;
    for(const mode of ['chat','code'] as const)if(v.defaults?.[mode]===null||MOD_ID.test(v.defaults?.[mode]??''))this.prefs.defaults[mode]=v.defaults[mode];
    for(const [id,mod] of Object.entries(v.threads??{}))if(THREAD.test(id)&&(mod===null||(typeof mod==='string'&&MOD_ID.test(mod))))this.prefs.threads[id]=mod;
@@ -39,7 +44,7 @@ export class UiMods {
  private find(id:string,threadId?:string){if(threadId&&this.pending.get(threadId)?.mods.has(id))return this.pending.get(threadId)!.mods.get(id)??undefined;return this.library.get(id)??BUILTIN_MODS.find(m=>m.id===id);}
  private owned(id:string,threadId?:string){if(this.builtin(id))throw new HttpError(403,'Eksempeltemaer beholdes. Lag en kopi med en ny ID for å endre dem.');if(threadId&&this.find(id,threadId)&&this.prefs.owners[id]!==threadId&&!this.pending.get(threadId)?.mods.has(id))throw new HttpError(403,'Dette temaet tilhører en annen samtale. Lag en kopi med en ny ID.');}
  private validate(value:unknown){try{return validateUiMod(value);}catch(e){throw new HttpError(400,(e as Error).message);}}
- snapshot():UiModsState{return {enabled:this.prefs.enabled,animated:this.prefs.animated,defaults:{...this.prefs.defaults},threads:{...this.prefs.threads},allowedThreads:Object.keys(this.prefs.allowed).filter(id=>this.prefs.allowed[id]),mods:[...BUILTIN_MODS,...this.library.values()],pendingThreads:[...this.pending.keys()],warnings:[...this.warnings],directory:this.directory};}
+ snapshot():UiModsState{return {glass:this.prefs.glass,wallpaper:this.prefs.wallpaper?{...this.prefs.wallpaper}:null,enabled:this.prefs.enabled,animated:this.prefs.animated,defaults:{...this.prefs.defaults},threads:{...this.prefs.threads},allowedThreads:Object.keys(this.prefs.allowed).filter(id=>this.prefs.allowed[id]),mods:[...BUILTIN_MODS,...this.library.values()],pendingThreads:[...this.pending.keys()],warnings:[...this.warnings],directory:this.directory};}
  enabled(){return this.prefs.enabled;}
  consented(id:string){return this.prefs.allowed[id]===true;}
  consent(id:string,on=true){this.checkThread(id);this.prefs.allowed[id]=on;if(!on){this.pending.delete(id);this.prefs.threads[id]=null;}this.savePreferences();this.changed();}
@@ -59,12 +64,24 @@ export class UiMods {
  }
  preferences(input:any){
   if(!input||typeof input!=='object'||Array.isArray(input))throw new HttpError(400,'Ugyldige modinnstillinger.');
-  for(const key of Object.keys(input))if(!['enabled','animated','defaults'].includes(key))throw new HttpError(400,'Ukjent modinnstilling.');
+  for(const key of Object.keys(input))if(!['enabled','animated','defaults','glass','wallpaper'].includes(key))throw new HttpError(400,'Ukjent modinnstilling.');
   const next=structuredClone(this.prefs);
-  for(const key of ['enabled','animated'] as const)if(input[key]!==undefined){if(typeof input[key]!=='boolean')throw new HttpError(400,'Bruk sann/usann.');next[key]=input[key];}
+  for(const key of ['enabled','animated','glass'] as const)if(input[key]!==undefined){if(typeof input[key]!=='boolean')throw new HttpError(400,'Bruk sann/usann.');next[key]=input[key];}
   if(input.defaults!==undefined){if(!input.defaults||typeof input.defaults!=='object'||Array.isArray(input.defaults)||Object.keys(input.defaults).some(k=>!['chat','code'].includes(k)))throw new HttpError(400,'Ugyldig standardtema.');for(const mode of ['chat','code'] as const)if(input.defaults[mode]!==undefined){const id=input.defaults[mode];if(id!==null&&(typeof id!=='string'||!this.find(id)))throw new HttpError(404,'Fant ikke temaet.');next.defaults[mode]=id;}}
+  if(input.wallpaper!==undefined){const w=input.wallpaper;if(!w||typeof w!=='object'||Array.isArray(w)||Object.keys(w).some(k=>!['opacity','blur'].includes(k))||!next.wallpaper)throw new HttpError(400,'Velg et bakgrunnsbilde først.');for(const key of ['opacity','blur'] as const)if(w[key]!==undefined){if(typeof w[key]!=='number'||!Number.isFinite(w[key])||w[key]<0||w[key]>(key==='blur'?16:1))throw new HttpError(400,'Ugyldig bildestyrke eller uskarphet.');next.wallpaper[key]=w[key];}}
   this.prefs=next;this.savePreferences();if(!next.enabled)this.pending.clear();this.changed();return this.snapshot();
  }
+ setWallpaper(input:any){
+  if(!input||!['image/png','image/jpeg','image/webp'].includes(input.mime))throw new HttpError(415,'Bruk et PNG-, JPEG- eller WebP-bilde.');
+  if(typeof input.data!=='string'||!input.data||input.data.length>4*1024*1024||!/^[A-Za-z0-9+/]*={0,2}$/.test(input.data)||Buffer.from(input.data,'base64').length>3*1024*1024)throw new HttpError(413,'Bakgrunnsbildet kan være maks 3 MB.');
+  const id=saveImage(this.appearanceDir,input.mime,input.data),previous=this.prefs.wallpaper;
+  this.prefs.wallpaper={id,mime:input.mime,name:typeof input.name==='string'?input.name.replace(/[\x00-\x1f\x7f]/g,'').slice(0,160):'Bakgrunnsbilde',opacity:previous?.opacity??0.35,blur:previous?.blur??0};
+  try{this.savePreferences();}catch(e){this.prefs.wallpaper=previous;this.removeWallpaperFile(id);throw e;}
+  if(previous)this.removeWallpaperFile(previous.id);this.changed();return this.snapshot();
+ }
+ clearWallpaper(){const previous=this.prefs.wallpaper;this.prefs.wallpaper=null;try{this.savePreferences();}catch(e){this.prefs.wallpaper=previous;throw e;}if(previous)this.removeWallpaperFile(previous.id);this.changed();return this.snapshot();}
+ private removeWallpaperFile(id:string){const image=findImage(this.appearanceDir,id);if(image)rmSync(image.file,{force:true});}
+ wallpaperImage(id:string){if(id!==this.prefs.wallpaper?.id)throw new HttpError(404,'Fant ikke bakgrunnsbildet.');const found=findImage(this.appearanceDir,id);if(!found)throw new HttpError(404,'Fant ikke bakgrunnsbildet.');const fd=openSync(found.file,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);try{const stat=fstatSync(fd);if(!stat.isFile()||stat.size>3*1024*1024)throw new HttpError(404,'Fant ikke bakgrunnsbildet.');return {mime:found.mime,bytes:readFileSync(fd)};}finally{closeSync(fd);}}
  save(value:unknown,threadId?:string){const mod=this.validate(value);this.owned(mod.id,threadId);if(!this.find(mod.id,threadId)&&this.library.size+(this.pending.get(threadId??'')?.mods.size??0)>=24)throw new HttpError(413,'Maks 24 egne mods. Fjern en før du lager flere.');
   if(threadId){if(!this.prefs.enabled)throw new HttpError(403,'Mods er slått av i Innstillinger → Utseende.');this.pendingFor(threadId).mods.set(mod.id,mod);this.changed();return {mod,pending:true};}
   this.write(path.join(this.directory,mod.id+'.json'),mod);for(const [thread,p]of this.pending){p.mods.delete(mod.id);if(!p.mods.size&&p.selection===undefined)this.pending.delete(thread);}this.library.set(mod.id,mod);this.reload();this.changed();return {mod,pending:false};

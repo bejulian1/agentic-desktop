@@ -1,4 +1,4 @@
-import {effectiveUiMod} from "../state/ui-mods";
+import {effectiveUiMod,uiMods} from "../state/ui-mods";
 import {modVariables} from "../lib/ui-mod-theme";
 import {UiModBand} from "./UiModBand";
 // One pane: a header, a conversation and a message field. It subscribes to its own thread only.
@@ -39,6 +39,8 @@ export function Pane(props: {
   // Empty panes retain a separate composer instance for each Chat project context. Typing in
   // one project must never appear when the same pane starts a chat somewhere else.
   const mod=createMemo(()=>effectiveUiMod(threadId(),props.code||thread()?.mode==="code"?"code":"chat"));
+  const scene=()=>!!mod()&&(mod()!.scene.preset!=="none"||mod()!.scene.layers.length>0);
+  const background=()=>scene()||!!uiMods().wallpaper;
   const modStyle=createMemo(()=>mod()?modVariables(mod()!):{});
   const composerKey = () => threadId() ?? (props.code ? props.pane.id : `${props.pane.id}:chat:${chatProjectFor(props.pane.id) ?? "global"}`);
   const [model, setModel] = createSignal<ThreadModel | null>(null);
@@ -116,8 +118,8 @@ export function Pane(props: {
   });
 
   return (
-    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)}>
-      <Show when={mod()&&(mod()!.scene.preset!=="none"||mod()!.scene.layers.length)}><Suspense><UiModBackdrop scene={mod()!.scene}/></Suspense></Show>
+    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-scene":scene(),"background-pane":background(),"ui-mod-glass":background()&&uiMods().glass!==false,"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)}>
+      <Show when={scene()}><Suspense><UiModBackdrop scene={mod()!.scene}/></Suspense></Show>
       <header class="pane-head" onPointerDown={startDrag}>
         <span class="pane-dot" classList={{ running: thread()?.running }} data-state={thread() ? threadState(thread()!) : "idle"} title={thread() ? STATE_LABEL[threadState(thread()!)] || undefined : undefined} />
         <Show

@@ -1,3 +1,4 @@
+import {setModsOpen} from '../state/ui-mods';
 // Round 13 (SPEC 27.2): the tools of a chat. A button by + opens a small menu with a switch per
 // tool. Its switches show the active choices without extra chips in the message field.
 // The choice belongs to the thread; a new chat starts with the defaults from Innstillinger → Chat.
@@ -6,7 +7,7 @@ import { createMemo, createResource, createSignal, For, type Accessor, type JSX 
 import { CHAT_TOOL_IDS, chatToolsOf, webSearchRoute, type ChatProject, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
 import { get, patch } from "../lib/api";
 import { app, modelFor, modelName, report, setSettingsOpen } from "../state/app";
-import { IconArtifact, IconBookmark, IconGlobe, IconSliders, IconFilePlus, IconTerminal } from "./icons";
+import { IconPalette, IconArtifact, IconBookmark, IconGlobe, IconSliders, IconFilePlus, IconTerminal } from "./icons";
 import { IconLink } from "./nav-icons";
 import { Popover } from "./Popover";
 
@@ -104,7 +105,7 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
   const keys = (event: KeyboardEvent) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const items = [...(menu?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [])];
+    const items = [...(menu?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"], [role="menuitem"]') ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   };
@@ -167,6 +168,7 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
             );
           }}
         </For>
+        <button type="button" role="menuitem" class="menu-item menu-item-tall chat-tool-item" onClick={()=>{setOpen(false);setModsOpen(true);}}><IconPalette size={15}/><span class="menu-stack"><span class="menu-name">Tema og bakgrunn</span><span class="menu-desc">Farger, animerte motiver og egne mods for Chat</span></span></button>
         <div class="chat-tools-foot">
           {props.chatProject ? "Gjelder denne chatten. Minnevalg og instruksjoner endres i Rediger prosjekt. Standard for øvrige verktøy: " : "Gjelder denne chatten. Standard for nye chatter: "}
           <button type="button" onClick={() => { setOpen(false); setSettingsOpen("chat"); }}>Innstillinger → Chat</button>
