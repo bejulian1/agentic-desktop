@@ -1,3 +1,4 @@
+import type {UiMods} from "../ui-mods.ts";
 import type {ChatWorkspace} from '../chat-workspace.ts';
 // REST, as described in shared/protocol.ts.
 import type { PromptCompletions } from "../prompt-completion.ts";
@@ -128,6 +129,7 @@ interface Route {
 export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
+  uiMods?:UiMods;
   chatWorkspace?: ChatWorkspace;
   promptCompletion?: PromptCompletions;
   store: Store;
@@ -396,6 +398,12 @@ export class Api {
       if (!security.exchange(res, body.token)) throw new HttpError(401, "Ugyldig token");
     });
 
+    this.route("GET","/api/ui-mods",()=>this.deps.uiMods?.snapshot());
+    this.route("PUT","/api/ui-mods/preferences",({body})=>this.deps.uiMods?.preferences(body));
+    this.route("PUT","/api/ui-mods/library/:id",({body,params})=>{if(params.id!==body.id)throw new HttpError(400,"ID må stemme med adressen.");return this.deps.uiMods?.save(body);});
+    this.route("DELETE","/api/ui-mods/library/:id",({params})=>this.deps.uiMods?.remove(params.id));
+    this.route("POST","/api/ui-mods/threads/:id/consent",({params,body})=>{if(typeof body.allowed!=="boolean")throw new HttpError(400,"Bruk sann/usann.");this.deps.uiMods?.consent(params.id,body.allowed);return this.deps.uiMods?.snapshot();});
+    this.route("PUT","/api/ui-mods/threads/:id",({params,body})=>{if(body.modId!==null&&typeof body.modId!=="string")throw new HttpError(400,"Velg et tema eller standard.");return this.deps.uiMods?.select(params.id,body.modId);});
     this.route("GET", "/api/chat-workspace/status", () => this.deps.chatWorkspace?.status() ?? {available:false, reason:"Python er ikke tilgjengelig."});
     this.route("GET", "/api/chat-files/:threadId", ({params}) => ({files:this.deps.chatWorkspace?.list(params.threadId) ?? []}));
     this.route("GET", "/api/chat-files/:threadId/:fileId/download", ({params,res}) => {
@@ -406,6 +414,7 @@ export class Api {
     });
 
     this.route("GET", "/api/bootstrap", (): Bootstrap => ({
+      uiMods:this.deps.uiMods?.snapshot(),
       build: loadBuildInfo(this.deps.webDist),
       settings: store.settings(),
       projects: store.projects(),
@@ -768,6 +777,7 @@ export class Api {
       if (this.thread(params.id).running) throw new HttpError(409, "Tråden kjører");
       store.deleteThread(params.id);
       this.deps.chatWorkspace?.remove(params.id);
+      this.deps.uiMods?.forgetThread(params.id);
       runner.files.forgetThread(params.id);
       publish({ type: "thread.deleted", threadId: params.id });
     });
@@ -1205,6 +1215,7 @@ export class Api {
       deleteThread: (thread) => {
         store.deleteThread(thread.id);
         this.deps.chatWorkspace?.remove(thread.id);
+        this.deps.uiMods?.forgetThread(thread.id);
         runner.files.forgetThread(thread.id);
         publish({ type: "thread.deleted", threadId: thread.id });
       },

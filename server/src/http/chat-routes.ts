@@ -53,6 +53,7 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
       if (viewed !== undefined && viewed > cutoff) continue;
       store.deleteThread(id);
       deps.chatWorkspace?.remove(id);
+      deps.uiMods?.forgetThread(id);
       runner.files.forgetThread(id);
       publish({ type: "thread.deleted", threadId: id });
     }

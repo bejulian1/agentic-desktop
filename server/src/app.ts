@@ -1,3 +1,4 @@
+import {UiMods} from "./ui-mods.ts";
 import {ChatWorkspace} from './chat-workspace.ts';
 // Wires everything together. startApp() is what index.ts and the tests call.
 import { PromptCompletions } from "./prompt-completion.ts";
@@ -183,8 +184,11 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     testing: options.webTesting,
   });
 
+  let modBusy=(_id:string)=>false;
+  const uiMods=new UiMods(store,config.dataDir,()=>publish({type:"ui-mods.changed",state:uiMods.snapshot()}),id=>modBusy(id));
   const chatWorkspace = new ChatWorkspace(store, config.dataDir);
   const runner = new Runner({
+    uiMods,
     chatWorkspace,
     store,
     log,
@@ -217,6 +221,8 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     },
   });
 
+  modBusy=id=>runner.isRunning(id);
+
   // Round 9b: the first time the app starts, a default global AGENTS.md, never over one that is there.
   if (options.seedDefaults !== false) {
     try {
@@ -233,6 +239,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
 
   hub = new Hub({ store, security, terminals, browser, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   api = new Api({
+    uiMods,
     chatWorkspace,
     promptCompletion: new PromptCompletions(store, (model) => {
       const provider = store.provider(model.providerId);
@@ -329,6 +336,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       removeInstance(config.dataDir);
       servers.close();
       await runner.shutdown();
+      uiMods.close();
       chatWorkspace.close();
       await chatWorkspace.ready;
       await playtest.stopAll();

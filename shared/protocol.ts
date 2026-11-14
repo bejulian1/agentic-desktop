@@ -1,3 +1,4 @@
+import type {UiModsState} from "./ui-mods.ts";
 // Contract between server and web. Change it here first, then on both sides.
 
 export type Mode = "chat" | "code";
@@ -737,6 +738,7 @@ export interface TurnDiff {
 }
 
 export interface Bootstrap {
+  uiMods?: UiModsState;
   build: BuildInfo;
   settings: Settings;
   projects: Project[];
@@ -1056,6 +1058,7 @@ export type BrowserInput =
   | { kind: "key"; action: "down" | "up" | "char"; key: string; code: string; text?: string; modifiers: number };
 
 export type ServerMessage =
+  | {type:"ui-mods.changed";state:UiModsState}
   | { type: "thread.event"; envelope: ThreadEventEnvelope }
   | { type: "thread.changed"; thread: Thread } // also sent for new threads
   | { type: "thread.deleted"; threadId: string }

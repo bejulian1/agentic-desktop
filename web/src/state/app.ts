@@ -1,3 +1,4 @@
+import {setUiMods} from "./ui-mods";
 // Global state that only changes on real events: never per token, so nothing here re-renders
 // because a model is streaming.
 import { batch, createMemo, createSignal } from "solid-js";
@@ -316,6 +317,7 @@ export function report(err: unknown): void {
 // Boot
 
 export function applyBootstrap(boot: Bootstrap): void {
+  if(boot.uiMods)setUiMods(boot.uiMods);
   setApp({
     build: boot.build,
     settings: boot.settings,

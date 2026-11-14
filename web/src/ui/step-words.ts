@@ -134,6 +134,7 @@ function resultOf(s: StepFacts): string {
 
 // [past, present]: «Leste», «Leser».
 const VERBS: Record<string, [string, string]> = {
+  ui_mod: ["Tilpasset", "Tilpasser"],
   create_document: ["Laget fil", "Lager fil"],
   run_python: ["Kjørte Python", "Kjører Python"],
   list_chat_files: ["Viste Chat-filer", "Ser på Chat-filer"],
@@ -174,6 +175,8 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
   const quoted = (target: string) => ({ target, mono: false, quoted: !!target });
   const mono = (target: string) => ({ target, mono: !!target, quoted: false });
   switch (s.tool) {
+    case "ui_mod":
+      return plain("utseendet");
     case "create_document":
       return plain(s.summary);
     case "run_python":

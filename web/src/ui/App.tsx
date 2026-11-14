@@ -1,3 +1,5 @@
+import {UiModRoot} from "./UiModRoot";
+import {modsOpen} from "../state/ui-mods";
 import { windowTitle } from "../state/thread-status";
 import { createEffect, createMemo, createSignal, lazy, on as track, onCleanup, Show, Suspense, untrack } from "solid-js";
 import { connection, onOpen } from "../lib/socket";
@@ -28,6 +30,7 @@ import { on } from "../lib/socket";
 import { SettingsView } from "./lazy-views";
 import { closeSkills, skillsOpen } from "../state/skills-workspace";
 
+const UiModsDialogHost=lazy(()=>import("./UiModsDialog"));
 const ArtifactsRoom = lazy(() => import("./ArtifactsRoom"));
 const ArtifactPanel = lazy(() => import("./ArtifactPanel")); // round 15, the first time a box is opened
 const ProfilePage = lazy(() => import("./ProfilePage"));
@@ -188,6 +191,7 @@ export function App() {
       style={`--sidebar-w:${sidebarWidth()}px;--panel-w:${panelWidth()}px;--artifact-w:${artifactWidth()}px`}
       inert={!!settingsOpen() || undefined}
     >
+      <UiModRoot threadId={threadId} mode={mode}/>
       <TopBar />
       {/* Round 10 (SPEC 23.9): hidden, the sidebar is a thin row of icons in a wide window. */}
       <Show when={!sidebarOpen() && railEnabled()}>
@@ -241,6 +245,7 @@ export function Shell() {
       <Show when={settingsOpen()}>
         <Suspense><SettingsView /></Suspense>
       </Show>
+      <Show when={modsOpen()}><Suspense><UiModsDialogHost/></Suspense></Show>
       <GlobalLayers />
     </>
   );
@@ -258,6 +263,7 @@ export function SoloApp(props: { threadId: string }) {
   // Round 15: a box in a detached pane opens the artifact panel beside it, in this window.
   return (
     <>
+    <UiModRoot threadId={()=>props.threadId} mode={()=>thread()?.mode??"chat"}/>
     <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!settingsOpen() || undefined}>
       <main class="main">
         <OfflineBanner />

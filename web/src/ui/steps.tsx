@@ -14,7 +14,7 @@ import type { Activity, ActivityTask, StepsRow, SummaryRow, ThinkingRow, ToolRow
 import type { WebSource } from "../../../shared/protocol";
 import {
   IconAgent, IconBookmark, IconThought, IconCheck, IconChevron, IconEye, IconFilePlus, IconGlobe, IconHand, IconList, IconPencil, IconSearch, IconSpark,
-  IconTerminal, IconTrash, IconWrench,
+  IconTerminal, IconTrash, IconWrench, IconPalette,
 } from "./icons";
 import { PathLink, toolPath, ToolOpenButton } from "./MiniEditorHooks";
 import { showImage } from "./image-viewer";
@@ -135,7 +135,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
   const outputText = document.createTextNode(row.output);
   const waiting = () => status() === "awaiting-approval";
   const busy = () => status() === "running" || status() === "pending";
-  const icon = () => (waiting() ? IconHand : KIND_ICON[kind()]);
+  const icon = () => (waiting() ? IconHand : row.tool === "ui_mod" ? IconPalette : KIND_ICON[kind()]);
 
   const flush = () => {
     if (row.pendingOutput) {

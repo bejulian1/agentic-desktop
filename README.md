@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.22.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.23.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -12,7 +12,15 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Klikk på et bilde for full størrelse.*
 
-*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0. Alle bruker demo og midlertidige data.*
+*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0. Alle bruker demo og midlertidige data.*
+
+## Nytt i v0.23
+
+Tema og visuelle mods følger hver samtale. Be modellen lage en pixelart-bakgrunn, endre farger eller legge til en klokke over meldingsfeltet. Palettknappen åpner bibliotek med Nordlys, Stjernehimmel og Hav, editor og tilbakestilling. Endringer fra modellen lastes inn etter turen, med samtykke per samtale. Se [Tema og mods](docs/UI-MODS.md).
+
+| Nordlys i Kode | Modbibliotek | Samtykke per samtale |
+|---|---|---|
+| [![Nordlys og klokke](docs/bilder/mods-nordlys.png)](docs/bilder/mods-nordlys.png) | [![Tema og mods](docs/bilder/mods-bibliotek.png)](docs/bilder/mods-bibliotek.png) | [![Slå på mods](docs/bilder/mods-samtykke.png)](docs/bilder/mods-samtykke.png) |
 
 ## Nytt i v0.22
 

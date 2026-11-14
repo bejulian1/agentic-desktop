@@ -1,3 +1,5 @@
+import {setModsOpen} from "../state/ui-mods";
+import {IconPalette} from "./icons";
 // The top of the window. Left: the menu, the sidebar button, and back and forward, small and
 // quiet, in the column they belong to: past the row of icons when the sidebar is that row, and with
 // no sidebar button then, since the row has its own (SPEC 24.1). Middle: Chat and Kode, only when the
@@ -447,6 +449,7 @@ export function TopBar() {
         <OriginTag />
       </div>
       <div class="topbar-right">
+        <button type="button" class="icon-button" title="Tema og mods" aria-label="Tema og mods" data-testid="ui-mods-button" onClick={()=>setModsOpen(true)}><IconPalette size={16}/></button>
         <Show when={mode() === "code" && project()}>
           <div class="project-label" title={project()!.path}>
             <ProjectGlyph project={project()!} size={14} /><span class="project-name">{project()!.name}</span>

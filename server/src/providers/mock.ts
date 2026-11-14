@@ -1,3 +1,5 @@
+import {BUILTIN_MODS} from "../../../shared/ui-mods.ts";
+import {randomUUID} from "node:crypto";
 // The demo model: a deterministic script behind the same interface as a real provider. It only
 // emits stream parts, so everything it does passes through the real loop, tools and approvals.
 // It decides from the conversation, the way a model would, and keeps no state of its own.
@@ -629,7 +631,7 @@ export function introduce(system: string, tools: string[], intent: Intent): stri
       "Hva har du lyst til å snakke om?",
     ].join("\n");
   }
-  if (!tools.length) return `${intent === "greet" ? "Hei! " : ""}Jeg er kodeagenten i Agentic Desktop. Du er i Kode uten et valgt prosjekt. Jeg kan forklare kode og hjelpe deg å planlegge, men har ingen fil- eller kommandoverktøy her. Velg et prosjekt hvis oppgaven krever det. Hva vil du jobbe med?`;
+  if (!tools.some(t=>t!=="ui_mod")) return `${intent === "greet" ? "Hei! " : ""}Jeg er kodeagenten i Agentic Desktop. Du er i Kode uten et valgt prosjekt. Jeg kan forklare kode og hjelpe deg å planlegge, men har ingen fil- eller kommandoverktøy her. Velg et prosjekt hvis oppgaven krever det. Hva vil du jobbe med?`;
   const name = line(system, "Project") ?? "prosjektet";
   const folder = line(system, "Project folder");
   const git = line(system, "Git repository");
@@ -659,9 +661,20 @@ export function introduce(system: string, tools: string[], intent: Intent): stri
   return [opening, "", "Dette ser jeg i harnessen jeg fikk:", "", ...facts, "", "Hva vil du jobbe med?", "", "_Dette er demo-modellen. Den leser den samme systemprompten som en ekte modell får._"].join("\n");
 }
 
+function modStep(text:string,done:DoneCall[],tools:string[]):Step|null{
+ const lower=text.toLowerCase(),reset=/tilbake.*standard(?:tema|utseende)|tilbakestill.*tema|fjern.*(?:tema|mod|bakgrunn)/.test(lower),create=/lag.*(?:tema|mod\b|mods\b|bakgrunn|pixelart)|(?:aktiver|bruk|slå på).*(?:nordlys|stjernehimmel|hav|tema)/.test(lower),edit=/gjør.*bakgrunn.*(?:rolig|sakte)|endre.*tema/.test(lower);
+ if(!reset&&!create&&!edit)return null;if(!tools.includes('ui_mod'))return {text:'Tema og mods er slått av eller utilgjengelig i denne visningen. Du kan åpne biblioteket med palettknappen øverst.'};
+ const calls=done.filter(d=>d.name==='ui_mod');if(calls.some(d=>d.isError))return {text:'Modden ble ikke lastet: '+calls.find(d=>d.isError)!.result};
+ if(reset){if(!calls.length)return {call:{name:'ui_mod',input:{action:'reset'}}};return {text:'Denne samtalen går tilbake til standardutseendet når turen er ferdig.'};}
+ if(edit){if(!calls.length)return {call:{name:'ui_mod',input:{action:'inspect'}}};if(calls.length===1){let inspected;try{inspected=JSON.parse(calls[0].result);}catch{return {text:'Kunne ikke lese moddefinisjonen.'};}if(!inspected.active)return {text:'Denne samtalen bruker ikke et eget tema ennå.'};const mod=structuredClone(inspected.active);if(BUILTIN_MODS.some(m=>m.id===mod.id))mod.id='min-'+mod.id+'-'+randomUUID().slice(0,8);mod.scene.speed=.2;mod.scene.intensity=.35;return {call:{name:'ui_mod',input:{action:'save',mod}}};}}
+ else if(!calls.length){const preset=BUILTIN_MODS.find(m=>lower.includes(m.id))??BUILTIN_MODS[0];if(/klokke|egen|mitt|min |personlig|mod/.test(lower)){const mod=structuredClone(preset);mod.id='min-'+preset.id+'-'+randomUUID().slice(0,8);mod.name='Mitt '+preset.name;if(/klokke/.test(lower))mod.widgets=[{kind:'clock',label:'Lokal tid',text:''}];return {call:{name:'ui_mod',input:{action:'save',mod}}};}return {call:{name:'ui_mod',input:{action:'apply',id:preset.id}}};}
+ return {text:'Temaendringen er validert og lastes inn når denne turen er ferdig. Temaet følger hele samtalen. Du kan tilpasse det med palettknappen eller be om en endring her. Jeg har ikke sett resultatet i appen.'};
+}
+
 function decide(text: string, done: DoneCall[], tools: string[], system = ""): Step {
   const lower = text.toLowerCase();
-  const hasTools = tools.length > 0;
+  const hasTools = tools.some(t=>t!=="ui_mod");
+  const mod=modStep(text,done,tools);if(mod)return mod;
   if (lower.includes("[kodegjennomgang]\n")) return review(text);
   if (/\bhjelp\b|\bhelp\b/.test(lower)) return { text: HELP };
   if (lower.includes("kommandoblokk")) return { text: SHELL_REPLY };

@@ -1,3 +1,5 @@
+import {uiModTool} from "./ui-mod-tool.ts";
+import type {UiMods} from "../ui-mods.ts";
 import {chatFileTools} from './chat-files.ts';
 import type {ChatWorkspace} from '../chat-workspace.ts';
 // The agent loop and everything around a run: queue, approvals, stop, recovery. All run state is
@@ -132,6 +134,7 @@ interface ActiveRun {
   contextKey: string;
   abort: AbortController;
   shuttingDown: boolean;
+  modDeclined?:boolean;
   lastCall: { key: string; count: number };
   mistakes: number; // invalid tool calls in a row
 }
@@ -149,6 +152,7 @@ interface ToolCall {
 }
 
 export interface RunnerDeps {
+  uiMods?:UiMods;
   chatWorkspace?: ChatWorkspace;
   store: Store;
   log: EventLog;
@@ -516,14 +520,15 @@ export class Runner {
   // What the model is offered in this thread. The context ring counts the same list.
   toolDefs(thread: Thread, project: Project | undefined, skills: Skill[]): ToolDef[] {
     if (this.isChat(thread, project)) return this.chatToolDefs(thread).map((t) => t.def);
-    if (thread.mode !== "code" || !project) return [];
+    const mods=this.modTools(thread);
+    if (thread.mode !== "code" || !project) return mods.map(t=>t.def);
     const hidden = new Set<string>();
     if (!this.codeWeb(thread)) hidden.add("web_search");
     if (!skills.length) hidden.add("use_skill");
     if (!this.memoriesOn()) hidden.add("remember").add("forget");
     if (this.autoSkills() === "off") hidden.add("propose_skill");
     if (thread.planMode) hidden.add("update_plan"); // plan mode answers with its plan as text
-    return CODE_TOOLS.filter((t) => !hidden.has(t.def.name) && (!thread.planMode || READ_ONLY_TOOLS.has(t.def.name))).map((t) => t.def);
+    return [...CODE_TOOLS.filter((t) => !hidden.has(t.def.name) && (!thread.planMode || READ_ONLY_TOOLS.has(t.def.name))),...mods].map((t) => t.def);
   }
 
   // keep: taken when a run starts. Others, like the context ring, look without keeping.
@@ -560,10 +565,12 @@ export class Runner {
     return route === "browser" || route === "demo" ? this.webAccess(route) : undefined;
   }
 
+  private modTools(thread:Thread):Tool[]{return this.deps.uiMods?.enabled() && thread.origin!=="agent" && !(thread.mode==="code"&&thread.planMode) ? [uiModTool(this.deps.uiMods)] : [];}
+
   private chatToolDefs(thread: Thread): Tool[] {
     const tools = this.chatTools(thread);
     if (!tools) return [];
-    const out: Tool[] = [];
+    const out: Tool[] = this.modTools(thread);
     const route = tools.web ? this.webRoute(thread) : null;
     if (route === "browser" || route === "demo") out.push(webSearchTool);
     if (tools.fetch && this.deps.web) out.push(webFetchTool);
@@ -682,7 +689,7 @@ export class Runner {
     const provider = model ? this.store.provider(model.providerId) : undefined;
     const chatProject = this.chatProjectFor(thread);
     const modelContext = modelContextOf(this.store.settings(), thread.mode);
-    return systemLayers(
+    const layers=systemLayers(
       thread,
       project,
       skills,
@@ -691,6 +698,8 @@ export class Runner {
       { modelContext: chatProject ? { ...modelContext, location: false, locationText: "" } : modelContext, runtime: { mode: thread.mode, planMode: thread.planMode, permissionMode: project ? effectiveMode(project, thread) : undefined, providerWebSearch: this.chatPromptTools(thread, project)?.web === "provider", model, provider }, memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools },
       { personal: chatProject ? undefined : state.chat, project: chatProject, memories, tools: this.chatPromptTools(thread, project) },
     );
+    layers.push({id:"ui-mods",title:"Tema og mods",source:"Appens faktiske verktøy",text:tools.includes("ui_mod") ? "Visual UI mods are available through ui_mod in this conversation. Only create/change/apply/reset them when the user asks. They are validated visual data (colors, layouts, pixel scenes and information widgets), never executable code, permissions, prompts or tool hooks. inspect lists built-ins and the current full definition; save creates or replaces a custom definition. Successful changes appear after the current turn finishes; you cannot claim to have seen the resulting UI. Use a new id to customize a read-only built-in. reset restores this conversation's normal app appearance. No project folder is needed for this visual tool, but it grants no other filesystem/command access." : "UI mods are disabled or unavailable. Do not claim to have modified the app's appearance."});
+    return layers;
   }
 
   private chatPromptTools(thread: Thread, project: Project | undefined): { web: WebSearchRoute | null; fetch: boolean; artifacts: boolean; memory: boolean; documents: boolean; python: boolean } | undefined {
@@ -824,6 +833,7 @@ export class Runner {
       this.store.touchThread(threadId);
     }
     this.active.delete(threadId);
+    try {this.deps.uiMods?.finish(threadId,status==="done");}catch(error){console.warn("Kunne ikke laste mod etter tur:",(error as Error).message);}
     if (!thread) {
       this.agentQueueSlots.delete(threadId);
       return this.wake(threadId);
@@ -1076,7 +1086,7 @@ export class Runner {
         const group = calls.slice(i, j);
         const results = await Promise.all(group.map(async (call) => {
           if (abort.signal.aborted) return { result: { text: "Avbrutt av brukeren.", isError: true }, status: "cancelled" as ToolStatus };
-          return chat ? this.runChatTool(active, thread, call, offered) : this.runTool(active, thread, project!, skills, call, offered);
+          return chat || call.name === "ui_mod" ? this.runChatTool(active, thread, call, offered) : this.runTool(active, thread, project!, skills, call, offered);
         }));
         this.assertRunContext(active);
         group.forEach((call, k) => {
@@ -1404,7 +1414,7 @@ export class Runner {
   private async runChatTool(active: ActiveRun, thread: Thread, call: ToolCall, offered: Set<string>): Promise<{ result: ToolResult; status: ToolStatus }> {
     const { threadId, runId, abort } = active;
     const startedAt = Date.now();
-    const tool = this.chatToolDefs(thread).find((t) => t.def.name === call.name && offered.has(t.def.name));
+    const tool = (thread.mode === "chat" ? this.chatToolDefs(thread) : this.modTools(thread)).find((t) => t.def.name === call.name && offered.has(t.def.name));
     const input = tool && call.input && typeof call.input === "object" && !Array.isArray(call.input) ? coerceArgs(call.input, tool.def.parameters) : call.input;
     const web = call.name === "web_search" ? this.webAccess(this.webRoute(thread)) : this.deps.web ? browserWeb(this.deps.web, undefined) : undefined;
     const ctx = { thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web, maxResultChars: resultBudget(this.resolveModelSafe(thread)) } as unknown as ToolContext;
@@ -1423,6 +1433,15 @@ export class Runner {
     if (!tool || problem) return finish("error", { text: problem!, isError: true });
     try {
       this.assertRunContext(active);
+      if(call.name==="ui_mod" && ["save","apply"].includes(input.action) && this.deps.uiMods && !this.deps.uiMods.consented(thread.id)){
+        if(active.modDeclined)return finish("denied",{text:"Mods ble avslått for denne turen. Behold standardutseendet.",isError:true});
+        const project=thread.projectId?this.store.project(thread.projectId):undefined;
+        const full=thread.mode==="code"&&(project?effectiveMode(project,thread):this.store.settings().defaultPermissionMode)==="full";
+        const answer=full?"allow":await this.askApproval(active,call.id,"Slå på mods for denne samtalen?","Modellen kan tilpasse farger, bakgrunn og informasjonsfelt i denne samtalen. Endringer lastes inn når turen er ferdig. Dette gir ingen ny tilgang til filer, nettverk eller kommandoer. Du kan gå tilbake til standard med palettknappen øverst.",false);
+        if(answer==="cancelled")return finish("cancelled",{text:"Avbrutt av brukeren.",isError:true});
+        if(answer==="deny"){active.modDeclined=true;return finish("denied",{text:"Brukeren avslo mods i denne samtalen. Behold standardutseendet.",isError:true});}
+        this.deps.uiMods.consent(thread.id);
+      }
       const raw = await Promise.race([tool.run(input, ctx), rejectOnAbort(abort.signal)]);
       this.assertRunContext(active);
       const result = {...raw, text: clip(raw.text,ctx.maxResultChars)};

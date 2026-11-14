@@ -1,5 +1,8 @@
+import {effectiveUiMod} from "../state/ui-mods";
+import {modVariables} from "../lib/ui-mod-theme";
+import {UiModBand} from "./UiModBand";
 // One pane: a header, a conversation and a message field. It subscribes to its own thread only.
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, lazy, Suspense, For, onCleanup, Show } from "solid-js";
 import { app, renameThread, report, scopeOf, untitled, EMPTY_THREAD_NAME } from "../state/app";
 import { beginDrag, applyDrop } from "../state/drag";
 import type { Grid, PaneState } from "../state/grid";
@@ -16,6 +19,8 @@ import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
 
 // Round 11 (SPEC 24.1): the pane's own buttons moved to the top bar, where ⋯ reaches the focused
 // pane's conversation (search, export) through this.
+const UiModBackdrop=lazy(()=>import("./UiModBackdrop"));
+
 export const paneTools = new Map<string, ConversationTools>();
 
 export function Pane(props: {
@@ -33,6 +38,8 @@ export function Pane(props: {
   });
   // Empty panes retain a separate composer instance for each Chat project context. Typing in
   // one project must never appear when the same pane starts a chat somewhere else.
+  const mod=createMemo(()=>effectiveUiMod(threadId(),props.code||thread()?.mode==="code"?"code":"chat"));
+  const modStyle=createMemo(()=>mod()?modVariables(mod()!):{});
   const composerKey = () => threadId() ?? (props.code ? props.pane.id : `${props.pane.id}:chat:${chatProjectFor(props.pane.id) ?? "global"}`);
   const [model, setModel] = createSignal<ThreadModel | null>(null);
   const [renaming, setRenaming] = createSignal(false);
@@ -109,7 +116,8 @@ export function Pane(props: {
   });
 
   return (
-    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused }} onPointerDown={() => props.grid?.focus(props.pane.id)}>
+    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)}>
+      <Show when={mod()&&(mod()!.scene.preset!=="none"||mod()!.scene.layers.length)}><Suspense><UiModBackdrop scene={mod()!.scene}/></Suspense></Show>
       <header class="pane-head" onPointerDown={startDrag}>
         <span class="pane-dot" classList={{ running: thread()?.running }} data-state={thread() ? threadState(thread()!) : "idle"} title={thread() ? STATE_LABEL[threadState(thread()!)] || undefined : undefined} />
         <Show
@@ -176,6 +184,7 @@ export function Pane(props: {
         </Show>
       </div>
       <div class="pane-foot">
+      <Show when={mod()?.widgets.length}><UiModBand mod={mod()!} workspace={props.projectId?app.projects[props.projectId]?.name??"Prosjekt":props.code?"Denne datamaskinen":"Chat"} usage={()=>model()?.usage()??null}/></Show>
       {/* Round 14 (SPEC 30.5): a missing folder replaces the message field (FolderMissingBar in Composer). */}
       <Show when={pending().length}>
         <div class="approval-dock" data-testid="approval-dock">

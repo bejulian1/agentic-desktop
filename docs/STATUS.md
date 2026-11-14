@@ -1,13 +1,15 @@
 # Status
 
-## 0.22.0
+## 0.23.0
 
-**v0.22.0 (bygg 64):** Chat har egne verktøy for ekte nedlastbare Word-, Excel-, PowerPoint-, Markdown-, tekst-, CSV- og JSON-filer. Filkort vises etter verktøysteget. Valgfri Python-analyse kjører isolert uten nettverk, hjemmemappe, API-nøkler eller Kode-prosjektfiler. Standardbiblioteket er tilgjengelig; variabler nullstilles mellom kjøringer, arbeidsfiler beholdes i chat-konteksten. Python er av som standard og krever Python 3/bubblewrap med fungerende isolering. Ingen usikret reservekjøring.
+**v0.23.0 (bygg 65):** visuelle mods og temaer per samtale. Modellen kan lage, endre, aktivere, nullstille og fjerne mods i Chat og Kode, også uten prosjekt. Endringer venter til turen er ferdig. Samtykke spørres per samtale; Full tilgang i Kode godtar visuelle endringer automatisk. Et manuelt bibliotekvalg gjelder straks.
 
-Profilens tokenkalender viser umiddelbart dag og full dato over eksakt tokenantall ved musepekeren. Dag-/ukevisning og aktivitetskart støtter tastatur. Fargenivåer beregnes én gang per datasett.
+Nordlys, Stjernehimmel og Hav følger med. Egne scener har figurer og pikselrader, og små informasjonsfelt kan vise klokke, notat, arbeidsområde eller tokenbruk for siste tur. Farger, kodefarger, tekstbredde og hjørner kan tilpasses. Mørke temaer endrer modus midlertidig; det vanlige lys-/mørkvalget beholdes. Ny samtale følger vanlig utseende når ingen standardmod er valgt.
 
-**Kontroll:** 439 servertester, 12 ulike berørte UI-forløp og typekontroll av server/web/Electron består. Native dokumentnedlasting og Python gjennom utility-prosessen er kontrollert under virtuell skjerm, sammen med oppstart/gjenåpning. Dokumenter er åpnet og visuelt kontrollert via LibreOffice/PDF. Produksjonsavhengighetene har ingen kjente npm-varsler etter kompatible rettinger av underavhengigheter. Ingen ekte nøkler eller betalte modellkall brukes i kontrollene.
+Palettknappen og Utseende åpner bibliotek/editor. Filer lastes ved endring; ugyldig JSON eller kontrast beholder sist fungerende variant. Deklarative moddata kan ikke kjøre kode eller erstatte appens godkjenninger. Animasjon mellomlagrer pikselfigurer, begrenses til 24 bilder/sekund, følger redusert bevegelse og stopper når bakgrunnen er skjult.
 
-Se [Filer og Python i Chat](CHAT-FILES.md) for grenser og avgrensninger. Opplasting/tolkning av eksisterende Office-filer er ikke innført. Dette er ikke en full ytelsessammenligning med forrige produksjonsversjon.
+**Kontroll:** 443 servertester, fem berørte UI-forløp og typekontroll består. Samtykke, pixelart, gjenåpning av samme samtale og ny tom oppstart er kontrollert i Electron, sammen med dokumentnedlasting og Python. Testene bruker lokale modellservere, demo og midlertidige data.
+
+Se [Tema og visuelle mods](UI-MODS.md), [versjonslogg](PATCHLOG.md) og README for bruk og format. Inspirasjon er hentet fra Anthropic-dokumentasjonen og brukerens Nordlys-eksempel; Agentic Desktop har sin egen implementasjon.
 
 Se [full versjonslogg](PATCHLOG.md) for tidligere versjoner.

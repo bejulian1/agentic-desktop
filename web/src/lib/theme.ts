@@ -5,9 +5,12 @@ import type { ThemeSetting } from "../../../shared/protocol";
 const STORAGE_KEY = "ad-theme";
 const media = matchMedia("(prefers-color-scheme: dark)");
 let current: ThemeSetting = "system";
+let override: "light"|"dark"|null=null;
+export function setThemeOverride(value:"light"|"dark"|null):void {override=value;apply();}
 
 function apply(): void {
-  const dark = current === "dark" || (current === "system" && media.matches);
+  const active=override??current;
+  const dark = active === "dark" || (active === "system" && media.matches);
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
 }
 

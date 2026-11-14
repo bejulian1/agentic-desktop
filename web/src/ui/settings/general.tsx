@@ -1,3 +1,4 @@
+import {setModsOpen,uiMods} from "../../state/ui-mods";
 // Generelt, Utseende and Personvern og data. Kode and Chat are in ./modes.tsx (round 9). Every control here is saved on the server and acts at
 // once. Native window behavior is shown only inside the Electron app.
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
@@ -206,6 +207,7 @@ export function Appearance() {
           </div>
         </Row>
       </Group>
+      <Group title="Egne temaer og mods"><Row label="Tema og mods" text="Lag temaer, animerte pixelart-bakgrunner og informasjonsfelt fra samtalen. Hver samtale kan ha sitt eget tema. Standardutseendet beholdes når mods er av."><button class="btn btn-small" onClick={()=>setModsOpen(true)}>Åpne biblioteket</button></Row><Toggle label="Tillat visuelle mods" text="Temaer bruker validerte farger og tegneelementer. De endrer ikke modellens tillatelser." checked={uiMods().enabled} onChange={v=>{void import('../../state/ui-mods').then(m=>m.modPreferences({enabled:v})).catch(report);}}/></Group>
       {/* Round 14 (SPEC 30.2) */}
       <Group title="Appikon">
         <AppIconPicker />

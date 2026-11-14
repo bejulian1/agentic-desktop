@@ -134,7 +134,7 @@ function View(props: { projectId: string; tab: Tab }) {
   // The colours follow <html> itself, not only the settings: with System chosen, the operating
   // system switching between light and dark changes data-theme without any setting changing.
   const colours = new MutationObserver(() => (terminal.options.theme = terminalTheme()));
-  colours.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "data-accent", "data-code-light", "data-code-dark"] });
+  colours.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "data-accent", "data-code-light", "data-code-dark", "data-ui-mod"] });
   onCleanup(() => colours.disconnect());
 
   onCleanup(() => terminal.dispose());

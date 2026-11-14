@@ -3,6 +3,17 @@
 Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **Demo** i appen.
 
 
+
+## 0.23.0: Tema og visuelle mods per samtale (14. november 2026, bygg 65)
+
+- **Egne temaer fra samtalen:** modellen har et nytt ui_mod-verktøy i Chat og Kode, også uten prosjekt. Det kan se på, lage, endre, velge, nullstille og fjerne visuelle mods. Modellens endringer valideres og lastes inn når turen er ferdig; avbrutt eller mislykket tur forkaster ventende endringer.
+- **Samtykke per samtale:** første modendring spør om å slå på mods i den aktuelle samtalen. Full tilgang i Kode godtar den visuelle endringen automatisk. Manuelle valg i biblioteket gjelder straks. Temavalg og samtykke følger samtalen ved gjenåpning, mens nye samtaler følger standard for sin modus.
+- **Animerte pixelart-bakgrunner:** Nordlys, Stjernehimmel og Hav følger med. Egne scener kan bruke skog, figurer og pikselrader med rolig bevegelse. Animasjon kan pauses, følger redusert bevegelse, stopper uten synlighet og begrenses til 24 bilder/sekund. Pikselfigurer mellomlagres for å spare arbeid.
+- **Farger og små UI-mods:** tilpass paneler, tekst, aksent, kodefarger, tekstbredde, hjørner og kompakt visning. Et felt over meldingsboksen kan vise klokke, notat, tokenbruk eller arbeidsområde. Mørke temaer bruker mørk modus midlertidig; det vanlige temavalget overskrives ikke.
+- **Bibliotek og editor:** palettknappen øverst og Utseende åpner kopiering, redigering, eksport og sletting, med fargefelt og avansert JSON. Lokale modfiler lastes inn ved endring. Ugyldig JSON eller kontrast beholder sist fungerende variant og viser en advarsel. Standardutseende og avbrytere er alltid tilgjengelige.
+
+Mods bruker validerte visuelle data. JavaScript/TypeScript, fri HTML/CSS, eksterne adresser og endringer i modellens verktøy/tillatelser er ikke del av formatet. Dette er Agentic Desktop sitt eget modformat. Se [Tema og visuelle mods](UI-MODS.md).
+
 ## 0.22.0: Chat-filer, isolert Python og rask tokenkalender (14. november 2026, bygg 64)
 
 - **Lag nedlastbare filer i Chat:** egne verktøy lager ekte Word-, Excel- og PowerPoint-filer, samt Markdown, tekst, CSV og JSON. Filkort med størrelse og nedlasting vises etter verktøysteget, også når detaljer er lukket. Excel støtter eksplisitte formler; makroer og aktive eksterne koblinger er ikke støttet.

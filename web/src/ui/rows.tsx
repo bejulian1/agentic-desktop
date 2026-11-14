@@ -659,7 +659,7 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
         <Show when={row.canAllowAlways}>
           <button type="button" class="btn" disabled={busy()} onClick={() => void answer("allow-always")}>Tillat alltid</button>
         </Show>
-        <button type="button" class="btn btn-primary" disabled={busy()} ref={allow} onClick={() => void answer("allow")}>Tillat<kbd class="approval-key" aria-hidden="true">Enter</kbd></button>
+        <button type="button" class="btn btn-primary" disabled={busy()} ref={allow} onClick={() => void answer("allow")}>{row.title.startsWith("Slå på mods")?"Slå på":"Tillat"}<kbd class="approval-key" aria-hidden="true">Enter</kbd></button>
       </div>
     </div>
   );
