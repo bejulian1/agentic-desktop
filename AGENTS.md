@@ -8,7 +8,7 @@ Brukeren ga 14. november 2026 stående tillatelse til å committe og pushe alle 
 
 1. Fullfør endringene og relevante lokale kontroller. Hold tester isolert fra ekte brukerdata og API-nøkler. Følg prosjektets regler for headless Chrome/Electron og prosesshåndtering.
 2. Oppdater versjonen i `version.json`, rotens `package.json` og rotoppføringen i `package-lock.json`. Bruk et passende nytt versjonsnummer. Produksjonsbygget øker byggnummeret; ikke øk det en ekstra gang for samme bygg.
-3. Oppdater `docs/PATCHLOG.md`, aktuell status/README og skjermbilder når grensesnittet har endret seg.
+3. Oppdater `docs/PATCHLOG.md`, aktuell status/README og skjermbilder når grensesnittet har endret seg. Behold `CHANGELOG.md` som inngang til den fullstendige versjonsloggen og GitHub Releases.
 4. Bygg og kontroller installasjonsfilene som faktisk skal utgis. Versjon og bygg i servermetadata, web-metadata og pakken skal samsvare.
 5. Gå gjennom publiseringssettet. Ta med appkode, nødvendige byggeskript, brukerdokumentasjon og utvalgte bilder i `docs/bilder/`. Hold testpakker, interne kontrollnotater, brukerdata, nøkler, logger, node_modules og lokale byggeartefakter utenfor Git-commiten. Ikke fjern andre utvikleres arbeid.
 6. Commit og push normalt til repoets standardgren etter kontroll av siste fjernstatus. Ikke force-push, omskriv publisert historikk eller flytt eksisterende versjonstagger. Behold privatstatus. Bruk et midlertidig checkout hvis lokal Git-metadata er skrivebeskyttet eller checkoutet har arbeid som ikke skal publiseres.

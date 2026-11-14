@@ -31,7 +31,13 @@ Chat-prosjekter har nå egen startside med meldingsfelt over chatlisten, 15 farg
 - **Bedre meldingsfelt:** redigerbar kø eller send straks, horisontal rulling av vedlegg og valgfri kontekstbasert TAB-fullføring med eget modellvalg.
 - **Mer tilpassing:** Skills-arbeidsområde, Kode-innstillinger med egne lyse/mørke kodefarger og skrifter, og søkbar versjonslogg fra profilmenyen.
 
-Hele historikken står i [versjonsloggen](docs/PATCHLOG.md).
+## Versjonslogg og utgivelser
+
+- [Full versjonslogg](docs/PATCHLOG.md): alle dokumenterte versjoner og endringer, nyeste først.
+- [GitHub Releases](https://github.com/bejulian1/agentic-desktop/releases): installasjonsfiler, kontrollsummer og versjonsnotater per utgivelse.
+- [CHANGELOG.md](CHANGELOG.md): fast inngang til historikken fra roten av repoet.
+
+Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
 
 ## Hva den kan
 
@@ -236,8 +242,12 @@ Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.
 
 ## Bidragsytere
 
-- **[bejulian1](https://github.com/bejulian1)** – prosjekteier, produktvalg, referanser og testing.
-- **Claude Code / Claude Opus 5.5 (Anthropic)** – opprinnelig implementering frem til v0.11.0.
-- **Codex (OpenAI)** – videreutvikling og feilrettinger fra v0.11.0 til v0.20.0, samt utgivelsesoppsettet.
+**[bejulian1](https://github.com/bejulian1)** er prosjekteier og står for produktvalg, referanser og testing.
+
+Prosjekteieren krediterer følgende modeller for AI-assistanse:
+
+- **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
+- **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting.
+- **Anthropic Fable 5.2**, kreditert for bidrag til prosjektets utvikling.
 
 Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.
