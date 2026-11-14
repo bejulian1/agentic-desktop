@@ -1,5 +1,5 @@
 // Back and forward through the threads you have looked at, like a browser. Only the focused
-// thread of the visible grid counts, and moving through the history does not add to it.
+// thread or Chat project page counts, and moving through the history does not add to it.
 import { createSignal, untrack } from "solid-js";
 import { app } from "./app";
 
@@ -23,10 +23,17 @@ function push(threadId: string): void {
   setIndex(trimmed.length - 1);
 }
 
+export const chatProjectVisit = (id: string): string => `chat-project:${id}`;
+export const projectIdFromVisit = (entry: string): string | null => entry.startsWith("chat-project:") ? entry.slice("chat-project:".length) : null;
+const exists = (entry: string): boolean => {
+  const projectId = projectIdFromVisit(entry);
+  return projectId ? !!app.chatProjects[projectId] : !!app.threads[entry];
+};
+
 function step(delta: number): string | null {
   for (let i = index() + delta; i >= 0 && i < entries().length; i += delta) {
     const id = entries()[i];
-    if (app.threads[id]) {
+    if (exists(id)) {
       setIndex(i);
       return id;
     }
@@ -34,8 +41,8 @@ function step(delta: number): string | null {
   return null;
 }
 
-export const canGoBack = () => entries().slice(0, Math.max(0, index())).some((id) => app.threads[id]);
-export const canGoForward = () => entries().slice(index() + 1).some((id) => app.threads[id]);
+export const canGoBack = () => entries().slice(0, Math.max(0, index())).some(exists);
+export const canGoForward = () => entries().slice(index() + 1).some(exists);
 
 export async function goHistory(delta: -1 | 1, open: (threadId: string) => Promise<void>): Promise<void> {
   moving = true;

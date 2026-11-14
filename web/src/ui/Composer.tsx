@@ -9,7 +9,7 @@ import { effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, P
 import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
-import { createThreadFor, newThreadIn, openThread } from "../state/navigate";
+import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
 import { revertLastTurn, startPlaytest, openVscode } from "../state/project-actions";
 import { formatCost, formatTokens } from "../lib/format";
@@ -33,10 +33,11 @@ import { gitInfo, loadGitInfo } from "../state/home";
 import { displayKeys } from "../state/shortcuts";
 import { registerChatPersonality } from "../state/chat-personality";
 import { composerDeliveries, deliverToComposer, setComposerDeliveries } from "../state/composer-delivery";
-import { openedFileContext } from "../state/nav";
+import { chatProjectPageId, openedFileContext } from "../state/nav";
 import { closeProjectPicker, useProjectPicker } from "../state/project-picker";
 import { openGitWorkspace } from "./dialog-state";
 import { ProjectEnvironmentPicker } from "./ProjectEnvironmentPicker";
+import { editChatProject } from "./chat-projects";
 import "../styles/project-picker.css";
 export { deliverToComposer, type ComposerDelivery } from "../state/composer-delivery";
 export { openProjectPicker } from "../state/project-picker";
@@ -121,6 +122,7 @@ type Chip = AttachmentRef & { label: string; key: string };
 
 const drafts = new Map<string, string>();
 const draftParts = new Map<string, { chips: Chip[]; skill: string | null }>();
+const draftOwners = new Map<string, symbol>();
 
 // Round 11b (SPEC 25.1): images and text handed to a pane's field from outside, by Annoter in the
 // Browser panel. The field with that key (the thread's id, or the empty pane's) takes them, now or
@@ -736,10 +738,13 @@ export function Composer(props: {
   chatProjectId?: string | null;
   onThreadCreated: (thread: Thread) => void;
   onSent: () => void;
+  // Navigation from a project landing happens only after the server accepted its first message.
+  onAccepted?: (threadId: string) => void;
   autofocus?: boolean;
   registerFill?: (fill: (text: string) => void) => void;
 }) {
   let textarea!: HTMLTextAreaElement;
+  const draftOwner = Symbol("composer-draft");
   let draftRevision = 0;
   let projectChip: HTMLButtonElement | undefined;
   const [menu, setMenu] = createSignal<Menu | null>(null);
@@ -761,6 +766,13 @@ export function Composer(props: {
   const [mentions, setMentions] = createSignal<MentionItem[]>([]);
   const [chips, setChips] = createSignal<Chip[]>([]);
   const [uploading, setUploading] = createSignal(0);
+  const [acceptedThread, setAcceptedThread] = createSignal<string | null>(null);
+  createEffect(() => {
+    const id = acceptedThread();
+    if (!id || uploading()) return;
+    setAcceptedThread(null);
+    untrack(() => props.onAccepted?.(id));
+  });
   let fileInput!: HTMLInputElement;
   let textInput!: HTMLInputElement;
   let attachMenu: HTMLDivElement | undefined;
@@ -787,6 +799,11 @@ export function Composer(props: {
   });
   const running = createMemo(() => thread()?.running ?? false);
   const kode = () => !!(props.projectId || props.code);
+  const chatProject = createMemo(() => {
+    const id = thread()?.chatProjectId ?? props.chatProjectId;
+    return !kode() && id ? app.chatProjects[id] : undefined;
+  });
+  const inChatProject = () => !kode() && !!(thread()?.chatProjectId ?? props.chatProjectId);
   const enterNewline = () => app.settings.enterKey === "newline";
   const sendKeys = () => (enterNewline() ? "Mod+Enter" : "Enter");
   const project = createMemo(() => (props.projectId ? app.projects[props.projectId] : undefined));
@@ -800,7 +817,7 @@ export function Composer(props: {
   const modelId = createMemo(() => thread()?.modelId ?? draftModel());
   // Round 13 (SPEC 27.2): the tools of this chat, or the ones chosen before it exists.
   const chatTools = useChatTools(props.threadId, modelId);
-  const draftKey = () => props.threadId() ?? props.paneKey;
+  const draftKey = () => props.threadId() ?? (props.chatProjectId ? `${props.paneKey}:chat-project:${props.chatProjectId}` : props.paneKey);
   const branchInfo = () => (props.projectId ? gitInfo(props.projectId) : undefined);
   const branch = () => branchInfo()?.branch ?? null;
   const [pendingEffort, setPendingEffort] = createSignal<Record<string, ReasoningEffort | null>>({});
@@ -876,7 +893,7 @@ export function Composer(props: {
   // Settings stays beside the mounted app, so this also preserves the pre-first-message choice.
   // Autofocus follows the pane selection, rather than DOM focus inside the Settings page.
   createEffect(() => {
-    if (kode() || !props.autofocus) return;
+    if (kode() || inChatProject() || chatProjectPageId() || !props.autofocus) return;
     onCleanup(registerChatPersonality({
       threadId: props.threadId,
       title: () => thread()?.title,
@@ -1032,6 +1049,7 @@ export function Composer(props: {
     if (kind !== "mention" && query.includes("/")) return closeMenu();
     if (kind === "command" && value.slice(0, start).trim()) return closeMenu();
     if (kind === "mention" && !props.projectId) return closeMenu();
+    if (kind === "skill" && inChatProject()) return closeMenu();
     const previous = menu();
     const changed = !previous || previous.kind !== kind || previous.query !== query || previous.start !== start;
     if (changed) setSelected(0);
@@ -1051,7 +1069,7 @@ export function Composer(props: {
     const current = menu();
     if (current?.kind !== "command" && current?.kind !== "skill") return [];
     const query = current.query.toLowerCase();
-    const hidden = (c: CommandInfo) => c.demo || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
+    const hidden = (c: CommandInfo) => c.demo || (inChatProject() && (c.kind === "skill" || c.name === "personality")) || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
     return commands()
       .flatMap((c) => {
         const score = hidden(c) ? null : matchScore(c, query);
@@ -1175,7 +1193,7 @@ export function Composer(props: {
         ["Tokens", usage ? `${formatTokens(usage.inputTokens)} inn, ${formatTokens(usage.outputTokens)} ut` : "Ingen ennå"],
         ["Kostnad", usage?.costUsd != null ? formatCost(usage.costUsd) : "Ingen pris satt"],
         ["Tenkning", EFFORTS.find((e) => e.id === current?.reasoning)?.label ?? "Modellens standard"],
-        ["Personlighet", PERSONALITIES.find((p) => p.id === (current?.personality ?? "standard"))?.label ?? "Standard"],
+        [inChatProject() ? "Instruksjoner" : "Personlighet", inChatProject() ? "Prosjektets egne instruksjoner" : PERSONALITIES.find((p) => p.id === (current?.personality ?? "standard"))?.label ?? "Standard"],
         ["Planmodus", current?.planMode ? "På" : "Av"],
         ["Grenser", provider?.kind === "mock" ? "Demo-modellen har ingen grenser" : "Leverandøren rapporterer ikke grenser til appen ennå"],
       ],
@@ -1192,9 +1210,11 @@ export function Composer(props: {
     if (!grid.split(pane, "right", created.id)) {
       toast("Det er ikke plass til flere ruter. Sidesamtalen ligger i sidefanen.", "info");
     }
+    if (chatProjectPageId() && inChatProject()) await openThread(created);
   };
 
   const runBuiltin = async (name: string, args = "") => {
+    if (inChatProject() && name === "personality") return toast("Dette prosjektet bruker sine egne instruksjoner. Endre dem i Rediger prosjekt.", "info");
     if (CODE_ONLY.has(name) && (!kode() || !props.projectId)) return toast(`/${name} krever Kode-modus og et prosjekt.`, "info");
     if (!kode() && CODE_MODE_ONLY.has(name)) return toast(`/${name} er bare tilgjengelig i Kode.`, "info");
     const id = props.threadId();
@@ -1202,7 +1222,8 @@ export function Composer(props: {
     try {
       switch (name) {
         case "new":
-          await newThreadIn(props.projectId, kode());
+          if (inChatProject()) await newChatIn(thread()?.chatProjectId ?? props.chatProjectId ?? null);
+          else await newThreadIn(props.projectId, kode());
           break;
         case "mode":
           setMode(mode() === "code" ? "chat" : "code");
@@ -1313,7 +1334,8 @@ export function Composer(props: {
           actions.settings("storage");
           break;
         case "memories":
-          actions.settings("personalization");
+          if (chatProject()) await editChatProject(chatProject()!);
+          else actions.settings("personalization");
           break;
         case "help":
           setHelpOpen(true);
@@ -1472,6 +1494,7 @@ export function Composer(props: {
   // One thread per pane, also when a second message is sent before the first one has made it:
   // the second waits for the same promise instead of making a thread of its own.
   let creating: Promise<string> | null = null;
+  let createdHere: string | null = null;
   const ensureThread = (): Promise<string> => {
     const existing = props.threadId();
     if (existing) return Promise.resolve(existing);
@@ -1480,9 +1503,17 @@ export function Composer(props: {
       const reasoning = draftReasoning();
       if (reasoning !== undefined) await patch(`/api/threads/${created.id}`, { reasoning }).catch(report);
       const chosen = draftPersonality();
-      if (chosen && !props.projectId) await patch(`/api/threads/${created.id}`, { personality: chosen }).catch(report);
+      if (chosen && !props.projectId && !inChatProject()) await patch(`/api/threads/${created.id}`, { personality: chosen }).catch(report);
       const tools = chatTools.draft();
       if (tools && !kode()) await patch(`/api/threads/${created.id}`, { chatTools: tools }).catch(report);
+      // Text or attachments entered while creation was pending belong to this new thread.
+      // Transfer them before the parent changes threadId and mounts the thread's composer.
+      const before = draftKey();
+      createdHere = created.id;
+      if (textarea.value) drafts.set(created.id, textarea.value);
+      draftParts.set(created.id, { chips: chips().map(chip => ({ ...chip })), skill: skill() });
+      draftOwners.set(created.id, draftOwner);
+      if (before !== created.id && draftOwners.get(before) === draftOwner) { drafts.delete(before); draftParts.delete(before); draftOwners.delete(before); }
       props.onThreadCreated(created);
       return created.id;
     })().finally(() => (creating = null));
@@ -1493,12 +1524,14 @@ export function Composer(props: {
     if (locked() || resolvingCommand()) return;
     const raw = textarea.value;
     const text = raw.trim();
+    if (inChatProject() && /^[/$](?:personality|personlighet)(?=\s|$)/i.test(text)) return toast("Dette prosjektet bruker sine egne instruksjoner. Endre dem i Rediger prosjekt. Utkastet er beholdt.", "info");
     if (uploading()) return toast("Vent til bildene er lastet opp.", "info");
     const startingChips = chips();
     const startingSkill = skill();
     const attachments = startingChips.map(chipRef);
     if (attachments.length > MAX_ATTACHMENTS) return toast(LIMIT_TEXT, "info");
     let usedSkill = skill();
+    if (inChatProject() && usedSkill) return toast("Skills brukes ikke i Chat-prosjekter. Fjern skillen og bruk prosjektets egne instruksjoner.", "info");
     let body: Record<string, unknown>;
 
     if (kode() && !usedSkill && text.startsWith("!")) {
@@ -1528,6 +1561,7 @@ export function Composer(props: {
         return runBuiltin(known.name, args);
       }
       if (known?.kind === "skill") {
+        if (inChatProject()) return toast("Skills brukes ikke i Chat-prosjekter. Bruk prosjektets egne instruksjoner.", "info");
         usedSkill = known.name;
         body = { text: args, skill: known.name, attachments };
       } else body = { text, attachments };
@@ -1544,6 +1578,7 @@ export function Composer(props: {
     reset();
     props.onSent();
     let effortSaveFailed = false;
+    let accepted: string | null = null;
     try {
       const id = await ensureThread();
       // The run must see the effort level already shown in the composer. A failed save
@@ -1555,6 +1590,7 @@ export function Composer(props: {
         pendingWrite = effortWrites.get(id);
       }
       await post(`/api/threads/${id}/messages`, body);
+      accepted = id;
     } catch (err) {
       const current = textarea.value;
       const currentChips = chips();
@@ -1569,6 +1605,9 @@ export function Composer(props: {
       else toast("Meldingen ble ikke sendt. Ny tekst er bevart, og den usendte teksten er lagt under utkastet.", "info");
       if (!effortSaveFailed) report(err);
     }
+    // Keep a landing composer alive until attachments added during the request finish uploading.
+    // Its cleanup can then hand the complete next draft to the opened thread.
+    if (accepted && props.onAccepted) setAcceptedThread(accepted);
   };
 
   const stop = () => {
@@ -1643,6 +1682,7 @@ export function Composer(props: {
     completionDismissed = false;
     setCompletionRevision((revision) => revision + 1);
     drafts.set(draftKey(), textarea.value);
+    draftOwners.set(draftKey(), draftOwner);
     inspect();
   };
 
@@ -1657,9 +1697,14 @@ export function Composer(props: {
   onMount(() => {
     // Cleanup must retain this composer's original key even after the focused thread changes.
     const mountedDraftKey = draftKey();
+    draftOwners.set(mountedDraftKey, draftOwner);
     const parts = draftParts.get(mountedDraftKey);
-    if (parts) { setChips(parts.chips.map((chip) => ({ ...chip }))); setSkill(parts.skill); }
-    onCleanup(() => draftParts.set(mountedDraftKey, { chips: chips().map((chip) => ({ ...chip })), skill: skill() }));
+    if (parts) { setChips(parts.chips.map((chip) => ({ ...chip }))); setSkill(inChatProject() ? null : parts.skill); }
+    onCleanup(() => {
+      const owner = createdHere ?? mountedDraftKey;
+      if (!draftOwners.has(owner) || draftOwners.get(owner) === draftOwner) draftParts.set(owner, { chips: chips().map((chip) => ({ ...chip })), skill: skill() });
+      if (createdHere && owner !== mountedDraftKey && draftOwners.get(mountedDraftKey) === draftOwner) { drafts.delete(mountedDraftKey); draftParts.delete(mountedDraftKey); draftOwners.delete(mountedDraftKey); }
+    });
     const completionResize = new ResizeObserver(syncCompletionLayout);
     completionResize.observe(textarea);
     onCleanup(() => completionResize.disconnect());
@@ -1683,7 +1728,7 @@ export function Composer(props: {
   });
 
   createEffect(() => {
-    const key = draftKey();
+    const key = props.threadId() ?? props.paneKey;
     const delivery = composerDeliveries()[key];
     if (!delivery) return;
     untrack(() => {
@@ -2052,7 +2097,7 @@ export function Composer(props: {
                 }}
                 onKeyDown={menuKeys}
               >
-                <button type="button" role="menuitem" class="menu-item" title="Åpne listen over /-kommandoer og skills" onClick={() => { closeAttach(); insertTrigger("/"); }}>
+                <button type="button" role="menuitem" class="menu-item" title={inChatProject() ? "Åpne listen over /-kommandoer" : "Åpne listen over /-kommandoer og skills"} onClick={() => { closeAttach(); insertTrigger("/"); }}>
                   <IconCode size={15} /><span class="menu-name">Skråstrekkommandoer</span><kbd class="menu-keys">/</kbd>
                 </button>
                 <Show when={kode()}>
@@ -2074,7 +2119,7 @@ export function Composer(props: {
             <PermissionPicker project={project()} cap={thread()?.permissionCap} />
           </Show>
           <Show when={!kode()}>
-            <ChatToolButton state={chatTools} />
+            <ChatToolButton state={chatTools} chatProject={chatProject()} />
           </Show>
           <Show when={kode() && thread()?.planMode}>
             <button type="button" class="pill pill-accent" title="Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av." onClick={() => void runBuiltin("plan")}><IconList size={12} />Plan</button>
@@ -2162,7 +2207,7 @@ export function Composer(props: {
             <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setHelpOpen(false)}><IconClose size={14} /></button>
           </div>
           <dl>
-            <For each={commands().filter((command) => command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name))))}>
+            <For each={commands().filter((command) => !(inChatProject() && (command.kind === "skill" || command.name === "personality")) && (command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name)))))}>
               {(c) => (
                 <>
                   <dt>{c.kind === "skill" ? "$" : "/"}{c.name}<Show when={c.demo}> <span class="demo-badge">Demo</span></Show></dt>
@@ -2171,7 +2216,7 @@ export function Composer(props: {
               )}
             </For>
             <dt>@</dt><dd>Legg ved filer, mapper og tråder</dd>
-            <dt>$</dt><dd>Bruk en skill</dd>
+            <Show when={!inChatProject()}><dt>$</dt><dd>Bruk en skill</dd></Show>
             <Show when={kode() && props.projectId}><dt>!kommando</dt><dd>Kjør en kommando i prosjektmappen</dd></Show>
           </dl>
         </div>

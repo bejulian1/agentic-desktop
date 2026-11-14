@@ -2,6 +2,20 @@
 
 Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **Demo** i appen.
 
+## 0.21.0: Egne Chat-prosjekter og tankebobler (14. november 2026, bygg 62)
+
+- **Prosjektside i Chat:** ekte meldingsfelt over samtalelisten, søk, åpning, navn og sletting. Klikk på prosjektnavnet åpner siden; egen pil folder sidefanens liste. Ingen tom tråd opprettes bare ved åpning.
+- **Eget uttrykk:** velg mellom 15 ikoner og åtte ikonfarger. Prosjekteditoren samler navn, opptil 10 000 ord med instruksjoner og minnevalg.
+- **Avgrenset Chat-kontekst:** egne prosjektminner som standard, eller eksplisitt deling av globale Chat-minner. Global systeminstruks, profil, tone, personlighet, posisjon, skills og all Kode-personalisering holdes utenfor. Dette er kontekststyring, ikke OS-isolasjon.
+- **Tryggere kontekstbytte:** flytting og endrede prosjektinstruksjoner bygger historikken fra synlige meldinger og eksisterende vedleggsreferanser. Gamle skjulte sammendrag og intern modelltilstand følger ikke med. Aktive og kølagte turer beskyttes mot endring, og sene TAB-forslag forkastes ved kontekstbytte.
+- **Utkast og redigering:** separate prosjektutkast, bevarte vedlegg ved langsom første sending, og konfliktbeskjed ved redigering fra et annet vindu. Delte minner merkes tydelig; egne minner beholdes når du bytter minnetype.
+- **Små detaljer:** samtaletittel og navnefelt står litt høyere i både Chat og Kode. Tenkerader og kompakte tenkesammendrag bruker en tankeboble.
+
+- **Hvem skrev svaret:** modellbytter vises som en diskret linje i Chat og Kode. Ikonet under hvert svar viser modell og leverandør ved hover eller klikk. Nye svar beholder opprinnelige modellnavn selv etter senere omdøping eller sletting. Endring under strømming vises først når det aktive svaret er ferdig.
+- **Leverandører:** Beta-merkene er fjernet etter brukerens ønske. abliteration.ai har egen direkteinngang med API-nøkkel og enklere tekst. Hver tilkoblet leverandør beholder «Test tilkobling», med ventestatus mens testen pågår. Brukeren har bekreftet OpenRouter og abliteration.ai; OpenAI/Anthropic er kontrollert lokalt uten ekte API-kall.
+
+Bruk og grenser er beskrevet i [Chat-prosjekter](CHAT-PROJECTS.md).
+
 ## 0.20.0: Arbeidstrær, versjonslogg og verktøypolish (14. november 2026, bygg 60)
 
 - **Grener og arbeidstrær:** prosjektets tannhjul ved meldingsfeltet åpner en ekte gren-/arbeidstrevelger. Bytt lokal gren, opprett gren eller åpne et nytt arbeidstre som eget prosjekt. `/worktree` åpner oppretting i Kode. Git-innstillinger er samlet på én fungerende side. Lokale endringer sperrer grenbytte; aktive modellkjøringer sperrer Git-endringer i samme repo, også fra andre arbeidstrær. Filvisningen oppfriskes etter bytte. Ingen automatisk stash, commit, push, tvunget bytte eller sletting.

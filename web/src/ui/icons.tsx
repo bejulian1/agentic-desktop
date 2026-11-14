@@ -1,9 +1,9 @@
 import type { JSX } from "solid-js";
 
-function Svg(props: { children: JSX.Element; size?: number }) {
+function Svg(props: { children: JSX.Element; size?: number; name?: string }) {
   const size = props.size ?? 16;
   return (
-    <svg class="icon" width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg class="icon" data-icon={props.name} width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       {props.children}
     </svg>
   );
@@ -119,8 +119,8 @@ export const IconSection = (p: P) => <Svg {...p}><path d="M2.5 4.5h11M2.5 8h7M2.
 // Round 13 (SPEC 27.1 and 27.2): a new file, and the tool menu in Chat (a toolbox with a handle).
 export const IconFilePlus = (p: P) => <Svg {...p}><path d="M9 2.5H4v11h8v-8z" /><path d="M9 2.5v3h3M8 8v3.5M6.25 9.75h3.5" /></Svg>;
 export const IconTools = (p: P) => <Svg {...p}><rect x="2" y="5.5" width="12" height="7.5" rx="1.5" /><path d="M6 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M2 9h12M7 9v1.25M9 9v1.25" /></Svg>;
-// Thinking as a step in Kode: the bubble with three dots, so it never reads as the search glass.
-export const IconThought = (p: P) => <Svg {...p}><path d="M8 13.5c-3 0-5.5-2.2-5.5-5.5S5 2.5 8 2.5s5.5 2.2 5.5 5.5c0 1.2-.3 2.2-.9 3.1l.4 2.4-2.4-.5c-.8.3-1.7.5-2.6.5Z" /><path d="M5.6 8h.01M8 8h.01M10.4 8h.01" stroke-width="1.9" /></Svg>;
+// A thought cloud with two detached trail dots: distinct from a conversation's speech bubble.
+export const IconThought = (p: P) => <Svg {...p} name="thought"><path d="M4.75 9.75A2.75 2.75 0 0 1 3.8 4.42a3.1 3.1 0 0 1 5.75-1.5 2.8 2.8 0 0 1 3.85 3.35 2.45 2.45 0 0 1-2.2 4.13 3.05 3.05 0 0 1-4.05-.05 2.65 2.65 0 0 1-2.4-.6Z" /><circle cx="4.5" cy="12" r=".8" stroke-width="1.1" /><circle cx="2.2" cy="14" r=".45" fill="currentColor" stroke="none" /></Svg>;
 // Round 15: Åpne stort and back to normal size, for the artifact panel. Arrows out to the corners,
 // and in from them.
 export const IconExpand = (p: P) => <Svg {...p}><path d="M9.5 2.75h3.75V6.5M13.25 2.75 9.25 6.75M6.5 13.25H2.75V9.5M2.75 13.25l4-4" /></Svg>;

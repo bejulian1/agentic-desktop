@@ -2,7 +2,7 @@ import { createEffect, onCleanup, Show, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 
 // A menu anchored to its trigger. The document listener exists only while it is open.
-export function Popover(props: { open: boolean; onClose: () => void; trigger: JSX.Element; children: JSX.Element; align?: "left" | "right"; fixed?: boolean; portal?: boolean; below?: boolean; returnFocus?: boolean; stable?: boolean; class?: string }) {
+export function Popover(props: { open: boolean; onClose: () => void; trigger: JSX.Element; children: JSX.Element; align?: "left" | "right"; fixed?: boolean; portal?: boolean; below?: boolean; returnFocus?: boolean; stable?: boolean; gap?: number; panelClass?: string; class?: string }) {
   let root!: HTMLDivElement;
   let popup: HTMLDivElement | undefined;
   // Fixed menus follow their trigger through panel and window resizes. Keep the opening side
@@ -27,7 +27,7 @@ export function Popover(props: { open: boolean; onClose: () => void; trigger: JS
     }
     const margin = 8;
     const snap = (value: number) => props.stable ? Math.round(value * devicePixelRatio) / devicePixelRatio : value;
-    const gap = 6;
+    const gap = props.gap ?? 6;
     const above = Math.max(0, rect.top - gap - margin);
     const below = Math.max(0, innerHeight - rect.bottom - gap - margin);
     opensAbove ??= !props.below && (above >= element.offsetHeight || above >= below);
@@ -78,7 +78,7 @@ export function Popover(props: { open: boolean; onClose: () => void; trigger: JS
     });
   });
   const Panel = () => (
-    <div class="popover" classList={{ right: props.align === "right", fixed: props.fixed, below: props.below, "stable-geometry": props.stable }} ref={(element) => { popup = element; place(element); }}>{props.children}</div>
+    <div class={`popover ${props.panelClass ?? ""}`} classList={{ right: props.align === "right", fixed: props.fixed, below: props.below, "stable-geometry": props.stable }} ref={(element) => { popup = element; place(element); }}>{props.children}</div>
   );
   return (
     <div class={`popover-anchor ${props.class ?? ""}`} ref={root}>

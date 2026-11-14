@@ -10,7 +10,7 @@ import { TooltipHost } from "./Tooltip";
 // Its rules stay where they were in the cascade; the dialog itself loads when it opens.
 import "../styles/cookies.css";
 import { MotionHost, motionOff } from "./Motion";
-import { chromeImportOpen, cookieDialog, editing, gitWorkspaceDialog } from "./dialog-state";
+import { chatProjectDialog, chromeImportOpen, cookieDialog, editing, gitWorkspaceDialog } from "./dialog-state";
 import { palette } from "../state/nav";
 import { IconClose, IconFolder, IconChevron, IconBack } from "./icons";
 
@@ -407,6 +407,7 @@ function Toasts() {
 // there within a frame or two, and until then nothing is drawn, so nothing flickers.
 const GitWorkspaceHost = lazy(() => import("./GitWorkspace").then((m) => ({ default: m.GitWorkspaceHost })));
 const EditProjectHost = lazy(() => import("./EditProject").then((m) => ({ default: m.EditProjectHost })));
+const ChatProjectDialogHost = lazy(() => import("./ChatProjectDialog").then((m) => ({ default: m.ChatProjectDialogHost })));
 const CommandPaletteHost = lazy(() => import("./CommandPalette").then((m) => ({ default: m.CommandPaletteHost })));
 const ChromeImportHost = lazy(() => import("./ChromeImport").then((m) => ({ default: m.ChromeImportHost })));
 const CookieImportHost = lazy(() => import("./CookieImport").then((m) => ({ default: m.CookieImportHost })));
@@ -424,6 +425,7 @@ export function GlobalLayers() {
       <Show when={gitWorkspaceDialog()}><Suspense><GitWorkspaceHost /></Suspense></Show>
       <PromptHost />
       <Show when={editing()}><Suspense><EditProjectHost /></Suspense></Show>
+      <Show when={chatProjectDialog()}><Suspense><ChatProjectDialogHost /></Suspense></Show>
       <HoverCardHost />
       <Show when={palette()}><Suspense><CommandPaletteHost /></Suspense></Show>
       <TooltipHost />

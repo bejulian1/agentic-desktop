@@ -4,15 +4,19 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.20.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.21.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
-| Kode og endringer | Chat | React-artifacts |
+| Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
-| [![Kode og diff](docs/bilder/kode.png)](docs/bilder/kode.png) | [![Chat](docs/bilder/chat.png)](docs/bilder/chat.png) | [![React-forhåndsvisning](docs/bilder/artifact-react.png)](docs/bilder/artifact-react.png) |
+| [![Kode og diff](docs/bilder/kode.png)](docs/bilder/kode.png) | [![Chat-prosjekt](docs/bilder/chat-prosjekt.png)](docs/bilder/chat-prosjekt.png) | [![React-forhåndsvisning](docs/bilder/artifact-react.png)](docs/bilder/artifact-react.png) |
 
 *Klikk på et bilde for full størrelse.*
 
-*Skjermbildene viser v0.20.0 med demo-modellen og et midlertidig eksempelprosjekt.*
+*Skjermbildene viser v0.21.0 med demo-modellen og et midlertidig eksempelprosjekt.*
+
+## Nytt i v0.21
+
+Chat-prosjekter har nå egen startside med meldingsfelt over chatlisten, 15 fargede ikoner, egne instruksjoner og valgbare egne eller delte Chat-minner. Global personalisering holdes utenfor prosjektet. Se [Chat-prosjekter](docs/CHAT-PROJECTS.md). Samtaletittel og navnefelt er løftet litt, og tenkesammendrag bruker en tankeboble. Et ikon under hvert svar viser faktisk modell og leverandør, og modellbytter får en diskret linje i samtalen.
 
 ## Nytt siden v0.11
 
@@ -51,6 +55,12 @@ Hele historikken står i [versjonsloggen](docs/PATCHLOG.md).
 **Chat**
 
 ![Chat-modus med kodeeksempel](docs/bilder/chat.png)
+
+**Chat-prosjekt med egne instruksjoner og minner**
+
+![Prosjektside i Chat](docs/bilder/chat-prosjekt.png)
+
+![Prosjektinnstillinger i Chat](docs/bilder/chat-prosjekt-innstillinger.png)
 
 **React-artifact med forhåndsvisning**
 
@@ -153,7 +163,7 @@ Demo-modellen er forhåndsvalgt og merket **Demo-modell (uten API)**. Den bruker
 
 Velg så modellen i meldingsfeltet.
 
-> OpenRouter er bekreftet med ekte tilkobling og modellhenting. Øvrige integrasjoner som fortsatt er merket **Beta**, er kontrollert mot lokale prøveservere; ekte tilgang må bekreftes med din konto.
+> OpenRouter og abliteration.ai er bekreftet av brukeren med ekte tilkobling. Leverandørene har ingen Beta-merker. OpenAI og Anthropic er kontrollert mot lokale prøveservere; test din egen konto med **Test tilkobling** under leverandøren.
 
 ## Bruk
 

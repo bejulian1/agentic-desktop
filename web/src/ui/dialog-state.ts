@@ -2,6 +2,20 @@
 // dialogs (EditProject, ChromeImport, CookieImport and the command palette) load the first time one
 // of them opens instead of at start (SPEC 29.5). dialogs.tsx mounts each one only while it is open.
 import { createSignal } from "solid-js";
+import type { ChatProject } from "../../../shared/protocol";
+
+export interface ChatProjectDialogRequest {
+  project: ChatProject | null;
+  resolve: (project: ChatProject | null) => void;
+}
+const [chatProjectDialog, setChatProjectDialog] = createSignal<ChatProjectDialogRequest | null>(null);
+export { chatProjectDialog, setChatProjectDialog };
+export function requestChatProjectDialog(project: ChatProject | null = null): Promise<ChatProject | null> {
+  return new Promise(resolve => {
+    chatProjectDialog()?.resolve(null);
+    setChatProjectDialog({ project, resolve });
+  });
+}
 
 // Rediger prosjekt, and the tab it opens on. Prosjektinnstillinger is the Agent tab.
 export type ProjectTab = "general" | "agent" | "sources";

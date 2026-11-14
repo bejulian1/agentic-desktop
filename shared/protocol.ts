@@ -91,11 +91,21 @@ export interface ChatProject {
   id: string;
   name: string;
   color: string | null; // id from PROJECT_COLORS
-  icon: string | null; // id from PROJECT_ICONS, or "emoji:…"
+  icon: string | null; // id from CHAT_PROJECT_ICONS; previously saved legacy values stay readable
   pinned: boolean;
+  instructions: string; // project-only instructions; never merged with global Chat personalisation
+  memoryMode: ChatProjectMemoryMode;
+  autoMemory: boolean; // capture explicitly requested notes after a turn; independent of global Chat
   createdAt: number;
   lastUsedAt: number;
 }
+
+export type ChatProjectMemoryMode = "project" | "shared";
+export interface ChatProjectMemory { id: string; text: string }
+export interface ChatProjectMemoryList { memoryMode: ChatProjectMemoryMode; items: ChatProjectMemory[] }
+
+// Exactly fifteen choices for Chat. Existing saved legacy icons remain readable.
+export const CHAT_PROJECT_ICONS = ["folder", "book", "school", "pencil", "brain", "spark", "globe", "plane", "chart", "palette", "music", "health", "leaf", "flask", "team"];
 
 // Round 11 (SPEC 24.6): a named section in the sidebar, made with ⋯ → Ny seksjon. Threads are put in
 // it by dragging or from the thread menu, and only threads of its own mode. Deleting it leaves the
@@ -591,6 +601,16 @@ export interface Usage {
   costUsd: number | null;
 }
 
+// Display-only snapshot of the actual answering model. Stored with the event so later model or
+// provider renames/deletion cannot relabel historical answers. Never supplied to model history.
+export interface AnswerModel {
+  modelId: string;
+  modelName?: string;
+  model?: string;
+  providerId?: string;
+  providerName?: string;
+}
+
 // Stored per thread with an increasing seq. Replaying them rebuilds the conversation.
 export type ThreadEvent =
   // from: set when another thread sent it. attachments: what @ added; contents go to the model only.
@@ -599,7 +619,8 @@ export type ThreadEvent =
   // steer: goes into the running turn at the next step instead of waiting for the turn to end.
   | { type: "user.queue-removed"; messageId: string }
   | { type: "user.queued"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; steer?: boolean; editable?: boolean; steerable?: boolean }
-  | { type: "run.started"; runId: string; modelId: string }
+  | { type: "run.started"; runId: string; modelId: string; model?: AnswerModel }
+  | { type: "model.changed"; from: AnswerModel; to: AnswerModel }
   | { type: "text.delta"; runId: string; messageId: string; text: string }
   | { type: "thinking.delta"; runId: string; blockId: string; text: string }
   | { type: "thinking.done"; runId: string; blockId: string; durationMs: number }
@@ -914,7 +935,11 @@ export interface BrowserImported {
 // POST   /api/projects/:id/relink           { path }  connects the project to an existing folder: realpath, a directory,
 //                                            the same checks as a new project; 409 while a thread runs
 // POST   /api/chat-projects                 { name } => ChatProject
-// PATCH  /api/chat-projects/:id             { name?, pinned?, color?, icon? } => ChatProject
+// PATCH  /api/chat-projects/:id             { name?, pinned?, color?, icon?, instructions?, memoryMode?, autoMemory?, expected? } => ChatProject
+// expected: immutable {name,icon,color,instructions,memoryMode,autoMemory}; 409 on a stale editable snapshot
+// GET/POST /api/chat-projects/:id/memories   => ChatProjectMemoryList / {text} => ChatProjectMemory
+// PUT/DELETE /api/chat-projects/:id/memories/:memoryId  {text} for PUT
+// POST /api/chat-projects/:id/memories/clear => {removed}; shared mode intentionally edits global CHAT memories
 // DELETE /api/chat-projects/:id             the chats stay, outside any project
 // PATCH  /api/threads/:id                   also { chatProjectId: string | null }  Chat threads only
 // PUT    /api/projects/local/layout         the pane grid of Kode without a project, like "chat"

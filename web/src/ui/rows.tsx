@@ -8,22 +8,23 @@ import { observeWhile, visibleSignal, whileVisible } from "../lib/visible";
 import { motionOff } from "./Motion";
 import { MarkdownStream, renderStatic } from "../markdown/stream";
 import { disposeArtifactBoxes } from "../markdown/artifact-card";
-import { app, modelName, report } from "../state/app";
+import { app, report } from "../state/app";
 import { formatElapsed, useClock } from "../state/clock";
 import { peekPanelActions } from "../state/panel";
 import { revertTurn } from "../state/project-actions";
 import type {
   AgentsRow, ApprovalRow, ChangesRow, CompactedRow, NoticeRow, RetryState, Row, TextRow, ThinkingRow, UserRow, WorkRow,
 } from "../state/thread-model";
-import type { ApprovalDecision, Attachment, Thread } from "../../../shared/protocol";
+import type { AnswerModel, ApprovalDecision, Attachment, Thread } from "../../../shared/protocol";
 import {
   IconAgent, IconAt, IconBranch, IconChevron, IconChevronDown, IconClose, IconDiff, IconFile, IconFolder,
-  IconImage, IconPencil, IconThought, IconUndo, IconWarn, IconCopy, IconBookmark, IconReload, IconCheck,
+  IconImage, IconPencil, IconThought, IconUndo, IconWarn, IconCopy, IconBookmark, IconReload, IconCheck, IconCpu,
 } from "./icons";
 import { ChatTools, UserEdit } from "./ChatTools";
 import { enter, seconds, StepsView, SummaryView, ToolView } from "./steps";
 import { stepSentence } from "./step-words";
 import { FileChangeCounts } from "./FileChangeCounts";
+import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
 export { NowLine } from "./steps";
 
 // The conversation's timeline map learns where the user messages are from this. Rows register
@@ -97,17 +98,17 @@ function useActions(): { built: () => boolean; build: (event?: FocusEvent) => vo
 
 // Under every message, shown on hover and on focus by CSS. The buttons only carry data: one
 // listener on the conversation handles them all, so there is nothing per row to set up.
-function MessageActions(props: { rowKey: string; at: number; kind: "user" | "text"; built: () => boolean }) {
+function MessageActions(props: { rowKey: string; at: number; kind: "user" | "text"; built: () => boolean; model?: AnswerModel }) {
   return (
     <div class="msg-actions" role="toolbar" aria-label="Handlinger" tabindex={props.built() ? undefined : 0}>
       <Show when={props.built()}>
-        <ActionButtons rowKey={props.rowKey} at={props.at} kind={props.kind} />
+        <ActionButtons rowKey={props.rowKey} at={props.at} kind={props.kind} model={props.model} />
       </Show>
     </div>
   );
 }
 
-function ActionButtons(props: { rowKey: string; at: number; kind: "user" | "text" }) {
+function ActionButtons(props: { rowKey: string; at: number; kind: "user" | "text"; model?: AnswerModel }) {
   const chapterOf = useContext(ChapterOf);
   const chat = useContext(ChatTools);
   const chapter = () => chapterOf(props.rowKey);
@@ -162,6 +163,7 @@ function ActionButtons(props: { rowKey: string; at: number; kind: "user" | "text
       >
         <IconBookmark size={14} />
       </button>
+      <Show when={props.kind === "text"}><AnswerModelButton model={props.model} /></Show>
       <time class="msg-time" dateTime={new Date(props.at).toISOString()} title={fullTime(props.at)}>{shortTime(props.at)}</time>
     </>
   );
@@ -335,7 +337,7 @@ function TextView(props: { row: TextRow }) {
     <div class="msg" data-key={row.key} data-selected={chat?.isSelected(row.key) ? "" : undefined} onPointerOver={() => actions.build()} onFocusIn={actions.build}>
       <ChapterMark rowKey={row.key} />
       <TextBody row={row} />
-      <Show when={done() && answer()}><MessageActions rowKey={row.key} at={row.at} kind="text" built={actions.built} /></Show>
+      <Show when={done() && answer()}><MessageActions rowKey={row.key} at={row.at} kind="text" built={actions.built} model={row.model} /></Show>
     </div>
   );
 }
@@ -408,12 +410,14 @@ function ThinkingCard(props: { row: ThinkingRow; model: string }) {
             when={!compact()}
             fallback={
               <button type="button" class="premium-meta" aria-expanded={open()} disabled={!summary()} title={summary() ? "Vis tenkesammendraget" : "Tenkesammendraget er slått av i Innstillinger"} onClick={() => setOpen(!open())}>
+                <IconThought size={14} />
                 <span>{seconds(row.durationMs) ? `Tenkte i ${formatElapsed(row.durationMs!)}` : "Tenkte et øyeblikk"}</span>
                 <Show when={summary()}><span class="fold-chevron" classList={{ open: open() }}><IconChevron size={12} /></span></Show>
               </button>
             }
           >
             <div class="premium-status" aria-live="polite">
+              <IconThought size={14} />
               <Show when={status()} keyed>{(line) => <span class="premium-line status-text shimmer" ref={whileVisible}>{line}</span>}</Show>
             </div>
             <div class="premium-progress" role="progressbar" aria-label="Tenker" aria-valuetext="Modellen tenker">
@@ -439,7 +443,7 @@ function ThinkingView(props: { row: ThinkingRow }) {
   const premium = () => app.settings.thinkingView === "premium" && thread()?.mode !== "code";
   return (
     <Show when={premium()} fallback={<ThinkingFold row={row} />}>
-      <ThinkingCard row={row} model={modelName(thread()?.modelId)} />
+      <ThinkingCard row={row} model={answerModelInfo(row.model).name} />
     </Show>
   );
 }
@@ -861,6 +865,8 @@ function NoticeView(props: { row: NoticeRow }) {
 function RowKind(props: { row: Row; onThread: (id: string) => void }) {
   const { row } = props;
   switch (row.kind) {
+    case "model-change":
+      return <div class="model-change-row" data-row="model-change" role="note"><IconCpu size={12} /><span>Byttet modell: {answerModelInfo(row.from).name} <span aria-hidden="true">→</span><span class="sr-only">til</span> {answerModelInfo(row.to).name}</span></div>;
     case "user":
       return <UserView row={row} onThread={props.onThread} />;
     case "text":

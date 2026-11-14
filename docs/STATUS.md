@@ -1,9 +1,11 @@
 # Status
 
-## v0.20.0 – bygg 60
+## v0.21.0 – bygg 62
 
 Oppdatert 14. november 2026. Endringer siden v0.11.0 er samlet i [versjonsloggen](PATCHLOG.md).
 
+- Chat-prosjekter med egen startside, toppstilt meldingsfelt, 15 ikoner, ikonfarger, egne instruksjoner og egne eller eksplisitt delte Chat-minner. Global personalisering holdes utenfor.
+- Historisk modell-/leverandørinfo under svar, diskrete modellbytter, tankeboble og løftet samtaletittel.
 - Separate Chat- og Kode-modus med egne instrukser og minner, valgfri modellkontekst og ryddigere innstillinger.
 - Skills-arbeidsområde, slash-kommandoer, TAB-forslag fra samtalehistorikk, redigerbar meldingskø og rullbare vedlegg.
 - Felles topprad i sidepanelet med nettleser-/terminaløkter, flere startfaner og manuell fil-/nettleserbruk uten prosjekt.
@@ -14,9 +16,9 @@ Oppdatert 14. november 2026. Endringer siden v0.11.0 er samlet i [versjonsloggen
 
 ## Kontrollert
 
-Utviklingsutgaven er kontrollert med 413 servertester, 28 berørte UI-forløp, ni Electron-/pakkekontroller og typekontroll av server, web og Electron. Kontrollene bruker demo-modell, lokale prøveservere og midlertidige data. Testpakker og interne målerapporter er ikke med i dette repoet. Kildekoden i repoet kontrolleres med `npm run typecheck`; bygg og installasjon er beskrevet i [README](../README.md).
+Utviklingsutgaven er kontrollert med 435 servertester, 27 berørte UI-forløp, Electron-kontroller for oppstart og pakket kjøring og typekontroll av server, web og Electron. Kontrollene bruker demo-modell, lokale prøveservere og midlertidige data. Testpakker og interne målerapporter er ikke med i dette repoet. Kildekoden i repoet kontrolleres med `npm run typecheck`; bygg og installasjon er beskrevet i [README](../README.md).
 
-OpenRouter er bekreftet med ekte tilkobling og modellhenting. Andre integrasjoner som er merket Beta, er ikke erklært testet mot sine ekte API-er.
+OpenRouter og abliteration.ai er bekreftet av brukeren med ekte tilkobling. Beta-merkene er fjernet fra leverandørene etter brukerens ønske; OpenAI/Anthropic er kontrollert lokalt uten ekte API-kall. Hver leverandør beholder sin tilkoblingstest.
 
 ## Kjente avgrensninger
 
@@ -24,6 +26,8 @@ OpenRouter er bekreftet med ekte tilkobling og modellhenting. Andre integrasjone
 - Kommandoer kjører med lokal brukers OS-tilgang. Godkjenningsvalg og prosjektgrenser er ikke full filsystemisolasjon.
 - Git krever et eksisterende repo med første commit. Ingen automatisk stash, commit, push eller sletting. Eksterne Git-/terminalprosesser låses ikke av appen.
 - Elementannotering er et frossent snapshot av hoveddokumentet; iframe-/shadow-DOM-inspeksjon er ikke innført.
+- Chat-prosjekter avgrenser modellkontekst, ikke OS-tilgang. Synlig historikk og vedlegg beholdes ved flytting; globale Chat-minner deles bare etter eksplisitt valg.
+- Eldre svarlogger kan mangle historiske modellnavn.
 - Vanlige usendte utkast er minnelagret og overlever ikke full prosessavslutning.
 - MCP-servere, hooks og andre uttrykkelig merkede Demo-funksjoner er ikke ferdige.
 

@@ -4,6 +4,7 @@
 import { batch, createSignal, type Accessor, type Setter } from "solid-js";
 import type {
   ApprovalDecision,
+  AnswerModel,
   Attachment,
   ChangedFile,
   QueueSnapshot,
@@ -46,7 +47,14 @@ export interface TextRow extends RowBase {
   text: string; // Grows, and only flattened when a view mounts.
   pending: string; // Text the mounted view has not seen.
   done: boolean;
+  model?: AnswerModel; // Snapshot of the run that wrote this text, never the current selector.
   onDelta?: () => void; // Set by the mounted view.
+}
+
+export interface ModelChangeRow extends RowBase {
+  kind: "model-change";
+  from: AnswerModel;
+  to: AnswerModel;
 }
 
 export interface ThinkingRow extends RowBase {
@@ -54,6 +62,7 @@ export interface ThinkingRow extends RowBase {
   text: string;
   durationMs: number | null;
   at: number;
+  model?: AnswerModel;
 }
 
 // Kode: the header over a run, "Jobber…" while it runs and "Jobbet i 14m 34s" after. Folding it
@@ -156,7 +165,7 @@ export interface SummaryRow extends RowBase {
   turnId: string | null; // the turn with file changes, for Endringer
 }
 
-export type Row = UserRow | TextRow | ThinkingRow | ToolRow | ApprovalRow | ChangesRow | CompactedRow | SpawnedRow | NoticeRow | WorkRow | StepsRow | AgentsRow | SummaryRow;
+export type Row = UserRow | TextRow | ThinkingRow | ToolRow | ApprovalRow | ChangesRow | CompactedRow | SpawnedRow | NoticeRow | WorkRow | StepsRow | AgentsRow | SummaryRow | ModelChangeRow;
 
 // Kode: what the current run has going, for the small box under the conversation. Changed only
 // by events that start or end something, never by tokens.
@@ -272,6 +281,10 @@ class Folder {
   private approvals = new Map<string, ApprovalRow>();
   private changes = new Map<string, ChangesRow>();
   private work: WorkRow | null = null; // Kode: the run being folded
+  private activeModel: { runId: string; model: AnswerModel } | null = null;
+  private selectedModel: AnswerModel | null = null;
+  private pendingModelChange: ModelChangeRow | null = null;
+  private modelChanges = 0;
   private steps: StepsRow | null = null; // the open group of steps
   private agents: AgentsRow | null = null; // threads made in this run
   private runStats = { commands: 0, files: 0, additions: 0, deletions: 0, turnId: null as string | null };
@@ -313,6 +326,17 @@ class Folder {
   apply(event: ThreadEvent, at = Date.now()): void {
     if (this.retry && event.type !== "usage" && event.type !== "user.queued") this.retry = null;
     switch (event.type) {
+      case "model.changed": {
+        const row: ModelChangeRow = { ...base(`model-change-${++this.modelChanges}-${at}`), kind: "model-change", from: event.from, to: event.to };
+        if (this.activity?.running) {
+          // A selector change affects the next run. Keep the current answer uninterrupted and
+          // place the change below it when it finishes, including while replaying old events.
+          if (this.pendingModelChange) row.from = this.pendingModelChange.from;
+          this.pendingModelChange = row.from.modelId === row.to.modelId ? null : row;
+        } else this.add(row);
+        this.selectedModel = event.to;
+        return;
+      }
       case "run.retrying":
         this.retry = { attempt: event.attempt, maxAttempts: event.maxAttempts, until: at + event.waitMs, reason: event.reason };
         return;
@@ -334,7 +358,7 @@ class Folder {
         if (this.activity) this.activity.phase = "writing";
         let row = this.texts.get(event.messageId);
         if (!row) {
-          row = { ...base(event.messageId), kind: "text", at, text: "", pending: "", done: false, work: this.work ?? undefined };
+          row = { ...base(event.messageId), kind: "text", at, text: "", pending: "", done: false, work: this.work ?? undefined, model: this.activeModel?.runId === event.runId ? this.activeModel.model : undefined };
           this.add(row);
           this.texts.set(event.messageId, row);
           this.work?.setLastText(row);
@@ -350,7 +374,7 @@ class Folder {
         if (this.activity) this.activity.phase = "thinking";
         let row = this.thinking.get(event.blockId);
         if (!row) {
-          row = { ...base(event.blockId), kind: "thinking", text: "", durationMs: null, at };
+          row = { ...base(event.blockId), kind: "thinking", text: "", durationMs: null, at, model: this.activeModel?.runId === event.runId ? this.activeModel.model : undefined };
           this.thinking.set(event.blockId, row);
           if (this.code) this.step(row);
           else this.add(row);
@@ -541,8 +565,19 @@ class Folder {
           });
         }
         this.steps = null;
+        this.activeModel = null;
+        if (this.pendingModelChange) {
+          this.add(this.pendingModelChange);
+          this.pendingModelChange = null;
+        }
         return;
       case "run.started": {
+        const model = event.model ?? { modelId: event.modelId };
+        if (this.selectedModel && this.selectedModel.modelId !== model.modelId) {
+          this.add({ ...base(`model-change-run-${event.runId}`), kind: "model-change", from: this.selectedModel, to: model });
+        }
+        this.selectedModel = model;
+        this.activeModel = { runId: event.runId, model };
         this.agents = null;
         this.runStats = { commands: 0, files: 0, additions: 0, deletions: 0, turnId: null };
         this.activity = { startedAt: at, running: true, tasks: [], phase: "starting" };

@@ -3,19 +3,20 @@ import type { Thread } from "../../../shared/protocol";
 import { post } from "../lib/api";
 import { app, scopeOf, currentProject, mode, pinnedSummary, report, saveSettings, scope, setFolderPickerOpen, setMode, setPinnedSummary, settingsOpen, setSettingsOpen, setSidebarOpen, sidebarOpen, toast, renameThread } from "./app";
 import { gridFor } from "./grid";
-import { canGoBack, canGoForward, goHistory } from "./history";
-import { newThreadIn, openThread } from "./navigate";
+import { canGoBack, canGoForward, goHistory, projectIdFromVisit } from "./history";
+import { newThreadIn, openChatProject, openThread } from "./navigate";
 import { requestBrowserTab, showPanel, togglePanel, type PanelTab } from "./panel";
 import { requestAnnotate } from "./annotate";
 import { revertLastTurn } from "./project-actions";
 import { matchShortcut } from "./shortcuts";
 import { promptDialog, setInfoDialog } from "../ui/dialogs";
 import { finished, markSeen, markUnread, setSearchOpen } from "./home";
-import { openPalette } from "./nav";
+import { chatProjectPageId, openPalette } from "./nav";
 import { setPinned, sideChat, toggleArchived } from "./thread-actions";
 import { openSkills, skillsOpen } from "./skills-workspace";
 
 export function focusedThreadId(): string | null {
+  if (mode() === "chat" && chatProjectPageId()) return null;
   const key = scope();
   return key ? gridFor(key).focusedThreadId() : null;
 }
@@ -32,6 +33,7 @@ export const actions = {
   newThread: () => void newThreadIn(codeProject(), mode() === "code"),
   newChat: () => void newThreadIn(null),
   newPane: () => {
+    if (mode() === "chat" && chatProjectPageId()) return;
     const key = scope();
     if (key) gridFor(key).addPane();
   },
@@ -98,6 +100,8 @@ export const actions = {
 };
 
 async function openById(id: string): Promise<void> {
+  const projectId = projectIdFromVisit(id);
+  if (projectId) { openChatProject(projectId); return; }
   const thread = app.threads[id];
   if (thread) await openThread(thread);
 }

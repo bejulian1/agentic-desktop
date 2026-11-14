@@ -31,6 +31,9 @@ export function Pane(props: {
     const id = threadId();
     return id ? app.threads[id] : undefined;
   });
+  // Empty panes retain a separate composer instance for each Chat project context. Typing in
+  // one project must never appear when the same pane starts a chat somewhere else.
+  const composerKey = () => threadId() ?? (props.code ? props.pane.id : `${props.pane.id}:chat:${chatProjectFor(props.pane.id) ?? "global"}`);
   const [model, setModel] = createSignal<ThreadModel | null>(null);
   const [renaming, setRenaming] = createSignal(false);
   let fill: ((text: string) => void) | undefined;
@@ -179,14 +182,14 @@ export function Pane(props: {
           <For each={pending()}>{(row) => <ApprovalCard row={row} />}</For>
         </div>
       </Show>
-      <Show when={threadId() ?? props.pane.id} keyed>
-        {(key) => (
+      <Show when={composerKey()} keyed>
+        {(_key) => (
           <Composer
-            paneKey={key}
+            paneKey={threadId() ?? props.pane.id}
             threadId={threadId}
             projectId={props.projectId}
             code={props.code || thread()?.mode === "code"}
-            chatProjectId={thread()?.chatProjectId ?? (props.code ? null : chatProjectFor(props.pane.id))}
+            chatProjectId={threadId() ? thread()?.chatProjectId ?? null : (props.code ? null : chatProjectFor(props.pane.id))}
             autofocus={props.focused}
             onThreadCreated={(created) => {
               if (props.grid) props.grid.setThread(props.pane.id, created.id);

@@ -6,7 +6,7 @@ import { get } from "../lib/api";
 import type { Bootstrap } from "../../../shared/protocol";
 import { gridFor } from "../state/grid";
 import { handleShortcut } from "../state/actions";
-import { recordVisit } from "../state/history";
+import { chatProjectVisit, recordVisit } from "../state/history";
 import { askWhoIsOpen, registerSoloWindow } from "../state/windows";
 import { GlobalLayers } from "./dialogs";
 import { GridView } from "./GridView";
@@ -21,7 +21,7 @@ import { markSeen, setVisibleCheck } from "../state/home";
 import type { PaneState } from "../state/grid";
 import { room } from "../state/artifacts";
 import { artifactBig, artifactPanel, artifactWidth, closeArtifactPanel } from "../state/artifact-panel";
-import { closeProfile, loadFavicons, profileOpen } from "../state/nav";
+import { chatProjectPageId, closeChatProjectPage, closeProfile, loadFavicons, profileOpen } from "../state/nav";
 import { wireDownloads } from "../state/downloads";
 import { wireServers } from "../state/servers";
 import { on } from "../lib/socket";
@@ -32,6 +32,7 @@ const ArtifactsRoom = lazy(() => import("./ArtifactsRoom"));
 const ArtifactPanel = lazy(() => import("./ArtifactPanel")); // round 15, the first time a box is opened
 const ProfilePage = lazy(() => import("./ProfilePage"));
 const SkillsRoom = lazy(() => import("./SkillsRoom"));
+const ChatProjectPage = lazy(() => import("./ChatProjectPage"));
 
 export function ExpiredScreen() {
   return (
@@ -73,13 +74,19 @@ function Shortcuts() {
 export function App() {
   const [skillsVisited, setSkillsVisited] = createSignal(false);
   createEffect(() => { if (skillsOpen()) setSkillsVisited(true); });
+  const chatProjectPage = createMemo(() => mode() === "chat" ? app.chatProjects[chatProjectPageId() ?? ""] : undefined);
+  createEffect(() => {
+    const id = chatProjectPageId();
+    if (id && (mode() !== "chat" || !app.chatProjects[id])) closeChatProjectPage();
+  });
   const threadId = createMemo(() => {
+    if (chatProjectPage()) return null;
     const key = scope();
     return key ? gridFor(key).focusedThreadId() : null;
   });
 
   createEffect(() => {
-    recordVisit(threadId());
+    recordVisit(chatProjectPage() ? chatProjectVisit(chatProjectPage()!.id) : threadId());
     markSeen(threadId());
   });
   // Round 13 (SPEC 27.1): the window's title says what the thread in focus does, in the same words
@@ -87,12 +94,12 @@ export function App() {
   createEffect(() => {
     const id = threadId();
     const thread = id ? app.threads[id] : undefined;
-    document.title = windowTitle(thread, untitled(thread));
+    document.title = chatProjectPage() ? `${chatProjectPage()!.name} · Agentic Desktop` : windowTitle(thread, untitled(thread));
   });
   // A thread that finishes in a pane on screen is not news.
   setVisibleCheck((id) => {
     const key = scope();
-    return !!key && !room() && !profileOpen() && !skillsOpen() && !settingsOpen() && gridFor(key).panes().some((p) => p.threadId() === id);
+    return !!key && !chatProjectPage() && !room() && !profileOpen() && !skillsOpen() && !settingsOpen() && gridFor(key).panes().some((p) => p.threadId() === id);
   });
 
   // A project that is opened is read again, so a folder moved or deleted since shows (SPEC 21.2).
@@ -116,7 +123,7 @@ export function App() {
   const away = () => !!room() || profileOpen() || skillsOpen();
   // Round 15 (SPEC 31.1): an open artifact has the right side, in Chat and in Kode. In Kode the tool
   // panel steps aside while it is open and comes back when it closes.
-  const artifactShown = () => !away() && !!artifactPanel();
+  const artifactShown = () => !away() && !chatProjectPage() && !!artifactPanel();
   // It belongs to its thread: going to another thread closes it.
   createEffect(track(threadId, (id) => {
     const open = untrack(artifactPanel);
@@ -149,7 +156,7 @@ export function App() {
     const open = panelShown() || artifact;
     const over = open && ((artifact ? artifactBig() : panelFull()) || narrow());
     const key = scope();
-    const panes = !away() && key ? gridFor(key).count() : 1;
+    const panes = !away() && !chatProjectPage() && key ? gridFor(key).count() : 1;
     const root = document.documentElement.style;
     root.setProperty("--toasts-panel", open && !over ? `${artifact ? artifactWidth() : panelWidth()}px` : "0px");
     root.setProperty("--toasts-down", over ? "124px" : panes > 1 ? "40px" : "0px");
@@ -193,12 +200,15 @@ export function App() {
       <main class="main">
         <OfflineBanner />
         {/* The panes stay mounted under the Artifacts room, so drafts and scroll survive a visit. */}
-        <div class="main-panes" hidden={away()}>
+        <div class="main-panes" hidden={away() || !!chatProjectPage()}>
           {/* Kode without a project is a grid of its own, Denne datamaskinen (round 9). */}
           <Show when={scope()} keyed>
             {(key) => <GridView grid={gridFor(key)} projectId={projectOfScope(key)} code={key !== "chat"} />}
           </Show>
         </div>
+        <Show when={chatProjectPage() && !away() ? chatProjectPageId() : null} keyed>
+          {(id) => <Suspense><ChatProjectPage project={app.chatProjects[id]} /></Suspense>}
+        </Show>
         <Show when={room()}>
           <Suspense><ArtifactsRoom /></Suspense>
         </Show>

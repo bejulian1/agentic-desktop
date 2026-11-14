@@ -18,10 +18,10 @@ import {
 } from "../state/app";
 import { applyDrop, beginDrag, sectionTarget } from "../state/drag";
 import { gridFor } from "../state/grid";
-import { newChatIn, newThreadIn, openThread, preloadThread } from "../state/navigate";
+import { newChatIn, newThreadIn, openChatProject, openThread, preloadThread } from "../state/navigate";
 import { onNextFrame } from "../lib/frame";
 import { confirmDialog } from "./dialogs";
-import { newChatProject, renameChatProject } from "./chat-projects";
+import { editChatProject, newChatProject, removeChatProject } from "./chat-projects";
 import {
   IconArtifact, IconBell, IconBranch, IconChevron, IconClose, IconCompose, IconDots, IconHelp, IconPlus, IconPlusCircle, IconSearch,
   IconSettings, IconSpark, IconWarn, IconCheck,
@@ -34,6 +34,7 @@ import { clearFinished, finished, markSeen, searchOpen, setSearchOpen } from "..
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
+import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { ModeSwitch } from "./ModeSwitch";
 import { startBackground } from "../state/actions";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
@@ -41,7 +42,7 @@ import { threadMenuEntries } from "./ThreadMenu";
 import { hideHoverCard, hoverIn, hoverOut, suppressHoverCards } from "./HoverCard";
 import { openEditProject } from "./dialog-state";
 import { preloadSettings } from "./lazy-views";
-import { closeProfile, openProfile, profileOpen } from "../state/nav";
+import { chatProjectPageId, closeProfile, openProfile, profileOpen } from "../state/nav";
 import { IconInfo, IconKeyboard, IconSun, IconTerminal, IconUser, IconPencil as IconEdit, IconPlusCircle as IconAddRun, IconPin as IconPinned, IconTrash as IconRemove } from "./icons";
 import { homeStats, loadHomeStats, runsFinished } from "../state/home";
 import { formatTokens } from "../lib/format";
@@ -593,8 +594,15 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
   createEffect(() => { if (settingsOpen()) closeMenu(); });
   const key = () => `chat:${props.project.id}`;
   const isCollapsed = () => collapsed().includes(key());
+  const selected = () => mode() === "chat" && chatProjectPageId() === props.project.id && !room() && !skillsOpen() && !profileOpen();
+  const open = () => {
+    if (isCollapsed()) toggleCollapsed(key());
+    openChatProject(props.project.id);
+    afterPick();
+  };
   const entries = (): MenuEntry[] => [
-    { label: "Gi nytt navn…", icon: IconEdit, run: () => void renameChatProject(props.project) },
+    { label: "Åpne prosjektet", icon: IconFolder, run: open },
+    { label: "Rediger prosjekt…", icon: IconEdit, run: () => void editChatProject(props.project) },
     { label: props.project.pinned ? "Løsne prosjektet" : "Fest prosjektet", icon: IconPinned, run: () => patch(`/api/chat-projects/${props.project.id}`, { pinned: !props.project.pinned }).catch(report) },
     "sep",
     // Round 14 (SPEC 30.4)
@@ -613,20 +621,17 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
       label: "Fjern prosjektet…",
       icon: IconRemove,
       danger: true,
-      run: async () => {
-        const ok = await confirmDialog({ title: "Fjerne prosjektet?", text: `«${props.project.name}» fjernes. Chattene blir liggende under Chatter.`, confirm: "Fjern", danger: true });
-        if (ok) del(`/api/chat-projects/${props.project.id}`).catch(report);
-      },
+      run: () => void removeChatProject(props.project),
     },
   ];
   return (
     <div class="group chat-project" data-chat-project={props.project.name}>
-      <div class="group-head" ref={head} onPointerEnter={() => hoverIn("chat-project", props.project.id, head)} onPointerLeave={hoverOut} onPointerDown={hideHoverCard} onContextMenu={(event) => { event.preventDefault(); showMenu({ x: event.clientX, y: event.clientY }); }}>
+      <div class="group-head" classList={{ active: selected() }} ref={head} onPointerEnter={() => hoverIn("chat-project", props.project.id, head)} onPointerLeave={hoverOut} onPointerDown={hideHoverCard} onContextMenu={(event) => { event.preventDefault(); showMenu({ x: event.clientX, y: event.clientY }); }}>
         <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? "Vis chatter" : "Skjul chatter"} title={isCollapsed() ? "Vis chattene i prosjektet" : "Skjul chattene i prosjektet"} onClick={() => toggleCollapsed(key())}>
-          <ProjectGlyph project={props.project} size={16} open={!isCollapsed()} />
+          <ChatProjectGlyph project={props.project} size={16} open={!isCollapsed()} />
           <span class="fold-chevron" classList={{ open: !isCollapsed() }}><IconChevron size={12} /></span>
         </button>
-        <button type="button" class="group-title" title={props.project.name} onClick={() => toggleCollapsed(key())}><span>{props.project.name}</span></button>
+        <button type="button" class="group-title" aria-current={selected() ? "page" : undefined} title={`Åpne ${props.project.name}`} onClick={open}><span>{props.project.name}</span></button>
         <Show when={isCollapsed() && props.threads.length}><span class="group-count">{props.threads.length}</span></Show>
         <span class="group-actions" classList={{ open: !!menu() }}>
           <button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
@@ -916,7 +921,7 @@ export function Sidebar() {
 
   const activeIds = createMemo<ReadonlySet<string>>(() => {
     const key = scope();
-    if (!key) return new Set();
+    if (!key || (mode() === "chat" && chatProjectPageId())) return new Set();
     return new Set(gridFor(key).panes().flatMap((p) => p.threadId() ?? []));
   });
 

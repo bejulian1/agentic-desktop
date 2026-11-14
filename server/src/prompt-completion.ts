@@ -4,6 +4,7 @@ import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import type { ModelConfig } from "../../shared/protocol.ts";
 import type { Store } from "./db.ts";
 import { HttpError } from "./errors.ts";
+import { historyFrom } from "./agent/fork.ts";
 import { guardPath, isProtectedPath } from "./paths.ts";
 import type { Provider } from "./providers/types.ts";
 
@@ -27,6 +28,17 @@ export class PromptCompletions {
 
   clear(): void { for (const controller of this.active.values()) controller.abort(); this.active.clear(); }
   close(): void { this.closed = true; this.clear(); }
+
+  // Scope may change while a provider streams. Never return an old project's suggestion
+  // after a move, project edit, temporary-state change or deletion.
+  private contextStamp(threadId: string): string | null {
+    const thread = this.store.thread(threadId);
+    if (!thread || thread.archived) return null;
+    return JSON.stringify([
+      this.store.chatContextIdentity(threadId), thread.modelId,
+      this.store.settings().promptAutocompleteModelId ?? null,
+    ]);
+  }
 
   private openedFile(root: string, filePath: unknown): { path: string; text: string } | undefined {
     if (typeof filePath !== "string" || !filePath || filePath.length > 1000) return;
@@ -57,6 +69,8 @@ export class PromptCompletions {
     if (input.threadId && !thread) throw new HttpError(404, "Fant ikke tråden");
     if (thread && (thread.mode !== input.mode || (input.projectId !== undefined && (input.projectId ?? null) !== thread.projectId))) throw new HttpError(400, "Forslaget hører til en annen tråd eller modus");
     if (!thread || !thread.promptHistoryReady || thread.archived || this.running(thread.id)) return empty;
+    const contextStamp = this.contextStamp(thread.id);
+    if (!contextStamp) return empty;
     const projectId = thread?.projectId ?? input.projectId ?? null;
     if (input.mode === "chat" && projectId) throw new HttpError(400, "Chat-forslag bruker ikke prosjektfiler");
     const project = projectId ? this.store.project(projectId) : undefined;
@@ -70,7 +84,12 @@ export class PromptCompletions {
     const openedFile = project && !project.folderMissing && input.mode === "code" ? this.openedFile(project.path, input.filePath) : undefined;
     const history: Array<{ role: string; text: string }> = [];
     let remaining = 6000;
-    if (thread) for (const message of this.store.recentMessages(thread.id).reverse()) {
+    // Chat suggestions use only a bounded tail of visible user/assistant text. A just-moved
+    // conversation may still have an old hidden compaction summary in model storage.
+    const visible = thread.mode === "chat"
+      ? historyFrom(this.store.eventsTail(thread.id, 1000).filter(({ event }) => event.type === "user.message" || event.type === "text.delta"))
+      : this.store.recentMessages(thread.id);
+    if (thread) for (const message of visible.reverse()) {
       const text = message.content.filter((block) => block.type === "text").map((block) => block.type === "text" ? block.text : "").join("\n");
       if (!text) continue;
       const bounded = text.slice(-Math.min(1500, remaining));
@@ -96,7 +115,7 @@ export class PromptCompletions {
         if (part.type === "tool_call" || (part.type === "stop" && ["refusal", "tool_use"].includes(part.reason))) refused = true;
         if (text.length > 800) { controller.abort(); break; }
       }
-      if (signal.aborted || refused || this.closed || this.store.settings().promptAutocomplete !== true) return empty;
+      if (signal.aborted || refused || this.closed || this.store.settings().promptAutocomplete !== true || this.running(thread.id) || this.contextStamp(thread.id) !== contextStamp) return empty;
       if (text.startsWith(input.text)) text = text.slice(input.text.length);
       if (/^\s*```/.test(text)) return empty;
       return { completion: text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").slice(0, 400).trimEnd() };

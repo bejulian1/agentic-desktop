@@ -6,15 +6,16 @@
 // over the content as before, nor when Innstillinger → Utseende says the hidden sidebar is gone.
 import { createMemo, For, Show } from "solid-js";
 import type { Thread } from "../../../shared/protocol";
-import { app, listed, mode, projectId, setMode, setProjectId, setSettingsOpen, setSidebarOpen, sortedProjects } from "../state/app";
+import { app, listed, mode, projectId, setMode, setProjectId, setSettingsOpen, setSidebarOpen, sortedChatProjects, sortedProjects } from "../state/app";
 import { actions, focusedThread } from "../state/actions";
 import { skillsOpen } from "../state/skills-workspace";
 import { openArtifacts, room } from "../state/artifacts";
-import { closeProfile } from "../state/nav";
-import { openThread } from "../state/navigate";
+import { chatProjectPageId, closeProfile } from "../state/nav";
+import { openChatProject, openThread } from "../state/navigate";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { enterMode } from "./ModeSwitch";
 import { ProjectGlyph } from "./ProjectGlyph";
+import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { preloadSettings } from "./lazy-views";
 import { Notifications, ProfileMenu } from "./Sidebar";
 import { IconArtifact, IconChat, IconCode, IconCompose, IconPin, IconSearch, IconSettings, IconSidebar, IconSpark } from "./icons";
@@ -61,6 +62,23 @@ export function SidebarRail() {
                 onClick={() => { closeProfile(); void openThread(thread); }}
               >
                 <IconPin size={15} />
+              </button>
+            )}
+          </For>
+        </Show>
+        <Show when={!code() && sortedChatProjects().length}>
+          <span class="rail-sep" aria-hidden="true" />
+          <For each={sortedChatProjects()}>
+            {(project) => (
+              <button
+                type="button"
+                class="icon-button rail-button rail-project"
+                aria-label={`Prosjekt: ${project.name}`}
+                title={project.pinned ? `${project.name} (festet)` : project.name}
+                aria-current={chatProjectPageId() === project.id && !room() && !skillsOpen() ? "page" : undefined}
+                onClick={() => openChatProject(project.id)}
+              >
+                <ChatProjectGlyph project={project} size={16} />
               </button>
             )}
           </For>

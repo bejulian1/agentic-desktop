@@ -6,6 +6,13 @@
 .conversation.busy .chat-only { display: none; }
 .msg-regen { display: inline-flex; align-items: center; }
 .msg-action-narrow { width: 18px; margin-left: -2px; }
+.answer-model-anchor { display: inline-flex; }
+.answer-model-popover { width: min(300px, calc(100vw - 16px)); padding: 0; }
+.answer-model-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; overflow-wrap: anywhere; font-size: var(--text-sm); }
+.answer-model-card strong { font-weight: var(--weight-medium); }
+.answer-model-card code { color: var(--text-3); font-size: var(--text-xs); white-space: normal; }
+.model-change-row { display: flex; align-items: center; gap: 7px; padding: 10px 0 16px; color: var(--text-3); font-size: var(--text-xs); line-height: 1.5; }
+.model-change-row > .icon { flex: none; }
 
 /* A user message being edited: the bubble becomes a field of the same width. */
 .user-edit {
@@ -148,8 +155,8 @@
 }
 .premium-main { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
 .premium-title { font-size: var(--text-md); font-weight: var(--weight-semibold); line-height: 1.4; color: var(--text); letter-spacing: -0.003em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.premium-status { position: relative; height: 1.5em; overflow: hidden; font-size: var(--text-md); line-height: 1.5; color: var(--text-2); }
-.premium-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: ad-rise var(--dur-3) var(--ease-out); }
+.premium-status { display: flex; align-items: center; gap: 6px; position: relative; height: 1.5em; overflow: hidden; font-size: var(--text-md); line-height: 1.5; color: var(--text-2); }
+.premium-line { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: ad-rise var(--dur-3) var(--ease-out); }
 .premium-progress { position: relative; height: 6px; margin-top: 10px; border-radius: var(--radius-full); background: var(--active); overflow: hidden; }
 .premium-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--text); transform-origin: left center; transition: transform 1000ms linear; }
 .premium-card.finishing .premium-fill { transition: transform 420ms var(--ease-out); }

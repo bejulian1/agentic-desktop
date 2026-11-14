@@ -12,11 +12,10 @@ import type { KeyringStatus } from "../../../../shared/protocol";
 import { SecretInput } from "../SecretInput";
 import { confirmDialog } from "../dialogs";
 import { IconBack, IconInfo, IconPlus } from "../icons";
-import { BetaBadge, Choice, Group, Page, Row, Toggle, save } from "./parts";
+import { Choice, Group, Page, Row, Toggle, save } from "./parts";
 import { Select } from "../Select";
 
 const MOCK_PROVIDER = (p: ProviderConfig) => p.kind === "mock";
-const BETA_TEXT = "Integrasjonen er testet mot lokale prøveservere. Tilgang til denne leverandørens ekte API er ennå ikke bekreftet. Bruk «Test tilkobling» med din egen konto.";
 
 const disconnect = async (provider: ProviderConfig) => {
   if (await confirmDialog({ title: `Koble fra ${provider.name}?`, text: "Nøkkelen og modellene herfra fjernes fra appen. Tråder som brukte en av modellene, bytter til standardmodellen.", confirm: "Koble fra", danger: true })) {
@@ -138,32 +137,35 @@ function ModelForm(props: { model?: ModelConfig; providerId: string; onDone: () 
   );
 }
 
-function ProviderCard(props: { provider: ProviderConfig; beta?: boolean; active?: boolean }) {
+function ProviderCard(props: { provider: ProviderConfig; active?: boolean }) {
   const provider = () => props.provider;
   const [editing, setEditing] = createSignal(false);
   const [modelForm, setModelForm] = createSignal<ModelConfig | "new" | null>(null);
   const [fetching, setFetching] = createSignal(false);
+  const [testing, setTesting] = createSignal(false);
   const [testResult, setTestResult] = createSignal<{ ok: boolean; message: string } | null>(null);
   const models = () => app.models.filter((m) => m.providerId === provider().id);
   const mock = () => MOCK_PROVIDER(provider());
   const test = async () => {
+    if (testing()) return;
+    setTesting(true);
     setTestResult(null);
     try {
       setTestResult(await post(`/api/providers/${provider().id}/test`));
     } catch (err) {
       setTestResult({ ok: false, message: (err as Error).message });
-    }
+    } finally { setTesting(false); }
   };
   return (
     <div class="card provider-row" data-provider={provider().name}>
       <div class="card-head">
         <div class="card-title">
-          <strong>{provider().name}<Show when={props.beta}><BetaBadge /></Show></strong>
+          <strong>{provider().name}</strong>
           <span class="muted">{mock() ? "Innebygd · uten nettverk" : `${models().length === 1 ? "1 modell" : `${models().length} modeller`} · ${provider().baseUrl ? provider().baseUrl!.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : "standardadresse"}`}</span>
           <Show when={!mock()}><span class="key-tag">{provider().hasKey ? "API-nøkkel" : "Nøkkel mangler"}</span></Show>
         </div>
         <div class="provider-actions">
-          <button type="button" class="btn btn-small" onClick={test}>Test tilkobling</button>
+          <button type="button" class="btn btn-small" disabled={testing()} aria-label="Test tilkobling" onClick={test}>{testing() ? "Tester…" : "Test tilkobling"}</button>
           <Show when={!mock()}>
             <button type="button" class="btn btn-small btn-quiet" aria-label={`Rediger ${provider().name}`} aria-expanded={editing()} onClick={() => setEditing(!editing())}>Rediger leverandør</button>
             <button type="button" class="btn btn-small btn-quiet" aria-label={`Koble fra ${provider().name}`} onClick={() => disconnect(provider())}>Koble fra</button>
@@ -370,7 +372,7 @@ function ConnectView(props: { preset: ProviderPreset; onClose: () => void }) {
       <div class="connect-bar">
         <button type="button" class="icon-button" aria-label="Tilbake til leverandørene" title="Tilbake (Esc)" onClick={props.onClose}><IconBack size={16} /></button>
       </div>
-      <h1 class="connect-title"><span>Koble til {props.preset.name}</span><Show when={props.preset.beta}><BetaBadge /></Show></h1>
+      <h1 class="connect-title"><span>Koble til {props.preset.name}</span></h1>
       <Show
         when={provider()}
         fallback={
@@ -386,7 +388,6 @@ function ConnectView(props: { preset: ProviderPreset; onClose: () => void }) {
               </label>
               <span class="muted">Fra dokumentasjonen{props.preset.docsUrl ? ": " : "."}<Show when={props.preset.docsUrl}><a href={props.preset.docsUrl} target="_blank" rel="noreferrer noopener">{props.preset.docsUrl!.replace(/^https:\/\//, "")}</a></Show></span>
             </details>
-            <Show when={props.preset.beta}><p class="beta-note">{BETA_TEXT}</p></Show>
             <div><button type="submit" class="btn btn-primary" disabled={!key().trim() || busy()}>Fortsett</button></div>
           </form>
         }
@@ -426,7 +427,7 @@ export function Providers(props: { active?: boolean } = {}) {
           <ModelDefaults active={props.active !== false && !connecting()} />
           <div class="settings-group provider-cards">
             <div class="settings-group-head"><h2>Tilkoblede leverandører</h2></div>
-            <For each={app.providers.map((p) => p.id)}>{(id) => <ProviderCard provider={app.providers.find((p) => p.id === id)!} beta={presetFor(app.providers.find((p) => p.id === id)!)?.beta} active={props.active !== false && !connecting()} />}</For>
+            <For each={app.providers.map((p) => p.id)}>{(id) => <ProviderCard provider={app.providers.find((p) => p.id === id)!} active={props.active !== false && !connecting()} />}</For>
           </div>
           <Suspense fallback={<p class="muted" role="status">Henter leverandører…</p>}>
             <Show when={catalogError()}>
@@ -436,14 +437,13 @@ export function Providers(props: { active?: boolean } = {}) {
               <Group title="Populære leverandører">
                 <For each={popular()}>
                   {(preset) => (
-                    <Row label={preset.name} badge={<Show when={preset.beta}><BetaBadge /></Show>} text={preset.note}>
+                    <Row label={preset.name} text={preset.note}>
                       <button type="button" class="btn btn-small" aria-label={`Koble til ${preset.name}`} onClick={() => setConnecting(preset)}><IconPlus size={14} /> Koble til</button>
                     </Row>
                   )}
                 </For>
               </Group>
             </Show>
-            <p class="beta-note">Beta: {BETA_TEXT}</p>
           </Suspense>
           <Show when={custom()} fallback={<button type="button" class="link-button" onClick={() => setCustom(true)}>Egendefinert (OpenAI-kompatibel adresse)</button>}>
             <div class="card"><ProviderForm active={props.active !== false && !connecting()} onDone={() => setCustom(false)} /></div>

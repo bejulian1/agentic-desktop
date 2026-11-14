@@ -3,7 +3,7 @@
 // The choice belongs to the thread; a new chat starts with the defaults from Innstillinger → Chat.
 // Nettsøk is dimmed, with the reason, when the model cannot search and no search page is set up.
 import { createMemo, createResource, createSignal, For, type Accessor, type JSX } from "solid-js";
-import { CHAT_TOOL_IDS, chatToolsOf, webSearchRoute, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
+import { CHAT_TOOL_IDS, chatToolsOf, webSearchRoute, type ChatProject, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
 import { get, patch } from "../lib/api";
 import { app, modelFor, modelName, report, setSettingsOpen } from "../state/app";
 import { IconArtifact, IconBookmark, IconGlobe, IconSliders } from "./icons";
@@ -67,10 +67,10 @@ const ROUTE_TEXT: Record<WebSearchRoute, string> = {
   demo: "Demo-kilder, tydelig merket",
 };
 
-export function ChatToolButton(props: { state: ChatToolState }) {
+export function ChatToolButton(props: { state: ChatToolState; chatProject?: ChatProject }) {
   const [open, setOpen] = createSignal(false);
   // Read when the menu opens: whether Chat memories are on, and whether new ones are saved.
-  const [personal] = createResource(open, () => get<ChatPersonalState>("/api/chat-personal").catch(() => null));
+  const [personal] = createResource(() => open() && !props.chatProject, () => get<ChatPersonalState>("/api/chat-personal").catch(() => null));
   const memoriesOff = () => personal()?.personal.memories === false;
   const anyOn = () => CHAT_TOOL_IDS.some((id) => props.state.tools()[id]);
   let menu: HTMLDivElement | undefined;
@@ -87,6 +87,10 @@ export function ChatToolButton(props: { state: ChatToolState }) {
         return { text: "Små HTML-programmer i chatten" };
       case "memory":
         if (props.state.temporary()) return { text: "", off: "Midlertidige chatter bruker ikke lagrede minner." };
+        if (props.chatProject) {
+          const scope = props.chatProject.memoryMode === "shared" ? "globale Chat-minner" : "prosjektets egne minner";
+          return { text: props.chatProject.autoMemory ? `Bruker og oppdaterer ${scope}` : `Bruker ${scope}. Nye minner lagres bare manuelt.` };
+        }
         if (memoriesOff()) return { text: "", off: "Slått av i Chat-personalisering" };
         return { text: personal()?.personal.autoMemory ? "Bruker og oppdaterer Chat-minnene" : "Bruker Chat-minnene dine" };
     }
@@ -159,7 +163,7 @@ export function ChatToolButton(props: { state: ChatToolState }) {
           }}
         </For>
         <div class="chat-tools-foot">
-          Gjelder denne chatten. Standard for nye chatter:{" "}
+          {props.chatProject ? "Gjelder denne chatten. Minnevalg og instruksjoner endres i Rediger prosjekt. Standard for øvrige verktøy: " : "Gjelder denne chatten. Standard for nye chatter: "}
           <button type="button" onClick={() => { setOpen(false); setSettingsOpen("chat"); }}>Innstillinger → Chat</button>
         </div>
       </div>

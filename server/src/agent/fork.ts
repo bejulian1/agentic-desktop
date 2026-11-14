@@ -3,10 +3,10 @@
 // rebuilt from them as plain text (what was said, and a line per tool call), since the stored
 // history has no marks that line up with single messages. Every fork is named «‹tittel› (gaffel)»
 // and remembers where it came from; a Kode fork stays in its project, and nothing on disk changes.
-import type { ForkOrigin, Thread, ThreadEvent, ThreadEventEnvelope } from "../../../shared/protocol.ts";
+import type { Attachment, ForkOrigin, Thread, ThreadEvent, ThreadEventEnvelope } from "../../../shared/protocol.ts";
 import type { Store } from "../db.ts";
 import { HttpError } from "../errors.ts";
-import type { Message } from "../providers/types.ts";
+import type { Block, Message } from "../providers/types.ts";
 
 const MAX_RESULT = 500;
 const MAX_TITLE = 80;
@@ -42,21 +42,24 @@ export function makeFork(store: Store, source: Thread, how: { messageId?: string
   return store.thread(fork.id)!;
 }
 
-export function historyFrom(events: ThreadEventEnvelope[]): Message[] {
-  const parts: Array<{ role: "user" | "assistant"; text: string }> = [];
-  const say = (role: "user" | "assistant", text: string) => {
+export function historyFrom(events: ThreadEventEnvelope[], restoreAttachments?: (attachments: Attachment[]) => { text: string; images: Block[] }): Message[] {
+  const parts: Array<{ role: "user" | "assistant"; text: string; images?: Block[] }> = [];
+  const say = (role: "user" | "assistant", text: string, images?: Block[]) => {
     if (!text) return;
     const last = parts.at(-1);
-    if (last?.role === role) last.text += `\n\n${text}`;
-    else parts.push({ role, text });
+    if (last?.role === role) {
+      last.text += `\n\n${text}`;
+      if (images?.length) last.images = [...(last.images ?? []), ...images];
+    } else parts.push({ role, text, ...(images?.length ? { images } : {}) });
   };
   const texts = new Map<string, string>();
-  const order: Array<{ role: "user" | "assistant"; key?: string; text?: string }> = [];
+  const order: Array<{ role: "user" | "assistant"; key?: string; text?: string; images?: Block[] }> = [];
   for (const { event } of events) {
     if (event.type === "user.message") {
       const from = event.from ? `[Melding fra tråden ${JSON.stringify(event.from.title)}]\n\n` : "";
       const attached = event.attachments?.length ? `\n\n[Vedlegg: ${event.attachments.map((a) => a.label).join(", ")}]` : "";
-      order.push({ role: "user", text: `${from}${event.text}${attached}` });
+      const restored = event.attachments?.length ? restoreAttachments?.(event.attachments) : undefined;
+      order.push({ role: "user", text: `${from}${event.text}${attached}${restored?.text ? `\n\n${restored.text}` : ""}`, ...(restored?.images.length ? { images: restored.images } : {}) });
     } else if (event.type === "text.delta") {
       if (!texts.has(event.messageId)) order.push({ role: "assistant", key: event.messageId });
       texts.set(event.messageId, (texts.get(event.messageId) ?? "") + event.text);
@@ -66,8 +69,8 @@ export function historyFrom(events: ThreadEventEnvelope[]): Message[] {
       order.push({ role: "assistant", text: `[Resultat: ${event.result.slice(0, MAX_RESULT)}${event.result.length > MAX_RESULT ? " …" : ""}]` });
     }
   }
-  for (const item of order) say(item.role, item.key ? (texts.get(item.key) ?? "") : (item.text ?? ""));
-  return parts.map((p) => ({ role: p.role, content: [{ type: "text", text: p.text }] }));
+  for (const item of order) say(item.role, item.key ? (texts.get(item.key) ?? "") : (item.text ?? ""), item.images);
+  return parts.map((p) => ({ role: p.role, content: [{ type: "text", text: p.text }, ...(p.images ?? [])] }));
 }
 
 export function forkAt(store: Store, source: Thread, messageId: string, title: string): Thread {

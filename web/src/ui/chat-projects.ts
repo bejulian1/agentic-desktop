@@ -1,24 +1,40 @@
-// Round 9: a new Chat project, from the sidebar, the thread menu and Innstillinger → Chat.
 import type { ChatProject } from "../../../shared/protocol";
-import { collapsed, createChatProject, report, toggleCollapsed } from "../state/app";
-import { patch } from "../lib/api";
-import { promptDialog } from "./dialogs";
+import { collapsed, report, setApp, toggleCollapsed } from "../state/app";
+import { del } from "../lib/api";
+import { confirmDialog } from "./dialogs";
+import { requestChatProjectDialog } from "./dialog-state";
+import { openChatProject } from "../state/navigate";
 
 export async function newChatProject(): Promise<ChatProject | null> {
-  const name = await promptDialog({ title: "Nytt prosjekt i Chat", value: "", confirm: "Lag prosjektet" });
-  if (!name?.trim()) return null;
-  try {
-    const project = await createChatProject(name.trim());
+  const project = await requestChatProjectDialog();
+  if (project) {
     if (collapsed().includes(`chat:${project.id}`)) toggleCollapsed(`chat:${project.id}`);
-    return project;
-  } catch (err) {
-    report(err);
-    return null;
+    openChatProject(project.id);
   }
+  return project;
 }
 
+export const editChatProject = (project: ChatProject): Promise<ChatProject | null> => requestChatProjectDialog(project);
 
+// Existing callers also get instructions, icon, colours and memory settings in the full editor.
 export async function renameChatProject(project: ChatProject): Promise<void> {
-  const name = await promptDialog({ title: "Gi prosjektet nytt navn", value: project.name, confirm: "Lagre" });
-  if (name?.trim() && name.trim() !== project.name) await patch(`/api/chat-projects/${project.id}`, { name: name.trim() }).catch(report);
+  await editChatProject(project);
+}
+
+export async function removeChatProject(project: ChatProject): Promise<boolean> {
+  const ok = await confirmDialog({
+    title: "Fjerne Chat-prosjektet?",
+    text: `«${project.name}» og prosjektets egne instruksjoner og minner slettes. Chattene beholdes under Chatter. Globale Chat-minner blir stående. Dette kan ikke angres.`,
+    confirm: "Fjern prosjektet",
+    danger: true,
+  });
+  if (!ok) return false;
+  try {
+    await del(`/api/chat-projects/${encodeURIComponent(project.id)}`);
+    setApp("chatProjects", project.id, undefined!);
+    return true;
+  } catch (err) {
+    report(err);
+    return false;
+  }
 }

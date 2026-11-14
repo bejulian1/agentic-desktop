@@ -80,7 +80,9 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
   // is closed (DELETE /api/threads/:id) or by the sweep above.
   route("POST", "/api/threads/temporary", ({ body }) => {
     if (body.modelId !== undefined && body.modelId !== null && (typeof body.modelId !== "string" || !store.model(body.modelId))) throw new HttpError(400, "Fant ikke modellen");
+    if (body.chatProjectId !== undefined && body.chatProjectId !== null && (typeof body.chatProjectId !== "string" || !store.chatProject(body.chatProjectId))) throw new HttpError(400, "Fant ikke Chat-prosjektet");
     const thread = store.createThread(null, "chat", body.modelId ?? null, { title: "Midlertidig chat" });
+    if (body.chatProjectId) store.setThreadChatProject(thread.id, body.chatProjectId);
     store.markTemporary(thread.id);
     sweepLater();
     threadChanged(thread.id);
@@ -142,8 +144,14 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     }
     if (body.modelId) store.updateThread(thread.id, { modelId: body.modelId });
 
+    // Preserve the answering model, which may differ from a later model selection in the thread.
+    const oldAnswer = events.find(({ event }) => event.type === "text.delta" && event.messageId === body.messageId)
+      ?? events.find(({ seq, event }) => seq > cut && event.type === "text.delta");
+    const oldRunId = oldAnswer?.event.type === "text.delta" ? oldAnswer.event.runId : undefined;
+    const oldRun = oldRunId ? events.find(({ event }) => event.type === "run.started" && event.runId === oldRunId)?.event : undefined;
     store.rewindThread(thread.id, cut, historyBefore(store.messages(thread.id), events, cut));
     publish({ type: "thread.reset", threadId: thread.id });
+    runner.recordModelChange(thread.id, thread.modelId, { hadConversation: true, ...(oldRun?.type === "run.started" && oldRun.model ? { from: oldRun.model } : {}) });
     threadChanged(thread.id);
     return dispatch();
   });

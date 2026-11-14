@@ -31,6 +31,7 @@ import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_AR
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
 import { chatRoutes } from "./chat-routes.ts";
+import { chatProjectRoutes } from "./chat-project-routes.ts";
 import { githubRoutes } from "./github-routes.ts";
 import { runde12Routes, runde12Settings } from "./runde12-routes.ts";
 import { chatToolsFromBody, runde13Settings } from "./runde13-routes.ts";
@@ -499,31 +500,7 @@ export class Api {
       return project;
     });
 
-    // Round 9: Chat projects. A name to gather chats under, never a folder.
-    this.route("POST", "/api/chat-projects", ({ body }) => {
-      const name = typeof body.name === "string" ? cleanName(body.name) : "";
-      if (!name) throw new HttpError(400, "Navnet er tomt");
-      const project = store.createChatProject(name);
-      publish({ type: "chat-project.changed", project });
-      return project;
-    });
-    this.route("PATCH", "/api/chat-projects/:id", ({ params, body }) => {
-      if (!store.chatProject(params.id)) throw new HttpError(404, "Fant ikke prosjektet");
-      if (body.name !== undefined && (typeof body.name !== "string" || !cleanName(body.name))) throw new HttpError(400, "Navnet er tomt");
-      if (body.pinned !== undefined && typeof body.pinned !== "boolean") throw new HttpError(400, "pinned må være sann eller usann");
-      if (body.color !== undefined && body.color !== null && !PROJECT_COLORS.some((c) => c.id === body.color)) throw new HttpError(400, "Ukjent farge");
-      if (body.icon !== undefined && body.icon !== null && (typeof body.icon !== "string" || !isProjectIcon(body.icon))) throw new HttpError(400, "Ukjent ikon");
-      store.updateChatProject(params.id, { name: typeof body.name === "string" ? cleanName(body.name) : undefined, pinned: body.pinned, color: body.color, icon: body.icon });
-      const project = store.chatProject(params.id)!;
-      publish({ type: "chat-project.changed", project });
-      return project;
-    });
-    this.route("DELETE", "/api/chat-projects/:id", ({ params }) => {
-      if (!store.chatProject(params.id)) throw new HttpError(404, "Fant ikke prosjektet");
-      const moved = store.deleteChatProject(params.id);
-      publish({ type: "chat-project.deleted", projectId: params.id });
-      for (const id of moved) threadChanged(id);
-    });
+    chatProjectRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps);
 
     // Round 11 (SPEC 24.6): sections in the sidebar.
     this.route("POST", "/api/sections", ({ body }) => {
@@ -664,8 +641,10 @@ export class Api {
       if (mode !== "chat" && mode !== "code") throw new HttpError(400, "Ugyldig modus");
       if (projectId) this.project(projectId);
       // Kode without a project is Denne datamaskinen (round 9): it gets no tools, see Runner.toolDefs.
-      const chatProjectId: string | null = typeof body.chatProjectId === "string" ? body.chatProjectId : null;
-      if (chatProjectId && (mode !== "chat" || !store.chatProject(chatProjectId))) throw new HttpError(400, "Fant ikke Chat-prosjektet");
+      if (body.chatProjectId !== undefined && body.chatProjectId !== null && (typeof body.chatProjectId !== "string" || !body.chatProjectId)) throw new HttpError(400, "Ugyldig Chat-prosjekt");
+      if (body.sideOf !== undefined && body.sideOf !== null && (typeof body.sideOf !== "string" || !body.sideOf)) throw new HttpError(400, "Ugyldig sidechat");
+      const chatProjectId: string | null = body.chatProjectId ?? null;
+      if (chatProjectId && (mode !== "chat" || projectId || !store.chatProject(chatProjectId))) throw new HttpError(400, "Fant ikke Chat-prosjektet");
       if (body.modelId && !store.model(body.modelId)) throw new HttpError(400, "Fant ikke modellen");
       const project = projectId ? this.project(projectId) : undefined;
       // Round 12 (SPEC 26.1): the old threads can be read, but no new ones until the folder is back.
@@ -674,7 +653,7 @@ export class Api {
       const modelId = body.modelId ?? project?.defaultModelId ?? this.findModel(folder.model) ?? null;
       // A side chat: a new thread in the same project that links back to the one it came from.
       const side = typeof body.sideOf === "string" ? this.thread(body.sideOf) : undefined;
-      if (side && side.projectId !== projectId) throw new HttpError(400, "En sidechat hører til samme prosjekt");
+      if (side && (side.projectId !== projectId || side.mode !== mode || (chatProjectId && side.chatProjectId !== chatProjectId))) throw new HttpError(400, "En sidechat hører til samme prosjekt og modus");
       const thread = side
         ? store.createThread(projectId, mode, modelId, { title: `Sidechat: ${side.title}`.slice(0, 80), parentThreadId: side.id, origin: "user" })
         : store.createThread(projectId, mode, modelId);
@@ -684,7 +663,8 @@ export class Api {
         store.touchChatProject(inChatProject);
         publish({ type: "chat-project.changed", project: store.chatProject(inChatProject)! });
       }
-      if (folder.personality && folder.personality !== "standard") store.updateThread(thread.id, { personality: folder.personality });
+      if (side?.temporary) store.markTemporary(thread.id);
+      if (!inChatProject && folder.personality && folder.personality !== "standard") store.updateThread(thread.id, { personality: folder.personality });
       // Round 13 (SPEC 27.2): tools chosen on the start page, before the chat existed.
       if (body.chatTools !== undefined && body.chatTools !== null && mode === "chat" && !projectId) {
         store.updateThread(thread.id, { chatTools: chatToolsFromBody(body.chatTools, chatToolsOf(undefined, store.settings())) });
@@ -708,6 +688,7 @@ export class Api {
         // Only chats move between Chat projects. A Kode thread has a folder, or is Denne datamaskinen.
         if (current.mode !== "chat" || current.projectId) throw new HttpError(400, "Bare chatter kan ligge i et Chat-prosjekt");
         if (body.chatProjectId !== null && (typeof body.chatProjectId !== "string" || !store.chatProject(body.chatProjectId))) throw new HttpError(400, "Fant ikke Chat-prosjektet");
+        if ((current.chatProjectId ?? null) !== body.chatProjectId) runner.assertThreadContextIdle(params.id);
         store.setThreadChatProject(params.id, body.chatProjectId);
         if (body.chatProjectId) {
           store.touchChatProject(body.chatProjectId);
@@ -723,7 +704,7 @@ export class Api {
         }
         store.setThreadSection(params.id, body.sectionId);
       }
-      if (body.modelId && !store.model(body.modelId)) throw new HttpError(400, "Fant ikke modellen");
+      if (body.modelId !== undefined && body.modelId !== null && (typeof body.modelId !== "string" || !store.model(body.modelId))) throw new HttpError(400, "Fant ikke modellen");
       if (body.title !== undefined && (typeof body.title !== "string" || !cleanName(body.title))) throw new HttpError(400, "Tittelen er tom");
       // Round 13 (SPEC 27.2): the tools of a chat, for this thread. null follows the defaults again.
       if (body.chatTools !== undefined) {
@@ -731,6 +712,7 @@ export class Api {
         store.updateThread(params.id, { chatTools: body.chatTools === null ? null : chatToolsFromBody(body.chatTools, chatToolsOf(current, store.settings())) });
       }
       store.updateThread(params.id, threadPatch(body));
+      if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
       return this.thread(params.id);
     });

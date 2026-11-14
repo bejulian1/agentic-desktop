@@ -2,13 +2,17 @@
 // keyed by thread, so threads run side by side.
 import { REPO_ROOT } from "../config.ts";
 import { cleanName } from "../names.ts";
+import { historyFrom } from "./fork.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type {
   ApprovalDecision,
+  AnswerModel,
   Attachment,
   AttachmentRef,
+  ChatProject,
+  ChatProjectMemory,
   ModelConfig,
   Project,
   RunStatus,
@@ -23,7 +27,7 @@ import { PathError } from "../paths.ts";
 import { ProviderError, type Block, type ImageData, type Message, type Provider, type StopReason, type ToolDef } from "../providers/types.ts";
 import { MAX_ATTACHMENTS, DEFAULT_MAX_STEPS_PER_TURN, agentSettingsOf, modelContextOf } from "../../../shared/protocol.ts";
 import { discoverSkills, renderSkill, SkillChanges, SkillStore, PROJECT_DIRS, type Skill } from "../skills.ts";
-import { captureMemories, Memories } from "../memory.ts";
+import { captureMemories, cleanMemory, looksSecret, MAX_MEMORIES, memoryId, Memories } from "../memory.ts";
 import { HarnessStore, type UpgradeOp, type UpgradeProposal } from "./harness.ts";
 import { parseModelOps, proposeByRules, UPGRADE_SYSTEM, upgradeRequest, type UpgradeItem } from "./memory-upgrade.ts";
 import { coerceArgs, describeParams, resolveToolName } from "./args.ts";
@@ -103,6 +107,7 @@ function reviewDiff(before: string | null, after: string | null): string {
 interface Job {
   id: string;
   kind: "message" | "shell" | "compact";
+  contextKey?: string; // captured before asynchronous/queued dispatch
   text: string; // what the conversation shows
   modelText: string; // visible request and attachment contents, never a skill body
   skillInstruction?: string; // snapshot used only by this run, including queued messages
@@ -121,6 +126,8 @@ interface ActiveRun {
   turnId: string;
   job: Job;
   skillInstructions: string[];
+  chatMemoryTexts: string[] | null; // accepted user messages actually consumed by this Chat turn
+  contextKey: string;
   abort: AbortController;
   shuttingDown: boolean;
   lastCall: { key: string; count: number };
@@ -282,10 +289,13 @@ export class Runner {
     if (this.closing) throw new HttpError(503, "Serveren stopper");
     const job = this.buildJob(thread, input);
     this.resolveModel(modelId ? { ...thread, modelId } : thread);
+    const contextKey = this.contextKey(thread);
+    job.contextKey = contextKey;
     return () => {
       const current = this.store.thread(threadId);
       if (!current) throw new HttpError(404, "Fant ikke tråden");
       if (this.closing) throw new HttpError(503, "Serveren stopper");
+      if (this.contextKey(current) !== contextKey) throw new HttpError(409, "Chat-konteksten er endret. Send meldingen på nytt.");
       if (this.active.has(threadId)) {
         // Messages from other threads always wait their turn; the user chooses for their own.
         const steer = job.kind === "message" && !input.from && (input.steer ?? this.store.settings().busyMessages === "steer");
@@ -335,6 +345,7 @@ export class Runner {
       // and no duplicate draft when the runner already consumed the queued message.
       side = this.store.createThread(source.projectId, source.mode, source.modelId, { title: `Sidechat: ${source.title}`.slice(0, 80), parentThreadId: source.id, origin: "user", permissionCap: source.permissionCap ?? undefined });
       if (source.chatProjectId) this.store.setThreadChatProject(side.id, source.chatProjectId);
+      if (source.temporary) this.store.markTemporary(side.id);
       this.store.updateThread(side.id, { reasoning: source.reasoning, personality: source.personality, ...(source.chatTools ? { chatTools: source.chatTools } : {}) });
       this.store.setQueuedDraft(side.id, { text: item.text, ...(item.attachments ? { attachments: item.attachments } : {}) });
     });
@@ -382,11 +393,16 @@ export class Runner {
   // Steered messages join the running turn here, at a step: after the tool results, or when the
   // model has stopped writing. They show in the conversation where they came in.
   private takeSteered(active: ActiveRun): number {
+    this.assertRunContext(active);
     const jobs = this.store.takeQueued<Job>(active.threadId, (job) => job.steer === true);
     for (const job of jobs) {
+      if (job.contextKey && job.contextKey !== active.contextKey) throw new HttpError(409, "Meldingens Chat-kontekst er endret. Send meldingen på nytt.");
       if (job.skillInstruction) active.skillInstructions.push(job.skillInstruction);
       this.log.append(active.threadId, { type: "user.message", messageId: job.id, text: job.text, ...optional(job) });
-      if (job.modelText) this.store.appendMessage(active.threadId, { role: "user", content: userContent(job.modelText, job) });
+      if (job.modelText) {
+        this.store.appendMessage(active.threadId, { role: "user", content: userContent(job.modelText, job) });
+        if (job.kind === "message" && !job.from) active.chatMemoryTexts?.push(job.text);
+      }
     }
     return jobs.length;
   }
@@ -445,6 +461,7 @@ export class Runner {
     let shown = text;
     let skillInstruction: string | undefined;
     if (input.skill) {
+      if (thread.mode === "chat" && thread.chatProjectId) throw new HttpError(400, "Chat-prosjekter bruker sine egne instruksjoner, ikke Kode-skills");
       const skill = this.skillsFor(project).find((s) => s.name === input.skill);
       if (!skill) throw new HttpError(404, `Fant ikke skillen ${input.skill}`);
       shown = `/${skill.name}${rawText ? ` ${rawText}` : ""}`;
@@ -550,10 +567,99 @@ export class Runner {
     return out;
   }
 
+  private chatProjectFor(thread: Thread): ChatProject | undefined {
+    return thread.mode === "chat" && !thread.projectId && thread.chatProjectId ? this.store.chatProject(thread.chatProjectId) : undefined;
+  }
+
+  // Persisted scalar revisions detect even A → B → A scope changes, at a fixed cost per chunk.
+  private contextKey(thread: Thread): string {
+    const identity = this.store.chatContextIdentity(thread.id);
+    if (identity === null) throw new HttpError(404, "Fant ikke tråden");
+    return identity;
+  }
+
+  private assertRunContext(active: ActiveRun): void {
+    if (this.store.chatContextIdentity(active.threadId) !== active.contextKey) throw new HttpError(409, "Chat-konteksten er endret. Start turen på nytt.");
+  }
+
+  assertChatProjectIdle(projectId: string): void {
+    if (this.store.threads().some((t) => t.chatProjectId === projectId && (this.active.has(t.id) || this.store.queuedJobs(t.id).length))) {
+      throw new HttpError(409, "Vent til Chat-prosjektets aktive turer og kø er ferdige før du endrer konteksten.");
+    }
+  }
+
+  assertThreadContextIdle(threadId: string): void {
+    if (this.active.has(threadId) || this.store.queuedJobs(threadId).length) throw new HttpError(409, "Vent til turen og køen er ferdige før du flytter chatten.");
+  }
+
+  // Rebuild from visible conversation when scope changes. Derived summaries, thinking signatures
+  // and provider-native state can contain old scope data and must never cross that boundary.
+  private prepareChatHistory(thread: Thread): void {
+    if (thread.mode !== "chat") return;
+    const key = this.contextKey(thread);
+    const previous = this.store.chatHistoryScope(thread.id);
+    if (previous === key) return;
+    if (thread.chatProjectId || previous) this.store.replaceMessages(thread.id, historyFrom(this.store.events(thread.id, 0, Number.MAX_SAFE_INTEGER), (attachments) => {
+      const text: string[] = [];
+      const images: Block[] = [];
+      // Only IDs explicitly attached to visible user messages are restored. Never re-read an
+      // ambient Code file/directory/thread attachment while changing the Chat context boundary.
+      for (const attached of attachments) {
+        const ref: AttachmentRef | undefined = attached.kind === "image" && attached.imageId
+          ? { kind: "image", imageId: attached.imageId, name: attached.label }
+          : attached.kind === "upload" && attached.uploadId ? { kind: "upload", uploadId: attached.uploadId, name: attached.label } : undefined;
+        if (!ref) continue;
+        try {
+          const restored = resolveAttachments([ref], undefined, this.store, this.deps.dataDir);
+          if (restored.text) text.push(restored.text);
+          images.push(...restored.images.map((item): Block => ({ type: "image", image: item.image, name: item.name })));
+        } catch {
+          // Deleted uploads/images keep their visible labels; unavailable bytes are not invented.
+        }
+      }
+      return { text: text.join("\n\n"), images };
+    }));
+    this.store.setChatHistoryScope(thread.id, key);
+    this.memorySnapshots.delete(thread.id);
+  }
+
+  chatProjectMemoryItems(project: ChatProject): ChatProjectMemory[] {
+    return project.memoryMode === "shared"
+      ? this.chatMemories.list("global").filter((item) => !item.flagged).map(({ id, text }) => ({ id, text }))
+      : this.store.chatProjectMemories(project.id);
+  }
+
+  saveChatProjectMemory(project: ChatProject, raw: unknown, previousId?: string): ChatProjectMemory {
+    const current = this.store.chatProject(project.id);
+    if (!current || current.memoryMode !== project.memoryMode) throw new HttpError(409, "Minnemodusen er endret. Last minnene på nytt.");
+    const text = cleanMemory(raw);
+    if (current.memoryMode === "shared") return previousId
+      ? this.chatMemories.update("global", undefined, previousId, text)
+      : this.chatMemories.add("global", undefined, text).item;
+    const items = this.store.chatProjectMemories(current.id);
+    if (previousId && !items.some((item) => item.id === previousId)) throw new HttpError(404, "Fant ikke minnet");
+    const same = items.find((item) => item.text.toLocaleLowerCase() === text.toLocaleLowerCase());
+    if (same && !previousId) return same;
+    if (!previousId && items.length >= MAX_MEMORIES) throw new HttpError(409, `Det er allerede ${MAX_MEMORIES} minner her. Slett noen først.`);
+    const item = { id: memoryId(text), text };
+    this.store.putChatProjectMemory(current.id, same ?? item, previousId);
+    return same ?? item;
+  }
+
   private memoryText(thread: Thread, project: Project | undefined, keep: boolean): string {
     const chat = this.isChat(thread, project);
     if (chat && thread.temporary) return "";
     if (!chat && !project) return "";
+    const chatProject = this.chatProjectFor(thread);
+    if (chatProject) {
+      if (this.chatTools(thread)?.memory === false) return "";
+      let used = 0;
+      return this.chatProjectMemoryItems(chatProject).filter((item) => !looksSecret(item.text)).reverse().flatMap((item) => {
+        if (used + item.text.length + 3 > 3000) return [];
+        used += item.text.length + 3;
+        return [`- ${item.text}`];
+      }).join("\n");
+    }
     if (chat ? !this.harness.state().chat.memories || this.chatTools(thread)?.memory === false : !this.memoriesOn()) return "";
     let text = this.memorySnapshots.get(thread.id);
     if (text === undefined) {
@@ -570,14 +676,16 @@ export class Runner {
     const state = this.harness.state();
     const model = this.resolveModelSafe(thread);
     const provider = model ? this.store.provider(model.providerId) : undefined;
+    const chatProject = this.chatProjectFor(thread);
+    const modelContext = modelContextOf(this.store.settings(), thread.mode);
     return systemLayers(
       thread,
       project,
       skills,
       this.deps.dataDir,
-      this.layers(project),
-      { modelContext: modelContextOf(this.store.settings(), thread.mode), runtime: { mode: thread.mode, planMode: thread.planMode, permissionMode: project ? effectiveMode(project, thread) : undefined, providerWebSearch: this.chatPromptTools(thread, project)?.web === "provider", model, provider }, memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools },
-      { personal: state.chat, memories, tools: this.chatPromptTools(thread, project) },
+      thread.mode === "chat" ? {} : this.layers(project),
+      { modelContext: chatProject ? { ...modelContext, location: false, locationText: "" } : modelContext, runtime: { mode: thread.mode, planMode: thread.planMode, permissionMode: project ? effectiveMode(project, thread) : undefined, providerWebSearch: this.chatPromptTools(thread, project)?.web === "provider", model, provider }, memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools },
+      { personal: chatProject ? undefined : state.chat, project: chatProject, memories, tools: this.chatPromptTools(thread, project) },
     );
   }
 
@@ -613,6 +721,7 @@ export class Runner {
   }
 
   private start(thread: Thread, job: Job): void {
+    this.prepareChatHistory(thread);
     if (job.kind !== "compact") {
       this.log.append(thread.id, { type: "user.message", messageId: job.id, text: job.text, ...optional(job) });
       if (job.modelText) this.store.appendMessage(thread.id, { role: "user", content: userContent(job.modelText, job) });
@@ -637,6 +746,8 @@ export class Runner {
       turnId: randomUUID(),
       job,
       skillInstructions: job.skillInstruction ? [job.skillInstruction] : [],
+      chatMemoryTexts: thread.mode === "chat" ? (job.kind === "message" && !job.from && job.modelText ? [job.text] : []) : null,
+      contextKey: this.contextKey(thread),
       abort: new AbortController(),
       shuttingDown: false,
       lastCall: { key: "", count: 0 },
@@ -644,9 +755,28 @@ export class Runner {
     };
     this.active.set(thread.id, active);
     this.store.createRun({ id: active.runId, threadId: thread.id, modelId: model.id, turnId: active.turnId, startSeq: this.store.lastSeq(thread.id) + 1 });
-    this.log.append(thread.id, { type: "run.started", runId: active.runId, modelId: model.id });
+    this.log.append(thread.id, { type: "run.started", runId: active.runId, modelId: model.id, model: this.answerModel(model) });
     this.deps.threadChanged(thread.id);
     void this.execute(active, model);
+  }
+
+  private answerModel(model: ModelConfig): AnswerModel {
+    const provider = this.store.provider(model.providerId);
+    return { modelId: model.id, modelName: model.name, model: model.model, providerId: model.providerId, ...(provider ? { providerName: provider.name } : {}) };
+  }
+
+  // UI event only: model choices never add metadata or instructions to model-visible messages.
+  // Rewind can supply the pre-rewind conversation/snapshot because it removes the old answer.
+  recordModelChange(threadId: string, previousModelId: string | null, options: { hadConversation?: boolean; from?: AnswerModel } = {}): void {
+    const thread = this.store.thread(threadId);
+    if (!thread || !(options.hadConversation ?? this.store.hasMessages(threadId))) return;
+    const current = this.resolveModelSafe(thread);
+    if (!current) return;
+    const previousId = options.from?.modelId ?? previousModelId ?? this.store.settings().defaultModelId;
+    if (!previousId || previousId === current.id) return;
+    const previous = this.store.model(previousId);
+    const from = options.from ?? (previous ? this.answerModel(previous) : { modelId: previousId });
+    this.log.append(threadId, { type: "model.changed", from, to: this.answerModel(current) });
   }
 
   private resolveModelSafe(thread: Thread): ModelConfig | undefined {
@@ -668,6 +798,8 @@ export class Runner {
     let status: RunStatus = "done";
     let error: string | undefined;
     try {
+      this.assertRunContext(active);
+      if ((active.job.contextKey && active.job.contextKey !== active.contextKey) || (active.job.skillInstruction && this.chatProjectFor(this.store.thread(threadId)!))) throw new HttpError(409, "Meldingens Chat-kontekst er endret. Send meldingen på nytt.");
       if (active.job.kind === "message") await this.loop(active, model);
       else if (active.job.kind === "shell") await this.runShell(active);
       else await this.compactNow(active, model);
@@ -692,7 +824,7 @@ export class Runner {
       this.agentQueueSlots.delete(threadId);
       return this.wake(threadId);
     }
-    if (status === "done" && active.job.kind === "message") this.afterTurn(thread, active.job.text);
+    if (status === "done" && active.job.kind === "message") this.afterTurn(thread, active);
     this.deps.threadChanged(threadId);
     if (this.closing) {
       this.agentQueueSlots.delete(threadId);
@@ -710,12 +842,21 @@ export class Runner {
   // After a finished turn (SPEC 22.3 and 22.4): Chat remembers what the user plainly asked it to,
   // when «Oppdater minnet av seg selv» is on, and now and then a memory upgrade is proposed. Both
   // are cheap rules, and neither may stop anything.
-  private afterTurn(thread: Thread, text: string): void {
+  private afterTurn(thread: Thread, active: ActiveRun): void {
     try {
+      this.assertRunContext(active);
       const project = thread.projectId ? this.store.project(thread.projectId) : undefined;
       const state = this.harness.state();
-      if (this.isChat(thread, project) && state.chat.autoMemory && !thread.temporary && text && this.chatTools(thread)?.memory !== false) {
-        for (const memory of captureMemories(text)) this.chatMemories.add("global", undefined, memory);
+      const chatProject = this.chatProjectFor(thread);
+      const texts = active.chatMemoryTexts ?? [];
+      if (chatProject) {
+        if (chatProject.autoMemory && !thread.temporary && this.chatTools(thread)?.memory !== false) {
+          for (const text of texts) for (const memory of captureMemories(text)) this.saveChatProjectMemory(chatProject, memory);
+        }
+        return; // global memory upgrade/personalisation never runs for a Chat project
+      }
+      if (this.isChat(thread, project) && state.chat.autoMemory && !thread.temporary && this.chatTools(thread)?.memory !== false) {
+        for (const text of texts) for (const memory of captureMemories(text)) this.chatMemories.add("global", undefined, memory);
       }
       if ((this.isChat(thread, project) || project) && state.autoUpgrade && (state.lastUpgradeAt === null || Date.now() - state.lastUpgradeAt > AUTO_UPGRADE_EVERY_MS)) {
         this.autoUpgrade(this.isChat(thread, project) ? undefined : project);
@@ -875,10 +1016,12 @@ export class Runner {
 
     for (let step = 0; step < maxStepsPerTurn; step++) {
       abort.signal.throwIfAborted();
+      this.assertRunContext(active);
       if (step > 0) this.takeSteered(active);
       if (autoCompact) await this.maybeCompact(active, model, provider, system, false);
       const turnSystem = [system, ...active.skillInstructions].join("\n\n");
       const { blocks, stop, detail } = await this.streamStep(active, model, provider, turnSystem, tools, webSearch);
+      this.assertRunContext(active);
       if (blocks.length) this.store.appendMessage(threadId, { role: "assistant", content: blocks });
 
       if (stop === "refusal") throw new Error(`Modellen avslo forespørselen${detail ? `: ${detail}` : ""}`);
@@ -931,6 +1074,7 @@ export class Runner {
           if (abort.signal.aborted) return { result: { text: "Avbrutt av brukeren.", isError: true }, status: "cancelled" as ToolStatus };
           return chat ? this.runChatTool(active, thread, call, offered) : this.runTool(active, thread, project!, skills, call, offered);
         }));
+        this.assertRunContext(active);
         group.forEach((call, k) => {
           const { result, status } = results[k];
           this.store.appendMessage(threadId, {
@@ -988,9 +1132,11 @@ export class Runner {
       };
 
       try {
+        this.assertRunContext(active);
         const messages = this.store.messages(threadId);
         for await (const part of provider.stream({ model, system, messages, tools, signal: abort.signal, ...(webSearch ? { webSearch } : {}) })) {
           abort.signal.throwIfAborted();
+          this.assertRunContext(active);
           switch (part.type) {
             case "thinking": {
               emitted = true;
@@ -1062,6 +1208,7 @@ export class Runner {
         if (usage) this.recordUsage(active, model, usage);
         return { blocks, stop, detail };
       } catch (err) {
+        this.assertRunContext(active); // never persist a partial answer from an obsolete scope
         endThinking();
         this.log.flush(threadId);
         if (abort.signal.aborted) {
@@ -1342,7 +1489,8 @@ export class Runner {
   private async compactNow(active: ActiveRun, model: ModelConfig): Promise<void> {
     const thread = this.store.thread(active.threadId)!;
     const project = thread.projectId ? this.store.project(thread.projectId) : undefined;
-    const system = this.systemPrompt(thread, project, this.skillsFor(project), true);
+    this.assertRunContext(active);
+    const system = this.systemPrompt(thread, project, thread.mode === "code" ? this.skillsFor(project) : [], true);
     await this.maybeCompact(active, model, this.deps.provider(model), system, true);
   }
 
@@ -1368,6 +1516,7 @@ export class Runner {
     // Nothing gained means nothing rewritten: a rewrite costs the signed thinking and the cache.
     const after = estimateTokens(system, next);
     if (!force && after >= startTokens) return;
+    this.assertRunContext(active);
     messages = stripThinking(next);
     this.store.replaceMessages(threadId, messages);
     this.store.setUsage(threadId, { ...this.store.usage(threadId), contextTokens: after });
@@ -1387,6 +1536,7 @@ export class Runner {
         signal: active.abort.signal,
         purpose: "summary",
       })) {
+        this.assertRunContext(active);
         if (part.type === "text") text += part.text;
         if (part.type === "usage") this.recordUsage(active, model, part);
       }

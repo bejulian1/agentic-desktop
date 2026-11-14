@@ -12,7 +12,7 @@ import type { ReasoningEffort } from "../../../shared/protocol";
 import { formatCost, formatTokens } from "../lib/format";
 import { app, currentProject, mode, modelFor, modelName, panelOpen, pinnedSummary, railEnabled, renameThread, report, scope, setPanelOpen, setPinnedSummary, setSidebarOpen, sidebarOpen, untitled } from "../state/app";
 import { actions, focusedThread, focusedThreadId, forkThread } from "../state/actions";
-import { openPalette, profileOpen } from "../state/nav";
+import { chatProjectPageId, openPalette, profileOpen } from "../state/nav";
 import { openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
 import { openInWindow, setPinned, toggleArchived } from "../state/thread-actions";
@@ -54,17 +54,19 @@ function ThreadTitle() {
   const thread = createMemo(() => (room() || profileOpen() || skillsOpen() ? undefined : focusedThread()));
   const model = createMemo(() => (thread() ? peekModel(thread()!.id) : undefined));
   let input!: HTMLInputElement;
+  let trigger: HTMLButtonElement | undefined;
 
-  const close = () => {
+  const close = (returnFocus = false) => {
     setOpen(false);
     setDetails(false);
+    if (returnFocus) trigger?.focus({ preventScroll: true });
   };
-  createEffect(() => { if (skillsOpen()) close(); });
+  createEffect(() => { thread()?.id; close(); });
   const save = () => {
     const t = thread();
     const title = input?.value.trim();
     if (t && title && title !== t.title) renameThread(t.id, title).catch(report);
-    close();
+    close(true);
   };
   const messages = () => {
     let n = 0;
@@ -87,12 +89,14 @@ function ThreadTitle() {
       {(t) => (
         <Popover
           open={open()}
-          onClose={close}
-          below
+          onClose={() => close()}
+          below fixed portal stable returnFocus gap={0}
+          panelClass="title-popover"
           class="topbar-title"
           trigger={
             <button
               type="button"
+              ref={trigger}
               class="topbar-title-button"
               data-testid="topbar-title"
               title={t().title}
@@ -122,7 +126,7 @@ function ThreadTitle() {
                   } else if (e.key === "Escape") {
                     e.preventDefault();
                     e.stopPropagation();
-                    close();
+                    close(true);
                   }
                 }}
               />
@@ -136,7 +140,7 @@ function ThreadTitle() {
                 <Show when={t().mode === "code" && t().projectId}>
                   <dt>Tillatelser</dt><dd>{PERMISSION_LABELS[app.projects[t().projectId!]?.permissionMode ?? "ask"]}{t().permissionCap ? ` (høyst ${PERMISSION_LABELS[t().permissionCap!]})` : ""}</dd>
                 </Show>
-                <dt>Prosjekt</dt><dd>{t().projectId ? app.projects[t().projectId!]?.name ?? "–" : "Ingen (Chat)"}</dd>
+                <dt>Prosjekt</dt><dd>{t().projectId ? app.projects[t().projectId!]?.name ?? "–" : t().chatProjectId ? app.chatProjects[t().chatProjectId!]?.name ?? "–" : "Ingen (Chat)"}</dd>
                 <Show when={t().forkedFrom}>
                   <dt>Gaffel av</dt>
                   <dd>
@@ -172,7 +176,7 @@ const narrowWindow = matchMedia("(max-width: 860px)");
 const [narrow, setNarrow] = createSignal(narrowWindow.matches);
 narrowWindow.addEventListener("change", () => setNarrow(narrowWindow.matches));
 
-const away = () => !!room() || profileOpen() || skillsOpen();
+const away = () => !!room() || profileOpen() || skillsOpen() || (mode() === "chat" && !!chatProjectPageId());
 const grid = () => {
   const key = scope();
   return key ? gridFor(key) : null;

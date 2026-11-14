@@ -4,6 +4,29 @@
 import { createSignal } from "solid-js";
 import { get } from "../lib/api";
 
+// Any explicit mode/page/thread navigation supersedes a thread still loading. Keeping this
+// generation here lets app.ts cancel it without importing the thread/grid navigation module.
+let navigationGeneration = 0;
+export const currentNavigationGeneration = (): number => navigationGeneration;
+export function beginNavigation(): number { return ++navigationGeneration; }
+
+// A Chat project has a landing page of its own. It never changes the Chat grid or creates a
+// thread. Session storage restores this window's page on reload without affecting other windows.
+const CHAT_PROJECT_PAGE_KEY = "ad-chat-project-page";
+function restoredChatProjectPage(): string | null {
+  try { return sessionStorage.getItem(CHAT_PROJECT_PAGE_KEY); } catch { return null; }
+}
+const [chatProjectPageId, setChatProjectPageId] = createSignal<string | null>(restoredChatProjectPage());
+export { chatProjectPageId };
+export function showChatProjectPage(id: string): void {
+  setChatProjectPageId(id);
+  try { sessionStorage.setItem(CHAT_PROJECT_PAGE_KEY, id); } catch { /* Local state still works. */ }
+}
+export function closeChatProjectPage(): void {
+  setChatProjectPageId(null);
+  try { sessionStorage.removeItem(CHAT_PROJECT_PAGE_KEY); } catch { /* Local state still works. */ }
+}
+
 // The profile page in the middle of the window, like the Artifacts room.
 const [profileOpen, setProfileOpen] = createSignal(false);
 export { profileOpen };

@@ -47,3 +47,12 @@
 
 /* D10. A tool's name on the side panel's start page ends with … rather than being cut off. */
 .panel-tool-name { text-overflow: ellipsis; }
+
+/* The thread title and its editor sit a little higher in Chat and Kode. Only their anchor moves;
+   the window's drag region and the remaining header controls keep their established geometry. */
+.popover-anchor.topbar-title { transform: translateY(-4px); }
+.popover.title-popover {
+  width: min(340px, calc(100vw - 16px)); max-width: calc(100vw - 16px);
+  min-width: min(200px, calc(100vw - 16px)); max-height: var(--popover-room, calc(100vh - 16px));
+  overflow-y: auto; overflow-x: hidden;
+}

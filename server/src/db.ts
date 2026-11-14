@@ -10,6 +10,8 @@ import type {
   Chapter,
   ForkOrigin,
   ChatProject,
+  ChatProjectMemory,
+  ChatProjectMemoryMode,
   ChatTools,
   ChangedFile,
   SummaryTurnChanges,
@@ -44,6 +46,10 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS chat_projects (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, icon TEXT, pinned INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS chat_project_memories (
+  chat_project_id TEXT NOT NULL REFERENCES chat_projects(id) ON DELETE CASCADE,
+  id TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL,
+  PRIMARY KEY (chat_project_id, id)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS sidebar_sections (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, mode TEXT NOT NULL, position INTEGER NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS threads (
@@ -270,6 +276,12 @@ export class Store {
     add("threads", "temporary", "INTEGER NOT NULL DEFAULT 0");
     // Round 9: Chat projects. A chat whose project is removed stays, outside any project.
     add("threads", "chat_project_id", "TEXT REFERENCES chat_projects(id) ON DELETE SET NULL");
+    add("chat_projects", "instructions", "TEXT NOT NULL DEFAULT ''");
+    add("chat_projects", "memory_mode", "TEXT NOT NULL DEFAULT 'project'");
+    add("chat_projects", "auto_memory", "INTEGER NOT NULL DEFAULT 0");
+    add("chat_projects", "context_revision", "INTEGER NOT NULL DEFAULT 0");
+    add("threads", "chat_context_revision", "INTEGER NOT NULL DEFAULT 0");
+    add("threads", "chat_history_scope", "TEXT");
     // Round 11: sections in the sidebar. A thread whose section is deleted goes back where it was.
     add("threads", "section_id", "TEXT REFERENCES sidebar_sections(id) ON DELETE SET NULL");
     // Round 15 (SPEC 31): an artifact can be React in JSX or TSX; the ones before are HTML.
@@ -400,6 +412,9 @@ export class Store {
     color: row.color ?? null,
     icon: row.icon ?? null,
     pinned: row.pinned === 1,
+    instructions: row.instructions ?? "",
+    memoryMode: row.memory_mode === "shared" ? "shared" : "project",
+    autoMemory: row.auto_memory === 1,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
   });
@@ -420,11 +435,16 @@ export class Store {
     return this.chatProject(id)!;
   }
 
-  updateChatProject(id: string, patch: { name?: string; pinned?: boolean; color?: string | null; icon?: string | null }): void {
+  updateChatProject(id: string, patch: { name?: string; pinned?: boolean; color?: string | null; icon?: string | null; instructions?: string; memoryMode?: ChatProjectMemoryMode; autoMemory?: boolean }): void {
     if (patch.name !== undefined) this.q("UPDATE chat_projects SET name = ? WHERE id = ?").run(patch.name, id);
     if (patch.pinned !== undefined) this.q("UPDATE chat_projects SET pinned = ? WHERE id = ?").run(patch.pinned ? 1 : 0, id);
     if (patch.color !== undefined) this.q("UPDATE chat_projects SET color = ? WHERE id = ?").run(patch.color, id);
     if (patch.icon !== undefined) this.q("UPDATE chat_projects SET icon = ? WHERE id = ?").run(patch.icon, id);
+    // Monotonic scope identity detects A → B → A edits without rereading/hashing instruction
+    // bodies for every provider chunk. Cosmetic and idempotent updates leave it unchanged.
+    if (patch.instructions !== undefined) this.q("UPDATE chat_projects SET instructions = ?, context_revision = context_revision + 1 WHERE id = ? AND instructions IS NOT ?").run(patch.instructions, id, patch.instructions);
+    if (patch.memoryMode !== undefined) this.q("UPDATE chat_projects SET memory_mode = ?, context_revision = context_revision + 1 WHERE id = ? AND memory_mode IS NOT ?").run(patch.memoryMode, id, patch.memoryMode);
+    if (patch.autoMemory !== undefined) this.q("UPDATE chat_projects SET auto_memory = ?, context_revision = context_revision + 1 WHERE id = ? AND auto_memory IS NOT ?").run(patch.autoMemory ? 1 : 0, id, patch.autoMemory ? 1 : 0);
   }
 
   touchChatProject(id: string): void {
@@ -434,12 +454,54 @@ export class Store {
   // The chats stay; ON DELETE SET NULL takes them out of the project.
   deleteChatProject(id: string): string[] {
     const ids = (this.q("SELECT id FROM threads WHERE chat_project_id = ?").all(id) as { id: string }[]).map((r) => r.id);
+    this.q("UPDATE threads SET chat_context_revision = chat_context_revision + 1 WHERE chat_project_id = ?").run(id);
     this.q("DELETE FROM chat_projects WHERE id = ?").run(id);
     return ids;
   }
 
   setThreadChatProject(threadId: string, chatProjectId: string | null): void {
-    this.q("UPDATE threads SET chat_project_id = ? WHERE id = ?").run(chatProjectId, threadId);
+    this.q("UPDATE threads SET chat_project_id = ?, chat_context_revision = chat_context_revision + 1 WHERE id = ? AND chat_project_id IS NOT ?").run(chatProjectId, threadId, chatProjectId);
+  }
+
+  chatContextRevision(threadId: string): number {
+    return (this.q("SELECT chat_context_revision FROM threads WHERE id = ?").get(threadId) as { chat_context_revision: number } | undefined)?.chat_context_revision ?? 0;
+  }
+
+  // Authoritative lightweight identity for live streams, prepared dispatches and queued work.
+  // One row with small scalars: no toThread(), history/chapters queries or instruction text.
+  chatContextIdentity(threadId: string): string | null {
+    const row = this.q(`SELECT t.mode, t.project_id, t.chat_project_id, t.temporary, t.chat_context_revision,
+      cp.context_revision AS project_context_revision
+      FROM threads t LEFT JOIN chat_projects cp ON cp.id = t.chat_project_id WHERE t.id = ?`).get(threadId) as
+      { mode: string; project_id: string | null; chat_project_id: string | null; temporary: number; chat_context_revision: number; project_context_revision: number | null } | undefined;
+    return row ? JSON.stringify([row.mode, row.project_id, row.chat_project_id, row.temporary, row.chat_context_revision, row.project_context_revision]) : null;
+  }
+
+  chatHistoryScope(threadId: string): string | null {
+    return (this.q("SELECT chat_history_scope FROM threads WHERE id = ?").get(threadId) as { chat_history_scope: string | null } | undefined)?.chat_history_scope ?? null;
+  }
+
+  setChatHistoryScope(threadId: string, scope: string): void {
+    this.q("UPDATE threads SET chat_history_scope = ? WHERE id = ?").run(scope, threadId);
+  }
+
+  chatProjectMemories(projectId: string): ChatProjectMemory[] {
+    return this.q("SELECT id, text FROM chat_project_memories WHERE chat_project_id = ? ORDER BY created_at, id").all(projectId) as unknown as ChatProjectMemory[];
+  }
+
+  putChatProjectMemory(projectId: string, item: ChatProjectMemory, previousId?: string): void {
+    this.transaction(() => {
+      if (previousId) this.q("DELETE FROM chat_project_memories WHERE chat_project_id = ? AND id = ?").run(projectId, previousId);
+      this.q("INSERT OR IGNORE INTO chat_project_memories (chat_project_id, id, text, created_at) VALUES (?, ?, ?, ?)").run(projectId, item.id, item.text, Date.now());
+    });
+  }
+
+  removeChatProjectMemory(projectId: string, id: string): void {
+    this.q("DELETE FROM chat_project_memories WHERE chat_project_id = ? AND id = ?").run(projectId, id);
+  }
+
+  clearChatProjectMemories(projectId: string): number {
+    return Number(this.q("DELETE FROM chat_project_memories WHERE chat_project_id = ?").run(projectId).changes);
   }
 
   // Sections in the sidebar (round 11): a name to put threads under, one mode each.
@@ -620,6 +682,7 @@ export class Store {
     const source = this.thread(sourceId)!;
     const copy = this.createThread(source.projectId, source.mode, source.modelId, { title });
     if (source.chatProjectId) this.setThreadChatProject(copy.id, source.chatProjectId); // a copy stays in the Chat project
+    if (source.temporary) this.markTemporary(copy.id);
     if (source.sectionId) this.setThreadSection(copy.id, source.sectionId); // and in its section
     if (source.chatTools) this.updateThread(copy.id, { chatTools: source.chatTools }); // and keeps the tools chosen
     this.transaction(() => {
@@ -652,6 +715,7 @@ export class Store {
     const source = this.thread(sourceId)!;
     const copy = this.createThread(source.projectId, source.mode, source.modelId, { title });
     if (source.chatProjectId) this.setThreadChatProject(copy.id, source.chatProjectId); // a copy stays in the Chat project
+    if (source.temporary) this.markTemporary(copy.id);
     if (source.sectionId) this.setThreadSection(copy.id, source.sectionId); // and in its section
     if (source.chatTools) this.updateThread(copy.id, { chatTools: source.chatTools }); // and keeps the tools chosen
     this.transaction(() => {
@@ -672,6 +736,7 @@ export class Store {
     const source = this.thread(sourceId)!;
     const copy = this.createThread(source.projectId, source.mode, source.modelId, { title });
     if (source.chatProjectId) this.setThreadChatProject(copy.id, source.chatProjectId); // a copy stays in the Chat project
+    if (source.temporary) this.markTemporary(copy.id);
     if (source.sectionId) this.setThreadSection(copy.id, source.sectionId); // and in its section
     if (source.chatTools) this.updateThread(copy.id, { chatTools: source.chatTools }); // and keeps the tools chosen
     const firstSeq = (this.q(`SELECT MAX(seq) AS seq FROM events WHERE thread_id = ? AND event LIKE '{"type":"user.message"%'`).get(sourceId) as { seq: number | null }).seq;
@@ -856,6 +921,10 @@ export class Store {
   messages(threadId: string): Message[] {
     return this.q("SELECT role, content FROM messages WHERE thread_id = ? ORDER BY idx").all(threadId)
       .map((row: any) => ({ role: row.role, content: JSON.parse(row.content) }));
+  }
+
+  hasMessages(threadId: string): boolean {
+    return this.q("SELECT 1 FROM messages WHERE thread_id = ? LIMIT 1").get(threadId) !== undefined;
   }
 
   appendMessage(threadId: string, message: Message): void {

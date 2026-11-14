@@ -7,13 +7,14 @@ import { relativeTime } from "../lib/format";
 import { app, modelName, scope, settingsOpen, sidebarOpen } from "../state/app";
 import { peekModel, type ThreadModel } from "../state/thread-model";
 import { STATE_LABEL, threadState } from "../state/thread-status";
-import { openThread } from "../state/navigate";
+import { openChatProject, openThread } from "../state/navigate";
 import { IconBranch, IconChat, IconClock, IconCode, IconCpu, IconMonitor, IconFolder, IconPin, IconSettings } from "./icons";
 import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
 import { IconSnooze } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
+import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { openEditProject } from "./dialog-state";
-import { renameChatProject } from "./chat-projects";
+import { editChatProject } from "./chat-projects";
 
 type Target = { kind: "thread" | "project" | "chat-project"; id: string; rect: DOMRect; anchor: HTMLElement };
 
@@ -137,16 +138,17 @@ function ProjectCard(props: { project: Project }) {
 
 function ChatProjectCard(props: { project: ChatProject }) {
   const count = createMemo(() => Object.values(app.threads).filter((thread) => thread && !thread.archived && !thread.temporary && thread.mode === "chat" && !thread.projectId && thread.chatProjectId === props.project.id).length);
-  const rename = async () => {
+  const edit = async () => {
     hideHoverCard();
-    await renameChatProject(props.project);
+    await editChatProject(props.project);
   };
   return <>
-    <div class="hover-card-head"><ProjectGlyph project={props.project} size={15} /><span class="hover-card-title">{props.project.name}</span><Show when={props.project.pinned}><span class="hover-card-age" title="Festet"><IconPin size={13} /></span></Show></div>
+    <div class="hover-card-head"><ChatProjectGlyph project={props.project} size={15} /><span class="hover-card-title">{props.project.name}</span><Show when={props.project.pinned}><span class="hover-card-age" title="Festet"><IconPin size={13} /></span></Show></div>
     <div class="hover-card-row"><IconChat size={14} /><span>{count()} {count() === 1 ? "chat" : "chatter"} i Chat</span></div>
-    <div class="hover-card-row muted hover-card-note"><span>Samler samtaler, uten prosjektmappe på disken.</span></div>
+    <div class="hover-card-row muted hover-card-note"><span>{props.project.memoryMode === "shared" ? "Egne instruksjoner og delte globale Chat-minner." : "Egne instruksjoner og minner for dette prosjektet."}</span></div>
     <div class="hover-card-sep" />
-    <button type="button" class="hover-card-action" onClick={() => void rename()}><IconSettings size={14} />Gi prosjektet nytt navn</button>
+    <button type="button" class="hover-card-action" onClick={() => { hideHoverCard(); openChatProject(props.project.id); }}><IconFolder size={14} />Åpne prosjektet</button>
+    <button type="button" class="hover-card-action" onClick={() => void edit()}><IconSettings size={14} />Rediger prosjekt</button>
   </>;
 }
 

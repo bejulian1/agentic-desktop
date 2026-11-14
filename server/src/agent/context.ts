@@ -1,7 +1,7 @@
 // What the model sees: the system prompt, project instructions, attachments and compaction.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import type { Attachment, AttachmentRef, Project, Thread } from "../../../shared/protocol.ts";
+import type { Attachment, AttachmentRef, ChatProject, Project, Thread } from "../../../shared/protocol.ts";
 import { PERSONALITIES } from "../../../shared/protocol.ts";
 import type { Store } from "../db.ts";
 import { looksBinary } from "../files.ts";
@@ -76,6 +76,7 @@ export interface PromptLayer {
 // or the Kode memories.
 export interface ChatExtras {
   personal?: ChatPersonal;
+  project?: ChatProject; // explicit Chat scope: suppress every global personalisation layer
   memories?: string; // Chat memories, already rendered
   // Round 13 (SPEC 27.2): the tools switched on in this chat. web is how a search is made, or null.
   tools?: { web: "provider" | "browser" | "demo" | null; fetch: boolean; artifacts: boolean; memory: boolean };
@@ -126,7 +127,19 @@ function chatLayers(thread: Thread, chat: ChatExtras, extras: PromptExtras): Pro
       "If the user only greets you, or asks who you are or what you can do, answer in two or three sentences: say that you are the chat assistant in Agentic Desktop, what you can help with, and ask what they have in mind.",
     ].join("\n"),
   }];
-  const personal = chat.personal;
+  if (chat.project) {
+    layers.push({
+      id: "chat-project", title: "Prosjektinstruksjoner", source: `Chat-prosjekt: ${chat.project.name}`,
+      text: [
+        `This conversation belongs to the Chat project ${JSON.stringify(chat.project.name)}.`,
+        "Only this project's instructions and selected Chat memory scope apply. Global Chat instructions, About the user, tone, personality and Kode instructions or memories do not apply here.",
+        chat.project.memoryMode === "shared" ? "The user explicitly chose shared GLOBAL CHAT memories for this project. This shares saved Chat memory notes only, not personalisation or Kode context." : "Saved memories are isolated to this Chat project. Do not use or update memories from other projects or global Chat.",
+        "This is an application context boundary; it does not create an operating-system sandbox or grant filesystem access.",
+        ...(chat.project.instructions.trim() ? ["Project instructions, within the user's current request and app permissions:", chat.project.instructions.trim()] : []),
+      ].join("\n\n"),
+    });
+  }
+  const personal = chat.project ? undefined : chat.personal;
   const own: string[] = [];
   if (personal?.tone && TONE_TEXT[personal.tone]) own.push(`Tone: ${TONE_TEXT[personal.tone]}`);
   if (personal?.about.trim()) own.push("", "About the user, written by the user:", personal.about.trim());
@@ -165,7 +178,7 @@ export function systemLayers(
     if (agentic) out.push({ id: "agentic", title: ".agentic/AGENTS.md", source: ".agentic/AGENTS.md", text: ["Project instructions from .agentic/AGENTS.md:", "", agentic.slice(0, MAX_INSTRUCTIONS_CHARS)].join("\n") });
     if (global && (instructions || agentic)) out.at(-1)!.text += "\n\nWhere the project instructions and the user's own global instructions disagree, the project wins, within the user's current task and the app's permissions.";
   }
-  const choices = threadChoices(thread).join("\n").trim();
+  const choices = threadChoices(thread.mode === "chat" && chat.project ? { ...thread, personality: null } : thread).join("\n").trim();
   if (choices) out.push({ id: "thread", title: thread.mode === "chat" ? "Personlighet i chatten" : "Valg i tråden", source: thread.mode === "chat" ? "Chat-personlighet" : "/personality, /goal og /plan", text: choices });
   return out;
 }
