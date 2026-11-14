@@ -285,6 +285,7 @@ export function SoloApp(props: { threadId: string }) {
     <Show when={settingsOpen()}>
       <Suspense><SettingsView /></Suspense>
     </Show>
+    <Show when={modsOpen()}><Suspense><UiModsDialogHost/></Suspense></Show>
     <GlobalLayers />
     </>
   );

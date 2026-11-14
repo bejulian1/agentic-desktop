@@ -4,12 +4,12 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
-## 0.24.0: Global bakgrunn og glassflater i Chat og Kode (14. november 2026, bygg 66)
+## 0.24.0: Global bakgrunn og glassflater i Chat og Kode (14. november 2026, bygg 67)
 
 - **Eget bakgrunnsbilde for hele appen:** Utseende har opplasting, bytte og fjerning, med justering av bildestyrke og uskarphet. Valget beholdes ved omstart og fungerer i Chat, Kode og innstillinger. Samtaletemaer kan fremdeles ha et eget motiv i samtalen.
 - **Lokale bilder:** PNG, JPEG og WebP behandles og skaleres på maskinen. Bakgrunnsfiler er adskilt fra meldingsvedlegg og sendes ikke til modellen. Gamle filer ryddes ved bytte og fjerning.
 - **Glassflater:** dempede flater med uskarp bakgrunn bak modellsvar og tenkeutdrag. Egen bryter i Utseende og modbiblioteket. Vanlig visning uten bakgrunn bruker ingen glassfiltre. Mørkt meldingsfelt med tydelig kant over bakgrunner.
-- **Temaer enklere å finne i Chat:** egen inngang på startsiden og i meldingsfeltets verktøymeny. Samme lokale modbibliotek som i Kode, med valg per samtale.
+- **Temaer enklere å finne i Chat:** egen inngang på startsiden og i meldingsfeltets verktøymeny. Samme lokale modbibliotek som i Kode, med valg per samtale. Fungerer også i løsrevne chatvinduer.
 
 Se [Tema, bakgrunn og mods](UI-MODS.md).
 
