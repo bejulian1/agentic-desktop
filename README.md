@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.24.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.24.2](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -12,7 +12,9 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Klikk på et bilde for full størrelse.*
 
-*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0. Alle bruker demo og midlertidige data.*
+*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2. Alle bruker demo og midlertidige data.*
+
+**v0.24.2:** glassbakgrunnen følger samtalens og meldingsfeltets bredde med myk uttoning mot skarpe sidemarger, i både Chat og Kode.
 
 ## Nytt i v0.24
 

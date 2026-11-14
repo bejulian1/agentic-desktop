@@ -16,13 +16,16 @@ html[data-wallpaper]:has(.settings-page) .app{visibility:hidden}
 .wallpaper-range input{width:150px;accent-color:var(--accent)}
 .wallpaper-range output{width:42px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--text-3);text-align:right}
 .wallpaper-error{padding:0 16px 16px}
-/* Glass: one frosted layer over the whole backdrop, top to bottom, as in a system control centre. Text rows carry no panel of their own. Scoped to conversations with a visible backdrop, so the plain view has no filter cost. */
+/* Glass: one frosted column behind the conversation, with soft horizontal edges. Text rows carry no panel of their own. Scoped to conversations with a visible backdrop, so the plain view has no filter cost. */
+/* Keep the full-strength area aligned with the composer. On narrow panes the stops
+   clamp to the edges, so the fade never eats into the reading column. */
+.pane-inner.background-pane{--glass-side-mask:linear-gradient(to right,transparent max(0px,calc(50% - var(--content-max)/2 - 80px)),#000 max(0px,calc(50% - var(--content-max)/2 - 16px)),#000 min(100%,calc(50% + var(--content-max)/2 + 16px)),transparent min(100%,calc(50% + var(--content-max)/2 + 80px)))}
 .pane-inner.ui-mod-glass{position:relative;isolation:isolate}
 .pane-inner.ui-mod-glass>.pane-head,.pane-inner.ui-mod-glass>.pane-body,.pane-inner.ui-mod-glass>.pane-foot{position:relative;z-index:1}
-.pane-inner.ui-mod-glass::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:color-mix(in srgb,var(--bg) 34%,transparent);backdrop-filter:blur(36px) saturate(1.7)}
+.pane-inner.ui-mod-glass::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:color-mix(in srgb,var(--bg) 34%,transparent);backdrop-filter:blur(36px) saturate(1.7);-webkit-mask-image:var(--glass-side-mask);mask-image:var(--glass-side-mask)}
 /* Progressive blur: the conversation and the image dissolve into the footer, strongest at the bottom. Text rows carry no panel of their own. */
 .pane-inner.background-pane .pane-foot{position:relative;z-index:1;background:none}
-.pane-inner.background-pane .pane-foot::before{content:"";position:absolute;inset:-72px 0 0;z-index:-1;pointer-events:none;background:linear-gradient(transparent,color-mix(in srgb,var(--bg) 40%,transparent));backdrop-filter:blur(18px) saturate(1.2);-webkit-mask-image:linear-gradient(transparent,#000 72px);mask-image:linear-gradient(transparent,#000 72px)}
+.pane-inner.background-pane .pane-foot::before{content:"";position:absolute;inset:-72px 0 0;z-index:-1;pointer-events:none;background:linear-gradient(transparent,color-mix(in srgb,var(--bg) 40%,transparent));backdrop-filter:blur(18px) saturate(1.2);-webkit-mask-image:var(--glass-side-mask),linear-gradient(transparent,#000 72px);-webkit-mask-composite:source-in;mask-image:var(--glass-side-mask),linear-gradient(transparent,#000 72px);mask-composite:intersect}
 /* The only outlined surfaces: the message field and the user's own messages. Translucent, so their tone follows the image behind them. */
 .pane-inner.background-pane .composer,.pane-inner.background-pane .composer:focus-within{border-color:color-mix(in srgb,var(--text) 18%,transparent);background:color-mix(in srgb,var(--surface) 62%,transparent);box-shadow:0 8px 30px #0003}
 .pane-inner.background-pane .user-bubble{background:color-mix(in srgb,var(--surface) 62%,transparent);backdrop-filter:blur(14px)}

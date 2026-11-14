@@ -4,6 +4,13 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.24.2: Myk avgrensning av glassbakgrunnen (15. november 2026, bygg 69)
+
+- **Glass følger innholdet:** den uskarpe bakgrunnen begrenses til samtalens og meldingsfeltets bredde, med en rolig uttoning mot skarpe sidemarger. Bredden følger vinduet og temaets innholdsinnstilling.
+- **Samme uttoning ved meldingsfeltet:** den gradvise uskarpheten nederst er også avgrenset sideveis, slik at den ikke lager et bredt slør over resten av motivet.
+
+Gjelder både Chat og Kode, med globalt bakgrunnsbilde eller samtaletema. Claudes glasspolering fra 0.24.1 er beholdt.
+
 ## 0.24.1: Uskarp glassbakgrunn og renere samtale over bakgrunner (14. november 2026, bygg 68)
 
 - **Ett glasslag bak hele samtalen:** bryteren heter nå **Uskarp glassbakgrunn** og legger ett uskarpt, dempet lag over hele bakgrunnen, fra topp til bunn. Den er fortsatt på som standard og finnes i Utseende og modbiblioteket. Av viser bakgrunnen skarpt.
