@@ -83,7 +83,9 @@ Hele historikken står i [versjonsloggen](docs/PATCHLOG.md).
 
 [Releases](https://github.com/bejulian1/agentic-desktop/releases) har AppImage og `.deb` for Linux x86_64, med SHA-256-kontrollsummer, bygginformasjon og full versjonslogg. Utgavene er bygget og testet på Ubuntu 26.04. Privat repo krever GitHub-tilgang også for nedlasting.
 
-De samme installasjonsfilene distribueres som en privat OCI-pakke i [GitHub Packages](https://github.com/bejulian1/agentic-desktop/pkgs/container/agentic-desktop). Med [ORAS](https://oras.land/docs/installation/) og lesetilgang til pakken:
+En privat OCI-publisering til GitHub Packages er klargjort. Første publisering venter på GitHub-rettigheten som tillater at publiseringsjobben legges til i repoet. Bruk Releases inntil pakken vises i [GitHub Packages](https://github.com/bejulian1/agentic-desktop/pkgs/container/agentic-desktop).
+
+Når pakken er publisert, kan den hentes med [ORAS](https://oras.land/docs/installation/) og lesetilgang til pakken:
 
 ```bash
 oras login ghcr.io --username bejulian1
