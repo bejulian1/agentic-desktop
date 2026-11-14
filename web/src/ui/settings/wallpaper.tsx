@@ -34,7 +34,7 @@ export function WallpaperSettings(){
    <Row label="Bildestyrke" text="Demp bildet for roligere paneler og tydelig tekst."><label class="wallpaper-range"><input type="range" aria-label="Bildestyrke" min="0" max="1" step="0.05" value={image().opacity} disabled={busy()} onChange={e=>void run(()=>wallpaperPreferences({opacity:e.currentTarget.valueAsNumber}))}/><output>{Math.round(image().opacity*100)} %</output></label></Row>
    <Row label="Uskarp bakgrunn" text="Myker opp bildet uten å endre originalfilen."><label class="wallpaper-range"><input type="range" aria-label="Uskarp bakgrunn" min="0" max="16" step="1" value={image().blur} disabled={busy()} onChange={e=>void run(()=>wallpaperPreferences({blur:e.currentTarget.valueAsNumber}))}/><output>{image().blur} px</output></label></Row>
   </>}</Show>
-  <Row as="label" label="Glassflater bak svar" text="En dempet, uskarp flate bak modellsvar og tenkeutdrag når et bakgrunnsbilde eller samtaletema vises. Gjelder både Chat og Kode."><input type="checkbox" role="switch" class="switch" checked={uiMods().glass!==false} disabled={busy()} onChange={e=>void run(()=>modPreferences({glass:e.currentTarget.checked}))}/></Row>
+  <Row as="label" label="Uskarp glassbakgrunn" text="Hele bakgrunnen bak samtalen blir uskarp og dempet når et bakgrunnsbilde eller samtaletema vises, så teksten kan stå uten egne flater. Gjelder både Chat og Kode."><input type="checkbox" role="switch" class="switch" checked={uiMods().glass!==false} disabled={busy()} onChange={e=>void run(()=>modPreferences({glass:e.currentTarget.checked}))}/></Row>
   <Show when={error()}><p class="field-error wallpaper-error" role="alert">{error()}</p></Show>
  </Group>;
 }

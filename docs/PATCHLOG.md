@@ -4,6 +4,15 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.24.1: Uskarp glassbakgrunn og renere samtale over bakgrunner (14. november 2026, bygg 68)
+
+- **Ett glasslag bak hele samtalen:** bryteren heter nå **Uskarp glassbakgrunn** og legger ett uskarpt, dempet lag over hele bakgrunnen, fra topp til bunn. Den er fortsatt på som standard og finnes i Utseende og modbiblioteket. Av viser bakgrunnen skarpt.
+- **Ingen flater bak svar:** modellsvar og tenkeutdrag står rett på bakgrunnen, uten grå flater eller omriss, også når tenkeutdraget er åpnet.
+- **Gradvis uskarphet mot meldingsfeltet:** samtalen går mykt over i uskarphet ned mot meldingsfeltet i stedet for en fargeovergang.
+- **Meldingsfelt og egne meldinger:** halvgjennomsiktig mørk flate med tynt omriss, slik at tonen følger bildet bak. Meldingsfeltet blir ikke lenger grønt ved fokus over bakgrunner.
+
+Vanlig visning uten bakgrunn er uendret og bruker ingen filtre. Se [Tema, bakgrunn og mods](UI-MODS.md).
+
 ## 0.24.0: Global bakgrunn og glassflater i Chat og Kode (14. november 2026, bygg 67)
 
 - **Eget bakgrunnsbilde for hele appen:** Utseende har opplasting, bytte og fjerning, med justering av bildestyrke og uskarphet. Valget beholdes ved omstart og fungerer i Chat, Kode og innstillinger. Samtaletemaer kan fremdeles ha et eget motiv i samtalen.

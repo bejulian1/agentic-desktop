@@ -1,5 +1,9 @@
 # Status
 
+## 0.24.1
+
+**v0.24.1 (bygg 68):** glassbryteren er nå ett uskarpt, dempet lag over hele bakgrunnen bak samtalen («Uskarp glassbakgrunn»). Modellsvar og tenkeutdrag har ingen egne flater eller omriss. Samtalen går gradvis over i uskarphet mot meldingsfeltet. Meldingsfelt og brukermeldinger er halvgjennomsiktige og mørke med tynt omriss, uten grønn fokuskant. Kontrollert i mørk modus med Nordlys i Chat; typesjekk og UI-testen for bakgrunn (75) går gjennom.
+
 ## 0.24.0
 
 **v0.24.0 (bygg 67):** eget globalt bakgrunnsbilde under Utseende, med opplasting, bytte, fjerning, bildestyrke og uskarphet. Bildet brukes på tvers av Chat, Kode og innstillinger og beholdes ved omstart. Lokale bakgrunnsfiler er adskilt fra meldingsvedlegg og sendes ikke til modellen. Samtaletemaer beholder eget motiv inne i samtalen.
