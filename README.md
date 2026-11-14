@@ -4,7 +4,13 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-![Kode-modus med samtale, endringskort og diff i sidepanelet](docs/bilder/kode.png)
+[Last ned v0.20.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+
+| Kode og endringer | Chat | React-artifacts |
+|---|---|---|
+| [![Kode og diff](docs/bilder/kode.png)](docs/bilder/kode.png) | [![Chat](docs/bilder/chat.png)](docs/bilder/chat.png) | [![React-forhåndsvisning](docs/bilder/artifact-react.png)](docs/bilder/artifact-react.png) |
+
+*Klikk på et bilde for full størrelse.*
 
 *Skjermbildene viser v0.20.0 med demo-modellen og et midlertidig eksempelprosjekt.*
 
@@ -73,7 +79,22 @@ Hele historikken står i [versjonsloggen](docs/PATCHLOG.md).
   - `ripgrep` (`rg`), for raskt søk og `@`-menyen.
   - Google Chrome, til nettsøk og til nettleserpanelet når Chromium-sandkassen er av (se under).
 
-## Installer
+## Last ned en ferdig utgave
+
+[Releases](https://github.com/bejulian1/agentic-desktop/releases) har AppImage og `.deb` for Linux x86_64, med SHA-256-kontrollsummer, bygginformasjon og full versjonslogg. Utgavene er bygget og testet på Ubuntu 26.04. Privat repo krever GitHub-tilgang også for nedlasting.
+
+De samme installasjonsfilene distribueres som en privat OCI-pakke i [GitHub Packages](https://github.com/bejulian1/agentic-desktop/pkgs/container/agentic-desktop). Med [ORAS](https://oras.land/docs/installation/) og lesetilgang til pakken:
+
+```bash
+oras login ghcr.io --username bejulian1
+oras pull ghcr.io/bejulian1/agentic-desktop:v0.20.0 --output agentic-desktop-0.20.0
+cd agentic-desktop-0.20.0
+sha256sum --check SHA256SUMS
+```
+
+Oppgi et eget GitHub-token med `read:packages` i ORAS' passorddialog. Tokenet skal ikke skrives i repoet. Vanlig nedlasting fra Releases trenger ikke ORAS.
+
+## Bygg og installer fra kildekode
 
 ```bash
 git clone https://github.com/bejulian1/agentic-desktop.git
@@ -180,3 +201,11 @@ Versjon **0.20.0**. Laget og testet på Ubuntu 26.04 med GNOME på Wayland. Det 
 Slash-skills er beskrevet i [brukerveiledningen](docs/SLASH-SKILLS.md).
 
 Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.md).
+
+## Bidragsytere
+
+- **[bejulian1](https://github.com/bejulian1)** – prosjekteier, produktvalg, referanser og testing.
+- **Claude Code / Claude Opus 5.5 (Anthropic)** – opprinnelig implementering frem til v0.11.0.
+- **Codex (OpenAI)** – videreutvikling og feilrettinger fra v0.11.0 til v0.20.0, samt utgivelsesoppsettet.
+
+Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.
