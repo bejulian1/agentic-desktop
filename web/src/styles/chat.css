@@ -11,8 +11,9 @@
 .answer-model-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; overflow-wrap: anywhere; font-size: var(--text-sm); }
 .answer-model-card strong { font-weight: var(--weight-medium); }
 .answer-model-card code { color: var(--text-3); font-size: var(--text-xs); white-space: normal; }
-.model-change-row { display: flex; align-items: center; gap: 7px; padding: 10px 0 16px; color: var(--text-3); font-size: var(--text-xs); line-height: 1.5; }
+.row.model-change-row { display: flex; justify-content: center; align-items: center; gap: 7px; padding: 10px 0 16px; color: var(--text-3); font-size: var(--text-xs); line-height: 1.5; text-align: center; }
 .model-change-row > .icon { flex: none; }
+.model-change-row > span { min-width: 0; overflow-wrap: anywhere; }
 
 /* A user message being edited: the bubble becomes a field of the same width. */
 .user-edit {
@@ -84,6 +85,7 @@
 }
 .home-recent-item:hover { background: var(--hover); color: var(--text); }
 .home-recent-item .icon { flex: none; color: var(--text-3); }
+.home-recent-mode { display: inline-flex; flex: none; }
 .home-recent-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-recent-time { flex: none; font-size: var(--text-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
 .home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

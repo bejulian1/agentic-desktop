@@ -1,9 +1,10 @@
 # Status
 
-## v0.21.0 – bygg 62
+## v0.21.1 – bygg 63
 
 Oppdatert 14. november 2026. Endringer siden v0.11.0 er samlet i [versjonsloggen](PATCHLOG.md).
 
+- Midtstilte modellbytter, riktige modusikoner i siste samtaler og navneendring direkte i topplinjen.
 - Chat-prosjekter med egen startside, toppstilt meldingsfelt, 15 ikoner, ikonfarger, egne instruksjoner og egne eller eksplisitt delte Chat-minner. Global personalisering holdes utenfor.
 - Historisk modell-/leverandørinfo under svar, diskrete modellbytter, tankeboble og løftet samtaletittel.
 - Separate Chat- og Kode-modus med egne instrukser og minner, valgfri modellkontekst og ryddigere innstillinger.
@@ -16,7 +17,7 @@ Oppdatert 14. november 2026. Endringer siden v0.11.0 er samlet i [versjonsloggen
 
 ## Kontrollert
 
-Utviklingsutgaven er kontrollert med 435 servertester, 27 berørte UI-forløp, Electron-kontroller for oppstart og pakket kjøring og typekontroll av server, web og Electron. Kontrollene bruker demo-modell, lokale prøveservere og midlertidige data. Testpakker og interne målerapporter er ikke med i dette repoet. Kildekoden i repoet kontrolleres med `npm run typecheck`; bygg og installasjon er beskrevet i [README](../README.md).
+v0.21.1 er kontrollert med fem berørte UI-forløp, native navneendring/oppstart, pakkekontroll og typekontroll av server, web og Electron. Serverkoden er uendret fra v0.21.0, der 435 servertester og 27 berørte UI-forløp bestod. Kontrollene bruker demo-modell, lokale prøveservere og midlertidige data. Testpakker og interne målerapporter er ikke med i dette repoet. Kildekoden i repoet kontrolleres med `npm run typecheck`; bygg og installasjon er beskrevet i [README](../README.md).
 
 OpenRouter og abliteration.ai er bekreftet av brukeren med ekte tilkobling. Beta-merkene er fjernet fra leverandørene etter brukerens ønske; OpenAI/Anthropic er kontrollert lokalt uten ekte API-kall. Hver leverandør beholder sin tilkoblingstest.
 

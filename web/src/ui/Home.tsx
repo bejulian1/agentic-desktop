@@ -16,7 +16,7 @@ import { homeStats, loadHomeStats, runsFinished } from "../state/home";
 import { chatProjectFor, openThread } from "../state/navigate";
 import { startTemporaryChat, trackTemporary } from "./ChatTools";
 import { chooseProject, openProjectPicker, shortPath } from "./Composer";
-import { IconBranch, IconChat, IconCheck, IconChevron, IconChevronDown, IconClock, IconLaptop, IconMark, IconSpark } from "./icons";
+import { IconBranch, IconChat, IconCode, IconCheck, IconChevron, IconChevronDown, IconClock, IconLaptop, IconMark, IconSpark } from "./icons";
 import { IconFolderPlus } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { shortTime } from "./rows";
@@ -152,7 +152,7 @@ function RecentChats(props: { exclude: string }) {
         <For each={recent()}>
           {(thread) => (
             <button type="button" class="home-recent-item" title={thread.title} onClick={() => void openThread(thread)}>
-              <IconChat size={15} />
+              <span class="home-recent-mode" role="img" aria-label={thread.mode === "code" ? "Kode" : "Chat"} title={thread.mode === "code" ? "Kode" : "Chat"}><Show when={thread.mode === "code"} fallback={<IconChat size={15} />}><IconCode size={15} /></Show></span>
               <span class="home-recent-title">{thread.title}</span>
               <span class="home-recent-time">{shortTime(thread.updatedAt)}</span>
             </button>

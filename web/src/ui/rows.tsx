@@ -866,7 +866,7 @@ function RowKind(props: { row: Row; onThread: (id: string) => void }) {
   const { row } = props;
   switch (row.kind) {
     case "model-change":
-      return <div class="model-change-row" data-row="model-change" role="note"><IconCpu size={12} /><span>Byttet modell: {answerModelInfo(row.from).name} <span aria-hidden="true">→</span><span class="sr-only">til</span> {answerModelInfo(row.to).name}</span></div>;
+      return <div class="row model-change-row" data-row="model-change" role="note"><IconCpu size={12} /><span>Byttet modell: {answerModelInfo(row.from).name} <span aria-hidden="true">→</span><span class="sr-only">til</span> {answerModelInfo(row.to).name}</span></div>;
     case "user":
       return <UserView row={row} onThread={props.onThread} />;
     case "text":

@@ -50,7 +50,11 @@
 
 /* The thread title and its editor sit a little higher in Chat and Kode. Only their anchor moves;
    the window's drag region and the remaining header controls keep their established geometry. */
-.popover-anchor.topbar-title { transform: translateY(-4px); }
+.popover-anchor.topbar-title { transform: translateY(-4px); display: inline-flex; align-items: center; max-width: 100%; }
+.topbar-title-button { flex: 0 1 auto; min-width: 0; }
+.topbar-title-input { flex: 0 1 auto; min-width: 0; max-width: calc(100% - 24px); height: 28px; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; user-select: text; color: var(--text); font-size: var(--text-md); font-weight: var(--weight-medium); outline: none; }
+.topbar-title-input:focus { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.topbar-title-more { flex: none; width: 24px; height: 28px; border-radius: var(--radius-sm); }
 .popover.title-popover {
   width: min(340px, calc(100vw - 16px)); max-width: calc(100vw - 16px);
   min-width: min(200px, calc(100vw - 16px)); max-height: var(--popover-room, calc(100vh - 16px));

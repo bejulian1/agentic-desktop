@@ -2,6 +2,13 @@
 
 Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **Demo** i appen.
 
+## 0.21.1: Midtstilte modellbytter og navn i topplinjen (14. november 2026, bygg 63)
+
+- **Roligere samtalevisning:** modellbytte-linjen ligger midtstilt i samtaleområdet i både Chat og Kode. Lange modellnavn brytes innenfor vinduet.
+- **Riktig modusikon:** «Fortsett der du slapp» viser Chat- eller Kode-ikon ut fra samtalens egen modus.
+- **Navn på samme sted:** klikk på samtaletittelen for å redigere direkte i topplinjen, uten et ekstra navnekort nedenfor. Enter lagrer, Escape avbryter, og fokusbytte lagrer. Pilen ved siden av åpner detaljer og samtalehandlinger.
+
+
 ## 0.21.0: Egne Chat-prosjekter og tankebobler (14. november 2026, bygg 62)
 
 - **Prosjektside i Chat:** ekte meldingsfelt over samtalelisten, søk, åpning, navn og sletting. Klikk på prosjektnavnet åpner siden; egen pil folder sidefanens liste. Ingen tom tråd opprettes bare ved åpning.

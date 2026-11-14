@@ -10,7 +10,7 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { ReasoningEffort } from "../../../shared/protocol";
 import { formatCost, formatTokens } from "../lib/format";
-import { app, currentProject, mode, modelFor, modelName, panelOpen, pinnedSummary, railEnabled, renameThread, report, scope, setPanelOpen, setPinnedSummary, setSidebarOpen, sidebarOpen, untitled } from "../state/app";
+import { app, currentProject, mode, modelFor, modelName, panelOpen, pinnedSummary, railEnabled, renameThread, report, scope, setPanelOpen, setPinnedSummary, setSidebarOpen, settingsOpen, sidebarOpen, untitled } from "../state/app";
 import { actions, focusedThread, focusedThreadId, forkThread } from "../state/actions";
 import { chatProjectPageId, openPalette, profileOpen } from "../state/nav";
 import { openThread } from "../state/navigate";
@@ -46,27 +46,55 @@ import { inStack, placement, setPlacement, stacking, stackTools } from "../state
 const EFFORT_LABELS: Record<ReasoningEffort, string> = { none: "Ingen", low: "Lav", medium: "Middels", high: "Høy", xhigh: "Ekstra høy", max: "Maks" };
 const PERMISSION_LABELS: Record<string, string> = { ask: "Spør", "accept-edits": "Godta redigeringer", full: "Full tilgang" };
 
-// The focused pane's thread name at the top of the middle. A click opens a small card to rename it,
-// and › shows what the thread runs with and what it has used, with the thread actions.
+// Rename directly in the title bar. The adjacent arrow keeps details and thread actions separate.
 function ThreadTitle() {
   const [open, setOpen] = createSignal(false);
-  const [details, setDetails] = createSignal(false);
+  const [editing, setEditing] = createSignal(false);
+  const [draft, setDraft] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  const [editWidth, setEditWidth] = createSignal(240);
+  let editRevision = 0;
+  let editThreadId: string | null = null;
   const thread = createMemo(() => (room() || profileOpen() || skillsOpen() ? undefined : focusedThread()));
   const model = createMemo(() => (thread() ? peekModel(thread()!.id) : undefined));
   let input!: HTMLInputElement;
   let trigger: HTMLButtonElement | undefined;
 
+  let more: HTMLButtonElement | undefined;
   const close = (returnFocus = false) => {
+    editRevision++;
+    editThreadId = null;
     setOpen(false);
-    setDetails(false);
-    if (returnFocus) trigger?.focus({ preventScroll: true });
+    setEditing(false);
+    setSaving(false);
+    if (returnFocus) queueMicrotask(() => trigger?.focus({ preventScroll: true }));
   };
-  createEffect(() => { thread()?.id; close(); });
-  const save = () => {
-    const t = thread();
-    const title = input?.value.trim();
-    if (t && title && title !== t.title) renameThread(t.id, title).catch(report);
-    close(true);
+  createEffect(() => { thread()?.id; settingsOpen(); close(); });
+  const edit = () => {
+    editRevision++;
+    setEditWidth(trigger?.getBoundingClientRect().width ?? 240);
+    editThreadId = thread()?.id ?? null;
+    setDraft(thread()?.title ?? "");
+    setOpen(false);
+    setEditing(true);
+    const revision = editRevision;
+    requestAnimationFrame(() => { if (revision === editRevision && editing()) { input?.focus({ preventScroll: true }); input?.select(); } });
+  };
+  const save = async (returnFocus = false) => {
+    if (!editing() || saving()) return;
+    const t = thread(), title = draft().trim(), revision = editRevision;
+    if (!t || t.id !== editThreadId) return close();
+    const finish = () => {
+      editRevision++; editThreadId = null; setEditing(false); setSaving(false);
+      if (returnFocus) { setOpen(false); queueMicrotask(() => trigger?.focus({ preventScroll: true })); }
+    };
+    if (!title || title === t.title) return finish();
+    setSaving(true);
+    try {
+      await renameThread(t.id, title);
+      if (revision === editRevision && thread()?.id === t.id) finish();
+    } catch (err) { report(err); }
+    finally { if (revision === editRevision) setSaving(false); }
   };
   const messages = () => {
     let n = 0;
@@ -89,52 +117,22 @@ function ThreadTitle() {
       {(t) => (
         <Popover
           open={open()}
-          onClose={() => close()}
-          below fixed portal stable returnFocus gap={0}
+          onClose={() => setOpen(false)}
+          below fixed portal stable gap={2}
           panelClass="title-popover"
           class="topbar-title"
-          trigger={
-            <button
-              type="button"
-              ref={trigger}
-              class="topbar-title-button"
-              data-testid="topbar-title"
-              title={t().title}
-              aria-haspopup="dialog"
-              aria-expanded={open()}
-              onClick={() => {
-                if (open()) return close();
-                setOpen(true);
-                requestAnimationFrame(() => input?.select());
-              }}
-            >
-              {t().title}
-            </button>
-          }
+          trigger={<>
+            <Show when={editing()} fallback={<button type="button" ref={trigger} class="topbar-title-button" data-testid="topbar-title" title={`${t().title}: klikk for å endre navn`} aria-label={`Endre samtalenavn: ${t().title}`} onClick={edit}>{t().title}</button>}>
+              <input ref={input} class="topbar-title-input" aria-label="Gi nytt navn" value={draft()} style={{ width: `${editWidth()}px` }} readonly={saving()} aria-busy={saving()} onInput={e => setDraft(e.currentTarget.value)} onBlur={() => void save()} onKeyDown={e => {
+                if (e.isComposing) return;
+                if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); void save(true); }
+                else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
+              }} />
+            </Show>
+            <button type="button" ref={more} class="icon-button topbar-title-more" aria-label="Samtaledetaljer" title="Samtaledetaljer" aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconChevronDown size={13} /></button>
+          </>}
         >
-          <div class="title-card" role="dialog" aria-label="Tråden">
-            <div class="title-card-field">
-              <input
-                ref={input}
-                class="title-card-input"
-                aria-label="Gi nytt navn"
-                value={t().title}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    save();
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    close(true);
-                  }
-                }}
-              />
-              <button type="button" class="icon-button title-card-more" aria-label={details() ? "Skjul detaljer" : "Vis detaljer"} aria-expanded={details()} title="Informasjon og innstillinger" onClick={() => setDetails(!details())}>
-                <span class="fold-chevron" classList={{ open: details() }}><IconChevron size={13} /></span>
-              </button>
-            </div>
-            <Show when={details()}>
+          <div class="title-card" role="dialog" aria-label="Tråden" onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); more?.focus({ preventScroll: true }); } }}>
               <dl class="title-card-facts" data-testid="title-details">
                 <dt>Modell</dt><dd>{modelName(t().modelId)} · {effort()}</dd>
                 <Show when={t().mode === "code" && t().projectId}>
@@ -161,7 +159,6 @@ function ThreadTitle() {
                 <button type="button" class="btn btn-small" onClick={() => run(() => openInWindow(t()))}><IconWindow size={13} />Åpne i nytt vindu</button>
                 <button type="button" class="btn btn-small" onClick={() => run(() => toggleArchived(t()))}><IconArchive size={13} />{t().archived ? "Gjenopprett" : "Arkiver"}</button>
               </div>
-            </Show>
           </div>
         </Popover>
       )}

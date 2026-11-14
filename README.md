@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.21.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.21.1](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -12,7 +12,11 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Klikk på et bilde for full størrelse.*
 
-*Skjermbildene viser v0.21.0 med demo-modellen og et midlertidig eksempelprosjekt.*
+*Hovedbildene viser v0.21.0; detaljbildene under viser v0.21.1. Alle bruker demo og midlertidige data.*
+
+## Nytt i v0.21.1
+
+Modellbytter er midtstilt i samtalen. «Fortsett der du slapp» viser riktig modusikon, og samtalenavnet kan redigeres direkte i topplinjen med en egen pil for detaljer.
 
 ## Nytt i v0.21
 
@@ -51,6 +55,18 @@ Hele historikken står i [versjonsloggen](docs/PATCHLOG.md).
 
 <details>
 <summary>Flere skjermbilder: Chat, artifacts, sidepanel og innstillinger</summary>
+
+**Nytt i v0.21.1: navn direkte i topplinjen**
+
+![Navneendring i topplinjen](docs/bilder/navn-topplinje.png)
+
+**Midtstilt modellbytte**
+
+![Modellbytte i samtalen](docs/bilder/modellbytte.png)
+
+**Fortsett med riktig modusikon**
+
+![Siste samtaler med Chat- og Kode-ikon](docs/bilder/fortsett.png)
 
 **Chat**
 
