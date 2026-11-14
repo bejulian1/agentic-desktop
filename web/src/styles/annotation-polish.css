@@ -1,0 +1,12 @@
+.annotate-element-outline { fill: rgb(49 153 255 / 0.06); stroke: #3199ff; pointer-events: none; }
+.annotate-element-info { position: absolute; z-index: 3; width: 250px; max-width: calc(100% - 8px); padding: 9px 11px; border-radius: 12px; background: #101b2df2; color: #f3f7ff; box-shadow: var(--shadow-pop); pointer-events: none; font-size: 11px; }
+.annotate-element-info > div { display: flex; justify-content: space-between; gap: 10px; line-height: 1.7; }
+.annotate-element-info > div > :last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.annotate-element-info > div > :first-child { flex: none; }
+.annotate-element-info > div:not(:first-child) > :first-child { color: #aebbd0; }
+.annotate-bubble { width: 310px; max-width: calc(100% - 8px); border-radius: 20px; padding: 5px; gap: 4px; }
+.annotate-bubble .annotate-input { flex: 1; width: 0; min-width: 45px; }
+.annotate-bubble .icon-button { flex: none; height: 27px; width: 27px; border-radius: 50%; }
+.annotate-bubble button[aria-label="Lagre kommentar"] { background: var(--active); color: var(--text); }
+.annotate[data-tool="element"] .annotate-marker { cursor: pointer; }
+@container (max-width: 360px) { .annotate-bar { padding-inline: 3px; gap: 0; } .annotate-tools { gap: 0; } .annotate-tool { width: 25px; } .annotate-done { margin-left: 1px; padding-inline: 7px; } }

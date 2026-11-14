@@ -60,11 +60,6 @@
   border-radius: var(--radius-md); background: var(--surface-2); font-family: var(--font-mono); font-size: var(--text-sm); white-space: pre; color: var(--text);
 }
 
-/* The personality of a chat, as a chip at the bottom of the message field. */
-.popover:has(.personality-menu) { width: 300px; max-height: min(420px, 70vh); }
-.personality-chip[data-custom] { color: var(--accent-text); }
-.personality-note { margin: 2px var(--space-2) 2px; padding-top: 6px; border-top: 1px solid var(--border); font-size: var(--text-xs); color: var(--text-3); }
-
 /* The queue over the field, with the switch between queueing and sending at once. */
 .queue-item.steer { background: var(--accent-soft); color: var(--accent-text); }
 .queue-spacer { flex: 1; }

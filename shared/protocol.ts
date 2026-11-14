@@ -12,16 +12,41 @@ export type ToolStatus = "pending" | "awaiting-approval" | "running" | "done" | 
 export type RunStatus = "running" | "done" | "stopped" | "error" | "interrupted";
 export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max"; // none: no thinking (round 9)
 
-// Round 9 (SPEC 21.3): the steps the effort slider offers, from Ingen to Maks, by what the provider
-// takes. Anthropic: none leaves thinking out, the others are output_config.effort. OpenAI-compatible
-// servers only know low, medium and high (max is sent as high), so that is what is offered there.
-// xhigh is not a step, but /reasoning can still set it, and it sits between Høy and Maks.
-export const EFFORT_STEPS: ReasoningEffort[] = ["none", "low", "medium", "high", "max"];
-export function effortSteps(kind: ProviderKind | undefined, model?: Pick<ModelConfig, "thinking">): ReasoningEffort[] {
-  if (kind === "anthropic") return model?.thinking === false ? ["low", "medium", "high", "max"] : EFFORT_STEPS;
+export interface SummaryTurnChanges {
+  turnId: string;
+  files: ChangedFile[];
+  reverted: boolean;
+}
+
+export interface QueueSnapshot {
+  seq: number;
+  items: Array<{ messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; steer: boolean; editable: boolean; steerable?: boolean }>;
+}
+
+// OpenRouter accepts its own reasoning object; other compatible servers retain the conservative scale.
+export function isOpenRouter(baseUrl?: string): boolean {
+  try { return new URL(baseUrl ?? "").hostname === "openrouter.ai"; } catch { return false; }
+}
+export const EFFORT_STEPS: ReasoningEffort[] = ["none", "low", "medium", "high", "xhigh", "max"];
+export function effortSteps(kind: ProviderKind | undefined, model?: Pick<ModelConfig, "thinking">, baseUrl?: string): ReasoningEffort[] {
+  if (kind === "anthropic") return model?.thinking === false ? EFFORT_STEPS.filter((step) => step !== "none") : EFFORT_STEPS;
   if (kind === "mock") return EFFORT_STEPS;
+  if (kind === "openai-compatible" && isOpenRouter(baseUrl)) return EFFORT_STEPS.filter((step) => step !== "none");
   if (kind === "openai-compatible") return ["low", "medium", "high"];
   return [];
+}
+
+// Words are separated by whitespace, consistently in the editor and on the server.
+export const MAX_CHAT_WORDS = 10_000;
+export const MAX_CHAT_FIELD = 200_000; // secondary bound for unusually long words and pasted data
+export const countChatWords = (text: string): number => text.match(/\S+/gu)?.length ?? 0;
+export function truncateChatField(text: string): string {
+  const bounded = text.slice(0, MAX_CHAT_FIELD);
+  let words = 0;
+  for (const match of bounded.matchAll(/\S+/gu)) {
+    if (++words > MAX_CHAT_WORDS) return bounded.slice(0, match.index).trimEnd();
+  }
+  return bounded;
 }
 
 export interface BuildInfo {
@@ -44,6 +69,20 @@ export interface Project {
   defaultModelId: string | null; // for new threads in the project
   pinned: boolean; // shown under Festede prosjekter in the sidebar
   folderMissing?: boolean; // round 9: the folder is gone or moved; set only when true, checked on every read
+}
+
+export interface GitWorkspaceState {
+  repository: boolean;
+  root: string;
+  commonDir: string | null;
+  branch: string | null;
+  detached: boolean;
+  hasCommits: boolean;
+  dirty: boolean;
+  branches: string[];
+  worktrees: Array<{ path: string; branch: string | null; detached: boolean; locked: boolean; prunable: boolean }>;
+  suggestedParent: string;
+  message?: string;
 }
 
 // Round 9 (SPEC 21.2): a project in Chat, to gather chats. It has no folder on disk, so it is not a
@@ -101,6 +140,7 @@ export interface ProjectConfig {
 }
 
 export interface Thread {
+  promptHistoryReady?: boolean; // at least two earlier answered user turns; server-computed
   id: string;
   projectId: string | null;
   mode: Mode;
@@ -187,10 +227,15 @@ export interface ProviderConfig {
 }
 
 export interface Settings {
+  promptAutocompleteModelId?: string | null; // null follows the conversation model
+  promptAutocomplete?: boolean; // opt-in model-backed prompt suggestions, default off
   theme: ThemeSetting;
   defaultModelId: string | null;
   defaultPermissionMode: PermissionMode;
   autoOpenAgentThreads: boolean; // open threads made by an agent in a new pane
+  autoCompact?: boolean; // shorten old context automatically, default true; manual /compact is always available
+  maxStepsPerTurn?: number; // model/tool loop steps in a turn, default 50; see shared bounds below
+  modelContext?: ModelContextSettingsPatch; // optional context, independently configured for Chat and Kode
   shortcuts?: Record<string, string>; // rebinds, shortcut id to keys like "Mod+J"
   profileName?: string; // the profile card in Settings → Profil
   memories?: boolean; // the model saves and loads memories (MEMORY.md files), default true; false is no saving and no loading
@@ -208,6 +253,9 @@ export interface Settings {
   cookieOffer?: "never" | "done"; // the cookie dialog the first time the Browser panel opens: never again, or imported; unset offers it
   // Round 5, Innstillinger. Left out means the default noted on each line; null in a PATCH resets.
   startMode?: StartMode; // the mode the app opens in, default "last"
+  startConversation?: "new" | "resume"; // default new; reload and explicit detached-thread links keep their view
+  panelTabLayout?: "unified" | "grouped"; // default unified: sessions share the tool tab row
+  panelNewTab?: "tools" | "browser"; // + creates a tool start-page tab or a browser tab; default tools
   notifyOnDone?: TurnNotify; // a system notification when a turn ends, default "off"
   soundOnDone?: boolean; // a short sound when a turn ends, default false
   confirmQuit?: boolean; // ask before the tab closes while a thread runs, default false
@@ -217,6 +265,10 @@ export interface Settings {
   density?: Density; // default "normal"
   reduceMotion?: boolean; // no animations even when the system allows them, default false
   codeFont?: CodeFont; // default "system", the stylesheet's monospace stack
+  codeFontCustom?: string; // optional installed font family, no download; empty follows codeFont
+  codeThemeLight?: "app" | "clear" | "warm" | "contrast";
+  codeThemeDark?: "app" | "clear" | "warm" | "contrast";
+  codeTranscriptView?: "normal" | "thinking" | "detailed"; // default folds when code rows mount; Chat independent
   tabSize?: number; // 2, 4 or 8, for code in the thread, default 4
   wrapCode?: boolean; // wrap long lines in code blocks instead of scrolling, default false
   // Round 6, agent E: skills and messages sent while a run is active.
@@ -242,6 +294,49 @@ export interface Settings {
   appIcon?: AppIconId;
 }
 
+export interface ModelContextModeSettings {
+  dateTime: boolean;
+  model: boolean;
+  location: boolean;
+  locationText: string;
+  locationSource: "manual" | "ip";
+  locationUpdatedAt?: string;
+}
+export type ModelContextModePatch = Partial<Omit<ModelContextModeSettings, "locationUpdatedAt">> & { locationUpdatedAt?: string | null };
+export type ModelContextSettingsPatch = Partial<Record<Mode, ModelContextModePatch>>;
+export const MAX_MODEL_CONTEXT_LOCATION = 160;
+export const DEFAULT_MODEL_CONTEXT: Readonly<ModelContextModeSettings> = Object.freeze({
+  dateTime: true, model: true, location: false, locationText: "", locationSource: "manual",
+});
+// Normalize older profiles and malformed stored values without sharing mutable defaults.
+export function modelContextOf(settings: Pick<Settings, "modelContext">, mode: Mode): ModelContextModeSettings {
+  const value = settings.modelContext?.[mode];
+  const text = typeof value?.locationText === "string" ? value.locationText.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ").trim().slice(0, MAX_MODEL_CONTEXT_LOCATION) : "";
+  return {
+    dateTime: typeof value?.dateTime === "boolean" ? value.dateTime : true,
+    model: typeof value?.model === "boolean" ? value.model : true,
+    location: typeof value?.location === "boolean" ? value.location : false,
+    locationText: text,
+    locationSource: value?.locationSource === "ip" ? "ip" : "manual",
+    ...(value?.locationSource === "ip" && typeof value?.locationUpdatedAt === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.locationUpdatedAt) && Number.isFinite(Date.parse(value.locationUpdatedAt)) ? { locationUpdatedAt: value.locationUpdatedAt } : {}),
+  };
+}
+
+export const DEFAULT_MAX_STEPS_PER_TURN = 50;
+export const MIN_STEPS_PER_TURN = 1;
+export const MAX_STEPS_PER_TURN = 1000;
+export function isMaxStepsPerTurn(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= MIN_STEPS_PER_TURN && value <= MAX_STEPS_PER_TURN;
+}
+
+// Shared by the runner, storage and settings UI, including profiles saved before these options.
+export function agentSettingsOf(settings: Pick<Settings, "autoCompact" | "maxStepsPerTurn">): { autoCompact: boolean; maxStepsPerTurn: number } {
+  return {
+    autoCompact: typeof settings.autoCompact === "boolean" ? settings.autoCompact : true,
+    maxStepsPerTurn: isMaxStepsPerTurn(settings.maxStepsPerTurn) ? settings.maxStepsPerTurn : DEFAULT_MAX_STEPS_PER_TURN,
+  };
+}
+
 // Round 14 (SPEC 30.2): the app icons to choose from. The files are drawn by desktop/icons/render.ts
 // (desktop/icons/variants.ts says which SVG each one is drawn from).
 export type AppIconId = "boble" | "boble-lys" | "monogram" | "terminal";
@@ -260,8 +355,10 @@ export type ChatTools = Record<ChatToolId, boolean>;
 export const CHAT_TOOL_IDS: ChatToolId[] = ["web", "fetch", "artifacts", "memory"];
 export const DEFAULT_CHAT_TOOLS: ChatTools = { web: false, fetch: false, artifacts: true, memory: true };
 
-export function chatToolsOf(thread: Pick<Thread, "chatTools"> | undefined, settings: Pick<Settings, "chatTools">): ChatTools {
-  return { ...DEFAULT_CHAT_TOOLS, ...settings.chatTools, ...thread?.chatTools };
+export function chatToolsOf(thread: (Pick<Thread, "chatTools"> & Partial<Pick<Thread, "temporary">>) | undefined, settings: Pick<Settings, "chatTools">): ChatTools {
+  const tools = { ...DEFAULT_CHAT_TOOLS, ...settings.chatTools, ...thread?.chatTools };
+  if (thread?.temporary) tools.memory = false;
+  return tools;
 }
 
 // How a web search is made, or why it cannot be: the provider's own search when the model has it,
@@ -315,19 +412,19 @@ export interface MemoryList {
   projects: Array<{ projectId: string; name: string; file: string; items: MemoryItem[]; error?: string }>;
 }
 
-// A skill as Innstillinger → Skills shows it. id is opaque: "u:<folder>" or "p:<projectId>:<root>:<folder>".
+// A skill as Innstillinger → Skills shows it. Opaque ids: u:<folder>, p:<projectId>:<root>:<folder>, or read-only a:<folder>.
 export interface SkillInfo {
   id: string;
   name: string;
   description: string;
-  source: "user" | "project";
+  source: "user" | "project" | "app";
   projectId: string | null;
   projectName: string | null;
   path: string; // the skill folder
   enabled: boolean;
   createdByAgent: boolean; // created-by: agent in the frontmatter
-  editable: boolean; // false when the folder is a symlink out of its skills folder
-  shadowed: boolean; // a project skill with the same name wins over this user skill in that project
+  editable: boolean; // false for app assets and symlinks outside the skills folder
+  shadowed: boolean; // a project/user skill with the same name wins over this global/app skill
 }
 
 export interface SkillDetail extends SkillInfo {
@@ -500,7 +597,8 @@ export type ThreadEvent =
   | { type: "user.message"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[] }
   // Sent while a run is active. A later user.message with the same messageId means it left the queue.
   // steer: goes into the running turn at the next step instead of waiting for the turn to end.
-  | { type: "user.queued"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; steer?: boolean }
+  | { type: "user.queue-removed"; messageId: string }
+  | { type: "user.queued"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; steer?: boolean; editable?: boolean; steerable?: boolean }
   | { type: "run.started"; runId: string; modelId: string }
   | { type: "text.delta"; runId: string; messageId: string; text: string }
   | { type: "thinking.delta"; runId: string; blockId: string; text: string }
@@ -564,7 +662,7 @@ export interface CommandInfo {
   name: string; // without the slash
   description: string;
   kind: "builtin" | "skill";
-  source?: "project" | "user"; // skills only
+  source?: "project" | "user" | "app"; // skills only
   aliases?: string[]; // other names, e.g. the Norwegian ones from before
   args?: string; // hint shown after the name, e.g. "<mål>"
   demo?: boolean; // a placeholder: it explains what it will do, and does nothing
@@ -587,6 +685,12 @@ export interface ChangedFile {
   change: "added" | "modified" | "deleted";
   additions: number;
   deletions: number;
+  /** Binary/invalid UTF-8 is never presented as an empty text diff. */
+  binary?: boolean;
+  /** False for bounded large-file replacement; absent on older saved events. */
+  countsExact?: boolean;
+  /** Another writer changed this file between this turn's file-tool writes. Undo needs consent. */
+  overlapping?: boolean;
 }
 
 export interface FileEntry {
@@ -650,9 +754,27 @@ export interface BrowserState {
   native?: boolean; // SPEC 29.3: the page is a real view in the Electron window, not frames
 }
 
+// Read-only, bounded metadata for manual annotation of a frozen viewport. No form values.
+export interface AnnotationElement {
+  tag: string;
+  selector: string;
+  text: string;
+  color: string;
+  font: string;
+  rect: { x: number; y: number; w: number; h: number };
+}
+export interface BrowserAnnotationSnapshot {
+  pngBase64: string;
+  url: string;
+  width: number;
+  height: number;
+  elements: AnnotationElement[];
+}
+
 // Round 10 (SPEC 23.1): a tab in the Browser panel. The first tab has the id "".
 export interface BrowserTabInfo {
   id: string;
+  threadId?: string; // owned by this thread; panel selection does not retarget its tools
   url: string;
   title: string;
   loading: boolean;
@@ -708,6 +830,7 @@ export interface BrowserImported {
 // PUT    /api/projects/:id/instructions     { text }  writes .agentic/AGENTS.md
 // DELETE /api/projects/:id                  removes it from the app, never the folder
 // GET    /api/fs/browse?path=               { path, parent, dirs: FileEntry[] }  for the folder picker
+// POST   /api/fs/pick-folder                { start?, title? } => { path: string | null }, native Ubuntu chooser
 //
 // POST   /api/threads                       { projectId, mode, modelId? }
 // PATCH  /api/threads/:id                   Partial<Pick<Thread, "title" | "archived" | "modelId">>
@@ -726,6 +849,9 @@ export interface BrowserImported {
 //
 // GET    /api/projects/:id/tree?path=       FileEntry[]
 // GET    /api/projects/:id/file?path=       FileContent
+// GET    /api/local/files/root             { path: absoluteHome } manual file panel only
+// GET    /api/local/files/tree?path=       FileEntry[] (absolute paths, read only)
+// GET    /api/local/files/file?path=       FileContent (absolute path, read only)
 // POST   /api/projects/:id/stop-all         { stopped: number }
 // GET    /api/projects/:id/usage            Usage summed over the project's threads, contextTokens is 0
 // GET    /api/projects/:id/commands         CommandInfo[]  built-ins and skills
@@ -743,7 +869,8 @@ export interface BrowserImported {
 // POST   /api/projects/:id/playtest/start   PlaytestState
 // POST   /api/projects/:id/playtest/stop    PlaytestState
 //
-// PATCH  /api/settings                      Partial<Settings>
+// POST   /api/model-context/location        { mode: "chat" | "code" } -> Settings; explicit IP lookup only
+// PATCH  /api/settings                      Partial<Settings>; modelContext deep-merges each mode
 // POST   /api/providers                     ProviderConfig fields + apiKey?
 // PATCH  /api/providers/:id
 // DELETE /api/providers/:id
@@ -884,11 +1011,11 @@ export type ClientMessage =
   | { type: "terminal.close"; terminalId: string }
   // Round 10: tabId is the tab in the panel ("" or left out is the first tab; left out on navigate is
   // the tab the panel showed last). browser.open shows a tab, and opens it when it is new.
-  | { type: "browser.open"; projectId: string; width: number; height: number; tabId?: string; native?: boolean } // native: the Electron window can show the page itself (SPEC 29.3)
+  | { type: "browser.open"; projectId: string; width: number; height: number; tabId?: string; native?: boolean; requestId?: string } // native: the Electron window can show the page itself (SPEC 29.3)
   | { type: "browser.close"; projectId: string }
   | { type: "browser.close-tab"; projectId: string; tabId: string }
-  | { type: "browser.navigate"; projectId: string; url: string; tabId?: string }
-  | { type: "browser.history"; projectId: string; action: "back" | "forward" | "reload"; tabId?: string }
+  | { type: "browser.navigate"; projectId: string; url: string; tabId?: string; requestId?: string }
+  | { type: "browser.history"; projectId: string; action: "back" | "forward" | "reload"; tabId?: string; requestId?: string }
   | { type: "browser.resize"; projectId: string; width: number; height: number; tabId?: string }
   | { type: "browser.input"; projectId: string; event: BrowserInput; tabId?: string }
   | { type: "browser.frame-ack"; projectId: string; sessionId: number; tabId?: string }
@@ -906,7 +1033,8 @@ export type ServerMessage =
   | { type: "thread.changed"; thread: Thread } // also sent for new threads
   | { type: "thread.deleted"; threadId: string }
   | { type: "thread.reset"; threadId: string } // Chat: the log was cut back (edit or new answer), so load it again
-  | { type: "project.changed"; project: Project } // also sent for new projects
+  | { type: "project.changed"; project: Project }
+  | { type: "git.changed"; projectId: string } // also sent for new projects
   | { type: "project.deleted"; projectId: string }
   | { type: "chat-project.changed"; project: ChatProject } // round 9, also sent for new ones
   | { type: "chat-project.deleted"; projectId: string }
@@ -917,6 +1045,7 @@ export type ServerMessage =
   | { type: "project.tasks"; projectId: string; tasks: TeamTask[] }
   | { type: "artifact.changed"; artifact: ArtifactSummary } // also sent for new ones
   | { type: "artifact.deleted"; artifactId: string }
+  | { type: "skills.changed" } // a SKILL.md changed; refresh command menus
   | { type: "settings.changed"; settings: Settings; providers: ProviderConfig[]; models: ModelConfig[] }
   | { type: "project.files-changed"; projectId: string; paths: string[] }
   | { type: "playtest.state"; state: PlaytestState }
@@ -924,6 +1053,7 @@ export type ServerMessage =
   | { type: "terminal.output"; terminalId: string; data: string }
   | { type: "terminal.exit"; terminalId: string; code: number | null }
   | { type: "browser.state"; projectId: string; tabId?: string; state: BrowserState }
+  | { type: "browser.error"; projectId: string; tabId?: string; message: string; command?: string; requestId?: string }
   | { type: "browser.frame"; projectId: string; tabId?: string; sessionId: number; jpegBase64: string; width: number; height: number }
   | { type: "browser.closed"; projectId: string; tabId?: string; reason: string }
   | { type: "browser.found"; projectId: string; tabId?: string; text: string; found: boolean }

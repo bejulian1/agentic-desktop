@@ -19,3 +19,8 @@ export const openChromeImport = () => setChromeImportOpen(true);
 const [cookieDialog, setCookieDialog] = createSignal<{ firstRun: boolean } | null>(null);
 export { cookieDialog, setCookieDialog };
 export const openCookieImport = () => setCookieDialog({ firstRun: false });
+
+// Manual Git actions: opened by the project gear, /worktree or settings. Never by the model.
+const [gitWorkspaceDialog, setGitWorkspaceDialog] = createSignal<{ projectId: string; worktree: boolean } | null>(null);
+export { gitWorkspaceDialog, setGitWorkspaceDialog };
+export const openGitWorkspace = (projectId: string, worktree = false) => setGitWorkspaceDialog({ projectId, worktree });

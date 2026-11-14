@@ -1,10 +1,13 @@
 // Wires everything together. startApp() is what index.ts and the tests call.
+import { PromptCompletions } from "./prompt-completion.ts";
+import type { ModelContextLookup } from "./model-context.ts";
 import { randomBytes } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import type { ServerMessage } from "../../shared/protocol.ts";
-import { localFolder } from "./paths.ts";
+import { localFolder, LOCAL_PANEL } from "./paths.ts";
+import { localBrowserAddress } from "./browser-address.ts";
 import { EventLog } from "./agent/events.ts";
 import { Runner } from "./agent/runner.ts";
 import { TaskBoard } from "./agent/tasks.ts";
@@ -38,6 +41,7 @@ import { claimDataDir, currentShell, removeInstance, sameKey, writeInstance } fr
 
 export interface AppOptions extends Partial<Config> {
   userSkillsDir?: string;
+  appSkillsDir?: string;
   configDir?: string; // the global config folder, default $XDG_CONFIG_HOME/agentic-desktop
   retryBaseMs?: number;
   homeDir?: string; // round 9: where a terminal without a project starts; tests set a temporary one
@@ -52,6 +56,7 @@ export interface AppOptions extends Partial<Config> {
   // Round 14 (SPEC 30.1): where keys are kept. Default from AD_KEYRING (keyring.ts); the tests pass
   // a MemoryKeyring, so they never reach the user's real keyring.
   keyring?: Keyring;
+  modelContextLookup?: ModelContextLookup; // dependency injection for isolated tests
 }
 
 export interface App {
@@ -160,6 +165,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     env,
     appOrigins: () => security.origins,
     resolveUrl: async (projectId, url) => {
+      if (projectId === LOCAL_PANEL) return localBrowserAddress(url);
       if (/^(localhost|127\.0\.0\.1)(:\d+)?([/?#]|$)/.test(url)) return `http://${url}`;
       if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
       const project = store.project(projectId);
@@ -184,6 +190,8 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     browser,
     web, // round 13: web search and pages read by the model, never through the panel's browser
     userSkillsDir: options.userSkillsDir ?? configDirs.skillsDir,
+    appSkillsDir: options.appSkillsDir,
+    skillsChanged: () => publish({ type: "skills.changed" }),
     config: configDirs,
     tasks,
     commandTimeoutMs: config.commandTimeoutMs,
@@ -222,6 +230,11 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
 
   hub = new Hub({ store, security, terminals, browser, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   api = new Api({
+    promptCompletion: new PromptCompletions(store, (model) => {
+      const provider = store.provider(model.providerId);
+      if (!provider) throw new HttpError(400, "Fant ikke leverandøren");
+      return createProvider(provider, { secrets, mockDelayMs: config.mockDelayMs, stallMs: options.stallMs });
+    }, config.dataDir, (id) => runner.isRunning(id)),
     store,
     runner,
     turns,
@@ -246,6 +259,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     chromeConfigHome: chromeConfigHome(options.homeDir),
     homeDir: options.homeDir,
     importedCookies,
+    modelContextLookup: options.modelContextLookup,
     cookieBrowser: browser,
   });
 
@@ -306,6 +320,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   const close = () => {
     closing ??= (async () => {
       clearTimeout(sweepAgain);
+      await api.close();
       security.removeTokenFile();
       removeInstance(config.dataDir);
       servers.close();

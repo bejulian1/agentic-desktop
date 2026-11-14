@@ -52,6 +52,19 @@ export function noteRecentFile(projectId: string, path: string): void {
   }
 }
 
+// Only a file actually loaded by a mounted panel belongs in prompt-completion context.
+// Recent files and another chat's preview must never silently become current context.
+type OpenedFileContext = { projectId: string; threadId: string | null; path: string; owner: symbol };
+const [openedFiles, setOpenedFiles] = createSignal<OpenedFileContext[]>([]);
+export function openedFileContext(projectId: string, threadId: string | null): string | undefined {
+  return openedFiles().find((file) => file.projectId === projectId && file.threadId === threadId)?.path;
+}
+export function registerOpenedFile(projectId: string, threadId: string | null, filePath: string): () => void {
+  const owner = Symbol();
+  setOpenedFiles((files) => [...files.filter((file) => file.projectId !== projectId || file.threadId !== threadId), { projectId, threadId, path: filePath, owner }]);
+  return () => setOpenedFiles((files) => files.filter((file) => file.owner !== owner));
+}
+
 // A file that should open in the Files panel: from the palette or the Utdata list.
 const [fileRequest, setFileRequest] = createSignal<{ projectId: string; path: string; n: number } | null>(null);
 let requests = 0;

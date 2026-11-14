@@ -26,7 +26,7 @@ interface NativeBridge {
 export const nativeBridge: NativeBridge | undefined = (desktop as unknown as { browserPanel?: NativeBridge } | undefined)?.browserPanel;
 
 // What can lie over the panel. A modal dialog covers everything with its backdrop.
-const OVERLAYS = '.popover, .context-menu, .app-tooltip.visible, dialog[open], .toast, .annotate, .browser-downloads, [role="menu"], [role="listbox"], [role="tooltip"]';
+const OVERLAYS = '.popover, .context-menu, .response-selection, .app-tooltip.visible, dialog[open], .toast, .annotate, .browser-downloads, [role="menu"], [role="listbox"], [role="tooltip"]';
 const FOLLOW_MS = 450; // after a change, follow the stage this long, for slides and other motion
 const CHECK_MS = 700; // and look now and then for moves that change no size
 

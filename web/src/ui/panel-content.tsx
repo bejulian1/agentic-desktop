@@ -9,12 +9,16 @@ import { app, LOCAL_SCOPE, untitled } from "../state/app";
 import { focusedThread } from "../state/actions";
 import { artifacts } from "../state/artifacts";
 import { openThread } from "../state/navigate";
-import { showPanel, type PanelTab } from "../state/panel";
+import { consumeStartPage, requestBrowserTab, showPanel, type PanelTab } from "../state/panel";
+import { requestTerminalSession, unifiedPanelTabs } from "../state/panel-sessions";
 import { openServer, servers } from "../state/servers";
 import { sideChat } from "../state/thread-actions";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { IconArtifact, IconGamepad, IconGlobe, IconPlusCircle } from "./icons";
 import { NEEDS_PROJECT_TIP, PANEL_TOOLS, toolBlocked, toolTitle, type PanelTool } from "./panel-tools";
+
+const LocalOverview = lazy(() => import("./LocalPanelContext").then((m) => ({ default: m.LocalOverview })));
+const ProjectContext = lazy(() => import("./LocalPanelContext").then((m) => ({ default: m.ProjectContext })));
 
 const FilesPanel = lazy(() => import("../panels/Files"));
 const ChangesPanel = lazy(() => import("../panels/Changes"));
@@ -66,7 +70,7 @@ export function PanelHome(props: { projectId: string | null }) {
     keys: tool.keys,
     blocked: () => toolBlocked(tool),
     tip: () => (toolBlocked(tool) ? `${tool.label}: ${NEEDS_PROJECT_TIP}` : toolTitle(tool, tool.tip)),
-    run: () => showPanel(tool.id),
+    run: () => { consumeStartPage(); showPanel(tool.id); },
   });
   // Sidechat is not a panel: it starts a thread beside the one that is open.
   const sidechat: Tile = {
@@ -107,6 +111,10 @@ export function PanelHome(props: { projectId: string | null }) {
 
   return (
     <div class="panel-home" data-testid="panel-home">
+      <Show when={unifiedPanelTabs()}><div class="panel-new-sessions">
+        <button type="button" class="btn" onClick={() => { consumeStartPage(); requestBrowserTab(false); showPanel("browser"); }}><IconGlobe size={14} />Ny nettleserfane</button>
+        <button type="button" class="btn" onClick={() => { consumeStartPage(); requestTerminalSession(props.projectId ?? LOCAL_SCOPE); showPanel("terminal"); }}><IconPlusCircle size={14} />Ny terminal</button>
+      </div></Show>
       <h3 class="newtab-title">Verktøy</h3>
       <div class="panel-tools" role="list" aria-label="Verktøy">
         <For each={tiles}>
@@ -134,7 +142,7 @@ export function PanelHome(props: { projectId: string | null }) {
         <div class="panel-suggestions">
           <For each={suggestions()}>
             {(s) => (
-              <button type="button" class="newtab-site" data-kind={s.kind} title={s.title} onClick={s.open}>
+              <button type="button" class="newtab-site" data-kind={s.kind} title={s.title} onClick={() => { consumeStartPage(); s.open(); }}>
                 <span class="newtab-site-icon">{s.kind === "artifact" ? <IconArtifact size={18} /> : s.kind === "playtest" ? <IconGamepad size={18} /> : <IconGlobe size={18} />}</span>
                 <span class="newtab-site-label">{s.label}</span>
                 <span class="newtab-site-host">{s.hint}</span>
@@ -154,26 +162,30 @@ function go(projectId: string, url: string): void {
 
 
 // One tool's view. head: a stacked panel's top line, where Terminal and Nettleser put their tabs.
-export function ToolView(props: { tool: PanelTab; projectId: string | null; threadId: () => string | null; head?: () => HTMLElement | undefined }) {
+export function ToolView(props: { tool: PanelTab; projectId: string | null; threadId: () => string | null; head?: () => HTMLElement | undefined; sharedTabs?: boolean; visible?: boolean }) {
   return (
-    <Suspense>
+    <Suspense fallback={<div class="panel-empty" role="status">Åpner verktøy…</div>}>
       <Show
         when={props.projectId}
         keyed
         fallback={
           <Switch>
-            <Match when={props.tool === "terminal"}><TerminalPanel projectId={LOCAL_SCOPE} place="Denne datamaskinen" head={props.head} /></Match>
-            <Match when={props.tool === "browser"}><BrowserPanel projectId={LOCAL_SCOPE} head={props.head} /></Match>
+            <Match when={props.tool === "files"}><FilesPanel projectId={LOCAL_SCOPE} threadId={props.threadId} /></Match>
+            <Match when={props.tool === "changes"}><ChangesPanel threadId={props.threadId} /></Match>
+            <Match when={props.tool === "overview"}><LocalOverview threadId={props.threadId} /></Match>
+            <Match when={props.tool === "team" || props.tool === "github"}><ProjectContext tool={props.tool as "team" | "github"} /></Match>
+            <Match when={props.tool === "terminal"}><TerminalPanel projectId={LOCAL_SCOPE} place="Denne datamaskinen" head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
+            <Match when={props.tool === "browser"}><BrowserPanel projectId={LOCAL_SCOPE} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
             <Match when={props.tool === "session"}><Session threadId={props.threadId} /></Match>
           </Switch>
         }
       >
         {(projectId) => (
           <Switch>
-            <Match when={props.tool === "files"}><FilesPanel projectId={projectId} /></Match>
+            <Match when={props.tool === "files"}><FilesPanel projectId={projectId} threadId={props.threadId} /></Match>
             <Match when={props.tool === "changes"}><ChangesPanel threadId={props.threadId} /></Match>
-            <Match when={props.tool === "terminal"}><TerminalPanel projectId={projectId} head={props.head} /></Match>
-            <Match when={props.tool === "browser"}><BrowserPanel projectId={projectId} head={props.head} /></Match>
+            <Match when={props.tool === "terminal"}><TerminalPanel projectId={projectId} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
+            <Match when={props.tool === "browser"}><BrowserPanel projectId={projectId} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
             <Match when={props.tool === "team"}><TeamPanel projectId={projectId} /></Match>
             <Match when={props.tool === "overview"}><OverviewPanel projectId={projectId} threadId={props.threadId} /></Match>
             <Match when={props.tool === "github"}><GitHubPanel projectId={projectId} /></Match>

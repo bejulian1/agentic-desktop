@@ -26,10 +26,12 @@ import { wireDownloads } from "../state/downloads";
 import { wireServers } from "../state/servers";
 import { on } from "../lib/socket";
 import { SettingsView } from "./lazy-views";
+import { closeSkills, skillsOpen } from "../state/skills-workspace";
 
 const ArtifactsRoom = lazy(() => import("./ArtifactsRoom"));
 const ArtifactPanel = lazy(() => import("./ArtifactPanel")); // round 15, the first time a box is opened
 const ProfilePage = lazy(() => import("./ProfilePage"));
+const SkillsRoom = lazy(() => import("./SkillsRoom"));
 
 export function ExpiredScreen() {
   return (
@@ -69,6 +71,8 @@ function Shortcuts() {
 }
 
 export function App() {
+  const [skillsVisited, setSkillsVisited] = createSignal(false);
+  createEffect(() => { if (skillsOpen()) setSkillsVisited(true); });
   const threadId = createMemo(() => {
     const key = scope();
     return key ? gridFor(key).focusedThreadId() : null;
@@ -88,7 +92,7 @@ export function App() {
   // A thread that finishes in a pane on screen is not news.
   setVisibleCheck((id) => {
     const key = scope();
-    return !!key && !room() && !profileOpen() && !settingsOpen() && gridFor(key).panes().some((p) => p.threadId() === id);
+    return !!key && !room() && !profileOpen() && !skillsOpen() && !settingsOpen() && gridFor(key).panes().some((p) => p.threadId() === id);
   });
 
   // A project that is opened is read again, so a folder moved or deleted since shows (SPEC 21.2).
@@ -107,8 +111,9 @@ export function App() {
   // The Artifacts room and the profile page share the middle: opening one closes the other.
   createEffect(() => {
     if (room()) closeProfile();
+    if (room() || profileOpen()) closeSkills();
   });
-  const away = () => !!room() || profileOpen();
+  const away = () => !!room() || profileOpen() || skillsOpen();
   // Round 15 (SPEC 31.1): an open artifact has the right side, in Chat and in Kode. In Kode the tool
   // panel steps aside while it is open and comes back when it closes.
   const artifactShown = () => !away() && !!artifactPanel();
@@ -197,6 +202,11 @@ export function App() {
         <Show when={room()}>
           <Suspense><ArtifactsRoom /></Suspense>
         </Show>
+        <Show when={skillsVisited()}>
+          <div class="skills-room-host" hidden={!skillsOpen()} style={{ height: "100%", "min-height": "0", flex: "1" }}>
+            <Suspense><SkillsRoom /></Suspense>
+          </div>
+        </Show>
         <Show when={profileOpen() && !room()}>
           <Suspense><ProfilePage /></Suspense>
         </Show>
@@ -237,7 +247,8 @@ export function SoloApp(props: { threadId: string }) {
   });
   // Round 15: a box in a detached pane opens the artifact panel beside it, in this window.
   return (
-    <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`}>
+    <>
+    <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!settingsOpen() || undefined}>
       <main class="main">
         <OfflineBanner />
         <div class="grid-area">
@@ -251,8 +262,12 @@ export function SoloApp(props: { threadId: string }) {
       <Show when={artifactPanel()}>
         <Suspense fallback={<aside class="artifact-panel" aria-busy="true" />}><ArtifactPanel /></Suspense>
       </Show>
-      <GlobalLayers />
     </div>
+    <Show when={settingsOpen()}>
+      <Suspense><SettingsView /></Suspense>
+    </Show>
+    <GlobalLayers />
+    </>
   );
 }
 

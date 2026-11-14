@@ -119,8 +119,10 @@ const TAG_WAITING = "Venter på deg";
 // folds out the details: output, the result as the model got it, or the input.
 export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }) {
   const { row } = props;
-  const [open, setOpen] = createSignal(row.tool === "run_command" && app.settings.expandShell === true);
+  const [open, setOpen] = createSignal((!props.chat && app.settings.codeTranscriptView === "detailed") || (row.tool === "run_command" && app.settings.expandShell === true));
   const [lastLine, setLastLine] = createSignal("");
+  const [hasOutput, setHasOutput] = createSignal(!!row.output);
+  const [outputCut, setOutputCut] = createSignal(row.outputCut);
   const status = createMemo(() => (row.rev(), row.status));
   const info = createMemo(() => (row.rev(), facts(row)));
   const words = createMemo(() => describeStep(info()));
@@ -135,7 +137,9 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
 
   const flush = () => {
     if (row.pendingOutput) {
-      outputText.appendData(row.pendingOutput);
+      outputText.data = row.output; // Keep the rendered node within the model's output cap too.
+      setHasOutput(true);
+      setOutputCut(row.outputCut);
       const lines = row.pendingOutput.trimEnd().split("\n");
       setLastLine(lines.at(-1) ?? "");
       row.pendingOutput = "";
@@ -183,13 +187,13 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
       <Show when={open()}>
         <div class="tool-body">
           <ToolOpenButton row={row} />
-          <Show when={row.output}>
-            <pre class="tool-output">{row.outputCut ? "… (eldre utdata er kuttet)\n" : ""}{outputText}</pre>
+          <Show when={hasOutput()}>
+            <pre class="tool-output">{outputCut() ? "… (eldre utdata er kuttet)\n" : ""}{outputText}</pre>
           </Show>
-          <Show when={(row.rev(), row.result) && !row.output}>
+          <Show when={(row.rev(), row.result) && !hasOutput()}>
             <pre class="tool-output">{row.result}</pre>
           </Show>
-          <Show when={!row.output && !row.result}>
+          <Show when={!hasOutput() && (row.rev(), !row.result)}>
             <pre class="tool-output muted">{JSON.stringify(row.input, null, 2)}</pre>
           </Show>
         </div>
@@ -207,7 +211,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
 // now-line under the turn says «Tenker…».
 export function ThinkingStep(props: { row: ThinkingRow; last?: boolean }) {
   const { row } = props;
-  const [open, setOpen] = createSignal(false);
+  const [open, setOpen] = createSignal(app.settings.codeTranscriptView === "thinking" || app.settings.codeTranscriptView === "detailed");
   const summary = () => app.settings.thinkingSummary !== false;
   const label = createMemo(() => {
     row.rev();
@@ -271,7 +275,7 @@ export function groupRuns(items: Item[], kindOf: (row: ToolRow) => StepKind): Ar
 
 function RunView(props: { run: Run; last: boolean }) {
   const { run } = props;
-  const [open, setOpen] = createSignal(false);
+  const [open, setOpen] = createSignal(app.settings.codeTranscriptView === "detailed");
   const tools = createMemo(() => run.items().filter((i): i is ToolRow => i.kind === "tool").map((t) => (t.rev(), facts(t))));
   const running = createMemo(() => tools().some((t) => isRunning(t.status)));
   const waiting = createMemo(() => tools().some((t) => t.status === "awaiting-approval"));
@@ -414,7 +418,7 @@ function agentStatus(status: string | null): string {
 // turn has gone, and it is the one text that shimmers. Waiting for you, it stands still in the
 // accent colour. The arrow lists what the turn has going, with the subagents to open.
 export function NowLine(props: { activity: Activity; onThread: (id: string) => void }) {
-  const [open, setOpen] = createSignal(false);
+  const [open, setOpen] = createSignal(app.settings.codeTranscriptView === "detailed");
   const now = createMemo(() => nowText(props.activity));
   const waiting = () => now().waiting !== null;
   const tasks = () => props.activity.tasks;

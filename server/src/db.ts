@@ -12,6 +12,7 @@ import type {
   ChatProject,
   ChatTools,
   ChangedFile,
+  SummaryTurnChanges,
   SidebarSection,
   HomeStats,
   ModelConfig,
@@ -33,6 +34,7 @@ import type {
   ArtifactLang,
 } from "../../shared/protocol.ts";
 import type { Message } from "./providers/types.ts";
+import { agentSettingsOf, modelContextOf } from "../../shared/protocol.ts";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -63,12 +65,16 @@ CREATE INDEX IF NOT EXISTS runs_status ON runs(status);
 CREATE TABLE IF NOT EXISTS queue (
   id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
   payload TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS queue_drafts (
+  thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS turns (
   id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
   run_id TEXT NOT NULL, created_at INTEGER NOT NULL, reverted_at INTEGER);
 CREATE TABLE IF NOT EXISTS turn_files (
   turn_id TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE, path TEXT NOT NULL,
   before BLOB, after BLOB, change TEXT, additions INTEGER, deletions INTEGER,
+  after_captured INTEGER NOT NULL DEFAULT 0,
+  interleaved INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (turn_id, path)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS providers (
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, base_url TEXT, api_key_env TEXT);
@@ -99,6 +105,7 @@ CREATE INDEX IF NOT EXISTS queue_thread ON queue(thread_id);
 CREATE INDEX IF NOT EXISTS events_turn ON events(thread_id, seq) WHERE event LIKE '{"type":"turn.%';
 CREATE INDEX IF NOT EXISTS events_usage ON events(thread_id, seq) WHERE event LIKE '{"type":"usage"%';
 CREATE INDEX IF NOT EXISTS events_user_message ON events(thread_id, seq) WHERE event LIKE '{"type":"user.message"%';
+CREATE INDEX IF NOT EXISTS events_run_finished ON events(thread_id, seq) WHERE event LIKE '{"type":"run.finished"%';
 `;
 
 // Dates for statistics are YYYY-MM-DD in local time.
@@ -196,6 +203,8 @@ export interface TurnFileRow {
   change: ChangedFile["change"] | null;
   additions: number;
   deletions: number;
+  afterCaptured?: boolean; // distinguishes an actual deletion from a missing post-tool snapshot
+  interleaved?: boolean; // an external edit was incorporated between successful writes of this turn
 }
 
 export type StoredArtifact = Omit<ArtifactSummary, "previewUrl">;
@@ -240,6 +249,8 @@ export class Store {
     const add = (table: string, column: string, type: string) => {
       if (!columns(table).has(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
     };
+    add("turn_files", "after_captured", "INTEGER NOT NULL DEFAULT 0");
+    add("turn_files", "interleaved", "INTEGER NOT NULL DEFAULT 0");
     add("threads", "goal", "TEXT");
     add("threads", "goal_set_at", "INTEGER");
     add("threads", "goal_resumed_at", "INTEGER");
@@ -296,11 +307,13 @@ export class Store {
 
   private storedSettings(): Settings {
     const row = this.q("SELECT value FROM meta WHERE key = 'settings'").get() as { value: string } | undefined;
-    return migrateCodeStart({ ...DEFAULT_SETTINGS, ...(row ? JSON.parse(row.value) : {}) });
+    const settings = migrateCodeStart({ ...DEFAULT_SETTINGS, ...(row ? JSON.parse(row.value) : {}) });
+    return { ...settings, ...agentSettingsOf(settings), modelContext: { chat: modelContextOf(settings, "chat"), code: modelContextOf(settings, "code") } };
   }
 
   settings(): Settings {
     const settings = this.storedSettings();
+    if (settings.promptAutocompleteModelId && !this.model(settings.promptAutocompleteModelId)) settings.promptAutocompleteModelId = null;
     // The demo model is preselected until another model is set up.
     if (!settings.defaultModelId || !this.model(settings.defaultModelId)) {
       const other = this.models().find((m) => m.id !== MOCK_MODEL_ID);
@@ -310,7 +323,12 @@ export class Store {
   }
 
   updateSettings(patch: Partial<Settings>): Settings {
-    const next = { ...this.storedSettings(), ...patch };
+    const current = this.storedSettings();
+    const next = { ...current, ...patch };
+    if (patch.modelContext) next.modelContext = {
+      chat: modelContextOf({ modelContext: { chat: { ...modelContextOf(current, "chat"), ...patch.modelContext.chat } } }, "chat"),
+      code: modelContextOf({ modelContext: { code: { ...modelContextOf(current, "code"), ...patch.modelContext.code } } }, "code"),
+    };
     this.q("INSERT INTO meta (key, value) VALUES ('settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
       .run(JSON.stringify(next));
     return this.settings();
@@ -465,6 +483,28 @@ export class Store {
     this.q("UPDATE threads SET section_id = ? WHERE id = ?").run(sectionId, threadId);
   }
 
+  // Read only conversation boundaries, not streamed tokens. Forked event logs work too.
+  promptHistoryReady(threadId: string): boolean {
+    let pending = false;
+    let answered = 0;
+    const rows = this.q(`SELECT seq, event FROM events WHERE thread_id = ? AND event LIKE '{"type":"user.message"%'
+      UNION ALL SELECT seq, event FROM events WHERE thread_id = ? AND event LIKE '{"type":"run.finished"%' ORDER BY seq`).iterate(threadId, threadId);
+    for (const row of rows) {
+      const event = JSON.parse(String(row.event)) as ThreadEvent;
+      if (event.type === "user.message") pending = true;
+      else if (event.type === "run.finished") {
+        if (pending && event.status === "done" && ++answered >= 2) return true;
+        pending = false;
+      }
+    }
+    return false;
+  }
+
+  recentMessages(threadId: string, limit = 12): Message[] {
+    return (this.q("SELECT role, content FROM messages WHERE thread_id = ? ORDER BY idx DESC LIMIT ?").all(threadId, Math.min(32, Math.max(1, limit))) as Array<{ role: Message["role"]; content: string }>).reverse()
+      .map((row) => ({ role: row.role, content: JSON.parse(row.content) }));
+  }
+
   // Threads
 
   private toThread = (row: any): Thread => ({
@@ -477,6 +517,7 @@ export class Store {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     running: this.isRunning(row.id),
+    promptHistoryReady: this.promptHistoryReady(row.id),
     parentThreadId: row.parent_thread_id,
     origin: row.origin,
     permissionCap: row.permission_cap,
@@ -673,6 +714,23 @@ export class Store {
       }
     }
     return out;
+  }
+
+  // Only indexed turn metadata, including forked history; no message text or file snapshots.
+  summaryChanges(threadId: string): SummaryTurnChanges[] {
+    const turns = new Map<string, SummaryTurnChanges>();
+    const reverted = new Set<string>();
+    const rows = this.q(`SELECT event FROM events WHERE thread_id = ? AND event LIKE '{"type":"turn.%' ORDER BY seq`).all(threadId) as Array<{ event: string }>;
+    for (const row of rows) {
+      const event = JSON.parse(row.event) as ThreadEvent;
+      if (event.type === "turn.changes") turns.set(event.turnId, { turnId: event.turnId, files: event.files, reverted: reverted.has(event.turnId) });
+      if (event.type === "turn.reverted") {
+        reverted.add(event.turnId);
+        const turn = turns.get(event.turnId);
+        if (turn) turn.reverted = true;
+      }
+    }
+    return [...turns.values()];
   }
 
   touchThread(id: string): void {
@@ -887,6 +945,36 @@ export class Store {
     return true;
   }
 
+  setQueuedDraft(threadId: string, payload: unknown): void {
+    this.q("INSERT OR REPLACE INTO queue_drafts (thread_id, payload) VALUES (?, ?)").run(threadId, JSON.stringify(payload));
+  }
+
+  queuedDraft<T>(threadId: string): T | null {
+    const row = this.q("SELECT payload FROM queue_drafts WHERE thread_id = ?").get(threadId) as { payload: string } | undefined;
+    return row ? JSON.parse(row.payload) as T : null;
+  }
+
+  clearQueuedDraft(threadId: string): void {
+    this.q("DELETE FROM queue_drafts WHERE thread_id = ?").run(threadId);
+  }
+
+  queuedJobs<T>(threadId: string): T[] {
+    return (this.q("SELECT payload FROM queue WHERE thread_id = ? ORDER BY created_at, rowid").all(threadId) as Array<{ payload: string }>).map((row) => JSON.parse(row.payload) as T);
+  }
+
+  // Claim one queued item synchronously, with validation before removal. A runner that has
+  // already consumed it wins: callers receive undefined and must not create a duplicate draft.
+  removeQueued<T>(threadId: string, id: string, validate: (payload: T) => void): T | undefined {
+    return this.transaction(() => {
+      const row = this.q("SELECT payload FROM queue WHERE id = ? AND thread_id = ?").get(id, threadId) as { payload: string } | undefined;
+      if (!row) return undefined;
+      const payload = JSON.parse(row.payload) as T;
+      validate(payload);
+      this.q("DELETE FROM queue WHERE id = ? AND thread_id = ?").run(id, threadId);
+      return payload;
+    });
+  }
+
   hasQueued(threadId: string): boolean {
     return this.q("SELECT 1 FROM queue WHERE thread_id = ? LIMIT 1").get(threadId) !== undefined;
   }
@@ -914,14 +1002,28 @@ export class Store {
     this.q("INSERT INTO turn_files (turn_id, path, before) VALUES (?, ?, ?)").run(turnId, file, before);
   }
 
+  recordTurnFileAfter(turnId: string, file: string, after: Uint8Array | null): void {
+    this.q("UPDATE turn_files SET after = ?, after_captured = 1 WHERE turn_id = ? AND path = ?")
+      .run(after, turnId, file);
+  }
+
+  updateUncapturedTurnFileBefore(turnId: string, file: string, before: Uint8Array | null): void {
+    this.q("UPDATE turn_files SET before = ? WHERE turn_id = ? AND path = ? AND after_captured = 0")
+      .run(before, turnId, file);
+  }
+
+  markTurnFileInterleaved(turnId: string, file: string): void {
+    this.q("UPDATE turn_files SET interleaved = 1 WHERE turn_id = ? AND path = ?").run(turnId, file);
+  }
+
   finishTurnFile(turnId: string, file: TurnFileRow): void {
     this.q("UPDATE turn_files SET after = ?, change = ?, additions = ?, deletions = ? WHERE turn_id = ? AND path = ?")
       .run(file.after, file.change, file.additions, file.deletions, turnId, file.path);
   }
 
   turnFiles(turnId: string): TurnFileRow[] {
-    return this.q("SELECT path, before, after, change, additions, deletions FROM turn_files WHERE turn_id = ? ORDER BY path")
-      .all(turnId) as unknown as TurnFileRow[];
+    return this.q("SELECT path, before, after, change, additions, deletions, after_captured, interleaved FROM turn_files WHERE turn_id = ? ORDER BY path")
+      .all(turnId).map((row: any) => ({ path: row.path, before: row.before, after: row.after, change: row.change, additions: row.additions, deletions: row.deletions, afterCaptured: row.after_captured === 1, interleaved: row.interleaved === 1 }));
   }
 
   // Providers and models
@@ -1307,6 +1409,7 @@ export class Store {
     scan("SELECT event AS t FROM events");
     scan("SELECT content AS t FROM messages");
     scan("SELECT payload AS t FROM queue");
+    scan("SELECT payload AS t FROM queue_drafts");
     scan("SELECT html AS t FROM artifacts");
     return ids;
   }

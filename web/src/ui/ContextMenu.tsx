@@ -169,7 +169,7 @@ function Level(props: { entries: MenuEntry[]; anchor: MenuAnchor; label: string;
 }
 
 // mount: where the menu lives. Inside a modal dialog it must be in the dialog, or it is inert.
-export function ContextMenu(props: { anchor: MenuAnchor; entries: MenuEntry[]; label: string; onClose: () => void; class?: string; mount?: Node }) {
+export function ContextMenu(props: { anchor: MenuAnchor; entries: MenuEntry[]; label: string; onClose: () => void; class?: string; mount?: Node; returnFocus?: boolean }) {
   let layer!: HTMLDivElement;
   const returnFocus = document.activeElement as HTMLElement | null;
   // Esc or a chosen item gives focus back to the button the menu came from (the ⋯ button, say).
@@ -177,7 +177,7 @@ export function ContextMenu(props: { anchor: MenuAnchor; entries: MenuEntry[]; l
   const close = () => {
     const inside = layer.contains(document.activeElement);
     props.onClose();
-    if (inside && returnFocus?.isConnected && returnFocus !== document.body) returnFocus.focus({ preventScroll: true });
+    if (props.returnFocus !== false && inside && returnFocus?.isConnected && returnFocus !== document.body) returnFocus.focus({ preventScroll: true });
   };
   const onDown = (event: PointerEvent) => {
     const target = event.target as Node;

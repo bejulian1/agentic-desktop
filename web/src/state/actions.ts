@@ -1,7 +1,7 @@
 // What the menu bar, the shortcuts and the commands do. One place, so they cannot drift apart.
 import type { Thread } from "../../../shared/protocol";
 import { post } from "../lib/api";
-import { app, scopeOf, currentProject, mode, pinnedSummary, report, saveSettings, scope, setFolderPickerOpen, setMode, setPinnedSummary, setSettingsOpen, setSidebarOpen, sidebarOpen, toast, renameThread } from "./app";
+import { app, scopeOf, currentProject, mode, pinnedSummary, report, saveSettings, scope, setFolderPickerOpen, setMode, setPinnedSummary, settingsOpen, setSettingsOpen, setSidebarOpen, sidebarOpen, toast, renameThread } from "./app";
 import { gridFor } from "./grid";
 import { canGoBack, canGoForward, goHistory } from "./history";
 import { newThreadIn, openThread } from "./navigate";
@@ -10,9 +10,10 @@ import { requestAnnotate } from "./annotate";
 import { revertLastTurn } from "./project-actions";
 import { matchShortcut } from "./shortcuts";
 import { promptDialog, setInfoDialog } from "../ui/dialogs";
-import { setSearchOpen } from "./home";
+import { finished, markSeen, markUnread, setSearchOpen } from "./home";
 import { openPalette } from "./nav";
 import { setPinned, sideChat, toggleArchived } from "./thread-actions";
+import { openSkills, skillsOpen } from "./skills-workspace";
 
 export function focusedThreadId(): string | null {
   const key = scope();
@@ -60,7 +61,7 @@ export const actions = {
   theme: (theme: "light" | "dark" | "system") => saveSettings({ theme }).catch(report),
   shortcuts: () => setInfoDialog("shortcuts"),
   commands: () => setInfoDialog("commands"),
-  skills: () => setInfoDialog("skills"),
+  skills: openSkills,
   scheduled: () => setInfoDialog("scheduled"),
   about: () => setSettingsOpen("about"),
   rename: async () => {
@@ -139,6 +140,10 @@ const HANDLERS: Record<string, () => unknown> = {
     if (thread) void sideChat(thread);
     else toast("Ingen tråd er valgt.", "info");
   },
+  "thread.unread": () => {
+    const thread = focusedThread();
+    if (thread && !thread.temporary) finished().includes(thread.id) ? markSeen(thread.id, true) : markUnread(thread.id);
+  },
   "thread.archive": () => {
     const thread = focusedThread();
     if (thread) void toggleArchived(thread);
@@ -172,6 +177,12 @@ export function handleShortcut(event: KeyboardEvent): void {
   const id = matchShortcut(event);
   if (!id) return;
   event.preventDefault();
+  // The conversation stays mounted behind Settings; its shortcuts must stay inactive there.
+  if (settingsOpen()) {
+    if (id === "settings.open") setSettingsOpen(null);
+    return;
+  }
+  if (skillsOpen() && !["settings.open", "view.sidebar", "view.mode", "thread.new", "thread.back", "thread.forward", "thread.search", "palette.open", "help.shortcuts"].includes(id)) return;
   HANDLERS[id]?.();
 }
 

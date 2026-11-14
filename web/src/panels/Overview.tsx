@@ -2,7 +2,7 @@
 // it, and the files the thread has changed. The context split is fetched when the thread changes and
 // when a new usage count arrives, never on a timer.
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
-import type { ContextUsage, RunningServer, Thread } from "../../../shared/protocol";
+import type { ChangedFile, ContextUsage, RunningServer, Thread } from "../../../shared/protocol";
 import { copyServerUrl, openServer, servers, stopServer } from "../state/servers";
 import { confirmDialog } from "../ui/dialogs";
 import { get } from "../lib/api";
@@ -16,6 +16,7 @@ import { showPanel } from "../state/panel";
 import { peekModel } from "../state/thread-model";
 import { IconBranch, IconCode, IconFile, IconFolder, IconLaptop, IconPlay, IconTerminal } from "../ui/icons";
 import { IconImage } from "../ui/nav-icons";
+import { FileChangeCounts } from "../ui/FileChangeCounts";
 
 const PARTS: Array<{ id: keyof ContextUsage["parts"]; label: string; title: string }> = [
   { id: "messages", label: "Meldinger", title: "Samtalen så langt, med verktøyresultater og vedlegg" },
@@ -218,6 +219,9 @@ function Servers(props: { projectId: string; threadId: string | null }) {
 export default function OverviewPanel(props: { projectId: string; threadId: () => string | null }) {
   const project = () => app.projects[props.projectId];
   const [context, setContext] = createSignal<ContextUsage | null>(null);
+  const [contextFailed, setContextFailed] = createSignal(false);
+  const [contextReload, setContextReload] = createSignal(0);
+  let contextThread: string | null = null;
   const model = createMemo(() => {
     const id = props.threadId();
     return id ? peekModel(id) : undefined;
@@ -229,24 +233,33 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
   let seq = 0;
   createEffect(
     on(
-      () => [props.threadId(), model()?.usage(), props.threadId() ? app.threads[props.threadId()!]?.running : false] as const,
+      () => [props.threadId(), model()?.usage(), props.threadId() ? app.threads[props.threadId()!]?.running : false, contextReload()] as const,
       ([id]) => {
         const mine = ++seq;
+        if (contextThread !== id) setContext(null);
+        contextThread = id;
+        setContextFailed(false);
         if (!id) return setContext(null);
         get<ContextUsage>(`/api/threads/${id}/context`)
           .then((usage) => mine === seq && setContext(usage))
-          .catch(() => mine === seq && setContext(null));
+          .catch(() => {
+            if (mine !== seq) return;
+            setContext(null);
+            setContextFailed(true);
+          });
       },
     ),
   );
+  onCleanup(() => { seq += 1; });
 
   // Every file the thread changed, the last change first. Reverted turns are left out.
   const outputs = createMemo(() => {
     const rows = model()?.changes() ?? [];
-    const seen = new Map<string, { path: string; change: string }>();
+    const seen = new Map<string, ChangedFile>();
     for (let i = rows.length - 1; i >= 0; i--) {
+      rows[i].rev();
       if (rows[i].reverted) continue;
-      for (const file of rows[i].files) if (!seen.has(file.path)) seen.set(file.path, { path: file.path, change: file.change });
+      for (const file of rows[i].files) if (!seen.has(file.path)) seen.set(file.path, file);
     }
     return [...seen.values()];
   });
@@ -292,7 +305,12 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
       <section class="overview-section" aria-label="Kontekst">
         <h3 class="overview-title">Kontekst</h3>
         <Show when={props.threadId()} fallback={<p class="overview-empty">Ingen tråd er valgt. Send en melding, så vises kontekstbruken her.</p>}>
-          <Show when={context()} fallback={<p class="overview-empty">Regner…</p>}>
+          <Show when={context()} fallback={
+            <Show when={contextFailed()} fallback={<p class="overview-empty" role="status">Regner…</p>}>
+              <p class="overview-empty" role="status">Kunne ikke hente kontekstbruken.</p>
+              <button type="button" class="btn btn-small" onClick={() => setContextReload((value) => value + 1)}>Prøv igjen</button>
+            </Show>
+          }>
             {(c) => {
               const used = () => percent(c().usedTokens, c().contextWindow);
               return (
@@ -340,6 +358,7 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
               {isImage(file.path) ? <IconImage size={15} /> : /\.(tsx?|jsx?|css|html?|json|rs|py|go|java|c|cpp|h|sh)$/i.test(file.path) ? <IconCode size={15} /> : <IconFile size={15} />}
               <span class="overview-name" classList={{ deleted: file.change === "deleted" }}>{file.path.split("/").pop()}</span>
               <span class="overview-muted"><bdo dir="ltr">{file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""}</bdo></span>
+              <FileChangeCounts file={file} />
             </button>
           )}
         </For>

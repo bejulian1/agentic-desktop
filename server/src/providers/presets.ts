@@ -6,10 +6,10 @@ import { getJson } from "./http.ts";
 import { ProviderError } from "./types.ts";
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
-  // Round 5: only the four the user asked for, plus Egendefinert. None of them has been tried with
-  // a real key yet, so each is marked beta in the UI.
+  // OpenRouter's authenticated connection/model list was confirmed by the user on 2026-11-14
+  // (436 models). Other presets retain beta until their real-service access is confirmed.
   // https://openrouter.ai/docs/api-reference/models/get-models
-  { id: "openrouter", name: "OpenRouter", kind: "openai-compatible", baseUrl: "https://openrouter.ai/api/v1", apiKeyEnv: "OPENROUTER_API_KEY", keyRequired: true, docsUrl: "https://openrouter.ai/docs", checked: true, beta: true, note: "Mange modeller fra ulike leverandører med én nøkkel" },
+  { id: "openrouter", name: "OpenRouter", kind: "openai-compatible", baseUrl: "https://openrouter.ai/api/v1", apiKeyEnv: "OPENROUTER_API_KEY", keyRequired: true, docsUrl: "https://openrouter.ai/docs", checked: true, beta: false, note: "Mange modeller fra ulike leverandører med én nøkkel" },
   // https://docs.abliteration.ai/api/introduction (checked 2026-11-04): base https://api.abliteration.ai/v1,
   // "Authorization: Bearer", OpenAI surface with /v1/chat/completions and /v1/models. The page does
   // not say which fields /v1/models returns, so the context size comes from the table or the default.

@@ -6,6 +6,7 @@ import type {
   ApprovalDecision,
   Attachment,
   ChangedFile,
+  QueueSnapshot,
   RunStatus,
   ThreadEvent,
   ThreadEventEnvelope,
@@ -166,6 +167,7 @@ export interface ActivityTask {
   summary: string;
   status: ToolStatus;
   threadId?: string;
+  path?: string; // Only an explicit file tool's input, never inferred from its prose or a command.
 }
 
 export interface Activity {
@@ -174,6 +176,18 @@ export interface Activity {
   tasks: ActivityTask[];
   // Round 13: what the model does between tools, for the now-line. Changes at most once per block.
   phase: "starting" | "thinking" | "writing" | "tools";
+}
+
+export function currentFileActivity(activity: Activity | null): ActivityTask | undefined {
+  if (!activity) return;
+  const files = activity.tasks.filter((task) => task.kind === "tool" && task.path);
+  return files.findLast((task) => activity.running && (task.status === "running" || task.status === "pending" || task.status === "awaiting-approval")) ?? files.at(-1);
+}
+
+function inputFilePath(tool: string, input: unknown): string | undefined {
+  if (!["read_file", "write_file", "edit_file", "delete_file"].includes(tool) || !input || typeof input !== "object") return;
+  const path = (input as { path?: unknown }).path;
+  return typeof path === "string" && path.trim() && !/[\r\n\0]/.test(path) ? path : undefined;
 }
 
 // The provider asked the run to wait (429, 5xx). Shown as a calm line that counts down, and gone as
@@ -198,6 +212,9 @@ export interface QueuedMessage {
   messageId: string;
   text: string;
   from?: ThreadRef;
+  attachments?: Attachment[];
+  editable?: boolean;
+  steerable?: boolean;
   steer?: boolean; // goes into the running turn at its next step, not after it
 }
 
@@ -303,9 +320,12 @@ class Folder {
         this.queued = this.queued.filter((q) => q.messageId !== event.messageId);
         this.add({ ...base(event.messageId), kind: "user", at, text: event.text, from: event.from, attachments: event.attachments });
         return;
+      case "user.queue-removed":
+        this.queued = this.queued.filter((q) => q.messageId !== event.messageId);
+        return;
       case "user.queued": {
         // The same messageId again: the message switched between the queue and going in at once.
-        const item: QueuedMessage = { messageId: event.messageId, text: event.text, from: event.from, steer: event.steer === true };
+        const item: QueuedMessage = { messageId: event.messageId, text: event.text, from: event.from, attachments: event.attachments, editable: event.editable, steerable: event.steerable, steer: event.steer === true };
         const at = this.queued.findIndex((q) => q.messageId === event.messageId);
         this.queued = at === -1 ? [...this.queued, item] : this.queued.map((q, i) => (i === at ? item : q));
         return;
@@ -363,7 +383,7 @@ class Folder {
         this.tools.set(event.callId, row);
         if (event.tool === "run_command") this.runStats.commands += 1;
         if (this.activity) this.activity.phase = "tools";
-        this.activity?.tasks.push({ id: event.callId, kind: "tool", tool: event.tool, summary: event.summary, status: event.status });
+        this.activity?.tasks.push({ id: event.callId, kind: "tool", tool: event.tool, summary: event.summary, status: event.status, path: inputFilePath(event.tool, event.input) });
         if (this.code) this.step(row);
         else this.add(row);
         return;
@@ -449,6 +469,16 @@ class Folder {
         return;
       }
       case "turn.changes": {
+        if (!event.files.length) return;
+        const existing = this.changes.get(event.turnId);
+        if (existing) {
+          this.runStats.files += event.files.length - existing.files.length;
+          this.runStats.additions += event.files.reduce((n, f) => n + f.additions, 0) - existing.files.reduce((n, f) => n + f.additions, 0);
+          this.runStats.deletions += event.files.reduce((n, f) => n + f.deletions, 0) - existing.files.reduce((n, f) => n + f.deletions, 0);
+          existing.files = event.files;
+          existing.touch();
+          return;
+        }
         const row: ChangesRow = { ...base(`turn-${event.turnId}`), kind: "changes", turnId: event.turnId, files: event.files, reverted: false };
         this.runStats.files += event.files.length;
         this.runStats.additions += event.files.reduce((n, f) => n + f.additions, 0);
@@ -503,7 +533,7 @@ class Folder {
         if (event.status !== "done") this.add({ ...base(`end-${event.runId}`), kind: "notice", status: event.status, error: event.error });
         // A turn that did something ends with one short line about it (done or stopped; an error
         // has its own card).
-        if (work && work.steps() > 0 && (event.status === "done" || event.status === "stopped")) {
+        if (work && this.runStats.files > 0 && (event.status === "done" || event.status === "stopped")) {
           const stats = this.runStats;
           this.add({
             ...base(`summary-${event.runId}`), kind: "summary", at, status: event.status, durationMs: Math.max(0, at - work.startedAt), steps: work.steps(),
@@ -577,6 +607,9 @@ export class ThreadModel {
   readonly code: boolean;
   private loadingOlder: Promise<void> | null = null;
   private held: ThreadEventEnvelope[] | null = null; // live events kept back while reload fetches
+  private revertedTurns = new Set<string>();
+  private queueSeq = 0; // snapshot boundary; older log entries still render but cannot rebuild the queue
+  private lastQueueEvent = 0;
   firstSeq = 1;
   lastSeq = 0;
   refs = 0;
@@ -615,7 +648,8 @@ export class ThreadModel {
     this.folder.live = false;
     for (const envelope of events) {
       if (envelope.seq <= this.lastSeq) continue;
-      this.folder.apply(envelope.event, envelope.at);
+      this.fold(envelope);
+      if (envelope.event.type === "turn.reverted") this.revertedTurns.add(envelope.event.turnId);
       this.lastSeq = envelope.seq;
     }
     this.folder.live = true;
@@ -625,12 +659,30 @@ export class ThreadModel {
     for (const chunk of chunks.slice(-3)) chunk.setNear(true);
     this.setChunks([...this.chunks(), ...chunks]);
     this.setChanges([...this.changes(), ...rows.filter((r): r is ChangesRow => r.kind === "changes")]);
+    this.syncReverted();
     this.syncFolder();
   }
 
   private syncActivity(): void {
     const current = this.folder.activity;
     this.setActivity(current ? { ...current, tasks: current.tasks.map((t) => ({ ...t })) } : null);
+  }
+
+  private fold(envelope: ThreadEventEnvelope): void {
+    const before = this.folder.queued;
+    this.folder.apply(envelope.event, envelope.at);
+    if (envelope.seq <= this.queueSeq) this.folder.queued = before;
+    else if (["user.message", "user.queued", "user.queue-removed"].includes(envelope.event.type)) this.lastQueueEvent = envelope.seq;
+  }
+
+  async refreshQueue(): Promise<void> {
+    const snapshot = await get<QueueSnapshot>(`/api/threads/${encodeURIComponent(this.id)}/queue`);
+    // A queue event that arrived after this snapshot already describes newer state.
+    // Ignore the old response instead of bringing a removed/consumed message back.
+    if (snapshot.seq < this.queueSeq || snapshot.seq < this.lastQueueEvent) return;
+    this.queueSeq = snapshot.seq;
+    this.folder.queued = snapshot.items;
+    this.setQueued(this.folder.queued);
   }
 
   private syncFolder(): void {
@@ -649,8 +701,12 @@ export class ThreadModel {
     this.lastSeq = envelope.seq;
     const { event } = envelope;
     const phase = this.folder.activity?.phase;
-    this.folder.apply(event, envelope.at);
-    if (event.type === "user.message" || event.type === "user.queued") this.setQueued(this.folder.queued);
+    this.fold(envelope);
+    if (event.type === "turn.reverted") {
+      this.revertedTurns.add(event.turnId);
+      this.syncReverted();
+    }
+    if (event.type === "user.message" || event.type === "user.queued" || event.type === "user.queue-removed") this.setQueued(this.folder.queued);
     if (event.type === "usage") this.setUsage(event.usage);
     if (ACTIVITY_EVENTS.has(event.type) || this.folder.activity?.phase !== phase) this.syncActivity();
     if (this.retry() !== this.folder.retry) this.setRetry(this.folder.retry);
@@ -666,10 +722,15 @@ export class ThreadModel {
     try {
       await fresh.load();
     } catch {
+      const held = this.held;
       this.held = null;
+      for (const envelope of held ?? []) this.apply(envelope);
       return;
     }
     this.folder = fresh.folder;
+    this.revertedTurns = fresh.revertedTurns;
+    this.queueSeq = fresh.queueSeq;
+    this.lastQueueEvent = fresh.lastQueueEvent;
     this.folder.onRow = (row) => this.place(row);
     this.firstSeq = fresh.firstSeq;
     this.lastSeq = fresh.lastSeq;
@@ -687,8 +748,7 @@ export class ThreadModel {
     for (const envelope of held) this.apply(envelope);
   }
 
-  // A queued message switched between waiting and going in at once (PATCH .../queue/:id), which
-  // the server does not log as an event.
+  // Immediate feedback after a confirmed queue update; the durable event also reaches other windows.
   setQueuedSteer(messageId: string, steer: boolean): void {
     this.folder.queued = this.folder.queued.map((q) => (q.messageId === messageId ? { ...q, steer } : q));
     this.setQueued(this.folder.queued);
@@ -722,6 +782,7 @@ export class ThreadModel {
       this.firstSeq = after === 0 ? 1 : (kept[0]?.seq ?? this.firstSeq);
       this.setChunks([...chunks, ...this.chunks()]);
       this.setChanges([...rows.filter((r): r is ChangesRow => r.kind === "changes"), ...this.changes()]);
+      this.syncReverted();
       this.setHasOlder(this.firstSeq > 1);
       return;
     }
@@ -735,6 +796,7 @@ export class ThreadModel {
       if (first <= 1) {
         this.firstSeq = 1;
         this.ingest(events);
+        await this.refreshQueue();
         return;
       }
       const start = events.findIndex((e) => startsRun(e.event));
@@ -746,7 +808,19 @@ export class ThreadModel {
       this.firstSeq = kept[0]?.seq ?? first;
       this.ingest(kept);
       this.setHasOlder(true);
+      // Fetch after the tail so a consumed job outside that page cannot survive in the queue.
+      // Live replay still starts at lastSeq; queueSeq only suppresses older queue effects.
+      await this.refreshQueue();
       return;
+    }
+  }
+
+  private syncReverted(): void {
+    for (const row of this.changes()) {
+      if (this.revertedTurns.has(row.turnId) && !row.reverted) {
+        row.reverted = true;
+        row.touch();
+      }
     }
   }
 }
@@ -819,7 +893,10 @@ export function wireThreadEvents(): void {
   onOpen(() => {
     // Also the very first time: anything retained before the socket opened is not subscribed yet.
     for (const model of models.values()) {
-      if (model.refs > 0) send({ type: "thread.subscribe", threadId: model.id, afterSeq: model.lastSeq });
+      if (model.refs > 0) {
+        send({ type: "thread.subscribe", threadId: model.id, afterSeq: model.lastSeq });
+        void model.refreshQueue().catch(() => undefined); // durable replay remains the fallback on network errors
+      }
     }
   });
 }

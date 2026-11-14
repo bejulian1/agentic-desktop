@@ -7,6 +7,7 @@ import { cleanTabId, type BrowserManager } from "../browser.ts";
 
 // A tab named by the panel, or the one it showed last when the message names none.
 const tabOf = (message: { tabId?: unknown }): string | undefined => (message.tabId === undefined ? undefined : cleanTabId(message.tabId));
+const requestIdOf = (message: { requestId?: unknown }): string | undefined => typeof message.requestId === "string" && message.requestId.length > 0 && message.requestId.length <= 100 && !/[\u0000-\u001f\u007f]/.test(message.requestId) ? message.requestId : undefined;
 import type { Store } from "../db.ts";
 import type { Terminals } from "../terminal.ts";
 import type { ClientMessage, Project, ServerMessage, ThreadEventEnvelope } from "../../../shared/protocol.ts";
@@ -126,13 +127,22 @@ export class Hub {
   private async onMessage(client: Client, raw: string): Promise<void> {
     let message: ClientMessage;
     try {
-      message = JSON.parse(raw);
+      const value: unknown = JSON.parse(raw);
+      if (value === null || typeof value !== "object" || Array.isArray(value) || !("type" in value) || typeof value.type !== "string" || !value.type) {
+        return client.send({ type: "error", message: "Ugyldig melding" });
+      }
+      message = value as ClientMessage;
     } catch {
       return client.send({ type: "error", message: "Ugyldig melding" });
     }
     try {
       await this.handle(client, message);
     } catch (err) {
+      if (typeof message.type === "string" && message.type.startsWith("browser.") && "projectId" in message) {
+        const requestId = "requestId" in message ? requestIdOf(message) : undefined;
+        client.send({ type: "browser.error", projectId: message.projectId, tabId: "tabId" in message ? tabOf(message) : undefined, message: (err as Error).message || "Nettleserhandlingen mislyktes", command: message.type, ...(requestId === undefined ? {} : { requestId }) });
+        return;
+      }
       client.send({ type: "error", message: (err as Error).message || "Noe gikk galt" });
     }
   }

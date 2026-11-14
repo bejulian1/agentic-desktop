@@ -126,6 +126,11 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     const word = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
     const project = thread.projectId ? store.project(thread.projectId) : undefined;
     const skill = word && runner.skillsFor(thread.mode === "code" ? project : undefined).find((s) => s.name === word[1]);
+    const dispatch = runner.prepareSend(thread.id, {
+      text: skill ? (word![2] ?? "") : text,
+      attachments: attachments.length ? attachments : undefined,
+      skill: skill ? skill.name : undefined,
+    }, body.modelId);
 
     // Chapters on messages that go, go too.
     const gone = new Set<string>();
@@ -140,10 +145,6 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     store.rewindThread(thread.id, cut, historyBefore(store.messages(thread.id), events, cut));
     publish({ type: "thread.reset", threadId: thread.id });
     threadChanged(thread.id);
-    return runner.send(thread.id, {
-      text: skill ? (word![2] ?? "") : text,
-      attachments: attachments.length ? attachments : undefined,
-      skill: skill ? skill.name : undefined,
-    });
+    return dispatch();
   });
 }

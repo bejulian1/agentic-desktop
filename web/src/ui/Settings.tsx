@@ -2,42 +2,41 @@
 // on the left with a search field and two groups (App, and Vert with a host picker that is a
 // placeholder), and the content in the middle: a title, and cards with one setting per row.
 // Generelt, Utseende, Personvern, Modeller and Leverandører live in ./settings/.
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, lazy, For, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { get, patch, put } from "../lib/api";
+import { get, patch } from "../lib/api";
 import { rememberFocus } from "../lib/focus";
 import { desktop } from "../lib/desktop";
 import { formatBuildDate, relativeTime } from "../lib/format";
-import type { GlobalConfig, PermissionMode, ProjectConfig, Thread } from "../../../shared/protocol";
-import { app, archiveThread, currentProject, deleteThread, report, saveSettings, setSettingsOpen, settingsOpen, sortedProjects, toast } from "../state/app";
-import { gitInfo, loadGitInfo } from "../state/home";
+import type { PermissionMode, Thread } from "../../../shared/protocol";
+import { app, archiveThread, deleteThread, report, saveSettings, setSettingsOpen, settingsOpen, sortedProjects, toast } from "../state/app";
+
 import { archiveScope, restoreMany, setArchiveScope } from "../state/archive";
 import { openThread } from "../state/navigate";
 import { confirmDialog } from "./dialogs";
-import { openProjectSettings } from "./ProjectSettings";
 import { Popover } from "./Popover";
 import {
-  IconAnchor, IconArchive, IconBack, IconBolt, IconBook, IconBranch, IconCheck, IconChevronDown, IconClose, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard, IconLaptop, IconMonitor,
-  IconAgent, IconBookmark, IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark, IconWorktree,
+  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconChevronDown, IconClose, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard, IconLaptop, IconMonitor,
+  IconBookmark, IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark,
 } from "./icons";
-import { DemoNote, Group, Page, Row, Toggle, type Icon } from "./settings/parts";
+import { DemoNote, Group, Page, Row, SkeletonRows, type Icon } from "./settings/parts";
 import { DownloadDirRow } from "./DownloadsList";
 import { imported, importedSummary, loadImported, openChromeImport, removeImported } from "./ChromeImport";
 import { CookieSettings } from "./CookieImport"; // round 12 (SPEC 26.4)
 import { Appearance, General, Privacy } from "./settings/general";
 import { ChatSettings, CodeSettings } from "./settings/modes";
-import { Models, Providers } from "./settings/providers";
-import { matchingPages, search } from "./settings/search";
+import { Providers } from "./settings/providers";
+import { canonicalSettingsPage, matchingPages, search } from "./settings/search";
 import { Shortcuts } from "./settings/shortcuts";
 import { Memories } from "./settings/memory";
 import { HarnessPage } from "./settings/harness"; // round 9b
-import { ChatPersonalPage } from "./settings/chat-personal"; // round 9b
 import { Usage } from "./settings/usage";
 import { Select } from "./Select";
 import { Skills } from "./settings/skills";
 import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
 import { IconPullRequest } from "./GitHubShared";
+import "../styles/settings-polish.css";
 
 const PERMISSIONS: Array<{ id: PermissionMode; label: string; text: string; icon: Icon }> = [
   { id: "ask", label: "Spør", text: "Lesing er tillatt. Filendringer, kommandoer og nettleser spør først.", icon: IconHand },
@@ -53,8 +52,7 @@ const APP_SECTIONS: Section[] = [
   { id: "code", label: "Kode", icon: IconCode }, // round 9: the gear opens this one from Kode
   { id: "chat", label: "Chat", icon: IconChat }, // and this one from Chat
   { id: "appearance", label: "Utseende", icon: IconPalette },
-  { id: "models", label: "Modeller", icon: IconCpu },
-  { id: "providers", label: "Leverandører", icon: IconBolt },
+  { id: "providers", label: "Modeller og leverandører", icon: IconCpu },
   { id: "github", label: "GitHub", icon: IconPullRequest, beta: true }, // round 8, agent G
   { id: "usage", label: "Bruk", icon: IconGauge },
   { id: "storage", label: "Lagring", icon: IconFolder },
@@ -62,10 +60,9 @@ const APP_SECTIONS: Section[] = [
 ];
 
 const HOST_SECTIONS: Section[] = [
+  { id: "git", label: "Git", icon: IconBranch },
   { id: "config", label: "Konfigurasjon", icon: IconSliders },
-  { id: "harness", label: "Kode-harness", icon: IconAgent }, // round 9b (SPEC 22.2)
   { id: "personalization", label: "Personalisering og minner", icon: IconSpark },
-  { id: "chat-personal", label: "Chat-personalisering", icon: IconChat }, // round 9b (SPEC 22.4)
   { id: "skills", label: "Skills", icon: IconBook },
   { id: "shortcuts", label: "Hurtigtaster", icon: IconKeyboard },
   { id: "browser", label: "Nettleser", icon: IconGlobe },
@@ -77,79 +74,15 @@ const HOST_SECTIONS: Section[] = [
 
 // Pages that only say what is coming: together at the bottom, quieter, under «Kommer senere».
 const LATER_SECTIONS: Section[] = [
-  { id: "git", label: "Git", icon: IconBranch, demo: true },
   { id: "mcp", label: "MCP-servere", icon: IconServer, demo: true },
   { id: "hooks", label: "Hooks", icon: IconAnchor, demo: true },
-  { id: "worktrees", label: "Worktrees", icon: IconWorktree, demo: true },
 ];
 
 const ALL_SECTIONS = [...APP_SECTIONS, ...HOST_SECTIONS, ...LATER_SECTIONS];
 const sectionLabel = (id: string) => ALL_SECTIONS.find((s) => s.id === id)?.label ?? id;
 
-function Git() {
-  const project = currentProject;
-  createEffect(() => {
-    const p = project();
-    if (p) loadGitInfo(p.id);
-  });
-  const info = () => (project() ? gitInfo(project()!.id) : undefined);
-  return (
-    <Page title="Git" demo intro="Grenen i meldingsfeltet er ekte: den leses fra .git/HEAD. Alt annet her er plassholdere, og appen kjører aldri git-kommandoer.">
-      <Group title="Dette prosjektet">
-        <Row label={project()?.name ?? "Ingen prosjekt valgt"} text={project() ? (info()?.branch ? `Gren: ${info()!.branch}${info()!.detached ? " (frakoblet HEAD)" : ""}` : "Ikke en git-mappe, eller HEAD kunne ikke leses") : "Velg et prosjekt i Kode for å se grenen."} icon={IconBranch} />
-      </Group>
-      <Group title="Senere">
-        <Toggle label="Lag en gren per tråd" demo text="Skal starte hver tråd på en egen gren, så endringene kan gjennomgås hver for seg." checked={false} onChange={() => toast("Git-innstillingene er plassholdere.", "info")} />
-        <Toggle label="Commit-meldinger fra modellen" demo text="Skal foreslå en commit-melding når en tur er ferdig. Ingen commit lages." checked={false} onChange={() => toast("Git-innstillingene er plassholdere.", "info")} />
-      </Group>
-    </Page>
-  );
-}
-
-function Configuration() {
-  const [config, { mutate }] = createResource(() => get<GlobalConfig>("/api/config"));
-  const project = currentProject;
-  const [projectConfig] = createResource(() => project()?.id, (id) => get<ProjectConfig>(`/api/projects/${id}/config`));
-  const [text, setText] = createSignal<string | null>(null);
-  const value = () => text() ?? config()?.agentsMd ?? "";
-  const save = async () => {
-    try {
-      mutate(await put<GlobalConfig>("/api/config/agents-md", { text: value() }));
-      setText(null);
-      toast("Lagret AGENTS.md.", "info");
-    } catch (err) {
-      report(err);
-    }
-  };
-  const json = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
-  return (
-    <Page title="Konfigurasjon" intro={<>To mapper styrer modellen: den globale i <code>{config()?.dir ?? "…"}</code>, og <code>.agentic/</code> i hvert prosjekt. Prosjektet går foran.</>}>
-      <Group title="Instruksjoner for alle prosjekter" action={<button type="button" class="btn btn-small btn-primary" disabled={text() === null} onClick={save}>Lagre</button>}>
-        <div class="setting setting-block">
-          <span class="muted">Global <code>AGENTS.md</code>. Den gjelder i alle tråder i Kode, ikke i Chat. Gjenopprett standard og se hele systemprompten under <button type="button" class="link-button inline-link" onClick={() => setSettingsOpen("harness")}>Kode-harness</button>.</span>
-          <textarea class="input code-area" aria-label="Global AGENTS.md" rows={10} spellcheck={false} value={value()} onInput={(e) => setText(e.currentTarget.value)} placeholder="For eksempel: Svar kort. Skriv kommentarer på engelsk." />
-        </div>
-      </Group>
-      <Group title="Global settings.json">
-        <div class="setting setting-block">
-          <span class="muted"><code>model</code>, <code>permissionMode</code> og <code>personality</code>. Rediger filen i en editor; den leses ved neste tråd.</span>
-          <pre class="code-view">{json(config()?.settings)}</pre>
-          <Show when={config()?.settingsError}><p class="form-error">{config()!.settingsError}</p></Show>
-        </div>
-      </Group>
-      <Show when={project()}>
-        <Group title={`Prosjektet ${project()!.name}`} action={<button type="button" class="btn btn-small" onClick={() => openProjectSettings(project()!.id)}>Rediger prosjekt…</button>}>
-          <Row label=".agentic/AGENTS.md" text={projectConfig()?.project.agentsMd ? `${projectConfig()!.project.agentsMd!.length} tegn` : "Finnes ikke. Lag den i Rediger prosjekt → Agent, eller med /init."} />
-          <Row label="Det modellen leser, i rekkefølge" text={projectConfig()?.instructionFiles.length ? projectConfig()!.instructionFiles.join(", ") : "Ingen instruksjonsfiler"} />
-          <div class="setting setting-block">
-            <span class="muted">Gjeldende innstillinger for prosjektet</span>
-            <pre class="code-view">{json(projectConfig()?.effective)}</pre>
-          </div>
-        </Group>
-      </Show>
-    </Page>
-  );
-}
+const Git = (props: {}) => <Suspense><GitSettingsPage {...props} /></Suspense>;
+const GitSettingsPage = lazy(() => import("./GitWorkspace").then((m) => ({ default: m.GitSettings })));
 
 function Mcp() {
   return (
@@ -258,14 +191,6 @@ function Permissions() {
           </For>
         </Group>
       </Show>
-    </Page>
-  );
-}
-
-function Worktrees() {
-  return (
-    <Page title="Worktrees" demo intro="Skal kjøre hver tråd i sitt eget Git-worktree, så flere instanser ikke går i beina på hverandre.">
-      <DemoNote>Ingen worktrees lages, og ingen git-kommandoer kjøres. Tråder i samme prosjekt deler mappen, og skrivinger til samme fil skjer etter tur.</DemoNote>
     </Page>
   );
 }
@@ -398,22 +323,19 @@ function SandboxNote() {
   );
 }
 
-const VIEWS: Record<string, () => JSX.Element> = {
+const VIEWS: Record<string, (props: { target?: string | null }) => JSX.Element> = {
   general: General,
   code: CodeSettings,
   chat: ChatSettings,
   appearance: Appearance,
-  models: Models,
-  providers: Providers,
+  providers: () => <Providers />,
   git: Git,
   github: GitHubSettings,
   usage: Usage,
   storage: StoragePage,
   privacy: Privacy,
-  config: Configuration,
+  config: HarnessPage,
   personalization: Memories,
-  harness: HarnessPage,
-  "chat-personal": ChatPersonalPage,
   skills: Skills,
   shortcuts: Shortcuts,
   mcp: Mcp,
@@ -421,7 +343,7 @@ const VIEWS: Record<string, () => JSX.Element> = {
   browser: Browser,
   desktop: Desktop,
   permissions: Permissions,
-  worktrees: Worktrees,
+  worktrees: Git,
   archived: Archived,
   about: About,
 };
@@ -481,8 +403,14 @@ export default function Settings() {
   let body!: HTMLDivElement;
   const [query, setQuery] = createSignal("");
   const [target, setTarget] = createSignal<string | null>(null);
-  const section = () => (settingsOpen() && VIEWS[settingsOpen()!] ? settingsOpen()! : "general");
+  // Keep old links and shortcuts working after the pages were combined.
+  const section = () => {
+    const id = canonicalSettingsPage(settingsOpen() ?? "general");
+    return VIEWS[id] ? id : "general";
+  };
   const searching = () => query().trim().length > 0;
+  const [providersVisited, setProvidersVisited] = createSignal(false);
+  createEffect(() => { if (section() === "providers") setProvidersVisited(true); });
   const shown = createMemo(() => (searching() ? matchingPages(query(), ALL_SECTIONS) : null));
   const visible = (item: Section) => !shown() || shown()!.has(item.id);
   const close = () => setSettingsOpen(null);
@@ -510,22 +438,28 @@ export default function Settings() {
     searching();
     body.scrollTop = 0;
     // In a narrow window the pages are one row that scrolls: keep the chosen one in view.
-    requestAnimationFrame(() => page.querySelector<HTMLElement>('.settings-nav-pages [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    const frame = requestAnimationFrame(() => page.querySelector<HTMLElement>('.settings-nav-pages [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" }));
+    onCleanup(() => cancelAnimationFrame(frame));
   });
   // After a search hit: scroll to the row with that title on the new page and mark it briefly.
   createEffect(() => {
     const label = target();
     section();
     if (!label) return;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    let nextFrame: number | undefined;
+    const frame = requestAnimationFrame(() => { nextFrame = requestAnimationFrame(() => {
       setTarget(null);
-      const title = [...body.querySelectorAll<HTMLElement>(".setting-text strong, .settings-group-head h2, .settings-title")].find((el) => el.textContent?.trim().startsWith(label));
+      const title = [...body.querySelectorAll<HTMLElement>(".setting-text strong, .settings-group-head h2, .settings-title")].find((el) => !el.closest("[hidden]") && el.textContent?.trim().startsWith(label));
       const row = title?.closest<HTMLElement>(".setting") ?? title?.closest<HTMLElement>(".settings-group") ?? title;
       if (!row) return;
-      row.scrollIntoView({ block: "center" });
+      row.scrollIntoView({ block: "center", behavior: "instant" });
       row.classList.add("search-hit");
       setTimeout(() => row.classList.remove("search-hit"), 1600);
-    }));
+    }); });
+    onCleanup(() => {
+      cancelAnimationFrame(frame);
+      if (nextFrame !== undefined) cancelAnimationFrame(nextFrame);
+    });
   });
   const NavItem = (item: Section) => (
     <Show when={visible(item)}>
@@ -583,8 +517,20 @@ export default function Settings() {
       </nav>
       <div class="settings-body" ref={body}>
         <div class="settings-content">
-          <Show when={!searching()} fallback={<SearchResults query={query()} open={open} />}>
-            <Dynamic component={VIEWS[section()]} />
+          {/* Keep provider/model drafts and request results for this Settings visit. Hidden
+              panels never overlap, receive focus or animate out over the newly selected page. */}
+          <Show when={providersVisited()}>
+            <div hidden={searching() || section() !== "providers"} data-settings-panel="providers">
+              <Suspense fallback={<Page title={sectionLabel("providers")}><SkeletonRows label="Henter innstillinger…" /></Page>}>
+                <Providers active={!searching() && section() === "providers"} />
+              </Suspense>
+            </div>
+          </Show>
+          <Show when={searching()}><SearchResults query={query()} open={open} /></Show>
+          <Show when={!searching() && section() !== "providers"}>
+            <Suspense fallback={<Page title={sectionLabel(section())}><SkeletonRows label="Henter innstillinger…" /></Page>}>
+              <Dynamic component={VIEWS[section()]} target={target()} />
+            </Suspense>
           </Show>
         </div>
       </div>

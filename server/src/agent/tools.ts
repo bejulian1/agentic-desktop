@@ -45,6 +45,8 @@ export interface ToolResult {
 }
 
 export interface BrowserTools {
+  // Optional for older embedders; the server binds all model calls to the actual thread.
+  forThread?(projectId: string, threadId: string): BrowserTools;
   navigate(projectId: string, url: string): Promise<string>;
   snapshot(projectId: string): Promise<string>;
   click(projectId: string, target: { ref?: string; text?: string }): Promise<string>;
@@ -258,6 +260,7 @@ const writeFileTool: Tool = {
       }
       ctx.turns.capture(ctx.turnId, rel, current);
       await writeNoFollow(abs, input.content);
+      ctx.turns.recordAfter(ctx.turnId, rel, Buffer.from(input.content));
       ctx.files.remember(ctx.thread.id, abs, Buffer.from(input.content));
       ctx.filesChanged([rel]);
       // Round 13: a new file says so, so the step reads «Opprettet» and not «Endret».
@@ -286,6 +289,7 @@ const deleteFileTool: Tool = {
       const current = await readFile(abs);
       ctx.turns.capture(ctx.turnId, rel, current);
       await unlink(abs);
+      ctx.turns.recordAfter(ctx.turnId, rel, null);
       ctx.filesChanged([rel]);
       const lines = looksBinary(current) ? 0 : countChanges(current.toString("utf8"), "").deletions;
       return { text: `${rel} +0 -${lines} (slettet)` };
@@ -328,6 +332,7 @@ const editFileTool: Tool = {
       const { after, firstLine, lastLine, note } = found;
       ctx.turns.capture(ctx.turnId, rel, current);
       await writeNoFollow(abs, after);
+      ctx.turns.recordAfter(ctx.turnId, rel, Buffer.from(after));
       ctx.files.remember(ctx.thread.id, abs, Buffer.from(after));
       ctx.filesChanged([rel]);
       // The changed lines with a little context, so the model can see the result without reading again.
@@ -466,6 +471,8 @@ const runCommandTool: Tool = {
     description:
       "Run a shell command (bash) with the project folder as working directory, for tests, builds, type checks, git status and the like. " +
       "Prefer read_file, search and glob over cat, grep and find. Long output is shortened in the middle, so pipe through tail or grep when you only need part of it. " +
+      "Use file tools for intentional source edits: shell writes are not reliably tracked in the changes card or undo. " +
+      "The project is the working directory, not an OS filesystem sandbox; follow the current task scope and permission policy. " +
       "Background jobs are stopped when the command ends, and nothing interactive works.",
     parameters: schema({ command: str("The command"), timeoutSeconds: int("Time limit, default 120, maximum 600") }, ["command"]),
   },
@@ -493,6 +500,9 @@ const runCommandTool: Tool = {
 
 const target = { ref: str("Element ref from browser_snapshot, like e5"), text: str("Visible text, used when there is no ref") };
 
+// Thread ownership comes from the server context, never model-supplied arguments.
+const threadBrowser = (ctx: ToolContext): BrowserTools => ctx.browser.forThread?.(ctx.project.id, ctx.thread.id) ?? ctx.browser;
+
 // Round 12 (SPEC 26.4): Spør før agenter bruker innloggede nettsteder. A browser tool on a site with
 // imported cookies asks first, in every mode. A yes holds for that site for the rest of the thread.
 function navigateTarget(raw: unknown): string | undefined {
@@ -505,9 +515,9 @@ function navigateTarget(raw: unknown): string | undefined {
 function signedInSite(ctx: ToolContext, input: any, navigate: boolean): string | null {
   if (navigate) {
     const url = navigateTarget(input.url);
-    return url ? (ctx.browser.signedInSite?.(ctx.project.id, ctx.thread.id, url) ?? null) : null;
+    return url ? (threadBrowser(ctx).signedInSite?.(ctx.project.id, ctx.thread.id, url) ?? null) : null;
   }
-  return ctx.browser.signedInSite?.(ctx.project.id, ctx.thread.id) ?? null;
+  return threadBrowser(ctx).signedInSite?.(ctx.project.id, ctx.thread.id) ?? null;
 }
 
 function signedInConfirm(what: string, navigate = false): Tool["confirm"] {
@@ -524,7 +534,7 @@ function signedInConfirm(what: string, navigate = false): Tool["confirm"] {
 // Reached only after a yes (or when nothing needed asking): the site is let through for the thread.
 function grantSignedIn(ctx: ToolContext, input: any, navigate = false): void {
   const site = signedInSite(ctx, input, navigate);
-  if (site) ctx.browser.grantSignedIn?.(ctx.thread.id, site);
+  if (site) threadBrowser(ctx).grantSignedIn?.(ctx.thread.id, site);
 }
 
 const browserTools: Tool[] = [
@@ -532,14 +542,14 @@ const browserTools: Tool[] = [
     kind: "exec",
     def: {
       name: "browser_navigate",
-      description: "Open a page in the browser the user also sees. Takes an http(s) URL, or a path in the project such as index.html, which is served on its own port.",
+      description: "Open a page in this thread's own browser tab, which the user can inspect in the browser panel. Takes an http(s) URL, or a path in the project such as index.html, which is served on its own port.",
       parameters: schema({ url: str("URL or project path") }, ["url"]),
     },
     summary: (input) => String(input.url ?? ""),
     confirm: signedInConfirm("åpne en side", true),
     async run(input, ctx) {
       grantSignedIn(ctx, input, true);
-      return { text: await ctx.browser.navigate(ctx.project.id, String(input.url ?? "")) };
+      return { text: await threadBrowser(ctx).navigate(ctx.project.id, String(input.url ?? "")) };
     },
   },
   {
@@ -553,7 +563,7 @@ const browserTools: Tool[] = [
     confirm: signedInConfirm("lese siden"),
     async run(_input, ctx) {
       grantSignedIn(ctx, _input);
-      return { text: clip(await ctx.browser.snapshot(ctx.project.id)) };
+      return { text: clip(await threadBrowser(ctx).snapshot(ctx.project.id)) };
     },
   },
   {
@@ -563,7 +573,7 @@ const browserTools: Tool[] = [
     confirm: signedInConfirm("klikke"),
     async run(input, ctx) {
       grantSignedIn(ctx, input);
-      return { text: await ctx.browser.click(ctx.project.id, input) };
+      return { text: await threadBrowser(ctx).click(ctx.project.id, input) };
     },
   },
   {
@@ -577,7 +587,7 @@ const browserTools: Tool[] = [
     confirm: signedInConfirm("skrive inn tekst"),
     async run(input, ctx) {
       grantSignedIn(ctx, input);
-      return { text: await ctx.browser.type(ctx.project.id, input, String(input.value ?? ""), input.submit === true) };
+      return { text: await threadBrowser(ctx).type(ctx.project.id, input, String(input.value ?? ""), input.submit === true) };
     },
   },
   {
@@ -587,7 +597,7 @@ const browserTools: Tool[] = [
     confirm: signedInConfirm("ta et skjermbilde"),
     async run(_input, ctx) {
       grantSignedIn(ctx, _input);
-      const { png, url } = await ctx.browser.screenshot(ctx.project.id);
+      const { png, url } = await threadBrowser(ctx).screenshot(ctx.project.id);
       const screenshotId = ctx.saveScreenshot(png);
       return { text: `Skjermbilde av ${url}`, screenshotId, image: { mime: "image/png", base64: png.toString("base64") } };
     },
@@ -599,7 +609,7 @@ const browserTools: Tool[] = [
     confirm: signedInConfirm("lese konsollen"),
     async run(_input, ctx) {
       grantSignedIn(ctx, _input);
-      return { text: clip(await ctx.browser.console(ctx.project.id)) };
+      return { text: clip(await threadBrowser(ctx).console(ctx.project.id)) };
     },
   },
 ];

@@ -3,6 +3,7 @@ import { ApiError, get, post, setUnauthorizedHandler } from "./lib/api";
 import { expire } from "./lib/socket";
 import { applyBootstrap, wireServerEvents } from "./state/app";
 import { wireGridEvents } from "./state/grid";
+import { prepareStartup } from "./state/startup";
 import { wireThreadEvents } from "./state/thread-model";
 import { installArtifactBoxes } from "./markdown/artifact-card";
 import { ExpiredScreen, Shell, SoloApp } from "./ui/App";
@@ -12,6 +13,7 @@ import { preloadPalette } from "./ui/dialogs";
 import type { Bootstrap } from "../../shared/protocol";
 import "./styles.css";
 import "./styles/kode.css";
+import "./styles/code-appearance.css";
 import "./styles/nav.css";
 import "./styles/settings.css";
 import "./styles/grid.css";
@@ -82,6 +84,7 @@ async function boot(): Promise<void> {
     root.textContent = (err as Error).message;
     return;
   }
+  prepareStartup();
   wireServerEvents();
   wireThreadEvents();
   wireGridEvents();

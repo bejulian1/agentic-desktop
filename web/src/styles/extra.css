@@ -405,6 +405,18 @@ dialog.mini-editor:not([open]) { display: none; }
 /* The file path over a file in Filer, with Rediger beside it (round 8). */
 .file-path-row { display: flex; align-items: center; flex: none; min-width: 0; border-bottom: 1px solid var(--border); }
 .file-path-row .file-path { flex: 1; min-width: 0; border-bottom: 0; }
+.file-change-counts { display: inline-flex; align-items: center; gap: 5px; flex: none; white-space: nowrap; font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.diff-estimate { color: var(--text-3); }
+.diff-eof { padding-left: 76px; color: var(--text-3); font-style: italic; }
+.file-path-row > .file-change-counts { margin-right: 8px; }
+.tree-item .tree-name { flex: 1; }
+.tree-item.working { box-shadow: inset 2px 0 var(--accent); }
+.file-working-dot { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--accent); }
+.file-activity { display: flex; align-items: center; gap: 7px; flex: none; min-width: 0; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: var(--text-xs); color: var(--text-2); text-align: left; }
+.file-activity:hover { background: var(--hover); }
+.file-activity > bdo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+.file-activity[data-active="true"] > span:first-child { color: var(--accent); }
+.file-activity-open { color: var(--text-3); white-space: nowrap; }
 .file-edit { height: 22px; margin-right: 6px; padding: 0 8px; font-size: var(--text-xs); color: var(--text-2); }
 /* With the GitHub tab, the tab row at the panel's standard width (420 px) needs a little less air.
    Same container range as in nav.css; see the report for the wider ranges that already overflowed. */

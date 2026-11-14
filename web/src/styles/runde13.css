@@ -124,7 +124,7 @@ a.source-card:hover { border-color: var(--border-strong); background: var(--surf
 /* Chat: a tool row stands on its own between the texts, a little apart from them. */
 .chat-conversation .row-tool { padding-top: 4px; padding-bottom: 4px; }
 
-/* 5. Chat: the tool menu by + and the chips of the tools that are on. */
+/* 5. Chat: the tool menu by +. */
 
 .popover:has(> .chat-tools-menu) { max-height: none; }
 .chat-tools-menu { width: 300px; }
@@ -148,24 +148,11 @@ a.source-card:hover { border-color: var(--border-strong); background: var(--surf
 .chat-tools-foot button { color: var(--accent-text); font-size: inherit; }
 .chat-tools-foot button:hover { text-decoration: underline; }
 
-.tool-chips { display: inline-flex; align-items: center; gap: 4px; flex: none; }
-/* Very narrow: the chips give way, and the tool button's colour says that tools are on. */
-@container (max-width: 440px) { .tool-chips { display: none; } }
-.tool-chip {
-  display: inline-flex; align-items: center; gap: 2px; flex: none; height: 26px; padding: 0 3px 0 7px; border-radius: var(--radius-full);
-  background: var(--accent-soft); color: var(--accent-text); font-size: var(--text-xs); white-space: nowrap;
-}
-.tool-chip > .icon { flex: none; }
-.tool-chip-x {
-  width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 50%; color: inherit; opacity: 0.75;
-  transition: opacity var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
-}
-.tool-chip-x:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.tool-chip[data-enter] { animation: ad-pop var(--dur-2) var(--ease-out); }
 .foot-icon.tools-button[data-on] { color: var(--accent-text); }
 
-/* The chips are an icon and ×; the name is in the tip and for screen readers, so the row under
-   the field keeps room for the model and the effort at every width. */
+/* Innstillinger → Chat: scoped personality choices. */
+.chat-personality-options > .setting:first-child { border-top: 1px solid var(--border); }
+.chat-personality-options[aria-disabled="true"] > .setting { cursor: default; }
 
 /* Innstillinger → Chat: the search page. */
 .search-url-row .input { width: 100%; font-family: var(--font-mono); font-size: var(--text-xs); }

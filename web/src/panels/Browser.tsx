@@ -10,16 +10,17 @@
 // and shows Ny fane / Ny fane i fullvisning on hover, the downloads button, full view, and a new
 // tab page whose tools and suggestions fit the panel's width, with ⋯ only for what does not fit.
 // The tabs live on the server (one page each), so two windows, a reload and the agent all see the
-// same tabs; the agent works in the tab shown last.
+// same tabs; each model thread works in its own tab, independently of panel selection.
 import { batch, createEffect, createMemo, createSignal, For, on as watch, onCleanup, onMount, Show, untrack, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { onNextFrame } from "../lib/frame";
 import { observeResize } from "../lib/resize";
 import { on, onOpen, send } from "../lib/socket";
 import type { BrowserInput, BrowserState, BrowserTabInfo, ClientMessage } from "../../../shared/protocol";
-import { app, LOCAL_SCOPE, mode, toast } from "../state/app";
+import { app, LOCAL_SCOPE, mode, settingsOpen, toast } from "../state/app";
 import { focusedThread, actions } from "../state/actions";
-import { browserTabRequest, panelFull, setPanelFull, takeBrowserTabRequest } from "../state/panel";
+import { browserTabRequest, closePanelTool, onPanelHome, panelFull, setPanelFull, showPanel, takeBrowserTabRequest } from "../state/panel";
+import { publishPanelSessions, releasePanelSessions } from "../state/panel-sessions";
 import { offerCookieImport } from "../ui/CookieImport";
 import { sideChat } from "../state/thread-actions";
 import { displayKeys, keysFor } from "../state/shortcuts";
@@ -34,6 +35,8 @@ import { DownloadsList } from "../ui/DownloadsList";
 import { activeDownloads, loadDownloads } from "../state/downloads";
 import { imported, loadImported, openChromeImport } from "../ui/ChromeImport";
 import { AnnotateButton } from "./Annotate"; // round 11b (SPEC 25.1)
+import { browserDestination } from "./browser-address";
+import "../styles/browser-polish.css";
 import { nativeBridge, placeNative } from "./browser-native"; // SPEC 29.3: the page as a view in the Electron window
 
 // The panel's own history, per project, kept in this browser.
@@ -112,7 +115,7 @@ const tabTitle = (tab: Pick<BrowserTabInfo, "title" | "url">) => (isBlank(tab.ur
 const HOVER_OPEN_MS = 220;
 const HOVER_CLOSE_MS = 220;
 
-function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean }) {
+function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean; active: boolean }) {
   let button!: HTMLButtonElement;
   let menu: HTMLDivElement | undefined;
   const [open, setOpen] = createSignal<"hover" | "keys" | null>(null);
@@ -127,11 +130,11 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
     clear();
     const inside = !!menu?.contains(document.activeElement);
     setOpen(null);
-    if (focusButton || inside) button.focus({ preventScroll: true });
+    if (props.active && (focusButton || inside)) button.focus({ preventScroll: true });
   };
   const hoverIn = () => {
     clearTimeout(closeTimer);
-    if (open() || suppressed || props.disabled) return;
+    if (open() || suppressed || props.disabled || !props.active) return;
     clearTimeout(openTimer);
     openTimer = setTimeout(() => setOpen("hover"), HOVER_OPEN_MS);
   };
@@ -143,6 +146,7 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
   };
   const items = () => [...(menu?.querySelectorAll<HTMLButtonElement>(".menu-item") ?? [])];
   const openFromKeys = (last = false) => {
+    if (!props.active) return;
     clear();
     setOpen("keys");
     requestAnimationFrame(() => (last ? items().at(-1) : items()[0])?.focus());
@@ -152,8 +156,9 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
     props.onNew(full);
   };
 
+  createEffect(() => { if (!props.active) close(); });
   createEffect(() => {
-    if (!open()) return;
+    if (!open() || !props.active) return;
     const onDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (menu?.contains(target) || button.contains(target)) return;
@@ -187,8 +192,8 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
       <button
         ref={button}
         type="button"
-        class="icon-button browser-newtab-button"
-        aria-label="Ny fane"
+        class="btn btn-small browser-newtab-button"
+        aria-label="Ny nettleserfane"
         aria-haspopup="menu"
         aria-expanded={!!open()}
         aria-keyshortcuts={keysFor("browser.newTab").replace("Mod", "Control")}
@@ -214,7 +219,7 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
           }
         }}
       >
-        <IconPlus size={15} />
+        <span>Ny nettleserfane</span>
       </button>
       <Show when={open()}>
         <Portal>
@@ -222,7 +227,7 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
             ref={place}
             class="popover context-menu newtab-menu"
             role="menu"
-            aria-label="Ny fane"
+            aria-label="Ny nettleserfane"
             style="visibility:hidden"
             onPointerEnter={() => clearTimeout(closeTimer)}
             onPointerLeave={hoverOut}
@@ -245,10 +250,10 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
             }}
           >
             <button type="button" role="menuitem" class="menu-item" onClick={() => pick(false)}>
-              <IconPlus size={15} /><span class="menu-name">Ny fane</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTab"))}</kbd>
+              <IconPlus size={15} /><span class="menu-name">Ny nettleserfane</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTab"))}</kbd>
             </button>
             <button type="button" role="menuitem" class="menu-item" onClick={() => pick(true)}>
-              <IconFullView size={15} /><span class="menu-name">Ny fane i fullvisning</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTabFull"))}</kbd>
+              <IconFullView size={15} /><span class="menu-name">Ny nettleserfane i fullvisning</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTabFull"))}</kbd>
             </button>
           </div>
         </Portal>
@@ -291,10 +296,11 @@ function SuggestionIcon(props: { item: Suggestion; size: number }): JSX.Element 
 }
 
 // head: round 12 (SPEC 26.3), a stacked panel's slim top line, where the tabs and + go instead.
-export default function BrowserPanel(props: { projectId: string; head?: () => HTMLElement | undefined }) {
+export default function BrowserPanel(props: { projectId: string; head?: () => HTMLElement | undefined; sharedTabs?: boolean; visible?: boolean }) {
   let canvas!: HTMLCanvasElement;
   let stage!: HTMLDivElement;
   let addressInput!: HTMLInputElement;
+  const surfaceActive = () => props.visible !== false && !settingsOpen() && (mode() !== "code" || !onPanelHome());
   const [state, setState] = createSignal<BrowserState | null>(null);
   const [address, setAddress] = createSignal("");
   const [editing, setEditing] = createSignal(false);
@@ -302,6 +308,15 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   const [hasFrame, setHasFrame] = createSignal(false);
   const [history, setHistory] = createSignal<Visit[]>(loadHistory(props.projectId));
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
+  const [historyMenu, setHistoryMenu] = createSignal<MenuAnchor | null>(null);
+  const [navigationErrors, setNavigationErrors] = createSignal<Record<string, string>>({});
+  const retryByTab = new Map<string, ClientMessage>();
+  type NavigationRequest = { id: string; sequence: number; message: ClientMessage };
+  const latestNavigation = new Map<string, NavigationRequest>();
+  const latestAttach = new Map<string, NavigationRequest>();
+  const requestPrefix = `browser-${newTabId()}`;
+  let requestSequence = 0;
+  const navigationError = () => navigationErrors()[active() ?? ""];
   const [finding, setFinding] = createSignal(false);
   const [findText, setFindText] = createSignal("");
   const [findMiss, setFindMiss] = createSignal(false);
@@ -330,14 +345,30 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   // still: a picture of it while a menu or dialog lies over the panel.
   const native = () => !!nativeBridge && state()?.native === true;
   const [still, setStill] = createSignal<string | null>(null);
-  const hasPage = () => (native() ? !closed() && !!state() : hasFrame());
+  const hasPage = () => !navigationError() && (native() ? !closed() && !!state() : hasFrame());
 
   const tabOf = (message: { tabId?: string }) => message.tabId ?? "";
   const mine = (message: { projectId: string; tabId?: string }) => message.projectId === props.projectId && active() !== null && tabOf(message) === active();
+  const sendBrowser = (message: ClientMessage, attachOnly = false) => {
+    if (message.type === "browser.open" || message.type === "browser.navigate" || message.type === "browser.history") {
+      const key = message.tabId ?? active() ?? "";
+      const sequence = ++requestSequence;
+      const request = { id: `${requestPrefix}-${sequence}`, sequence, message };
+      if (message.type === "browser.open") latestAttach.set(key, request);
+      else latestNavigation.set(key, request);
+      if (!attachOnly) {
+        retryByTab.set(key, message);
+        setNavigationErrors((previous) => { const next = { ...previous }; delete next[key]; return next; });
+      }
+      send({ ...message, requestId: request.id });
+      return;
+    }
+    send(message);
+  };
   // Sends a browser message for the tab on screen.
   const sendTab = (message: ClientMessage) => {
     const tab = active();
-    send(tab === null ? message : ({ ...message, tabId: tab } as ClientMessage));
+    sendBrowser(tab === null ? message : ({ ...message, tabId: tab } as ClientMessage));
   };
 
   // The tabs to show: the server's, and the one on screen while the server is still opening it.
@@ -348,10 +379,22 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     return [...list, { id: tab, url: "about:blank", title: "", loading: false }];
   });
 
+  const tabLabel = (tab: BrowserTabInfo) => tab.threadId
+    ? `${app.threads[tab.threadId]?.title || "Tråd"} · ${tabTitle(tab)}`
+    : tabTitle(tab);
+  const focusedTab = createMemo(() => {
+    const thread = focusedThread();
+    return thread?.mode === "code" && (thread.projectId ?? LOCAL_SCOPE) === props.projectId ? serverTabs().find((tab) => tab.threadId === thread.id) : undefined;
+  });
+
   const open = () => {
+    if (props.visible === false) return;
     if (!size.width || !size.height) return;
     const tab = active();
-    send({ type: "browser.open", projectId: props.projectId, ...viewport(), ...(tab === null ? {} : { tabId: tab }), ...(nativeBridge ? { native: true } : {}) });
+    const message: ClientMessage = { type: "browser.open", projectId: props.projectId, ...viewport(), ...(tab === null ? {} : { tabId: tab }), ...(nativeBridge ? { native: true } : {}) };
+    // Selecting a tab asks for its state/frames again; preserve a failed navigation and retry
+    // target until the user retries it or enters another address.
+    sendBrowser(message, true);
   };
 
   const draw = async () => {
@@ -412,9 +455,10 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
 
   const navigate = (event: Event) => {
     event.preventDefault();
-    const url = address().trim();
+    const url = browserDestination(address(), app.settings.webSearchUrl);
     if (!url) return;
     setEditing(false);
+    setHistoryMenu(null);
     sendTab({ type: "browser.navigate", projectId: props.projectId, url });
   };
 
@@ -458,7 +502,8 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     if (id === active()) {
       const next = list[at + 1] ?? list[at - 1];
       if (next) showTab(next.id);
-      else showTab(newTabId()); // The last tab: a fresh one takes its place.
+      else if (props.sharedTabs) closePanelTool("browser");
+      else showTab(newTabId()); // Grouped view always keeps a blank tab.
     }
     setServerTabs(serverTabs().filter((t) => t.id !== id));
     send({ type: "browser.close-tab", projectId: props.projectId, tabId: id });
@@ -475,10 +520,15 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       on("browser.tabs", (message) => {
         if (message.projectId !== props.projectId) return;
         for (const tab of message.tabs) if (tab.favicon) iconByOrigin.set(originOf(tab.url), tab.favicon);
+        // A confirmed tab can disappear when another window closes it. A new local tab
+        // is still pending until it appears in the server list, so do not replace that one.
+        const removed = serverTabs().some((tab) => tab.id === active()) && !message.tabs.some((tab) => tab.id === active());
         setServerTabs(message.tabs);
         if (active() === null) {
           setActive(message.active);
           lastTab.set(props.projectId, message.active);
+        } else if (removed) {
+          showTab(message.tabs.find((tab) => tab.id === message.active)?.id ?? message.tabs[0]?.id ?? newTabId());
         }
       }),
       on("browser.state", (message) => {
@@ -490,8 +540,20 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         if (!editing()) setAddress(message.state.url === "about:blank" ? "" : message.state.url);
         remember(message.state);
       }),
+      on("browser.error", (message) => {
+        if (message.projectId !== props.projectId) return;
+        if (message.command && !["browser.open", "browser.navigate", "browser.history"].includes(message.command)) return toast(message.message);
+        const key = message.tabId ?? active() ?? "";
+        const request = message.command === "browser.open" ? latestAttach.get(key) : latestNavigation.get(key);
+        // An earlier navigation may fail after the user has already opened another address.
+        // Reattaching a tab tracks its own request without replacing the navigation's retry.
+        if (message.requestId && request?.id !== message.requestId) return;
+        if (message.command === "browser.open" && request && (latestNavigation.get(key)?.sequence ?? 0) > request.sequence) return;
+        if (request) retryByTab.set(key, request.message);
+        setNavigationErrors((previous) => ({ ...previous, [key]: message.message }));
+      }),
       on("browser.found", (message) => {
-        if (!mine(message) || message.text !== findText()) return;
+        if (!mine(message) || message.text !== findText().trim()) return;
         setFindMiss(!message.found);
       }),
       on("browser.cleared", (message) => {
@@ -516,9 +578,9 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     ];
     let timer: ReturnType<typeof setTimeout> | undefined;
     const placement = nativeBridge
-      ? placeNative({ stage, projectId: props.projectId, tab: active, wanted: () => native() && !showNewtab() && !closed() && !!state(), zoom, still: setStill })
+      ? placeNative({ stage, projectId: props.projectId, tab: active, wanted: () => surfaceActive() && native() && !showNewtab() && !closed() && !navigationError() && !!state(), zoom, still: setStill })
       : undefined;
-    if (placement) createEffect(watch([active, native, showNewtab, closed, zoom, () => state()?.url], () => placement.measure(), { defer: true }));
+    if (placement) createEffect(watch([surfaceActive, active, native, showNewtab, closed, navigationError, zoom, () => state()?.url], () => placement.measure(), { defer: true }));
     const stopResize = observeResize(stage, (entry) => {
       const width = Math.round(entry.contentRect.width);
       const height = Math.round(entry.contentRect.height);
@@ -550,6 +612,12 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     });
   });
 
+  // Keep the tab controls while another tool is selected, without streaming hidden pages.
+  createEffect(watch(() => props.visible, (visible) => {
+    if (visible === false) send({ type: "browser.close", projectId: props.projectId });
+    else open();
+  }, { defer: true }));
+
   // Playtest opens its page on the server. Showing the panel again is all that is needed here.
   createEffect(() => {
     const playtest = app.playtest[props.projectId];
@@ -561,6 +629,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   const go = (url: string) => {
     setEditing(false);
     setAddress(url);
+    setHistoryMenu(null);
     sendTab({ type: "browser.navigate", projectId: props.projectId, url });
   };
 
@@ -643,8 +712,16 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   };
 
   const bookmarks = () => imported()?.bookmarks ?? [];
+  const historyEntries = (): MenuEntry[] => history().length || imported()?.history.length
+        ? [
+            ...history().slice(0, 12).map((v) => ({ label: v.title || hostOf(v.url), hint: hostOf(v.url), title: v.url, run: () => go(v.url) })),
+            ...(imported()?.history.length
+              ? [{ heading: <span class="menu-heading">Fra Chrome</span> } as MenuEntry, ...imported()!.history.slice(0, 12).map((v) => ({ label: v.title, hint: hostOf(v.url), title: v.url, run: () => go(v.url) }))]
+              : []),
+          ]
+        : [{ label: "Ingen historikk ennå", disabled: true }];
   const menuEntries = (): MenuEntry[] => [
-    { label: "Ny fane", icon: IconPlus, keys: "browser.newTab", run: () => newTab(false), disabled: tabs().length >= MAX_TABS },
+    { label: "Ny nettleserfane", icon: IconPlus, keys: "browser.newTab", run: () => newTab(false), disabled: tabs().length >= MAX_TABS },
     { label: panelFull() ? "Avslutt fullvisning" : "Fullvisning", icon: panelFull() ? IconExitFullView : IconFullView, run: () => setPanelFull(!panelFull()) },
     "sep",
     { label: "Finn på siden", icon: IconSearch, run: openFind, disabled: !hasPage() || blank() },
@@ -661,18 +738,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     { label: "Ta et skjermbilde", icon: IconImage, run: screenshot, disabled: !hasPage() || blank() },
     { label: "Spilltesting headless", icon: IconGamepad, demo: true, run: () => setGameCard(!gameCard()), title: "Hva spilltesting uten vindu skal bli" },
     "sep",
-    {
-      label: "Historikk",
-      icon: IconHistory,
-      children: history().length || imported()?.history.length
-        ? [
-            ...history().slice(0, 12).map((v) => ({ label: v.title || hostOf(v.url), hint: hostOf(v.url), title: v.url, run: () => go(v.url) })),
-            ...(imported()?.history.length
-              ? [{ heading: <span class="menu-heading">Fra Chrome</span> } as MenuEntry, ...imported()!.history.slice(0, 12).map((v) => ({ label: v.title, hint: hostOf(v.url), title: v.url, run: () => go(v.url) }))]
-              : []),
-          ]
-        : [{ label: "Ingen historikk ennå", disabled: true }],
-    },
+    { label: "Historikk", icon: IconHistory, children: historyEntries() },
     {
       label: "Bokmerker",
       icon: IconBookmark,
@@ -732,10 +798,10 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       label: "Sidechat",
       icon: IconPlusCircle,
       keys: "thread.side",
-      title: "En ny tråd i prosjektet, ved siden av den du har åpen",
+      title: "En ny tråd ved siden av den du har åpen",
       run: () => {
         const thread = focusedThread();
-        if (thread?.projectId === props.projectId) void sideChat(thread);
+        if (thread?.mode === "code" && (thread.projectId ?? LOCAL_SCOPE) === props.projectId) void sideChat(thread);
         else actions.newThread();
       },
     },
@@ -784,7 +850,15 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       // Hidden for now.
     }
   };
-  const showNewtab = () => blank() && !closed() && !!state();
+  createEffect(() => {
+    if (surfaceActive()) return;
+    setMenu(null);
+    setHistoryMenu(null);
+    setMoreTools(null);
+    setMoreSites(null);
+    setShowDownloads(false);
+  });
+  const showNewtab = () => blank() && !closed() && !navigationError() && !!state();
 
   createEffect(watch(showNewtab, (shown) => {
     if (!shown) return;
@@ -808,6 +882,15 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     </button>
   );
 
+  const sessionOwner = {};
+  createEffect(() => {
+    publishPanelSessions(props.projectId, "browser", { owner: sessionOwner, create: () => newTab(), tabs: tabs().map((tab) => ({
+      id: tab.id, title: tabLabel(tab), active: tab.id === active(),
+      select: () => { showPanel("browser"); showTab(tab.id); }, close: () => closeTab(tab.id),
+    })) });
+  });
+  onCleanup(() => releasePanelSessions(props.projectId, "browser", sessionOwner));
+
   const tabList = () => (
         <div
           class="browser-tablist"
@@ -825,7 +908,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         >
           <For each={tabs()}>
             {(tab) => (
-              <div class="browser-tab" classList={{ active: tab.id === active() }} data-tab={tab.id} data-fresh={tab.id === fresh() ? "" : undefined} title={isBlank(tab.url) ? "Ny fane" : `${tabTitle(tab)}\n${tab.url}`}>
+              <div class="browser-tab" classList={{ active: tab.id === active() }} data-tab={tab.id} data-fresh={tab.id === fresh() ? "" : undefined} title={`${tabLabel(tab)}${isBlank(tab.url) ? "" : `\n${tab.url}`}`}>
                 <button
                   type="button"
                   role="tab"
@@ -847,22 +930,26 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
                   }}
                 >
                   <TabIcon tab={tab} />
-                  <span class="browser-tab-title">{tabTitle(tab)}</span>
+                  <span class="browser-tab-title">{tabLabel(tab)}</span>
                 </button>
-                <button type="button" class="browser-tab-close" tabindex="-1" aria-label={`Lukk fanen ${tabTitle(tab)}`} onClick={() => closeTab(tab.id)}><IconClose size={12} /></button>
+                <button type="button" class="browser-tab-close" tabindex="-1" aria-label={`Lukk fanen ${tabLabel(tab)}`} onClick={() => closeTab(tab.id)}><IconClose size={12} /></button>
               </div>
             )}
           </For>
-          <NewTabButton onNew={newTab} disabled={tabs().length >= MAX_TABS} />
+          <Show when={focusedTab() && focusedTab()!.id !== active()}>
+            <button type="button" class="icon-button" aria-label="Vis fanen til denne tråden" title="Vis fanen til denne tråden" onClick={() => { const tab = focusedTab(); if (tab) showTab(tab.id); }}><IconGlobe size={15} /></button>
+          </Show>
+          <NewTabButton active={surfaceActive()} onNew={newTab} disabled={tabs().length >= MAX_TABS} />
         </div>
   );
 
   return (
     <div class="browser-panel" data-testid="browser-panel">
-      <Show when={props.head?.()} fallback={<div class="browser-tabs">{tabList()}<FullButton /></div>}>
+      <Show when={!props.sharedTabs}><Show when={props.head?.()} fallback={<div class="browser-tabs">{tabList()}<FullButton /></div>}>
         {(head) => <Portal mount={head()}><div class="browser-tabs in-head">{tabList()}</div></Portal>}
-      </Show>
+      </Show></Show>
       <form class="browser-bar" onSubmit={navigate}>
+        <Show when={props.sharedTabs}><FullButton /></Show>
         <span class="browser-nav">
           <button type="button" class="icon-button" aria-label="Tilbake" title="Tilbake" disabled={!state()?.canGoBack} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "back" })}><IconBack size={15} /></button>
           <button type="button" class="icon-button" aria-label="Frem" title="Frem" disabled={!state()?.canGoForward} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "forward" })}><IconForward size={15} /></button>
@@ -872,7 +959,9 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           ref={addressInput}
           class="input address"
           aria-label="Adresse"
-          placeholder="Skriv en adresse, for eksempel localhost:3000"
+          placeholder="Søk eller skriv nettadresse"
+          autocomplete="off"
+          enterkeyhint="go"
           spellcheck={false}
           value={address()}
           onFocus={(e) => {
@@ -888,7 +977,9 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
             }
           }}
         />
-        <AnnotateButton projectId={props.projectId} tab={active} ready={() => hasPage() && !blank()} url={() => state()?.url ?? ""} />
+        <button type="button" class="icon-button browser-history-button" aria-label="Nettleserhistorikk" title="Historikk" aria-haspopup="menu" aria-expanded={!!historyMenu()} onClick={(e) => { setMenu(null); setHistoryMenu(historyMenu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() }); }}><IconHistory size={15} /></button>
+        <Show when={historyMenu()}>{(anchor) => <ContextMenu anchor={anchor()} label="Nettleserhistorikk" entries={historyEntries()} onClose={() => setHistoryMenu(null)} class="browser-history-menu" />}</Show>
+        <AnnotateButton active={surfaceActive()} projectId={props.projectId} tab={active} ready={() => hasPage() && !blank()} url={() => state()?.url ?? ""} />
         <button
           type="button"
           class="icon-button browser-downloads-button"
@@ -956,7 +1047,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           tabindex="0"
           aria-label="Nettsiden"
           data-testid="browser-canvas"
-          classList={{ hidden: !hasFrame() || native() }}
+          classList={{ hidden: !hasFrame() || native() || !!navigationError() }}
           onMouseDown={(e) => mouse("down", e)}
           onMouseUp={(e) => mouse("up", e)}
           onMouseMove={(e) => {
@@ -974,7 +1065,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         <Show when={showNewtab()}>
           <div class="browser-newtab" data-testid="browser-newtab" ref={newtab}>
             {/* Chat has the Browser panel only, so the tools are Kode's. */}
-            <Show when={mode() === "code"}>
+            <Show when={mode() === "code" && app.settings.panelNewTab !== "browser"}>
             <h3 class="newtab-title">Verktøy</h3>
             <div class="newtab-tools" classList={{ compact: toolsShown().compact }}>
               <For each={toolsShown().shown}>
@@ -1057,7 +1148,13 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         <Show when={native() && !showNewtab() ? still() : null}>
           {(src) => <img class="browser-still" src={src()} alt="" aria-hidden="true" draggable={false} style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;user-select:none" />}
         </Show>
-        <Show when={!hasPage() && !showNewtab()}>
+        <Show when={navigationError()}>
+          <div class="browser-navigation-error" role="alert">
+            <IconGlobe size={24} /><h3>Kunne ikke åpne siden</h3><p>{navigationError()}</p>
+            <button type="button" class="btn btn-small" onClick={() => { const request = retryByTab.get(active() ?? ""); if (request) sendBrowser(request); else open(); }}>Prøv igjen</button>
+          </div>
+        </Show>
+        <Show when={!hasPage() && !showNewtab() && !navigationError()}>
           <div class="browser-empty">
             {closed() ? (
               <>

@@ -31,6 +31,7 @@ import { descendants, known, stillRunning, stopAll, type KnownProcess } from "./
 import { StateFile, type CloseBehavior } from "./state.ts";
 import { StatusArea, type Activity } from "./status-area.ts";
 import { BrowserPanel } from "./browser-view.ts";
+import { folderPicker } from "./folder-picker.ts";
 import { sandboxInfo } from "./sandbox.ts";
 import { installedFrom, installIcon } from "./app-icon.ts";
 import { isAppIcon, type AppIconId } from "../shared/protocol.ts";
@@ -511,7 +512,10 @@ function showWindow(): void {
     return;
   }
   if (win.isMinimized()) win.restore();
-  if (!win.isVisible()) win.show();
+  if (!win.isVisible()) {
+    win.webContents.send("desktop:command", "reopen");
+    win.show();
+  }
   win.focus();
 }
 
@@ -681,6 +685,7 @@ function listen(): void {
     return { value: state.get().closeBehavior, statusArea: await statusArea.refresh() };
   });
   ipcMain.handle("desktop:sandbox", (event) => (trusted(event) ? sandbox : null));
+  ipcMain.handle("desktop:pick-folder", folderPicker({ trusted, window: () => win ?? undefined, show: (window, options) => dialog.showOpenDialog(window, options) }));
   // Round 14 (SPEC 30.2): the app icon. Without a value: what it is now, and whether the app
   // library's icon can follow.
   ipcMain.handle("desktop:app-icon", (event, value?: unknown) => {

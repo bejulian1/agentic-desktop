@@ -1,5 +1,6 @@
 // The agent loop and everything around a run: queue, approvals, stop, recovery. All run state is
 // keyed by thread, so threads run side by side.
+import { REPO_ROOT } from "../config.ts";
 import { cleanName } from "../names.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -20,8 +21,8 @@ import type { Store } from "../db.ts";
 import { HttpError } from "../errors.ts";
 import { PathError } from "../paths.ts";
 import { ProviderError, type Block, type ImageData, type Message, type Provider, type StopReason, type ToolDef } from "../providers/types.ts";
-import { MAX_ATTACHMENTS } from "../../../shared/protocol.ts";
-import { discoverSkills, renderSkill, SkillStore, type Skill } from "../skills.ts";
+import { MAX_ATTACHMENTS, DEFAULT_MAX_STEPS_PER_TURN, agentSettingsOf, modelContextOf } from "../../../shared/protocol.ts";
+import { discoverSkills, renderSkill, SkillChanges, SkillStore, PROJECT_DIRS, type Skill } from "../skills.ts";
 import { captureMemories, Memories } from "../memory.ts";
 import { HarnessStore, type UpgradeOp, type UpgradeProposal } from "./harness.ts";
 import { parseModelOps, proposeByRules, UPGRADE_SYSTEM, upgradeRequest, type UpgradeItem } from "./memory-upgrade.ts";
@@ -49,13 +50,13 @@ import {
 } from "./context.ts";
 import type { EventLog } from "./events.ts";
 import { FileState } from "./filestate.ts";
-import { decide } from "./permissions.ts";
+import { decide, effectiveMode } from "./permissions.ts";
 import { CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
 import { browserWeb, demoWeb, sourcesText, webFetchTool, webSearchTool, type WebAccess, type WebReader } from "./web.ts";
 import { chatToolsOf, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
 import type { Turns } from "./turns.ts";
 
-export const MAX_STEPS = 50;
+export const MAX_STEPS = DEFAULT_MAX_STEPS_PER_TURN;
 const AUTO_UPGRADE_EVERY_MS = 24 * 60 * 60 * 1000; // at most once a day
 const AUTO_UPGRADE_MIN = 8; // memories in a file before a proposal is worth making
 const MAX_RETRIES = 3;
@@ -103,7 +104,8 @@ interface Job {
   id: string;
   kind: "message" | "shell" | "compact";
   text: string; // what the conversation shows
-  modelText: string; // what the model gets
+  modelText: string; // visible request and attachment contents, never a skill body
+  skillInstruction?: string; // snapshot used only by this run, including queued messages
   shell?: string;
   from?: ThreadRef;
   attachments?: Attachment[];
@@ -118,6 +120,7 @@ interface ActiveRun {
   projectId: string | null;
   turnId: string;
   job: Job;
+  skillInstructions: string[];
   abort: AbortController;
   shuttingDown: boolean;
   lastCall: { key: string; count: number };
@@ -143,6 +146,8 @@ export interface RunnerDeps {
   dataDir: string;
   browser: BrowserTools;
   userSkillsDir: string;
+  appSkillsDir?: string;
+  skillsChanged?: () => void;
   config: ConfigDirs;
   tasks: TaskBoard;
   commandTimeoutMs: number;
@@ -202,6 +207,8 @@ export class Runner {
   private store: Store;
   private log: EventLog;
   private active = new Map<string, ActiveRun>();
+  // Agent messages queued behind user work reserve one of the project's collaboration slots.
+  private agentQueueSlots = new Set<string>();
   private approvals = new Map<string, PendingApproval>();
   private idleWaiters = new Map<string, Set<() => void>>();
   private closing = false;
@@ -211,6 +218,7 @@ export class Runner {
   readonly chatMemories: Memories; // Chat's own (SPEC 22.4), in chat/MEMORY.md in the global folder
   readonly harness: HarnessStore;
   readonly skillStore: SkillStore;
+  private skillChanges: SkillChanges;
   // Memories are read once per thread, when its first run starts, like Hermes' frozen snapshot:
   // the system prompt stays the same for the rest of the thread, and so does the prompt cache.
   private memorySnapshots = new Map<string, string>();
@@ -226,21 +234,31 @@ export class Runner {
     this.harness = new HarnessStore(deps.dataDir);
     this.skillStore = new SkillStore({
       userDir: () => deps.userSkillsDir,
+      appDir: () => this.appSkillsDir,
       projects: () => this.store.projects(),
       project: (id) => this.store.project(id),
       disabled: () => this.store.settings().disabledSkills ?? [],
       setDisabled: (dirs) => void this.store.updateSettings({ disabledSkills: dirs }),
       dataDir: deps.dataDir,
     });
+    // Read metadata at startup; subsequent request discovery remains fresh even before polling.
+    this.skillsFor(undefined);
+    for (const project of this.store.projects()) this.skillsFor(project);
+    this.skillChanges = new SkillChanges(() => [this.appSkillsDir, deps.userSkillsDir,
+      ...this.store.projects().flatMap((project) => PROJECT_DIRS.map((dir) => path.join(project.path, dir)))],
+      () => { this.skillsFor(undefined); for (const project of this.store.projects()) this.skillsFor(project); deps.skillsChanged?.(); });
     this.collab = new Collab(this.store, this.log, {
       sendFromThread: (threadId, text, from, chainId) => void this.send(threadId, { text, from, chainId }),
       chainOf: (threadId) => this.active.get(threadId)?.job.chainId ?? randomUUID(),
-      runningAgentThreads: (projectId) => [...this.active.values()].filter((run) => run.projectId === projectId && run.job.from).length,
+      runningAgentThreads: (projectId) => [...this.active.values()].filter((run) => run.projectId === projectId && (run.job.from || this.agentQueueSlots.has(run.threadId))).length,
+      hasAgentSlot: (threadId) => Boolean(this.active.get(threadId)?.job.from || this.agentQueueSlots.has(threadId)),
       isBusy: (threadId) => this.active.has(threadId),
       waitIdle: (threadId, ms, signal) => this.waitIdle(threadId, ms, signal),
       threadChanged: deps.threadChanged,
     });
   }
+
+  private get appSkillsDir(): string { return this.deps.appSkillsDir ?? path.join(REPO_ROOT, "skills"); }
 
   get userSkillsDir(): string {
     return this.deps.userSkillsDir;
@@ -253,31 +271,112 @@ export class Runner {
   // Sending
 
   send(threadId: string, input: SendInput): { messageId: string; queued: boolean; steer: boolean } {
+    return this.prepareSend(threadId, input)();
+  }
+
+  // Resolve attachments/skills and model before a rewind removes history. The returned dispatch
+  // uses that validated snapshot, so a missing upload cannot erase the old conversation.
+  prepareSend(threadId: string, input: SendInput, modelId?: string): () => { messageId: string; queued: boolean; steer: boolean } {
     const thread = this.store.thread(threadId);
     if (!thread) throw new HttpError(404, "Fant ikke tråden");
     if (this.closing) throw new HttpError(503, "Serveren stopper");
     const job = this.buildJob(thread, input);
-    if (this.active.has(threadId)) {
-      // Messages from other threads always wait their turn; the user chooses for their own.
-      const steer = job.kind === "message" && !input.from && (input.steer ?? this.store.settings().busyMessages === "steer");
-      if (steer) job.steer = true;
-      this.store.enqueue(threadId, job.id, job);
-      this.log.append(threadId, { type: "user.queued", messageId: job.id, text: job.text, ...optional(job), ...(steer ? { steer: true } : {}) });
-      return { messageId: job.id, queued: true, steer };
-    }
-    this.start(thread, job);
-    return { messageId: job.id, queued: false, steer: false };
+    this.resolveModel(modelId ? { ...thread, modelId } : thread);
+    return () => {
+      const current = this.store.thread(threadId);
+      if (!current) throw new HttpError(404, "Fant ikke tråden");
+      if (this.closing) throw new HttpError(503, "Serveren stopper");
+      if (this.active.has(threadId)) {
+        // Messages from other threads always wait their turn; the user chooses for their own.
+        const steer = job.kind === "message" && !input.from && (input.steer ?? this.store.settings().busyMessages === "steer");
+        if (steer) job.steer = true;
+        this.store.enqueue(threadId, job.id, job);
+        if (job.from) this.agentQueueSlots.add(threadId);
+        this.logQueued(threadId, job);
+        if (!input.from) this.store.clearQueuedDraft(threadId);
+        return { messageId: job.id, queued: true, steer };
+      }
+      this.start(current, job);
+      if (!input.from) this.store.clearQueuedDraft(threadId);
+      return { messageId: job.id, queued: false, steer: false };
+    };
   }
 
   // The toggle on a queued message: into the running turn, or back to waiting for it to end.
   setSteer(threadId: string, messageId: string, steer: boolean): { messageId: string; steer: boolean } {
     if (!this.store.thread(threadId)) throw new HttpError(404, "Fant ikke tråden");
+    let updated: Job | undefined;
     const found = this.store.updateQueued<Job>(threadId, messageId, (job) => {
       if (job.kind !== "message" || job.from) throw new HttpError(400, "Bare dine egne meldinger kan sendes inn i turen");
-      return { ...job, steer };
+      updated = { ...job, steer };
+      return updated;
     });
-    if (!found) throw new HttpError(404, "Meldingen er ikke i køen lenger");
+    if (!found || !updated) throw new HttpError(404, "Meldingen er ikke i køen lenger");
+    this.logQueued(threadId, updated);
     return { messageId, steer };
+  }
+
+  queuedSnapshot(threadId: string) {
+    return {
+      seq: this.store.lastSeq(threadId),
+      items: this.store.queuedJobs<Job>(threadId).map((job) => ({ messageId: job.id, text: job.text, ...optional(job), steer: job.steer === true, editable: this.queueEditable(job), steerable: job.kind === "message" && !job.from })),
+    };
+  }
+
+  queuedSideDraft(threadId: string, messageId: string): { thread: Thread; text: string; attachments?: Attachment[] } {
+    const source = this.store.thread(threadId);
+    if (!source) throw new HttpError(404, "Fant ikke tråden");
+    const project = source.projectId ? this.store.project(source.projectId) : undefined;
+    if (project?.folderMissing) throw new HttpError(409, "Prosjektmappen mangler. Velg mappen på nytt først.");
+    let side: Thread | undefined;
+    const job = this.store.removeQueued<Job>(threadId, messageId, (item) => {
+      if (item.from) throw new HttpError(400, "Bare dine egne kømeldinger kan flyttes");
+      // Both creation and removal are in the store's transaction: no empty orphan thread
+      // and no duplicate draft when the runner already consumed the queued message.
+      side = this.store.createThread(source.projectId, source.mode, source.modelId, { title: `Sidechat: ${source.title}`.slice(0, 80), parentThreadId: source.id, origin: "user", permissionCap: source.permissionCap ?? undefined });
+      if (source.chatProjectId) this.store.setThreadChatProject(side.id, source.chatProjectId);
+      this.store.updateThread(side.id, { reasoning: source.reasoning, personality: source.personality, ...(source.chatTools ? { chatTools: source.chatTools } : {}) });
+      this.store.setQueuedDraft(side.id, { text: item.text, ...(item.attachments ? { attachments: item.attachments } : {}) });
+    });
+    if (!job || !side) throw new HttpError(404, "Meldingen er ikke i køen lenger");
+    const created = this.store.thread((side as Thread).id)!;
+    this.log.append(threadId, { type: "user.queue-removed", messageId });
+    this.deps.threadChanged(created.id);
+    return { thread: created, text: job.text, ...(job.attachments ? { attachments: job.attachments } : {}) };
+  }
+
+  private queueEditable(job: Job): boolean {
+    return job.kind === "message" && !job.from && !job.skillInstruction && job.modelText.startsWith(job.text) && !job.text.startsWith("/review-changes");
+  }
+
+  private logQueued(threadId: string, job: Job): void {
+    this.log.append(threadId, { type: "user.queued", messageId: job.id, text: job.text, ...optional(job), steer: job.steer === true, editable: this.queueEditable(job), steerable: job.kind === "message" && !job.from });
+  }
+
+  editQueued(threadId: string, messageId: string, text: string): { messageId: string; text: string } {
+    if (!this.store.thread(threadId)) throw new HttpError(404, "Fant ikke tråden");
+    if (!text.trim() || text.length > 200_000) throw new HttpError(400, "Meldingen må inneholde tekst og være under 200 000 tegn");
+    let updated: Job | undefined;
+    const found = this.store.updateQueued<Job>(threadId, messageId, (job) => {
+      if (!this.queueEditable(job)) throw new HttpError(400, "Denne meldingstypen kan ikke redigeres i køen. Flytt den til en sidesamtale for å endre den.");
+      // Keep attachment and skill snapshots and the job's kind. Editing text never parses new
+      // slash/shell commands and never moves the item to the end of the queue.
+      updated = { ...job, text, modelText: text + job.modelText.slice(job.text.length) };
+      return updated;
+    });
+    if (!found || !updated) throw new HttpError(404, "Meldingen er ikke i køen lenger");
+    this.logQueued(threadId, updated);
+    return { messageId, text };
+  }
+
+  removeQueued(threadId: string, messageId: string): { messageId: string; text: string; attachments?: Attachment[] } {
+    if (!this.store.thread(threadId)) throw new HttpError(404, "Fant ikke tråden");
+    const job = this.store.removeQueued<Job>(threadId, messageId, (item) => {
+      if (item.from) throw new HttpError(400, "Bare dine egne kømeldinger kan fjernes");
+    });
+    if (!job) throw new HttpError(404, "Meldingen er ikke i køen lenger");
+    this.log.append(threadId, { type: "user.queue-removed", messageId });
+    return { messageId, text: job.text, ...(job.attachments ? { attachments: job.attachments } : {}) };
   }
 
   // Steered messages join the running turn here, at a step: after the tool results, or when the
@@ -285,6 +384,7 @@ export class Runner {
   private takeSteered(active: ActiveRun): number {
     const jobs = this.store.takeQueued<Job>(active.threadId, (job) => job.steer === true);
     for (const job of jobs) {
+      if (job.skillInstruction) active.skillInstructions.push(job.skillInstruction);
       this.log.append(active.threadId, { type: "user.message", messageId: job.id, text: job.text, ...optional(job) });
       if (job.modelText) this.store.appendMessage(active.threadId, { role: "user", content: userContent(job.modelText, job) });
     }
@@ -301,7 +401,8 @@ export class Runner {
   private buildJob(thread: Thread, input: SendInput): Job {
     const project = thread.projectId ? this.store.project(thread.projectId) : undefined;
     const base = { id: randomUUID(), from: input.from, chainId: input.chainId ?? randomUUID() };
-    const text = String(input.text ?? "").trim();
+    const rawText = String(input.text ?? "");
+    const text = rawText.trim();
 
     if (input.shell !== undefined) {
       const command = String(input.shell).trim();
@@ -313,16 +414,17 @@ export class Runner {
     if (input.review) {
       const turnIds = this.store.reviewTurns(thread.id);
       if (!turnIds.length) throw new HttpError(400, "Det er ingen filendringer å gjennomgå i tråden");
-      const latest = new Map<string, { before: string | null; after: string | null; change: string }>();
+      const latest = new Map<string, { before: string | null; after: string | null; change: string; binary: boolean; overlapping: boolean }>();
       for (const turnId of turnIds) {
         for (const file of this.deps.turns.diff(turnId).files) {
           const seen = latest.get(file.path);
-          latest.set(file.path, { before: seen ? seen.before : file.before, after: file.after, change: file.change });
+          latest.set(file.path, { before: seen ? seen.before : file.before, after: file.after, change: file.change,
+            binary: !!(seen?.binary || file.binary), overlapping: !!(seen?.overlapping || file.overlapping) });
         }
       }
       let body = "";
       for (const [file, d] of latest) {
-        const part = `--- ${file} (${d.change})\n${reviewDiff(d.before, d.after)}\n`;
+        const part = `--- ${file} (${d.change})\n${d.overlapping ? "[Overlaps other work; do not attribute every changed line to this thread.]\n" : ""}${d.binary ? "[Binary file: text content is unavailable.]" : reviewDiff(d.before, d.after)}\n`;
         if (body.length + part.length > MAX_REVIEW_CHARS) {
           body += `--- [${latest.size} filer totalt, resten er utelatt]\n`;
           break;
@@ -331,25 +433,27 @@ export class Runner {
       }
       const modelText = [
         "[Kodegjennomgang]",
-        "Review the changes this thread made, file by file. Point out bugs, risks and unclear code, most important first, and say what is good. Do not change any files.",
+        "Review the recorded file-tool changes, file by file. Shell writes are not covered. Respect overlap/binary notices and do not invent unseen content or exclusive authorship. Point out bugs, risks and unclear code, most important first, and say what is good. Do not change any files.",
         text ? `The user adds: ${text}` : "",
         "",
         body,
       ].filter((line, i) => i !== 2 || line).join("\n");
-      return { ...base, kind: "message", text: text ? `/review ${text}` : "/review", modelText };
+      return { ...base, kind: "message", text: text ? `/review-changes ${text}` : "/review-changes", modelText };
     }
 
     const parts: string[] = [];
     let shown = text;
+    let skillInstruction: string | undefined;
     if (input.skill) {
       const skill = this.skillsFor(project).find((s) => s.name === input.skill);
       if (!skill) throw new HttpError(404, `Fant ikke skillen ${input.skill}`);
-      shown = `/${skill.name}${text ? ` ${text}` : ""}`;
-      parts.push(renderSkill(skill));
+      shown = `/${skill.name}${rawText ? ` ${rawText}` : ""}`;
+      skillInstruction = renderSkill(skill, rawText);
     } else if (!text) {
       throw new HttpError(400, "Meldingen er tom");
     }
-    if (text) parts.unshift(input.from ? `[Melding fra tråden ${JSON.stringify(input.from.title)}]\n\n${text}` : text);
+    if (input.skill) parts.push(shown);
+    else if (text) parts.unshift(input.from ? `[Melding fra tråden ${JSON.stringify(input.from.title)}]\n\n${text}` : text);
 
     let attachments: Attachment[] | undefined;
     let images: Job["images"];
@@ -366,7 +470,7 @@ export class Runner {
         throw err;
       }
     }
-    return { ...base, kind: "message", text: shown, modelText: parts.join("\n\n"), attachments, images };
+    return { ...base, kind: "message", text: shown, modelText: parts.join("\n\n"), skillInstruction, attachments, images };
   }
 
   layers(project: Project | undefined): InstructionLayers {
@@ -378,7 +482,7 @@ export class Runner {
   }
 
   skillsFor(project: Project | undefined): Skill[] {
-    return discoverSkills(project?.path ?? null, this.deps.userSkillsDir, this.store.settings().disabledSkills);
+    return discoverSkills(project?.path ?? null, this.deps.userSkillsDir, this.store.settings().disabledSkills, this.appSkillsDir);
   }
 
   private memoriesOn(): boolean {
@@ -406,7 +510,7 @@ export class Runner {
   // Chat gets its own memories and never the Kode ones (SPEC 22.4); Kode gets this project's and
   // the global ones.
   private isChat(thread: Thread, project: Project | undefined): boolean {
-    return thread.mode === "chat" || !project;
+    return thread.mode === "chat";
   }
 
   // Round 13 (SPEC 27.2): the tools of a chat, as switched in its tool menu. Kode without a project
@@ -448,6 +552,8 @@ export class Runner {
 
   private memoryText(thread: Thread, project: Project | undefined, keep: boolean): string {
     const chat = this.isChat(thread, project);
+    if (chat && thread.temporary) return "";
+    if (!chat && !project) return "";
     if (chat ? !this.harness.state().chat.memories || this.chatTools(thread)?.memory === false : !this.memoriesOn()) return "";
     let text = this.memorySnapshots.get(thread.id);
     if (text === undefined) {
@@ -462,13 +568,15 @@ export class Runner {
     const tools = this.toolDefs(thread, project, skills).map((t) => t.name);
     const memories = this.memoryText(thread, project, forRun);
     const state = this.harness.state();
+    const model = this.resolveModelSafe(thread);
+    const provider = model ? this.store.provider(model.providerId) : undefined;
     return systemLayers(
       thread,
       project,
       skills,
       this.deps.dataDir,
       this.layers(project),
-      { memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools },
+      { modelContext: modelContextOf(this.store.settings(), thread.mode), runtime: { mode: thread.mode, planMode: thread.planMode, permissionMode: project ? effectiveMode(project, thread) : undefined, providerWebSearch: this.chatPromptTools(thread, project)?.web === "provider", model, provider }, memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools },
       { personal: state.chat, memories, tools: this.chatPromptTools(thread, project) },
     );
   }
@@ -500,9 +608,8 @@ export class Runner {
   }
 
   toolNames(mode: "code" | "chat", project: Project | undefined): string[] {
-    if (mode !== "code" || !project) return [];
-    const thread = { mode, projectId: project.id, planMode: false } as Thread;
-    return this.toolDefs(thread, project, this.skillsFor(project)).map((t) => t.name);
+    const thread = { mode, projectId: mode === "code" ? project?.id ?? null : null, planMode: false, modelId: null } as Thread;
+    return this.toolDefs(thread, project, mode === "code" ? this.skillsFor(project) : []).map((t) => t.name);
   }
 
   private start(thread: Thread, job: Job): void {
@@ -529,6 +636,7 @@ export class Runner {
       projectId: thread.projectId,
       turnId: randomUUID(),
       job,
+      skillInstructions: job.skillInstruction ? [job.skillInstruction] : [],
       abort: new AbortController(),
       shuttingDown: false,
       lastCall: { key: "", count: 0 },
@@ -580,14 +688,23 @@ export class Runner {
       this.store.touchThread(threadId);
     }
     this.active.delete(threadId);
-    if (!thread) return this.wake(threadId);
+    if (!thread) {
+      this.agentQueueSlots.delete(threadId);
+      return this.wake(threadId);
+    }
     if (status === "done" && active.job.kind === "message") this.afterTurn(thread, active.job.text);
     this.deps.threadChanged(threadId);
-    if (this.closing) return;
+    if (this.closing) {
+      this.agentQueueSlots.delete(threadId);
+      return;
+    }
     if (status === "stopped") this.drainQueue(thread);
     const next = this.store.dequeue<Job>(threadId);
     if (next) this.start(this.store.thread(threadId)!, next);
-    else this.wake(threadId);
+    else {
+      this.agentQueueSlots.delete(threadId);
+      this.wake(threadId);
+    }
   }
 
   // After a finished turn (SPEC 22.3 and 22.4): Chat remembers what the user plainly asked it to,
@@ -600,7 +717,7 @@ export class Runner {
       if (this.isChat(thread, project) && state.chat.autoMemory && !thread.temporary && text && this.chatTools(thread)?.memory !== false) {
         for (const memory of captureMemories(text)) this.chatMemories.add("global", undefined, memory);
       }
-      if (state.autoUpgrade && (state.lastUpgradeAt === null || Date.now() - state.lastUpgradeAt > AUTO_UPGRADE_EVERY_MS)) {
+      if ((this.isChat(thread, project) || project) && state.autoUpgrade && (state.lastUpgradeAt === null || Date.now() - state.lastUpgradeAt > AUTO_UPGRADE_EVERY_MS)) {
         this.autoUpgrade(this.isChat(thread, project) ? undefined : project);
       }
     } catch (err) {
@@ -740,6 +857,7 @@ export class Runner {
 
   private async loop(active: ActiveRun, model: ModelConfig): Promise<void> {
     const { threadId, abort } = active;
+    const { maxStepsPerTurn, autoCompact } = agentSettingsOf(this.store.settings());
     const thread = this.store.thread(threadId)!;
     const project = thread.projectId ? this.store.project(thread.projectId) : undefined;
     const skills = thread.mode === "code" ? this.skillsFor(project) : [];
@@ -755,16 +873,17 @@ export class Runner {
     let nudged = false;
     let cutCalls = 0;
 
-    for (let step = 0; step < MAX_STEPS; step++) {
+    for (let step = 0; step < maxStepsPerTurn; step++) {
       abort.signal.throwIfAborted();
       if (step > 0) this.takeSteered(active);
-      await this.maybeCompact(active, model, provider, system, false);
-      const { blocks, stop, detail } = await this.streamStep(active, model, provider, system, tools, webSearch);
+      if (autoCompact) await this.maybeCompact(active, model, provider, system, false);
+      const turnSystem = [system, ...active.skillInstructions].join("\n\n");
+      const { blocks, stop, detail } = await this.streamStep(active, model, provider, turnSystem, tools, webSearch);
       if (blocks.length) this.store.appendMessage(threadId, { role: "assistant", content: blocks });
 
       if (stop === "refusal") throw new Error(`Modellen avslo forespørselen${detail ? `: ${detail}` : ""}`);
       const calls = blocks.filter((b) => b.type === "tool_use");
-      if (thread.planMode && !calls.length) {
+      if (thread.mode === "code" && thread.planMode && !calls.length) {
         const plan = blocksText(blocks).trim();
         if (plan) {
           this.store.updateThread(threadId, { plan: plan.slice(0, 8000) });
@@ -825,7 +944,7 @@ export class Runner {
         i = j;
       }
     }
-    throw new Error(`Grensen på ${MAX_STEPS} steg er nådd`);
+    throw new Error(`Grensen på ${maxStepsPerTurn} steg er nådd`);
   }
 
   private toolName(name: string): string | undefined {
@@ -1300,7 +1419,7 @@ export class Runner {
     const thread = this.store.thread(turn.threadId);
     const project = thread?.projectId ? this.store.project(thread.projectId) : undefined;
     if (!thread || !project) throw new HttpError(404, "Fant ikke prosjektet");
-    if (this.active.has(thread.id)) throw new HttpError(409, "Tråden kjører");
+    if ([...this.active.values()].some((run) => run.projectId === project.id)) throw new HttpError(409, "Vent til trådene i prosjektet er ferdige før du angrer");
     const paths = this.deps.turns.revert(turnId, project.path, force);
     this.store.markTurnReverted(turnId);
     this.store.appendMessage(thread.id, { role: "user", content: [{ type: "text", text: `[Brukeren angret filendringene fra en tidligere tur: ${paths.join(", ")}]` }] });
@@ -1357,6 +1476,7 @@ export class Runner {
 
   async shutdown(): Promise<void> {
     this.closing = true;
+    this.skillChanges.close();
     const runs = [...this.active.values()];
     for (const run of runs) {
       run.shuttingDown = true;

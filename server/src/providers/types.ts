@@ -35,7 +35,7 @@ export interface ProviderRequest {
   messages: Message[];
   tools: ToolDef[];
   signal: AbortSignal;
-  purpose?: "chat" | "summary";
+  purpose?: "chat" | "summary" | "completion";
   webSearch?: boolean; // round 13: use the provider's own web search
 }
 

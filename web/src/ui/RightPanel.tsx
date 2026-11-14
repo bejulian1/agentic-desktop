@@ -1,73 +1,62 @@
-// The side panel, in Kode only (round 11, SPEC 24.5: Chat has none). It opens without a project too:
-// the terminal starts in the home folder as Denne datamaskinen and the Browser panel works as usual.
-//
-// Round 11 (SPEC 24.3): by default the panel opens on a start page with the tools as tiles, in the
-// style of Ny fane in the Browser panel, with Foreslått under when there is something to suggest. A
-// tool that needs a project is dimmed with a short tip, and there is no empty page of its own. With
-// a tool open, its name with ⌄ at the top leads back to the start page or to another tool. With
-// «Faner øverst» in Innstillinger → Utseende it is a row of tabs as before, tidied.
-//
-// Round 12 (SPEC 26.3): with «Hver for seg» in a wide window, several tools stand open at once,
-// stacked side by side and over and under each other (PanelStack.tsx). The tools themselves are in
-// panel-content.tsx, for both.
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
+// One shared row for tools the user opened, with + leading to the chooser in both start modes.
+// Tool-specific sessions stay inside the tool. Stacked tools keep their mounts behind the chooser.
+import { createEffect, createMemo, For, on, Show } from "solid-js";
 import { onNextFrame } from "../lib/frame";
-import { app, panelWidth, setPanelOpen, setPanelWidth } from "../state/app";
-import { onPanelHome, panelTab, panelTabsOnTop, showPanel, showPanelHome, type PanelTab } from "../state/panel";
-import { addToStack, maxPanelWidth, stackLayout, stacking, stackTools } from "../state/stack";
-import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
-import { IconChevronDown, IconClose, IconPanel } from "./icons";
+import { app, LOCAL_SCOPE, panelWidth, setPanelOpen, setPanelWidth } from "../state/app";
+import { closePanelTool, onPanelHome, openedPanelTools, panelTab, rememberPanelTool, showPanel, activeStartPage, closeStartPage, newPanelPage, panelStartPages, selectStartPage, type PanelTab } from "../state/panel";
+import { addToStack, focusedTool, maxPanelWidth, stackLayout, stacking, stackTools } from "../state/stack";
+import { panelSessions, unifiedPanelTabs } from "../state/panel-sessions";
+import { IconClose, IconPanel, IconPlus } from "./icons";
 import { PanelHome, ToolView } from "./panel-content";
 import { PanelStack } from "./PanelStack";
-import { NEEDS_PROJECT_TIP, PANEL_TOOLS, toolBlocked, toolById, toolTitle } from "./panel-tools";
-
-// The tool's name with ⌄: a calm way back to the start page, and to the other tools.
-function ToolSwitch(props: { tool: PanelTab | null }) {
-  const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
-  const current = () => (props.tool ? toolById(props.tool) : null);
-  const entries = (): MenuEntry[] => [
-    { label: "Startside", icon: IconPanel, chosen: !props.tool, run: showPanelHome },
-    "sep",
-    ...PANEL_TOOLS.map((tool) => ({
-      label: tool.label,
-      icon: tool.icon,
-      keys: tool.keys,
-      chosen: props.tool === tool.id,
-      disabled: toolBlocked(tool),
-      title: toolBlocked(tool) ? NEEDS_PROJECT_TIP : tool.tip,
-      run: () => showPanel(tool.id),
-    })),
-  ];
-  return (
-    <>
-      <button
-        type="button"
-        class="panel-switch"
-        data-testid="panel-switch"
-        aria-haspopup="menu"
-        aria-expanded={!!anchor()}
-        aria-label={current() ? `${current()!.label}: bytt verktøy` : "Sidepanel: velg verktøy"}
-        title="Bytt verktøy, eller gå til startsiden"
-        onClick={(e) => setAnchor(anchor() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}
-      >
-        <Show when={current()} keyed fallback={<IconPanel size={14} />}>{(tool) => tool.icon({ size: 14 })}</Show>
-        <span class="panel-switch-name">{current()?.label ?? "Sidepanel"}</span>
-        <span class="panel-switch-chevron"><IconChevronDown size={12} /></span>
-      </button>
-      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Verktøy i sidepanelet" entries={entries()} onClose={() => setAnchor(null)} class="panel-switch-menu" />}</Show>
-    </>
-  );
-}
+import { toolById } from "./panel-tools";
+import "../styles/panel-workspace.css";
 
 export function RightPanel(props: { projectId: string | null; threadId: () => string | null }) {
-  // What is on screen: the start page, or a tool. A tool that needs a project shows the start page
-  // when there is none (or Terminal, with tabs on top), never an empty page.
-  const blockedNow = (tab: PanelTab) => !!toolById(tab).needsProject && !props.projectId;
-  const tool = createMemo<PanelTab | null>(() => {
-    if (panelTabsOnTop()) return blockedNow(panelTab()) ? "terminal" : panelTab();
-    if (onPanelHome() || blockedNow(panelTab())) return null;
-    return panelTab();
-  });
+  const tool = createMemo<PanelTab | null>(() => onPanelHome() ? null : panelTab());
+  const openTools = createMemo(() => stacking() ? stackTools() : openedPanelTools());
+  const activeTool = () => {
+    if (onPanelHome()) return null;
+    if (!stacking()) return tool();
+    const list = stackTools();
+    return list.includes(focusedTool()!) ? focusedTool() : list.includes(panelTab()) ? panelTab() : list[0] ?? null;
+  };
+  let tabs!: HTMLDivElement;
+  let addButton!: HTMLButtonElement;
+  createEffect(() => { if (!stacking() && tool()) rememberPanelTool(tool()!); });
+  const entries = createMemo(() => [...openTools().flatMap((id) => {
+    const item = toolById(id);
+    const controls = unifiedPanelTabs() && (id === "browser" || id === "terminal") ? panelSessions(props.projectId ?? LOCAL_SCOPE, id) : undefined;
+    if (controls?.tabs.length) return controls.tabs.map((session) => ({
+      key: `${id}:${session.id}`, tool: id, label: session.title, selected: activeTool() === id && session.active,
+      select: session.select, close: session.close, sessionId: session.id,
+    }));
+    return [{ key: id, tool: id, label: item.label, selected: activeTool() === id,
+      select: () => showPanel(id), close: () => closePanelTool(id), sessionId: "" }];
+  }), ...panelStartPages().map((id, index) => ({ key: `start:${id}`, tool: null, label: `Ny fane${index ? ` ${index + 1}` : ""}`, selected: activeStartPage() === id, select: () => selectStartPage(id), close: () => closeStartPage(id), sessionId: id }))]);
+  const focusTab = (key?: string) => {
+    const button = [...tabs.querySelectorAll<HTMLButtonElement>("[data-workspace-tab]")].find((el) => el.dataset.workspaceTab === key);
+    (button ?? addButton).focus({ preventScroll: true });
+  };
+  const closeEntry = (entry: ReturnType<typeof entries>[number]) => {
+    const at = entries().findIndex((row) => row.key === entry.key);
+    entry.close();
+    queueMicrotask(() => focusTab(entries()[Math.max(0, at - 1)]?.key));
+  };
+  const tabKey = (event: KeyboardEvent, entry: ReturnType<typeof entries>[number]) => {
+    const list = entries();
+    const at = list.findIndex((row) => row.key === entry.key);
+    let next: typeof entry | undefined;
+    if (event.key === "ArrowRight") next = list[(at + 1) % list.length];
+    else if (event.key === "ArrowLeft") next = list[(at - 1 + list.length) % list.length];
+    else if (event.key === "Home") next = list[0];
+    else if (event.key === "End") next = list.at(-1);
+    else if (event.key === "Delete") { event.preventDefault(); closeEntry(entry); return; }
+    if (!next) return;
+    event.preventDefault();
+    next.select();
+    focusTab(next.key);
+  };
 
   let target = panelWidth();
   const apply = () => setPanelWidth(target);
@@ -99,55 +88,34 @@ export function RightPanel(props: { projectId: string | null; threadId: () => st
     if (state?.status === "error") showPanel("terminal");
   });
 
-  const Close = () => (
-    <button type="button" class="icon-button panel-close" title="Skjul panelet" data-keys="view.panel" aria-label="Skjul panelet" onClick={() => setPanelOpen(false)}><IconClose size={14} /></button>
-  );
-
   return (
-    <aside class="right-panel" classList={{ "panel-with-tabs": panelTabsOnTop() && !stacking(), "panel-stacked": stacking() }} aria-label="Panel">
+    <aside class="right-panel panel-with-tabs panel-workspace" classList={{ "panel-stacked": stacking() }} aria-label="Panel">
       <div class="panel-resize" title="Dra for å endre bredden. Dobbeltklikk for standard." onPointerDown={startResize} onDblClick={() => setPanelWidth(stacking() && stackLayout().columns.length > 1 ? Math.min(maxPanelWidth(), 420 * stackLayout().columns.length) : 420)} />
-      <Show when={!stacking()} fallback={<PanelStack projectId={props.projectId} threadId={props.threadId} />}>
-        <Show
-          when={panelTabsOnTop()}
-          fallback={
-            <div class="panel-toolbar">
-              <ToolSwitch tool={tool()} />
-              <Close />
-            </div>
-          }
-        >
-          {/* The tabs scroll sideways when they do not fit; the close button is outside that row, so it is never cut. */}
-          <div class="panel-tabs-bar">
-            <div class="panel-tabs" role="tablist" aria-label="Verktøy">
-              <For each={PANEL_TOOLS}>
-                {(item) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    class="panel-tab"
-                    aria-label={item.label}
-                    title={blockedNow(item.id) ? `${item.label}: ${NEEDS_PROJECT_TIP}` : toolTitle(item, item.tip)}
-                    aria-selected={tool() === item.id}
-                    aria-disabled={blockedNow(item.id) ? "true" : undefined}
-                    onClick={(e) => {
-                      if (blockedNow(item.id)) return;
-                      showPanel(item.id);
-                      e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
-                    }}
-                  >
-                    <item.icon size={14} /><span>{item.label}</span>
-                  </button>
-                )}
-              </For>
-            </div>
-            <Close />
-          </div>
-        </Show>
-        <div class="panel-body" data-tool={tool() ?? "home"}>
-          <Show when={tool()} keyed fallback={<PanelHome projectId={props.projectId} />}>
-            {(current) => <ToolView tool={current} projectId={props.projectId} threadId={props.threadId} />}
-          </Show>
+      <div class="panel-tabs-bar panel-workspace-bar">
+        <div class="panel-tabs" ref={tabs} role="tablist" aria-label="Åpne verktøy">
+          <Show when={!openTools().length && !panelStartPages().length}><span class="panel-workspace-label"><IconPanel size={14} />Verktøy</span></Show>
+          <For each={entries().map((row) => row.key)}>{(key) => {
+            const entry = () => entries().find((row) => row.key === key)!;
+            const item = { icon: entry().tool ? toolById(entry().tool!).icon : IconPlus };
+            return <div class="panel-tool-tab" classList={{ selected: entry().selected }}>
+              <button type="button" role="tab" class="panel-tab" id={`panel-tab-${entry().key}`} data-panel-tab={entry().tool} data-workspace-tab={entry().key} aria-label={entry().label} title={entry().label} aria-selected={entry().selected} tabindex={entry().selected || (!activeTool() && entries()[0]?.key === entry().key) ? 0 : -1} onKeyDown={(event) => tabKey(event, entry())} onClick={(event) => { entry().select(); event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" }); }}><item.icon size={14} /><span>{entry().label}</span></button>
+              <button type="button" class="icon-button panel-tool-close" aria-label={entry().sessionId ? `Lukk ${entry().label}` : `Lukk verktøyet ${entry().label}`} title={`Lukk ${entry().label}`} onClick={() => closeEntry(entry())}><IconClose size={11} /></button>
+            </div>;
+          }}</For>
         </div>
+        <button ref={addButton} type="button" class="icon-button panel-add-tool" aria-label="Åpne verktøy" title="Åpne verktøy" aria-pressed={undefined} data-testid="panel-add-tool" onClick={newPanelPage}><IconPlus size={16} /></button>
+        <span class="panel-workspace-divider" />
+        <button type="button" class="icon-button panel-close" title="Skjul panelet" data-keys="view.panel" aria-label="Skjul panelet" onClick={() => setPanelOpen(false)}><IconClose size={14} /></button>
+      </div>
+      <Show when={stacking()} fallback={<div class="panel-body" id="panel-tool-content" role={tool() ? "tabpanel" : undefined} aria-labelledby={entries().find((entry) => entry.selected) ? `panel-tab-${entries().find((entry) => entry.selected)!.key}` : undefined} data-tool={tool() ?? "home"}>
+        <Show when={unifiedPanelTabs()} fallback={<Show when={tool()} keyed fallback={<PanelHome projectId={props.projectId} />}>{(current) => <ToolView tool={current} projectId={props.projectId} threadId={props.threadId} />}</Show>}>
+          <For each={openTools().filter((id) => id === "browser" || id === "terminal")}>{(id) => <div class="panel-retained-tool" hidden={tool() !== id}><ToolView tool={id} projectId={props.projectId} threadId={props.threadId} sharedTabs visible={tool() === id} /></div>}</For>
+          <Show when={tool() && tool() !== "browser" && tool() !== "terminal" ? tool() : null} keyed>{(current) => <ToolView tool={current} projectId={props.projectId} threadId={props.threadId} />}</Show>
+          <Show when={!tool()}><PanelHome projectId={props.projectId} /></Show>
+        </Show>
+      </div>}>
+        <div class="panel-stack-surface" hidden={onPanelHome()}><Show when={stackTools().length > 0}><PanelStack projectId={props.projectId} threadId={props.threadId} /></Show></div>
+        <Show when={onPanelHome()}><div class="panel-body" data-tool="home"><PanelHome projectId={props.projectId} /></div></Show>
       </Show>
     </aside>
   );

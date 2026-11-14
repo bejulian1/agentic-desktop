@@ -1,17 +1,18 @@
 import { createResource, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
-import { ApiError, get } from "../lib/api";
+import { ApiError, get, post } from "../lib/api";
+import { desktop } from "../lib/desktop";
+import { ProjectCreationDialog } from "./ProjectCreationDialog";
 import type { CommandInfo, FileEntry } from "../../../shared/protocol";
-import { createProject, currentProject, dismissToast, folderPickerOpen, mode, setFolderPickerOpen, setMode, setProjectId, setSettingsOpen, toasts } from "../state/app";
+import { currentProject, dismissToast, folderPickerOpen, mode, setFolderPickerOpen, setSettingsOpen, toasts } from "../state/app";
 import { displayKeys, keysFor, SHORTCUTS } from "../state/shortcuts";
 import { HoverCardHost } from "./HoverCard";
 import { TooltipHost } from "./Tooltip";
 // Its rules stay where they were in the cascade; the dialog itself loads when it opens.
 import "../styles/cookies.css";
 import { MotionHost, motionOff } from "./Motion";
-import { chromeImportOpen, cookieDialog, editing } from "./dialog-state";
+import { chromeImportOpen, cookieDialog, editing, gitWorkspaceDialog } from "./dialog-state";
 import { palette } from "../state/nav";
 import { IconClose, IconFolder, IconChevron, IconBack } from "./icons";
-import { gridFor } from "../state/grid";
 
 interface Confirm {
   title: string;
@@ -97,7 +98,7 @@ function PromptHost() {
 }
 
 // Lists that the Hjelp menu opens: shortcuts and commands.
-type InfoKind = "shortcuts" | "commands" | "skills" | "scheduled" | "whatsnew";
+type InfoKind = "shortcuts" | "commands" | "skills" | "scheduled" | "whatsnew" | "releases";
 const [infoDialog, setInfoDialog] = createSignal<InfoKind | null>(null);
 export { infoDialog, setInfoDialog };
 
@@ -191,6 +192,22 @@ export function SkeletonLines(props: { count?: number }) {
   );
 }
 
+function ReleaseHistory() {
+  const [query, setQuery] = createSignal("");
+  const [history, { refetch }] = createResource(() => get<{ entries: Array<{ title: string; body: string }> }>("/api/releases"));
+  const entries = () => (history()?.entries ?? []).filter(entry => `${entry.title} ${entry.body}`.toLocaleLowerCase().includes(query().toLocaleLowerCase().trim()));
+  return <div class="release-history">
+    <label class="field"><span>Søk i versjoner og endringer</span><input type="search" class="input" value={query()} onInput={e => setQuery(e.currentTarget.value)} placeholder="Versjon eller funksjon…" /></label>
+    <Show when={history.loading}><SkeletonLines /></Show>
+    <Show when={history.error}><p role="alert">Kunne ikke hente versjonsloggen.</p><button type="button" class="btn" onClick={() => void Promise.resolve(refetch()).catch(() => undefined)}>Prøv igjen</button></Show>
+    <Show when={history()}><p class="muted" role="status">{entries().length} av {history()!.entries.length} versjonsoppføringer</p>
+      <For each={entries()} fallback={<p class="muted">Ingen versjoner passer søket.</p>}>{(entry, i) => <details class="release-entry" open={i() === 0}>
+        <summary>{entry.title}</summary><div class="release-body"><Inline text={entry.body} /></div>
+      </details>}</For>
+    </Show>
+  </div>;
+}
+
 function WhatsNew() {
   const [news] = createResource(() => get<{ entries: Array<{ title: string; lines: string[] }> }>("/api/whatsnew"));
   return (
@@ -211,7 +228,7 @@ function WhatsNew() {
   );
 }
 
-const INFO_TITLES: Record<InfoKind, string> = { shortcuts: "Hurtigtaster", commands: "Kommandoer", skills: "Skills", scheduled: "Planlagt", whatsnew: "Hva er nytt" };
+const INFO_TITLES: Record<InfoKind, string> = { shortcuts: "Hurtigtaster", commands: "Kommandoer", skills: "Skills", scheduled: "Planlagt", whatsnew: "Hva er nytt", releases: "Versjonslogg" };
 
 function InfoHost() {
   return (
@@ -221,12 +238,12 @@ function InfoHost() {
         onMount(() => dialog.showModal());
         const title = INFO_TITLES[kind];
         return (
-          <dialog ref={dialog} class="dialog info-dialog" aria-label={title} onCancel={() => setInfoDialog(null)}>
+          <dialog ref={dialog} class="dialog info-dialog" aria-label={title} onCancel={() => setInfoDialog(null)} onKeyDown={event => { if (kind === "releases" && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setInfoDialog(null); } }}>
             <div class="dialog-head">
               <h2>{title}</h2>
               <button type="button" class="icon-button" aria-label="Lukk" onClick={() => setInfoDialog(null)}><IconClose size={15} /></button>
             </div>
-            <div class="info-body">{kind === "shortcuts" ? <ShortcutTable /> : kind === "commands" ? <CommandTable /> : kind === "skills" ? <SkillList /> : kind === "whatsnew" ? <WhatsNew /> : <Scheduled />}</div>
+            <div class="info-body">{kind === "shortcuts" ? <ShortcutTable /> : kind === "commands" ? <CommandTable /> : kind === "skills" ? <SkillList /> : kind === "whatsnew" ? <WhatsNew /> : kind === "releases" ? <ReleaseHistory /> : <Scheduled />}</div>
           </dialog>
         );
       }}
@@ -234,26 +251,54 @@ function InfoHost() {
   );
 }
 
-// The folder picker in "just tell me the path" mode, for moving a project.
-let pickResolve: ((path: string | null) => void) | null = null;
+// Native folder selection is shared by project creation, moving and relinking. The
+// in-app browser is used only when the host explicitly cannot offer a native chooser.
+interface FolderRequest {
+  resolve: (path: string | null) => void;
+  reject: (error: unknown) => void;
+  cleanup: () => void;
+}
+let folderRequest: FolderRequest | null = null;
+const [folderBrowseOpen, setFolderBrowseOpen] = createSignal(false);
 const [pickStart, setPickStart] = createSignal<string | undefined>(undefined);
 const [pickTitle, setPickTitle] = createSignal<string | undefined>(undefined);
 
-export function pickFolder(start?: string, title?: string): Promise<string | null> {
-  pickResolve?.(null);
-  return new Promise((resolve) => {
-    pickResolve = resolve;
-    setPickStart(start);
-    setPickTitle(title);
-    setFolderPickerOpen(true);
-  });
+function closePicker(path: string | null): void {
+  const request = folderRequest;
+  folderRequest = null;
+  setFolderBrowseOpen(false);
+  request?.cleanup();
+  request?.resolve(path);
 }
 
-function closePicker(path: string | null): void {
-  const resolve = pickResolve;
-  pickResolve = null;
-  setFolderPickerOpen(false);
-  resolve?.(path);
+export function pickFolder(start?: string, title?: string, signal?: AbortSignal): Promise<string | null> {
+  closePicker(null);
+  if (signal?.aborted) return Promise.resolve(null);
+  return new Promise((resolve, reject) => {
+    const abort = () => { if (folderRequest === request) closePicker(null); };
+    const request: FolderRequest = { resolve, reject, cleanup: () => signal?.removeEventListener("abort", abort) };
+    folderRequest = request;
+    signal?.addEventListener("abort", abort, { once: true });
+    setPickStart(start);
+    setPickTitle(title);
+    void (async () => {
+      try {
+        const path = desktop?.pickFolder
+          ? await desktop.pickFolder(start, title)
+          : (await post<{ path: string | null }>("/api/fs/pick-folder", { start, title })).path;
+        if (folderRequest === request) closePicker(path);
+      } catch (error) {
+        if (folderRequest !== request) return;
+        if (error instanceof ApiError && error.status === 501) {
+          setFolderBrowseOpen(true);
+        } else {
+          folderRequest = null;
+          request.cleanup();
+          request.reject(error);
+        }
+      }
+    })();
+  });
 }
 
 function FolderPicker() {
@@ -263,7 +308,6 @@ function FolderPicker() {
   const [dirs, setDirs] = createSignal<FileEntry[]>([]);
   const [typed, setTyped] = createSignal("");
   const [error, setError] = createSignal("");
-  const [busy, setBusy] = createSignal(false);
 
   // A path typed while the first listing is on its way is kept, so a fast hand is not overwritten.
   let typedByHand = false;
@@ -277,37 +321,23 @@ function FolderPicker() {
       setParent(result.parent);
       setDirs(result.dirs);
     } catch (err) {
-      const missing = pickResolve ? "Fant ikke mappen. Velg en mappe som finnes." : "Mappen finnes ikke ennå. Den lages når du velger den.";
+      const missing = "Fant ikke mappen. Velg en mappe som finnes.";
       setError(err instanceof ApiError && err.status === 404 ? missing : (err as Error).message);
       setDirs([]);
     }
   };
 
-  const choose = async () => {
-    if (pickResolve) return closePicker(typed().trim() || current());
-    setBusy(true);
-    try {
-      const project = await createProject(typed().trim() || current());
-      setProjectId(project.id);
-      setMode("code");
-      gridFor(project.id);
-      setFolderPickerOpen(false);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const choose = () => closePicker(typed().trim() || current());
 
   onMount(() => {
     dialog.showModal();
-    void browse(pickResolve ? pickStart() : undefined);
+    void browse(pickStart());
   });
 
   return (
-    <dialog ref={dialog} class="dialog folder-picker" aria-label="Velg mappe" onCancel={() => closePicker(null)}>
+    <dialog ref={dialog} class="dialog folder-picker" aria-label="Velg mappe" onCancel={(event) => { event.preventDefault(); closePicker(null); }}>
       <div class="dialog-head">
-        <h2>{pickResolve ? pickTitle() ?? "Velg ny mappe for prosjektet" : "Velg en prosjektmappe"}</h2>
+        <h2>{pickTitle() ?? "Velg mappe"}</h2>
         <button type="button" class="icon-button" aria-label="Lukk" onClick={() => closePicker(null)}><IconClose size={15} /></button>
       </div>
       <form class="path-row" onSubmit={(e) => { e.preventDefault(); void browse(typed(), true); }}>
@@ -326,7 +356,7 @@ function FolderPicker() {
       <Show when={error()}><p class="form-error" role="alert">{error()}</p></Show>
       <div class="dialog-actions">
         <button type="button" class="btn" onClick={() => closePicker(null)}>Avbryt</button>
-        <button type="button" class="btn btn-primary" disabled={busy()} onClick={choose}>Velg denne mappen</button>
+        <button type="button" class="btn btn-primary" disabled={!typed().trim() && !current()} onClick={choose}>Velg denne mappen</button>
       </div>
     </dialog>
   );
@@ -375,6 +405,7 @@ function Toasts() {
 // The larger dialogs load the first time they open, not at start (SPEC 29.5). Each is mounted only
 // while it is open; their state is in dialog-state.ts and state/nav.ts. On this machine a chunk is
 // there within a frame or two, and until then nothing is drawn, so nothing flickers.
+const GitWorkspaceHost = lazy(() => import("./GitWorkspace").then((m) => ({ default: m.GitWorkspaceHost })));
 const EditProjectHost = lazy(() => import("./EditProject").then((m) => ({ default: m.EditProjectHost })));
 const CommandPaletteHost = lazy(() => import("./CommandPalette").then((m) => ({ default: m.CommandPaletteHost })));
 const ChromeImportHost = lazy(() => import("./ChromeImport").then((m) => ({ default: m.ChromeImportHost })));
@@ -390,6 +421,7 @@ export function GlobalLayers() {
   return (
     <>
       <ConfirmHost />
+      <Show when={gitWorkspaceDialog()}><Suspense><GitWorkspaceHost /></Suspense></Show>
       <PromptHost />
       <Show when={editing()}><Suspense><EditProjectHost /></Suspense></Show>
       <HoverCardHost />
@@ -399,7 +431,8 @@ export function GlobalLayers() {
       <InfoHost />
       <Show when={chromeImportOpen()}><Suspense><ChromeImportHost /></Suspense></Show>
       <Show when={cookieDialog()}><Suspense><CookieImportHost /></Suspense></Show>
-      <Show when={folderPickerOpen()}><FolderPicker /></Show>
+      <Show when={folderPickerOpen()}><ProjectCreationDialog pickFolder={pickFolder} onClose={() => setFolderPickerOpen(false)} /></Show>
+      <Show when={folderBrowseOpen()}><FolderPicker /></Show>
       <Toasts />
     </>
   );

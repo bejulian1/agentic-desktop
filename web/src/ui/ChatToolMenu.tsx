@@ -1,12 +1,12 @@
 // Round 13 (SPEC 27.2): the tools of a chat. A button by + opens a small menu with a switch per
-// tool, and the tools that are on stand as chips in the message field, each with × to turn it off.
+// tool. Its switches show the active choices without extra chips in the message field.
 // The choice belongs to the thread; a new chat starts with the defaults from Innstillinger → Chat.
 // Nettsøk is dimmed, with the reason, when the model cannot search and no search page is set up.
-import { createMemo, createResource, createSignal, For, Show, type Accessor, type JSX } from "solid-js";
+import { createMemo, createResource, createSignal, For, type Accessor, type JSX } from "solid-js";
 import { CHAT_TOOL_IDS, chatToolsOf, webSearchRoute, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
 import { get, patch } from "../lib/api";
 import { app, modelFor, modelName, report, setSettingsOpen } from "../state/app";
-import { IconArtifact, IconBookmark, IconClose, IconGlobe, IconTools } from "./icons";
+import { IconArtifact, IconBookmark, IconGlobe, IconSliders } from "./icons";
 import { IconLink } from "./nav-icons";
 import { Popover } from "./Popover";
 
@@ -20,6 +20,7 @@ export interface ChatToolState {
   route: Accessor<WebSearchRoute | null>;
   model: Accessor<string>;
   draft: Accessor<ChatTools | null>; // chosen before the chat exists, for when it is made
+  temporary: Accessor<boolean>;
 }
 
 // threadId and modelId as the composer knows them; before the first message there is no thread.
@@ -37,13 +38,14 @@ export function useChatTools(threadId: Accessor<string | null>, modelId: Accesso
   });
   const set = (id: ChatToolId, on: boolean) => {
     const current = thread();
+    if (id === "memory" && current?.temporary) return;
     if (current) {
       patch(`/api/threads/${current.id}`, { chatTools: { [id]: on } }).catch(report);
       return;
     }
     setDraft({ ...tools(), [id]: on });
   };
-  return { tools, set, route, model: () => modelName(modelId() ?? app.settings.defaultModelId), draft };
+  return { tools, set, route, model: () => modelName(modelId() ?? app.settings.defaultModelId), draft, temporary: () => thread()?.temporary === true };
 }
 
 interface ToolInfo {
@@ -84,6 +86,7 @@ export function ChatToolButton(props: { state: ChatToolState }) {
       case "artifacts":
         return { text: "Små HTML-programmer i chatten" };
       case "memory":
+        if (props.state.temporary()) return { text: "", off: "Midlertidige chatter bruker ikke lagrede minner." };
         if (memoriesOff()) return { text: "", off: "Slått av i Chat-personalisering" };
         return { text: personal()?.personal.autoMemory ? "Bruker og oppdaterer Chat-minnene" : "Bruker Chat-minnene dine" };
     }
@@ -113,7 +116,7 @@ export function ChatToolButton(props: { state: ChatToolState }) {
           aria-expanded={open()}
           onClick={() => setOpen(!open())}
         >
-          <IconTools size={17} />
+          <IconSliders size={17} />
         </button>
       }
     >
@@ -161,30 +164,5 @@ export function ChatToolButton(props: { state: ChatToolState }) {
         </div>
       </div>
     </Popover>
-  );
-}
-
-// The tools that are on, as chips. × turns one off for this chat.
-export function ChatToolChips(props: { state: ChatToolState }) {
-  const on = createMemo(() => TOOLS.filter((t) => props.state.tools()[t.id] && !(t.id === "web" && !props.state.route())));
-  return (
-    <Show when={on().length}>
-      <span class="tool-chips" role="group" aria-label="Verktøy som er på" data-testid="tool-chips">
-        <For each={on()}>
-          {(tool) => {
-            const Icon = tool.icon;
-            return (
-              <span class="tool-chip" data-tool={tool.id} title={`${tool.name} er på i denne chatten`}>
-                <Icon size={13} />
-                <span class="tool-chip-name sr-only">{tool.name}</span>
-                <button type="button" class="tool-chip-x" aria-label={`Slå av ${tool.name}`} title={`Slå av ${tool.name}`} onClick={() => props.state.set(tool.id, false)}>
-                  <IconClose size={11} />
-                </button>
-              </span>
-            );
-          }}
-        </For>
-      </span>
-    </Show>
   );
 }

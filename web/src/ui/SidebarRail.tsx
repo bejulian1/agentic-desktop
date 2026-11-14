@@ -8,6 +8,7 @@ import { createMemo, For, Show } from "solid-js";
 import type { Thread } from "../../../shared/protocol";
 import { app, listed, mode, projectId, setMode, setProjectId, setSettingsOpen, setSidebarOpen, sortedProjects } from "../state/app";
 import { actions, focusedThread } from "../state/actions";
+import { skillsOpen } from "../state/skills-workspace";
 import { openArtifacts, room } from "../state/artifacts";
 import { closeProfile } from "../state/nav";
 import { openThread } from "../state/navigate";
@@ -44,7 +45,7 @@ export function SidebarRail() {
         <button type="button" class="icon-button rail-button" aria-label="Ny tråd" title={tip("Ny tråd", "thread.new")} onClick={() => actions.newThread()}><IconCompose size={16} /></button>
         <button type="button" class="icon-button rail-button" aria-label="Søk i tråder" title={tip("Søk i tråder", "thread.search")} onClick={() => actions.searchThreads()}><IconSearch size={16} /></button>
         <button type="button" class="icon-button rail-button" aria-label="Artifacts" title="Artifacts" aria-current={room() ? "page" : undefined} onClick={() => { closeProfile(); openArtifacts(); }}><IconArtifact size={16} /></button>
-        <button type="button" class="icon-button rail-button" aria-label="Skills" title="Skills" onClick={() => actions.skills()}><IconSpark size={16} /></button>
+        <button type="button" class="icon-button rail-button" aria-label="Skills" title="Skills" aria-current={skillsOpen() ? "page" : undefined} onClick={() => actions.skills()}><IconSpark size={16} /></button>
       </div>
       <div class="rail-scroll">
         <Show when={pinned().length}>
@@ -73,7 +74,7 @@ export function SidebarRail() {
                 class="icon-button rail-button rail-project"
                 aria-label={`Prosjekt: ${project.name}`}
                 title={project.pinned ? `${project.name} (festet)` : project.name}
-                aria-current={code() && projectId() === project.id && !room() ? "page" : undefined}
+                aria-current={code() && projectId() === project.id && !room() && !skillsOpen() ? "page" : undefined}
                 onClick={() => openProject(project.id)}
               >
                 <ProjectGlyph project={project} size={16} />

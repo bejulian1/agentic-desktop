@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { buildDesktop } from "./build-desktop.ts";
 import { memAvailableMb, waitForMemory } from "./test-desktop.ts";
+import { copySystemInstructions } from "./system-instructions.ts";
+import { copyAppSkills } from "./skill-assets.ts";
 
 // Hardening: the package cannot be run as plain Node, and NODE_OPTIONS and --inspect are ignored.
 // The server runs as a utilityProcess and needs none of them.
@@ -128,6 +130,8 @@ export async function dist(): Promise<void> {
     cpSync(path.join(ROOT, "version.json"), path.join(appRoot, "version.json"));
     mkdirSync(path.join(appRoot, "docs"), { recursive: true });
     cpSync(path.join(ROOT, "docs/PATCHLOG.md"), path.join(appRoot, "docs/PATCHLOG.md"));
+    copySystemInstructions(ROOT, appRoot);
+    copyAppSkills(ROOT, appRoot);
 
     // 3. The server's packages. node-pty is built for Electron's ABI with @electron/rebuild.
     const modules = path.join(serverDir, "node_modules");

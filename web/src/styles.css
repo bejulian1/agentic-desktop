@@ -228,30 +228,28 @@ select, summary, input[type="range"], input[type="checkbox"], input[type="radio"
    A scroll-state container query turns them on, so no code runs on scroll and the list still
    scrolls on the compositor. The edge sits in the list's own padding and takes no room.
    --edge-px, --edge-pt and --edge-pb are the list's padding. */
-.sidebar-scroll, .smart-scroll, .settings-nav, .settings-body, .palette-list { container-type: scroll-state; }
+.sidebar-scroll, .smart-scroll, .palette-list { container-type: scroll-state; }
 .sidebar-scroll { --edge-px: var(--space-2); --edge-pb: var(--space-3); }
 .smart-scroll { --edge-px: var(--space-2); --edge-pb: var(--space-2); }
-.settings-nav { --edge-px: var(--space-2); --edge-pt: var(--space-3); --edge-pb: var(--space-4); }
-.settings-body { --edge-px: var(--space-8); --edge-pt: 56px; --edge-pb: var(--space-12); }
 .palette-list { --edge-px: var(--space-2); --edge-pt: var(--space-1); --edge-pb: var(--space-2); }
-.sidebar-scroll::before, .smart-scroll::before, .settings-nav::before, .settings-body::before, .palette-list::before,
-.sidebar-scroll::after, .smart-scroll::after, .settings-nav::after, .settings-body::after, .palette-list::after {
+.sidebar-scroll::before, .smart-scroll::before, .palette-list::before,
+.sidebar-scroll::after, .smart-scroll::after, .palette-list::after {
   content: ""; display: block; flex: none; position: sticky; z-index: 4; height: 12px; pointer-events: none; opacity: 0;
   transition: opacity var(--dur-2) var(--ease-out);
 }
-.sidebar-scroll::before, .smart-scroll::before, .settings-nav::before, .settings-body::before, .palette-list::before {
+.sidebar-scroll::before, .smart-scroll::before, .palette-list::before {
   top: 0; margin: calc(-1 * var(--edge-pt, 0px)) calc(-1 * var(--edge-px, 0px)) calc(var(--edge-pt, 0px) - 12px);
   background: linear-gradient(var(--edge-shade), transparent); box-shadow: inset 0 1px 0 var(--border);
 }
-.sidebar-scroll::after, .smart-scroll::after, .settings-nav::after, .settings-body::after, .palette-list::after {
+.sidebar-scroll::after, .smart-scroll::after, .palette-list::after {
   bottom: 0; margin: calc(var(--edge-pb, 0px) - 12px) calc(-1 * var(--edge-px, 0px)) calc(-1 * var(--edge-pb, 0px));
   background: linear-gradient(transparent, var(--edge-shade));
 }
 @container scroll-state(scrollable: top) {
-  .sidebar-scroll::before, .smart-scroll::before, .settings-nav::before, .settings-body::before, .palette-list::before { opacity: 1; }
+  .sidebar-scroll::before, .smart-scroll::before, .palette-list::before { opacity: 1; }
 }
 @container scroll-state(scrollable: bottom) {
-  .sidebar-scroll::after, .smart-scroll::after, .settings-nav::after, .settings-body::after, .palette-list::after { opacity: 1; }
+  .sidebar-scroll::after, .smart-scroll::after, .palette-list::after { opacity: 1; }
 }
 
 /* Loading placeholders (the animation is in styles/motion.css). They have the size of what comes. */
@@ -822,7 +820,7 @@ kbd.recording { color: var(--accent-text); border-color: var(--accent); }
 .error-card .icon { margin-top: 3px; }
 .error-text { color: var(--text); overflow-wrap: anywhere; }
 .to-bottom {
-  position: absolute; right: var(--space-4); bottom: 10px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  position: absolute; left: 0; right: 0; margin-inline: auto; bottom: 10px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
   border-radius: 50%; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-2); box-shadow: var(--shadow-pop);
 }
 .to-bottom:hover { color: var(--text); }
@@ -873,6 +871,11 @@ button.context-chip:hover, .context-chip[aria-expanded="true"] { background: var
   background: transparent; font-size: var(--text-lg); line-height: var(--leading); field-sizing: content; overflow-y: auto;
 }
 .composer textarea::placeholder { color: var(--text-3); white-space: nowrap; }
+.composer-completion {
+  position: absolute; inset: 0 auto 0 0; overflow: hidden; pointer-events: none; white-space: pre-wrap; overflow-wrap: break-word;
+  color: var(--text-3); font-size: var(--text-lg); line-height: var(--leading); padding: 2px 2px 6px;
+}
+.composer-completion-prefix { color: transparent; }
 .composer-foot { display: flex; align-items: center; gap: 2px; min-width: 0; margin-left: -8px; }
 .composer-foot .popover-anchor { min-width: 0; flex: 0 1 auto; }
 .composer-foot .popover-anchor.keep { flex: none; }
@@ -1074,7 +1077,7 @@ dialog::backdrop { background: var(--scrim); }
 .settings-host { margin-top: var(--space-4); }
 .host-picker { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--text-2); }
 .host-picker:hover { background: var(--hover); color: var(--text); }
-.settings-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 56px var(--space-8) var(--space-12); }
+.settings-body { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; overflow-anchor: none; overscroll-behavior: contain; padding: 56px var(--space-8) var(--space-12); }
 .settings-content { max-width: var(--settings-max); margin: 0 auto; }
 .settings-section { display: flex; flex-direction: column; }
 .settings-title { font-size: var(--text-2xl); font-weight: var(--weight-medium); letter-spacing: -0.01em; margin-bottom: var(--space-6); }

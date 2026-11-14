@@ -7,8 +7,9 @@
 // Esc closes without adding anything. Drawn with SVG on screen and a canvas for the PNG; nothing new
 // is loaded.
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type JSX } from "solid-js";
+import "../styles/annotation-polish.css";
 import { Portal } from "solid-js/web";
-import { MAX_IMAGE_BYTES } from "../../../shared/protocol";
+import { MAX_IMAGE_BYTES, type AnnotationElement, type BrowserAnnotationSnapshot } from "../../../shared/protocol";
 import { observeResize } from "../lib/resize";
 import { focusedThreadId } from "../state/actions";
 import { scope, toast } from "../state/app";
@@ -17,13 +18,13 @@ import { gridFor } from "../state/grid";
 import { deliverToComposer } from "../ui/Composer";
 import { IconCheck, IconClose, IconPencil, IconTrash, IconUndo } from "../ui/icons";
 
-type Tool = "marker" | "pen" | "rect" | "text";
+type Tool = "element" | "marker" | "pen" | "rect" | "text";
 type Point = [number, number];
 
 // Everything is kept in the picture's own pixels. unit is how many of them one screen pixel was when
 // the item was made, so sizes stay as they were drawn even if the panel changes size afterwards.
 type Item =
-  | { kind: "marker"; id: number; x: number; y: number; unit: number; comment: string }
+  | { kind: "marker"; id: number; x: number; y: number; unit: number; comment: string; element?: AnnotationElement }
   | { kind: "pen"; id: number; points: Point[]; unit: number }
   | { kind: "rect"; id: number; x: number; y: number; w: number; h: number; unit: number }
   | { kind: "text"; id: number; x: number; y: number; unit: number; text: string };
@@ -38,6 +39,7 @@ const TEXT_H = 24;
 const MAX_COMMENT = 280;
 
 const TOOLS: Array<{ id: Tool; label: string; key: string; tip: string; hint: string; icon: (p: { size?: number }) => JSX.Element }> = [
+  { id: "element", label: "Element", key: "E", tip: "Velg element: se ramme, størrelse, farge og skrift", hint: "Pek på et element og klikk for å legge til en kommentar.", icon: IconRect },
   { id: "marker", label: "Klikk", key: "K", tip: "Klikk: en nummerert markør med en kort kommentar", hint: "Klikk der noe skal endres, og skriv en kort kommentar.", icon: IconMarker },
   { id: "pen", label: "Penn", key: "P", tip: "Penn: tegn fritt", hint: "Tegn med musen for å ringe inn eller peke på noe.", icon: IconPencil },
   { id: "rect", label: "Rektangel", key: "R", tip: "Rektangel: ramme inn et område", hint: "Dra for å ramme inn et område.", icon: IconRect },
@@ -109,12 +111,13 @@ function hostAndPath(url: string): string {
   }
 }
 
-export function AnnotateButton(props: { projectId: string; tab: () => string | null; ready: () => boolean; url: () => string }) {
+export function AnnotateButton(props: { projectId: string; tab: () => string | null; ready: () => boolean; url: () => string; active?: boolean }) {
   let button!: HTMLButtonElement;
   const [open, setOpen] = createSignal(false);
-  onCleanup(listenForAnnotate());
+  createEffect(() => { if (props.active !== false) onCleanup(listenForAnnotate()); });
+  createEffect(() => { if (props.active === false) setOpen(false); });
   const start = () => {
-    if (open()) return;
+    if (open() || props.active === false) return;
     if (!props.ready()) return toast("Åpne en side i nettleseren først, så kan du annotere den.", "info");
     setOpen(true);
   };
@@ -170,7 +173,9 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
   let preview: HTMLCanvasElement | undefined;
   let image: HTMLImageElement | undefined;
   let objectUrl = "";
-  const [tool, setTool] = createSignal<Tool>("marker");
+  let layerAlive = true;
+  onCleanup(() => { layerAlive = false; });
+  const [tool, setTool] = createSignal<Tool>("element");
   const [items, setItems] = createSignal<Item[]>([]);
   const [past, setPast] = createSignal<Item[][]>([]);
   const [draft, setDraft] = createSignal<Item | null>(null);
@@ -181,6 +186,13 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
   const [source, setSource] = createSignal<"frame" | "png" | null>(null);
   const [closing, setClosing] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
+  const [elements, setElements] = createSignal<AnnotationElement[]>([]);
+  const [hovered, setHovered] = createSignal<AnnotationElement | null>(null);
+  const [elementError, setElementError] = createSignal("");
+  const ownerScope = scope();
+  const ownerGrid = gridFor(ownerScope);
+  const ownerPane = ownerGrid.focused();
+  const ownerThread = focusedThreadId();
   let nextId = 1;
 
   // The picture fits the stage, the way the page did.
@@ -231,24 +243,38 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
       alive = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     });
-    fetch(`/api/browser/screenshot?${params}`, { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
-      .then((blob) => {
+    const controller = new AbortController();
+    onCleanup(() => controller.abort());
+    const freeze = async () => {
+      let blob: Blob;
+      try {
+        const response = await fetch(`/api/browser/annotation?${params}`, { credentials: "same-origin", signal: controller.signal });
+        if (!response.ok) throw new Error(String(response.status));
+        const snapshot = await response.json() as BrowserAnnotationSnapshot;
         if (!alive) return;
-        objectUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          if (!alive) return;
-          image = img;
-          batch(() => {
-            setSize({ w: img.naturalWidth, h: img.naturalHeight });
-            setSource("png");
-          });
-        };
-        img.onerror = () => alive && useFrame();
-        img.src = objectUrl;
-      })
-      .catch(() => alive && useFrame());
+        const bytes = Uint8Array.from(atob(snapshot.pngBase64), (c) => c.charCodeAt(0));
+        blob = new Blob([bytes], { type: "image/png" });
+        setElements(snapshot.elements);
+      } catch {
+        if (!alive) return;
+        setElementError("Elementvalg er utilgjengelig her. Bruk Klikk, Penn eller Rektangel på bildet.");
+        setTool("marker");
+        const response = await fetch(`/api/browser/screenshot?${params}`, { credentials: "same-origin", signal: controller.signal });
+        if (!response.ok) throw new Error(String(response.status));
+        blob = await response.blob();
+      }
+      if (!alive) return;
+      objectUrl = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        if (!alive) return;
+        image = img;
+        batch(() => { setSize({ w: img.naturalWidth, h: img.naturalHeight }); setSource("png"); });
+      };
+      img.onerror = () => alive && useFrame();
+      img.src = objectUrl;
+    };
+    void freeze().catch(() => alive && useFrame());
     requestAnimationFrame(() => root.focus({ preventScroll: true }));
   });
   // The server could not take the picture: the frame on screen is the picture.
@@ -285,6 +311,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
     return [Math.max(0, Math.min(w, (event.clientX - frame.left) / s)), Math.max(0, Math.min(h, (event.clientY - frame.top) / s))];
   };
 
+  const elementAt = (x: number, y: number) => elements().filter(({ rect: r }) => x >= r.x && y >= r.y && x <= r.x + r.w && y <= r.y + r.h).sort((a, b) => a.rect.w * a.rect.h - b.rect.w * b.rect.h)[0] ?? null;
   let drawing: { pointer: number } | null = null;
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || !ready()) return;
@@ -296,8 +323,10 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
     const [x, y] = toImage(event);
     const id = nextId++;
     const u = unit();
-    if (tool() === "marker") {
-      commit([...items(), { kind: "marker", id, x, y, unit: u, comment: "" }]);
+    if (tool() === "marker" || tool() === "element") {
+      const element = tool() === "element" ? elementAt(x, y) : null;
+      commit([...items(), { kind: "marker", id, x, y, unit: u, comment: "", ...(element ? { element } : {}) }]);
+      setHovered(null);
       setEditing({ id, kind: "marker", fresh: true, x, y, unit: u });
       event.preventDefault();
     } else if (tool() === "text") {
@@ -310,6 +339,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
     }
   };
   const onPointerMove = (event: PointerEvent) => {
+    if (tool() === "element" && ready() && !editing()) { const [x, y] = toImage(event); setHovered(elementAt(x, y)); }
     if (!drawing || event.pointerId !== drawing.pointer) return;
     const d = draft();
     if (!d) return;
@@ -339,7 +369,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
   };
 
   const openMarker = (id: number, event: PointerEvent) => {
-    if (tool() !== "marker" || !ready()) return;
+    if ((tool() !== "marker" && tool() !== "element") || !ready()) return;
     event.stopPropagation();
     event.preventDefault();
     const current = editing();
@@ -387,11 +417,15 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
     setBusy(true);
     try {
       const blob = await compose();
+      if (!layerAlive || closing()) return;
       const file = new File([blob], `annotering-${hostAndPath(props.url).split("/")[0].replace(/[^a-z0-9.-]+/gi, "-") || "side"}.png`, { type: "image/png" });
-      const key = focusedThreadId() ?? gridFor(scope()).focused();
+      const pane = ownerGrid.panes().find((p) => p.id === ownerPane);
+      if (scope() !== ownerScope || !pane || pane.threadId() !== ownerThread) { toast("Gå tilbake til den opprinnelige samtalen før du legger til annoteringen.", "info"); setBusy(false); return; }
+      const key = ownerThread ?? ownerPane;
       deliverToComposer(key, { images: [file], text: listText() });
       close(true);
     } catch {
+      if (!layerAlive || closing()) return;
       toast("Fikk ikke laget bildet.");
       setBusy(false);
     }
@@ -403,7 +437,14 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
     const texts = items().filter((i): i is Extract<Item, { kind: "text" }> => i.kind === "text");
     if (!list.length && !texts.length) return "";
     lines.push(props.url ? `Kommentarer til skjermbildet (${hostAndPath(props.url)}):` : "Kommentarer til skjermbildet:");
-    list.forEach((m, i) => lines.push(`${i + 1}. ${m.comment || "(ingen kommentar)"}`));
+    list.forEach((m, i) => {
+      lines.push(`${i + 1}. ${m.comment || "(ingen kommentar)"}`);
+      if (m.element) {
+        const el = m.element;
+        lines.push(`   Element: ${el.selector} · ${Math.round(el.rect.w)} × ${Math.round(el.rect.h)} px · ${el.color} · ${el.font}`);
+        if (el.text) lines.push(`   Synlig tekst: «${el.text}»`);
+      }
+    });
     for (const t of texts) lines.push(`Tekst på bildet: «${t.text}»`);
     return lines.join("\n");
   };
@@ -454,6 +495,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
       }
       // Markers last, so a line never covers a number.
       markers().forEach((m, i) => {
+        if (m.element) { const box = m.element.rect; ctx.strokeStyle = "#3199ff"; ctx.lineWidth = 2 * m.unit; ctx.strokeRect(box.x, box.y, box.w, box.h); }
         const r = MARKER_R * m.unit;
         ctx.beginPath();
         ctx.arc(m.x, m.y, r + HALO * m.unit, 0, Math.PI * 2);
@@ -566,6 +608,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
           onPointerDown={onPointerDown}
           onMouseDown={(e) => e.preventDefault()}
           onPointerMove={onPointerMove}
+          onPointerLeave={() => setHovered(null)}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
@@ -574,9 +617,15 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
             <img class="annotate-picture" src={image!.src} alt="Skjermbilde av siden" draggable={false} />
           </Show>
           <svg class="annotate-marks" viewBox={`0 0 ${size().w} ${size().h}`} aria-hidden="true">
+            <Show when={tool() === "element" && !editing() ? hovered() : null} keyed>{(el) => <rect class="annotate-element-outline" x={el.rect.x} y={el.rect.y} width={el.rect.w} height={el.rect.h} stroke-width={2 * unit()} />}</Show>
             <For each={items()}>{(item) => <Mark item={item} number={numberOf(item.id)} font={textFont} onMarker={openMarker} onPeek={setPeek} />}</For>
             <Show when={draft()} keyed>{(d) => <Mark item={d} number={0} font={textFont} onMarker={openMarker} onPeek={setPeek} />}</Show>
           </svg>
+          <Show when={tool() === "element" && !editing() ? hovered() : null} keyed>{(el) => <div class="annotate-element-info" role="tooltip" style={bubbleStyle(el.rect.x * scale(), el.rect.y * scale(), size().w * scale())}>
+            <div><strong>{el.tag}</strong><span>{Math.round(el.rect.w)} × {Math.round(el.rect.h)}</span></div>
+            <div><span>Farge</span><span>{el.color}</span></div>
+            <div><span>Skrift</span><span>{el.font}</span></div>
+          </div>}</Show>
           <Show when={editing()} keyed>
             {(current) => (
               <Editor
@@ -605,7 +654,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
           <div class="annotate-status" role="status"><span class="spinner" aria-hidden="true" />Fryser siden…</div>
         </Show>
         <Show when={source() !== null && !items().length && !editing() && !draft()}>
-          <div class="annotate-status annotate-hint" role="status">{hint()}</div>
+          <div class="annotate-status annotate-hint" role="status">{elementError() || hint()}</div>
         </Show>
       </div>
     </div>
@@ -614,7 +663,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
 
 // Where a bubble goes: to the right of the point, to the left when the right is too tight, and under
 // it, kept inside the picture, when neither side has room (a narrow panel).
-const BUBBLE_W = 262;
+const BUBBLE_W = 310;
 function bubbleStyle(x: number, y: number, frameWidth: number): JSX.CSSProperties {
   const gap = 18;
   if (x + gap + BUBBLE_W <= frameWidth) return { left: `${x + gap}px`, top: `${y}px`, "transform-origin": "left center" };
@@ -658,7 +707,7 @@ function Editor(props: {
         ref={input}
         class="annotate-input"
         aria-label={marker() ? `Kommentar til markør ${props.number}` : "Tekst på bildet"}
-        placeholder={marker() ? "Skriv en kort kommentar" : "Skriv en tekst"}
+        placeholder={marker() ? "Legg til en kommentar …" : "Skriv en tekst"}
         maxlength={MAX_COMMENT}
         value={props.initial}
         spellcheck={true}
@@ -676,6 +725,10 @@ function Editor(props: {
           }
         }}
       />
+      <Show when={marker()}>
+        <button type="button" class="icon-button" aria-label="Lagre kommentar" title="Lagre kommentar" onMouseDown={(event) => event.preventDefault()} onClick={() => end(props.onDone)}><IconCheck size={14} /></button>
+        <button type="button" class="icon-button" aria-label="Avbryt kommentar" title="Avbryt kommentar" onMouseDown={(event) => event.preventDefault()} onClick={() => end(props.onCancel)}><IconClose size={12} /></button>
+      </Show>
     </div>
   );
 }
@@ -719,6 +772,7 @@ function Mark(props: { item: Item; number: number; font: (u: number) => string; 
       onPointerEnter={() => props.onPeek(item.id)}
       onPointerLeave={() => props.onPeek(null)}
     >
+      <Show when={item.element}>{(el) => <rect class="annotate-element-outline" x={el().rect.x} y={el().rect.y} width={el().rect.w} height={el().rect.h} stroke-width={2 * u} />}</Show>
       <circle class="halo" cx={item.x} cy={item.y} r={r + HALO * u} />
       <circle class="dot" cx={item.x} cy={item.y} r={r} />
       <text x={item.x} y={item.y + 0.5 * u} font-size={String(MARKER_FONT * u)} text-anchor="middle" dominant-baseline="central">{props.number}</text>

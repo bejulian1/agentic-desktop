@@ -2,16 +2,18 @@
 // description, source and path. New skills, edits, on and off, and removal. Also what happens when
 // the agent proposes a skill of its own (autoSkills). Paths never leave the server: a skill is
 // named by its id, and the server finds the folder.
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { AutoSkills, SkillDetail, SkillInfo } from "../../../../shared/protocol";
 import { del, get, patch, post, put } from "../../lib/api";
+import { on as onSocket } from "../../lib/socket";
 import { app, report, toast } from "../../state/app";
 import { confirmDialog } from "../dialogs";
-import { IconChevronDown, IconFile, IconFolderOpen, IconPencil, IconPlus, IconSearch, IconTrash } from "../icons";
+import { IconChevronDown, IconEye, IconFile, IconFolderOpen, IconPencil, IconPlus, IconSearch, IconTrash } from "../icons";
 import { Choice, Group, Page, Row, save, SkeletonRows } from "./parts";
 import { Select } from "../Select";
 import { Popover } from "../Popover";
 import { pickedFromDrop, pickedFromInput, SkillImport, type Picked } from "./skill-import";
+import { SKILL_NAME as NAME, SKILL_TEMPLATE as TEMPLATE } from "../../lib/skill-workspace";
 
 interface Draft {
   id: string | null; // null for a new skill
@@ -19,13 +21,12 @@ interface Draft {
   where: string; // "user" or a project id, new skills only
   description: string;
   body: string;
+  readOnly?: boolean;
 }
-
-const NAME = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-const TEMPLATE = "## Når\n\nBeskriv når skillen skal brukes.\n\n## Slik gjør du det\n\n1. Første steg\n2. Neste steg\n";
 
 export function Skills() {
   const [data, { refetch }] = createResource(() => get<{ userDir: string; skills: SkillInfo[] }>("/api/skills"));
+  onMount(() => onCleanup(onSocket("skills.changed", () => void refetch())));
   const [query, setQuery] = createSignal("");
   const [draft, setDraft] = createSignal<Draft | null>(null);
   const [busy, setBusy] = createSignal(false);
@@ -34,7 +35,7 @@ export function Skills() {
   const shown = createMemo(() => {
     const words = query().toLocaleLowerCase("nb").split(/\s+/).filter(Boolean);
     return (data()?.skills ?? []).filter((s) => {
-      const hay = `${s.name} ${s.description} ${s.projectName ?? "dine"} ${s.path}`.toLocaleLowerCase("nb");
+      const hay = `${s.name} ${s.description} ${s.source === "app" ? "appen" : s.projectName ?? "dine"} ${s.path}`.toLocaleLowerCase("nb");
       return words.every((w) => hay.includes(w));
     });
   });
@@ -64,7 +65,7 @@ export function Skills() {
     setError("");
     try {
       const detail = await get<SkillDetail>(`/api/skills/${encodeURIComponent(skill.id)}`);
-      setDraft({ id: skill.id, name: detail.name, where: skill.projectId ?? "user", description: detail.description, body: detail.body });
+      setDraft({ id: skill.id, name: detail.name, where: skill.source === "app" ? "app" : skill.projectId ?? "user", description: detail.description, body: detail.body, readOnly: !skill.editable });
     } catch (err) {
       report(err);
     }
@@ -72,7 +73,7 @@ export function Skills() {
 
   const submit = async () => {
     const d = draft();
-    if (!d) return;
+    if (!d || d.readOnly) return;
     if (!d.id && !NAME.test(d.name)) return setError("Navnet kan bare ha små bokstaver (a–z), tall og bindestrek, og kan ikke begynne eller slutte med bindestrek.");
     if (!d.description.trim()) return setError("Skriv en beskrivelse av hva skillen gjør og når den skal brukes.");
     if (!d.body.trim()) return setError("Skillen trenger innhold.");
@@ -156,7 +157,7 @@ export function Skills() {
 
       <Show when={draft()}>
         {(d) => (
-          <Group title={d().id ? `Endre ${d().name}` : "Ny skill"}>
+          <Group title={d().readOnly ? `Vis ${d().name}` : d().id ? `Endre ${d().name}` : "Ny skill"}>
             <form class="setting setting-block skill-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
               <div class="field-row">
                 <label class="field"><span>Navn</span>
@@ -168,21 +169,21 @@ export function Skills() {
                     class="field-select"
                     value={d().where}
                     disabled={!!d().id}
-                    options={[{ value: "user", label: "Dine skills (alle prosjekter)" }, ...projects().map((p) => ({ value: p.id, label: `Prosjektet ${p.name}` }))]}
+                    options={[...(d().where === "app" ? [{ value: "app", label: "Fra appen" }] : []), { value: "user", label: "Dine skills (alle prosjekter)" }, ...projects().map((p) => ({ value: p.id, label: `Prosjektet ${p.name}` }))]}
                     onChange={(where) => update({ where })}
                   />
                 </div>
               </div>
               <label class="field"><span>Beskrivelse: hva den gjør og når den skal brukes</span>
-                <input class="input" value={d().description} maxLength={1024} placeholder="Kjører e2e-testene og leser feilene. Bruk når en endring berører flere deler av appen." onInput={(e) => update({ description: e.currentTarget.value })} />
+                <input class="input" value={d().description} readOnly={d().readOnly} maxLength={1024} placeholder="Kjører e2e-testene og leser feilene. Bruk når en endring berører flere deler av appen." onInput={(e) => update({ description: e.currentTarget.value })} />
               </label>
               <label class="field"><span>Innhold (Markdown)</span>
-                <textarea class="input code-area" rows={12} spellcheck={false} value={d().body} onInput={(e) => update({ body: e.currentTarget.value })} />
+                <textarea class="input code-area" rows={12} spellcheck={false} value={d().body} readOnly={d().readOnly} onInput={(e) => update({ body: e.currentTarget.value })} />
               </label>
               <Show when={error()}><p class="form-error" role="alert">{error()}</p></Show>
               <div class="form-actions">
-                <button type="button" class="btn btn-small" onClick={() => setDraft(null)}>Avbryt</button>
-                <button type="submit" class="btn btn-small btn-primary" disabled={busy()}>{d().id ? "Lagre" : "Lag skill"}</button>
+                <button type="button" class="btn btn-small" onClick={() => setDraft(null)}>{d().readOnly ? "Lukk" : "Avbryt"}</button>
+                <Show when={!d().readOnly}><button type="submit" class="btn btn-small btn-primary" disabled={busy()}>{d().id ? "Lagre" : "Lag skill"}</button></Show>
               </div>
             </form>
           </Group>
@@ -239,7 +240,7 @@ export function Skills() {
                     <div class="setting-text">
                       <strong class="skill-head">
                         <span class="skill-name">{skill.name}</span>
-                        <span class="pill">{skill.projectName ? `Prosjekt: ${skill.projectName}` : "Dine"}</span>
+                        <span class="pill">{skill.source === "app" ? "Fra appen" : skill.projectName ? `Prosjekt: ${skill.projectName}` : "Dine"}</span>
                         <Show when={skill.createdByAgent}><span class="pill pill-accent">Laget av agenten</span></Show>
                         <Show when={!skill.enabled}><span class="pill">Av</span></Show>
                         <Show when={skill.shadowed}><span class="pill" title="Et prosjekt har en skill med samme navn, og den går foran i det prosjektet">Overstyres i et prosjekt</span></Show>
@@ -248,7 +249,8 @@ export function Skills() {
                       <span class="muted skill-path" title={skill.path}>{skill.path}</span>
                     </div>
                     <div class="setting-control">
-                      <input type="checkbox" role="switch" class="switch" aria-label={`Slå ${skill.name} av eller på`} checked={skill.enabled} disabled={busy()} onChange={(e) => void toggle(skill, e.currentTarget.checked)} />
+                      <input type="checkbox" role="switch" class="switch" aria-label={`Slå ${skill.name} av eller på`} checked={skill.enabled} disabled={busy() || skill.source === "app"} title={skill.source === "app" ? "Appens skill er skrivebeskyttet. Lag en egen skill med samme navn for å overstyre den." : undefined} onChange={(e) => void toggle(skill, e.currentTarget.checked)} />
+                      <Show when={skill.source === "app"}><button type="button" class="icon-button" aria-label={`Vis ${skill.name}`} title="Vis appens skill" disabled={busy()} onClick={() => void startEdit(skill)}><IconEye size={14} /></button></Show>
                       <button type="button" class="icon-button" aria-label={`Endre ${skill.name}`} title={skill.editable ? "Endre" : "Ligger utenfor skills-mappen og kan ikke endres her"} disabled={!skill.editable || busy()} onClick={() => void startEdit(skill)}><IconPencil size={14} /></button>
                       <button type="button" class="icon-button" aria-label={`Fjern ${skill.name}`} title={skill.editable ? "Fjern" : "Ligger utenfor skills-mappen og kan ikke fjernes her"} disabled={!skill.editable || busy()} onClick={() => void remove(skill)}><IconTrash size={14} /></button>
                     </div>

@@ -1,6 +1,7 @@
 // Global state that only changes on real events: never per token, so nothing here re-renders
 // because a model is streaming.
 import { createMemo, createSignal } from "solid-js";
+import { closeSkills } from "./skills-workspace";
 import { createStore, reconcile } from "solid-js/store";
 import { applyAppIcon } from "../lib/app-icon";
 import type {
@@ -133,6 +134,7 @@ function savePrefs(): void {
 
 // Going to Chat or Kode, a thread or a project leaves the Artifacts room.
 export function setMode(next: Mode): void {
+  closeSkills();
   closeArtifacts();
   closeProfile();
   setModeSignal(next);

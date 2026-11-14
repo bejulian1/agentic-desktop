@@ -1,0 +1,15 @@
+.browser-panel .browser-tabs { height: 34px; gap: 6px; }
+.browser-tabs .browser-tablist { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.browser-tabs .browser-newtab-button { flex: none; width: auto; height: 26px; min-width: max-content; position: sticky; right: 0; z-index: 1; padding: 0 8px; font-size: var(--text-xs); white-space: nowrap; background: var(--bg-panel); border-color: transparent; color: var(--text-2); }
+.browser-tabs .browser-newtab-button:hover { background: var(--hover); border-color: var(--border); color: var(--text); }
+.browser-panel .browser-bar { gap: 3px; padding: 5px 6px; }
+.browser-panel .browser-bar > .icon-button, .browser-panel .browser-nav .icon-button { width: 26px; height: 26px; flex: none; }
+.browser-panel .browser-bar .input.address { height: 28px; margin-left: 0; padding: 0 10px; border-radius: var(--radius-md); }
+.browser-panel .browser-bar .icon-button[aria-label="Frem"] { display: inline-flex; }
+.browser-panel .browser-history-button[aria-expanded="true"] { background: var(--active); }
+.browser-history-menu { max-width: min(420px, calc(100vw - 16px)); }
+.browser-navigation-error { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); text-align: center; background: var(--bg-panel); color: var(--text-2); }
+.browser-navigation-error h3 { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--text); }
+.browser-navigation-error p { max-width: 48ch; font-size: var(--text-sm); overflow-wrap: anywhere; }
+
+.browser-panel .browser-canvas { object-fit: cover; object-position: top left; }

@@ -1,0 +1,24 @@
+.git-workspace-dialog { width: min(660px,calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.git-workspace-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.git-workspace-dialog > header h2 { margin: 0; }
+.git-workspace-body { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.git-workspace-context,.git-workspace-current { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.git-workspace-context > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: var(--text-xs); }
+.git-workspace-current > strong { flex: 1; overflow-wrap: anywhere; }
+.git-workspace-help,.git-workspace-form .muted { font-size: var(--text-xs); line-height: 1.6; }
+.git-workspace-help code { overflow-wrap: anywhere; }
+.git-workspace-body h3 { margin: 7px 0 0; font-size: var(--text-sm); }
+.git-workspace-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.git-workspace-actions .btn { display: inline-flex; align-items: center; gap: 7px; }
+.git-workspace-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.git-workspace-form label { display: flex; flex-direction: column; gap: 5px; font-size: var(--text-sm); }
+.git-workspace-form label.git-use-existing { flex-direction: row; align-items: center; gap: 8px; }
+.git-workspace-branches { max-height: 230px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.git-branch-row { display: flex; gap: 8px; align-items: center; width: 100%; padding: 9px 10px; text-align: left; }
+.git-branch-row > span:first-of-type { flex: 1; overflow-wrap: anywhere; }
+.git-branch-row .muted { font-size: var(--text-xs); }
+.git-branch-row:hover:not(:disabled),.git-branch-row[aria-pressed=true] { background: var(--active); }
+.git-branch-row:disabled { cursor: default; }
+.git-tree-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.git-tree-row > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.git-tree-row code { overflow-wrap: anywhere; color: var(--text-3); font-size: var(--text-xs); }

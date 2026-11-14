@@ -8,7 +8,7 @@ import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { HarnessInfo, MemoryList, MemoryScope, Project, PromptLayerInfo, Thread, UpgradeOp, UpgradeProposal } from "../../../shared/protocol.ts";
 import { HttpError } from "../errors.ts";
-import { backupGlobalAgents, DEFAULT_AGENTS_MD, HARNESS_PARTS, HARNESS_VERSION, hashText, lineDiff, listBackups, pruneBackups, TONES } from "../agent/harness.ts";
+import { backupGlobalAgents, DEFAULT_AGENTS_MD, DEFAULT_CHAT_SYSTEM_INSTRUCTIONS, MAX_CHAT_FIELD, MAX_CHAT_WORDS, HARNESS_PARTS, HARNESS_VERSION, hashText, lineDiff, listBackups, pruneBackups, TONES } from "../agent/harness.ts";
 import { previewImport, runImport, type ImportTarget } from "../skill-import.ts";
 import type { ApiDeps } from "./api.ts";
 
@@ -35,9 +35,20 @@ export function harnessRoutes(route: Route, deps: ApiDeps, h: { project: (id: st
 
   // Steering: a queued message goes into the running turn, or back to waiting.
   route("PATCH", "/api/threads/:id/queue/:messageId", ({ params, body }) => {
+    const id = h.thread(params.id).id;
+    if (body.text !== undefined) {
+      if (typeof body.text !== "string" || body.steer !== undefined) throw new HttpError(400, "Send enten text eller steer");
+      return runner.editQueued(id, params.messageId, body.text);
+    }
     if (typeof body.steer !== "boolean") throw new HttpError(400, "steer må være true eller false");
-    return runner.setSteer(h.thread(params.id).id, params.messageId, body.steer);
+    return runner.setSteer(id, params.messageId, body.steer);
   });
+
+  route("DELETE", "/api/threads/:id/queue/:messageId", ({ params }) => runner.removeQueued(h.thread(params.id).id, params.messageId));
+
+  route("POST", "/api/threads/:id/queue/:messageId/side-draft", ({ params }) => runner.queuedSideDraft(h.thread(params.id).id, params.messageId));
+
+  route("GET", "/api/threads/:id/queued-draft", ({ params }) => ({ draft: store.queuedDraft(h.thread(params.id).id) }));
 
   // Memories
 
@@ -168,10 +179,11 @@ export function harnessRoutes(route: Route, deps: ApiDeps, h: { project: (id: st
   // Chat: its own place (SPEC 22.4)
 
   const chatMemories = runner.chatMemories;
-  const chatState = () => ({ personal: harness.state().chat, memories: chatMemories.list("global"), file: chatMemories.file("global"), tones: TONES });
+  const chatState = () => ({ personal: harness.state().chat, memories: chatMemories.list("global"), file: chatMemories.file("global"), tones: TONES, defaults: { instructions: DEFAULT_CHAT_SYSTEM_INSTRUCTIONS, maxLength: MAX_CHAT_FIELD, maxWords: MAX_CHAT_WORDS }, instructionsAreDefault: harness.state().chat.instructions === DEFAULT_CHAT_SYSTEM_INSTRUCTIONS });
   route("GET", "/api/chat-personal", chatState);
   route("PUT", "/api/chat-personal", ({ body }) => harness.setChat(body ?? {}));
   route("POST", "/api/chat-personal/reset", () => harness.resetChat());
+  route("POST", "/api/chat-personal/instructions/reset", () => harness.resetChatInstructions());
   route("POST", "/api/chat-personal/memories", ({ body }) => chatMemories.add("global", undefined, body.text).item);
   route("PUT", "/api/chat-personal/memories/:id", ({ params, body }) => chatMemories.update("global", undefined, params.id, body.text));
   route("DELETE", "/api/chat-personal/memories/:id", ({ params }) => void chatMemories.remove("global", undefined, params.id));

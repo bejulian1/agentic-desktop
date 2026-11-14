@@ -1,0 +1,24 @@
+/* Both project menus follow their own trigger and escape pane clipping. */
+.popover.fixed:has(> .project-picker) {
+  width: 350px;
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+  max-height: min(460px, var(--popover-room, 70vh));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.popover.fixed > .project-picker { width: 100%; min-height: 0; }
+.project-picker > .picker-search, .project-picker > .menu-sep, .project-picker > .menu-item { flex-shrink: 0; }
+.project-picker .menu-stack { min-width: 0; }
+.project-picker .menu-name { overflow: hidden; text-overflow: ellipsis; }
+.topbar-crumb > .crumb-project-anchor { min-width: 0; flex: 0 1 auto; }
+.crumb-project-anchor > .crumb-project { max-width: 100%; }
+.project-environment-button { padding-inline: 5px; }
+.popover.fixed:has(> .project-environment-menu) { width: 310px; min-width: 0; max-width: calc(100vw - 16px); max-height: var(--popover-room, 70vh); }
+.project-environment-menu { min-width: 0; }
+.project-environment-row { display: flex; align-items: center; gap: var(--space-2); padding: 6px var(--space-2); font-size: var(--text-sm); }
+.project-environment-row > .icon { flex: none; color: var(--text-3); }
+.project-environment-value { min-width: 0; margin-left: auto; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-environment-menu .menu-stack { min-width: 0; flex: 1; }
+.project-environment-menu .menu-name { flex: 1; }

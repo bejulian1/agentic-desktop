@@ -3,14 +3,14 @@
 import type { Thread } from "../../../shared/protocol";
 import { app, deleteThread, moveToSection, report, sectionsFor, sortedChatProjects } from "../state/app";
 import { patch } from "../lib/api";
+import { finished, markSeen, markUnread } from "../state/home";
 import { newChatProject } from "./chat-projects";
-import { actions } from "../state/actions";
 import { copyThread, forkFromLast, forkWhole, openInPane, openInWindow, setPinned, setSnoozed, sideChat, snoozeTimes, toggleArchived } from "../state/thread-actions";
 import { confirmDialog } from "./dialogs";
 import { newSection } from "./sidebar-sections";
-import { IconArchive, IconAt, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
+import { IconArchive, IconAt, IconDownload, IconEye, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
 import type { MenuEntry } from "./ContextMenu";
-import { IconCalendarClock, IconPencil, IconSnooze, IconWindow } from "./nav-icons";
+import { IconPencil, IconSnooze, IconWindow } from "./nav-icons";
 
 // Chats move between Chat projects (round 9). Kode threads have a folder, or are Denne datamaskinen.
 function moveEntries(thread: Thread): MenuEntry[] {
@@ -66,6 +66,7 @@ export function threadMenuEntries(thread: Thread, startRename: () => void): Menu
   return [
     { label: "Gi nytt navn", icon: IconPencil, keys: "thread.rename", run: startRename },
     { label: thread.pinned ? "Løsne" : "Fest", icon: IconPin, keys: "thread.pin", run: () => setPinned(thread, !thread.pinned) },
+    ...(!thread.temporary ? [{ label: finished().includes(thread.id) ? "Merk som lest" : "Merk som ulest", icon: IconEye, keys: "thread.unread", run: () => finished().includes(thread.id) ? markSeen(thread.id, true) : markUnread(thread.id) } as MenuEntry] : []),
     ...moveEntries(thread),
     ...sectionEntries(thread),
     "sep",
@@ -86,8 +87,8 @@ export function threadMenuEntries(thread: Thread, startRename: () => void): Menu
         ...(snoozed ? (["sep", { label: "Hent tilbake", run: () => setSnoozed(thread, null) }] as MenuEntry[]) : []),
       ],
     },
-    { label: "Legg til planlagt oppgave", icon: IconCalendarClock, demo: true, run: actions.scheduled, title: "Planlagte oppgaver kommer senere" },
     "sep",
+    { label: "Eksporter samtale…", icon: IconDownload, title: "Last ned samtalen som en Markdown-fil du kan dele selv", run: () => import("./ChatTools").then(({ exportThread }) => exportThread(thread.id)) },
     {
       label: "Kopier",
       icon: IconCopy,

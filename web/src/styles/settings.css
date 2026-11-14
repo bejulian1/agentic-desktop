@@ -98,13 +98,6 @@ button.setting.search-result:hover { background: var(--hover); }
 .settings-group + .beta-note { margin-top: calc(-1 * var(--space-5)); }
 
 /* Leverandører */
-/* Two letters and a fixed hue per provider, the same tint recipe as the task marks in Oversikt. */
-.provider-glyph {
-  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; border-radius: var(--radius-sm);
-  background: hsl(var(--glyph-hue, 220) 55% 50% / 0.14); color: hsl(var(--glyph-hue, 220) 55% 38%);
-  font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: 0.02em;
-}
-:root[data-theme="dark"] .provider-glyph { background: hsl(var(--glyph-hue, 220) 50% 55% / 0.2); color: hsl(var(--glyph-hue, 220) 60% 72%); }
 .model-id { font: var(--text-xs) var(--font-mono); color: var(--text-3); }
 .provider-edit { padding-top: 0; }
 .setting .btn-small .icon { margin-right: 2px; }

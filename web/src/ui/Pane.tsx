@@ -1,7 +1,6 @@
 // One pane: a header, a conversation and a message field. It subscribes to its own thread only.
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
-import { app, pinnedSummary, renameThread, report, scopeOf, untitled, EMPTY_THREAD_NAME } from "../state/app";
-import { PinnedSummary } from "./PinnedSummary";
+import { app, renameThread, report, scopeOf, untitled, EMPTY_THREAD_NAME } from "../state/app";
 import { beginDrag, applyDrop } from "../state/drag";
 import type { Grid, PaneState } from "../state/grid";
 import { chatProjectFor, openThread } from "../state/navigate";
@@ -101,14 +100,6 @@ export function Pane(props: {
 
   // Kode only, and only with something to show: a goal, a plan, chapters, threads it started or
   // files it changed. Chat is a plain conversation (SPEC 18.2).
-  const pinnable = createMemo(() => {
-    const current = thread();
-    if (!current || current.mode !== "code") return false;
-    if (current.goal || current.plan || current.chapters.length) return true;
-    if ((model()?.changes().length ?? 0) > 0) return true;
-    return Object.values(app.threads).some((t) => t?.parentThreadId === current.id);
-  });
-
   const parent = createMemo(() => {
     const id = thread()?.parentThreadId;
     return id ? app.threads[id] : undefined;
@@ -172,9 +163,6 @@ export function Pane(props: {
         </Show>
       </header>
       <div class="pane-body">
-        <Show when={pinnedSummary() && pinnable() && thread()}>
-          <PinnedSummary thread={thread()!} model={model()} />
-        </Show>
         <Show
           when={model() && (model()!.chunks().length > 0 || model()!.hasOlder())}
           fallback={<Home projectId={props.projectId} code={props.code || thread()?.mode === "code"} paneKey={threadId() ?? props.pane.id} onPick={(text) => fill?.(text)} />}

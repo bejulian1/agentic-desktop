@@ -19,7 +19,8 @@ const UNFOLD_MS = 400;
 const FOLDS = ".fold, .steps-head, .agents-head, .bg-head, .pinned-head, .group-toggle, .smart-group-head";
 const GLIDE_MS = 200;
 
-// Container, and how its chosen item is marked.
+// Container, and how its chosen item is marked. Settings navigation stays immediate: its
+// selection must match the newly mounted page throughout rapid pointer and keyboard switches.
 const GLIDES: Array<[string, string]> = [
   [".mode-switch", '.mode-button[aria-pressed="true"]'],
   [".segmented", '.segment[aria-pressed="true"]'],
@@ -31,7 +32,6 @@ const GLIDES: Array<[string, string]> = [
   [".queue-switch", '[aria-pressed="true"]'],
   [".profile-theme-switch", '[aria-pressed="true"]'],
   [".pane-tabs", ".pane-tab.on"],
-  [".settings-nav", '.nav-item[aria-current="page"]'],
 ];
 const CONTAINERS = GLIDES.map(([c]) => c).join(", ");
 

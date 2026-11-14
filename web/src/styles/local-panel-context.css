@@ -1,0 +1,13 @@
+.local-panel-context { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; gap: 14px; text-align: center; padding: 32px 24px; height: 100%; }
+.local-context-icon { color: var(--text-3); }
+.local-panel-context h2 { font-size: 19px; font-weight: var(--weight-medium); margin: 0; }
+.local-panel-context p { color: var(--text-3); font-size: 13px; line-height: 1.7; max-width: 340px; margin: 0 0 6px; }
+.local-overview { padding: 22px 18px; overflow: auto; height: 100%; }
+.local-overview header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; color: var(--text-2); }
+.local-overview h2 { font-size: 17px; margin: 0 0 5px; font-weight: var(--weight-medium); }
+.local-overview header p { margin: 0; font-size: 12px; color: var(--text-3); }
+.local-overview-card { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 15px; margin-bottom: 12px; overflow-wrap: anywhere; }
+.local-overview-card > span, .local-overview-card small { font-size: 11px; color: var(--text-3); }
+.local-overview-card strong { font-size: 13px; font-weight: var(--weight-medium); }
+.local-overview-card code { font-size: 11px; background: none; padding: 0; }
+.local-overview-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }

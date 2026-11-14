@@ -183,7 +183,7 @@ export function Home(props: { projectId: string | null; code?: boolean; paneKey:
             fallback={
               <>
                 <span class="temp-badge" data-testid="temp-badge"><IconClock size={13} />Midlertidig chat</span>
-                <h2 class="home-greeting">Denne chatten blir ikke lagret</h2>
+                <h2 class="home-greeting">Denne chatten beholdes midlertidig</h2>
                 <p class="home-note muted">Den står ikke i søket, og den slettes når du lukker den eller går til en annen chat. Står den urørt i to timer, slettes den også.</p>
               </>
             }

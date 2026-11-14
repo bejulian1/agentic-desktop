@@ -2,21 +2,21 @@
 // like OpenCode's; Modeller holds the default model and the model list for each provider. Keys go
 // to the server once and are never sent back, so no field here ever shows one. Round 14 (SPEC
 // 30.1): the server keeps them in the system keyring; KeyringNote says so when it cannot.
-import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { del, get, patch, post } from "../../lib/api";
 import { formatTokens } from "../../lib/format";
 import type { ListedModel, ModelConfig, ProviderConfig, ProviderKind, ProviderPreset } from "../../../../shared/protocol";
-import { app, report, setApp, setSettingsOpen, toast } from "../../state/app";
+import { app, report, saveSettings, setApp, toast } from "../../state/app";
+import { agentSettingsOf, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN } from "../../../../shared/protocol";
 import type { KeyringStatus } from "../../../../shared/protocol";
 import { SecretInput } from "../SecretInput";
 import { confirmDialog } from "../dialogs";
 import { IconBack, IconInfo, IconPlus } from "../icons";
-import { ProviderGlyph } from "../ProviderGlyph";
-import { BetaBadge, Choice, Group, Page, Row, save } from "./parts";
+import { BetaBadge, Choice, Group, Page, Row, Toggle, save } from "./parts";
 import { Select } from "../Select";
 
 const MOCK_PROVIDER = (p: ProviderConfig) => p.kind === "mock";
-const BETA_TEXT = "Tilkoblingen er ikke prøvd med en ekte nøkkel ennå. Adressen og formatet er hentet fra leverandørens dokumentasjon.";
+const BETA_TEXT = "Integrasjonen er testet mot lokale prøveservere. Tilgang til denne leverandørens ekte API er ennå ikke bekreftet. Bruk «Test tilkobling» med din egen konto.";
 
 const disconnect = async (provider: ProviderConfig) => {
   if (await confirmDialog({ title: `Koble fra ${provider.name}?`, text: "Nøkkelen og modellene herfra fjernes fra appen. Tråder som brukte en av modellene, bytter til standardmodellen.", confirm: "Koble fra", danger: true })) {
@@ -24,14 +24,19 @@ const disconnect = async (provider: ProviderConfig) => {
   }
 };
 
-export function ProviderForm(props: { provider?: ProviderConfig; preset?: ProviderPreset; onDone: () => void }) {
+export function ProviderForm(props: { provider?: ProviderConfig; preset?: ProviderPreset; active?: boolean; onDone: () => void }) {
   const [kind, setKind] = createSignal<ProviderKind>(props.provider?.kind ?? props.preset?.kind ?? "openai-compatible");
   const [name, setName] = createSignal(props.provider?.name ?? (props.preset && props.preset.id !== "custom" ? props.preset.name : ""));
   const [baseUrl, setBaseUrl] = createSignal(props.provider?.baseUrl ?? props.preset?.baseUrl ?? "");
   const [apiKeyEnv, setApiKeyEnv] = createSignal(props.provider?.apiKeyEnv ?? props.preset?.apiKeyEnv ?? "");
   const [apiKey, setApiKey] = createSignal("");
+  const [error, setError] = createSignal("");
+  const [busy, setBusy] = createSignal(false);
   const submit = async (event: Event) => {
     event.preventDefault();
+    if (busy()) return;
+    setBusy(true);
+    setError("");
     const body: Record<string, unknown> = { name: name(), baseUrl: baseUrl() || undefined, apiKeyEnv: apiKeyEnv() || undefined };
     if (apiKey()) body.apiKey = apiKey();
     try {
@@ -40,8 +45,9 @@ export function ProviderForm(props: { provider?: ProviderConfig; preset?: Provid
       setApiKey("");
       props.onDone();
     } catch (err) {
+      setError((err as Error).message);
       report(err);
-    }
+    } finally { setBusy(false); }
   };
   return (
     <form class="form" onSubmit={submit} aria-label="Leverandør">
@@ -49,6 +55,7 @@ export function ProviderForm(props: { provider?: ProviderConfig; preset?: Provid
         <p class="muted">Egendefinert: en tjeneste med et OpenAI-kompatibelt API, for eksempel en lokal server.</p>
         <div class="field"><span>Type</span>
           <Select<ProviderKind>
+            active={props.active}
             label="Type"
             class="field-select"
             value={kind()}
@@ -61,9 +68,10 @@ export function ProviderForm(props: { provider?: ProviderConfig; preset?: Provid
       <label class="field"><span>Adresse (baseUrl)</span><input class="input" value={baseUrl()} onInput={(e) => setBaseUrl(e.currentTarget.value)} placeholder={kind() === "anthropic" ? "Standard" : "http://127.0.0.1:8080/v1"} spellcheck={false} /></label>
       <label class="field"><span>Miljøvariabel for nøkkel</span><input class="input" value={apiKeyEnv()} onInput={(e) => setApiKeyEnv(e.currentTarget.value)} placeholder="MIN_API_KEY" spellcheck={false} /></label>
       <label class="field"><span>Nøkkel</span><SecretInput label="Nøkkel" value={apiKey()} onInput={setApiKey} placeholder={props.provider?.hasKey ? "Satt. Skriv for å bytte." : "Lagres i nøkkelringen"} /></label>
+      <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
       <div class="form-actions">
         <button type="button" class="btn" onClick={props.onDone}>Avbryt</button>
-        <button type="submit" class="btn btn-primary">Lagre</button>
+        <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? "Lagrer…" : "Lagre"}</button>
       </div>
     </form>
   );
@@ -80,8 +88,13 @@ function ModelForm(props: { model?: ModelConfig; providerId: string; onDone: () 
   // OpenAI-compatible servers unless the model is known to have it.
   const kind = () => app.providers.find((p) => p.id === props.providerId)?.kind;
   const [webSearch, setWebSearch] = createSignal(m?.webSearch ?? kind() === "anthropic");
+  const [error, setError] = createSignal("");
+  const [busy, setBusy] = createSignal(false);
   const submit = async (event: Event) => {
     event.preventDefault();
+    if (busy()) return;
+    setBusy(true);
+    setError("");
     const body: Record<string, unknown> = {
       providerId: props.providerId,
       name: name(),
@@ -96,8 +109,9 @@ function ModelForm(props: { model?: ModelConfig; providerId: string; onDone: () 
       else await post("/api/models", body);
       props.onDone();
     } catch (err) {
+      setError((err as Error).message);
       report(err);
-    }
+    } finally { setBusy(false); }
   };
   return (
     <form class="form" onSubmit={submit} aria-label="Modell">
@@ -115,16 +129,18 @@ function ModelForm(props: { model?: ModelConfig; providerId: string; onDone: () 
           <span class="muted">Brukes av Nettsøk i Chat. Slå av hvis modellen ikke har det; da søker appens nettleser i stedet, når en søkeside er satt opp.</span>
         </span>
       </label>
+      <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
       <div class="form-actions">
         <button type="button" class="btn" onClick={props.onDone}>Avbryt</button>
-        <button type="submit" class="btn btn-primary">Lagre</button>
+        <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? "Lagrer…" : "Lagre"}</button>
       </div>
     </form>
   );
 }
 
-function ProviderCard(props: { provider: ProviderConfig }) {
+function ProviderCard(props: { provider: ProviderConfig; beta?: boolean; active?: boolean }) {
   const provider = () => props.provider;
+  const [editing, setEditing] = createSignal(false);
   const [modelForm, setModelForm] = createSignal<ModelConfig | "new" | null>(null);
   const [fetching, setFetching] = createSignal(false);
   const [testResult, setTestResult] = createSignal<{ ok: boolean; message: string } | null>(null);
@@ -139,16 +155,26 @@ function ProviderCard(props: { provider: ProviderConfig }) {
     }
   };
   return (
-    <div class="card" data-provider={provider().name}>
+    <div class="card provider-row" data-provider={provider().name}>
       <div class="card-head">
         <div class="card-title">
-          <strong>{provider().name}</strong>
-          <span class="muted">{mock() ? "Ingen nøkkel trengs" : `${provider().kind === "anthropic" ? "Anthropic" : "OpenAI-kompatibel"}, ${provider().hasKey ? "nøkkel er satt" : "nøkkel mangler"}`}</span>
+          <strong>{provider().name}<Show when={props.beta}><BetaBadge /></Show></strong>
+          <span class="muted">{mock() ? "Innebygd · uten nettverk" : `${models().length === 1 ? "1 modell" : `${models().length} modeller`} · ${provider().baseUrl ? provider().baseUrl!.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : "standardadresse"}`}</span>
+          <Show when={!mock()}><span class="key-tag">{provider().hasKey ? "API-nøkkel" : "Nøkkel mangler"}</span></Show>
         </div>
-        <button type="button" class="btn btn-small" onClick={test}>Test tilkobling</button>
+        <div class="provider-actions">
+          <button type="button" class="btn btn-small" onClick={test}>Test tilkobling</button>
+          <Show when={!mock()}>
+            <button type="button" class="btn btn-small btn-quiet" aria-label={`Rediger ${provider().name}`} aria-expanded={editing()} onClick={() => setEditing(!editing())}>Rediger leverandør</button>
+            <button type="button" class="btn btn-small btn-quiet" aria-label={`Koble fra ${provider().name}`} onClick={() => disconnect(provider())}>Koble fra</button>
+          </Show>
+        </div>
       </div>
       <Show when={testResult()}><p class="test-result" classList={{ bad: !testResult()!.ok }} role="status">{testResult()!.message}</p></Show>
-      <ul class="model-list">
+      <Show when={editing()}>
+        <div class="provider-edit"><ProviderForm provider={provider()} active={props.active} onDone={() => setEditing(false)} /></div>
+      </Show>
+      <ul class="model-list" aria-label={`Modeller fra ${provider().name}`}>
         <For each={models()}>
           {(model) => (
             <li class="model-row">
@@ -247,32 +273,58 @@ function ModelFetcher(props: { provider: ProviderConfig; onDone: () => void; clo
   );
 }
 
-export function Models() {
+function StepBudget() {
+  const savedSteps = () => agentSettingsOf({ maxStepsPerTurn: app.settings.maxStepsPerTurn }).maxStepsPerTurn;
+  const [draft, setDraft] = createSignal(String(savedSteps()));
+  const [error, setError] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  createEffect(() => setDraft(String(savedSteps())));
+  const submit = async (event: Event) => {
+    event.preventDefault();
+    const value = draft().trim() ? Number(draft()) : NaN;
+    if (!isMaxStepsPerTurn(value)) {
+      setError(`Velg et heltall fra ${MIN_STEPS_PER_TURN} til ${MAX_STEPS_PER_TURN}.`);
+      return;
+    }
+    setError("");
+    setSaving(true);
+    try { await saveSettings({ maxStepsPerTurn: value }); }
+    catch (err) { setError((err as Error).message); }
+    finally { setSaving(false); }
+  };
+  return (
+    <form class="form" onSubmit={submit} noValidate aria-label="Steggrense">
+      <div class="form-actions">
+        <input class="input" type="number" aria-label="Steg per tur" aria-invalid={!!error()} aria-describedby={error() ? "step-budget-error" : undefined}
+          min={MIN_STEPS_PER_TURN} max={MAX_STEPS_PER_TURN} step="1" style={{ width: "6rem" }} value={draft()}
+          onInput={(event) => { setDraft(event.currentTarget.value); setError(""); }} />
+        <button type="submit" class="btn btn-small" disabled={saving()}>Lagre steggrense</button>
+      </div>
+      <Show when={error()}><span id="step-budget-error" role="alert">{error()}</span></Show>
+    </form>
+  );
+}
+
+function ModelDefaults(props: { active?: boolean }) {
   const options = () =>
     app.providers.flatMap((provider) =>
       app.models.filter((m) => m.providerId === provider.id).map((m) => ({ value: m.id, label: MOCK_PROVIDER(provider) ? m.name : `${m.name} (${provider.name})` })),
     );
   return (
-    <Page title="Modeller" intro="Demo-modellen er alltid tilgjengelig og bruker ikke nettverket. Koble til en leverandør for å bruke ekte modeller. Nøkler lagres i en fil bare du kan lese, og sendes aldri tilbake hit.">
+    <>
       <Group title="Standard">
         <Row label="Standardmodell" text="Brukes i nye tråder. Hver tråd kan bytte modell i meldingsfeltet.">
-          <Choice label="Standardmodell" value={app.settings.defaultModelId ?? ""} options={options()} onChange={(id) => save({ defaultModelId: id })} />
+          <Choice active={props.active} label="Standardmodell" value={app.settings.defaultModelId ?? ""} options={options()} onChange={(id) => save({ defaultModelId: id })} />
         </Row>
       </Group>
       <Group title="Agenten">
-        <Row label="Komprimering" text="Når samtalen fyller 80 % av kontekstvinduet, komprimeres den automatisk. Gamle verktøyresultater og bilder kortes ned først.">
-          <span class="pill">Alltid på</span>
-        </Row>
-        <Row label="Steg per tur" text="Agenten stopper etter 50 modellkall i én tur, så en løkke ikke kan gå for alltid.">
-          <span class="pill">50</span>
+        <Toggle label="Komprimering" text="Når dette er på, kortes gamle verktøyresultater og bilder ned ved 80 % av kontekstvinduet, og eldre samtale oppsummeres ved behov. Av beholder historikken til leverandørens kontekstgrense; bruk /compact ved behov. Gjelder nye turer."
+          checked={agentSettingsOf(app.settings).autoCompact} onChange={(autoCompact) => save({ autoCompact })} />
+        <Row label="Steg per tur" text={`Agenten stopper etter maksimalt ${agentSettingsOf(app.settings).maxStepsPerTurn} modellsteg i én tur. Ett steg kan inneholde flere verktøykall. Velg ${MIN_STEPS_PER_TURN}–${MAX_STEPS_PER_TURN}; grensen gjelder nye turer.`}>
+          <StepBudget />
         </Row>
       </Group>
-      {/* The models of each provider. Keys, addresses and disconnecting live under Leverandører. */}
-      <div class="settings-group-head"><h2>Modeller per leverandør</h2>
-        <button type="button" class="btn btn-small" onClick={() => setSettingsOpen("providers")}>Leverandører…</button>
-      </div>
-      <For each={app.providers}>{(provider) => <ProviderCard provider={provider} />}</For>
-    </Page>
+    </>
   );
 }
 
@@ -283,11 +335,12 @@ function ConnectView(props: { preset: ProviderPreset; onClose: () => void }) {
   const [busy, setBusy] = createSignal(false);
   const [provider, setProvider] = createSignal<ProviderConfig | null>(null);
   let input: HTMLInputElement | undefined;
+  let view!: HTMLElement;
   onMount(() => {
     input?.focus({ preventScroll: true });
     // Esc goes back to the list, not out of Innstillinger. Capture runs before the page's handler.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      if (event.key !== "Escape" || document.querySelector("dialog[open]") || view.closest("[hidden]")) return;
       event.preventDefault();
       event.stopPropagation();
       props.onClose();
@@ -313,11 +366,11 @@ function ConnectView(props: { preset: ProviderPreset; onClose: () => void }) {
   };
   const label = `${props.preset.name}-API-nøkkel`;
   return (
-    <section class="connect-view" aria-label={`Koble til ${props.preset.name}`}>
+    <section class="connect-view" ref={view} aria-label={`Koble til ${props.preset.name}`}>
       <div class="connect-bar">
         <button type="button" class="icon-button" aria-label="Tilbake til leverandørene" title="Tilbake (Esc)" onClick={props.onClose}><IconBack size={16} /></button>
       </div>
-      <h1 class="connect-title"><ProviderGlyph name={props.preset.name} /><span>Koble til {props.preset.name}</span><Show when={props.preset.beta}><BetaBadge /></Show></h1>
+      <h1 class="connect-title"><span>Koble til {props.preset.name}</span><Show when={props.preset.beta}><BetaBadge /></Show></h1>
       <Show
         when={provider()}
         fallback={
@@ -345,67 +398,60 @@ function ConnectView(props: { preset: ProviderPreset; onClose: () => void }) {
   );
 }
 
-export function Providers() {
-  const [presets] = createResource(() => get<ProviderPreset[]>("/api/provider-presets"));
+// Kept as an export for callers that still import the old model page.
+export function Models() { return <Providers />; }
+
+export function Providers(props: { active?: boolean } = {}) {
+  // Read the asynchronous list inside its own Suspense boundary: connected models and drafts
+  // stay visible and usable while the catalogue is loading.
+  const [catalogError, setCatalogError] = createSignal("");
+  const [presets, { refetch }] = createResource(async () => {
+    setCatalogError("");
+    try { return await get<ProviderPreset[]>("/api/provider-presets"); }
+    catch (err) { setCatalogError((err as Error).message); return []; }
+  });
   const [connecting, setConnecting] = createSignal<ProviderPreset | null>(null);
   const [custom, setCustom] = createSignal(false);
-  const [editing, setEditing] = createSignal<string | null>(null);
   const named = () => (presets() ?? []).filter((p) => p.id !== "custom");
   const connected = () => app.providers.filter((p) => !MOCK_PROVIDER(p));
-  const presetFor = (p: ProviderConfig) => named().find((x) => x.kind === p.kind && (x.name === p.name || (!!x.baseUrl && x.baseUrl === p.baseUrl)));
+  const presetFor = (p: ProviderConfig) => (presets.loading ? [] : presets.latest ?? []).find((x) => x.kind === p.kind && (x.name === p.name || (!!x.baseUrl && x.baseUrl === p.baseUrl)));
   const popular = () => named().filter((x) => !connected().some((p) => presetFor(p)?.id === x.id));
-  const host = (p: ProviderConfig) => (p.baseUrl ? p.baseUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : "standardadresse");
-  const count = (p: ProviderConfig) => app.models.filter((m) => m.providerId === p.id).length;
   return (
-    <Show
-      when={!connecting()}
-      fallback={<ConnectView preset={connecting()!} onClose={() => setConnecting(null)} />}
-    >
-      <Page title="Leverandører" intro={app.keyring?.store === "session" ? "Koble til en leverandør med en API-nøkkel. Nøkkelen skrives aldri i klartekst, og sendes aldri tilbake til nettleseren." : "Koble til en leverandør med en API-nøkkel. Nøkkelen lagres kryptert i systemets nøkkelring, og sendes aldri tilbake til nettleseren."}>
-        <KeyringNote />
-        <Group title="Tilkoblede leverandører">
-          <Row label="Demo-modell" icon={() => <ProviderGlyph name="Demo" />} badge={<span class="key-tag">Innebygd</span>} text="Alltid tilgjengelig, og bruker ikke nettverket." />
-          <For each={connected()}>
-            {(provider) => (
-              <>
-              <Row
-                class="provider-row"
-                label={provider.name}
-                icon={() => <ProviderGlyph name={provider.name} />}
-                badge={<><span class="key-tag">{provider.hasKey ? "API-nøkkel" : "Nøkkel mangler"}</span><Show when={presetFor(provider)?.beta}><BetaBadge /></Show></>}
-                text={`${count(provider) === 1 ? "1 modell" : `${count(provider)} modeller`} · ${host(provider)}`}
-              >
-                <button type="button" class="btn btn-small btn-quiet" aria-label={`Modeller fra ${provider.name}`} onClick={() => setSettingsOpen("models")}>Modeller</button>
-                <button type="button" class="btn btn-small btn-quiet" aria-label={`Rediger ${provider.name}`} aria-expanded={editing() === provider.id} onClick={() => setEditing(editing() === provider.id ? null : provider.id)}>Rediger</button>
-                <button type="button" class="btn btn-small btn-quiet" aria-label={`Koble fra ${provider.name}`} onClick={() => disconnect(provider)}>Koble fra</button>
-              </Row>
-              <Show when={editing() === provider.id}>
-                <div class="setting setting-block provider-edit"><ProviderForm provider={provider} onDone={() => setEditing(null)} /></div>
-              </Show>
-              </>
-            )}
-          </For>
-        </Group>
-        <Show when={popular().length}>
-          <Group title="Populære leverandører">
-            <For each={popular()}>
-              {(preset) => (
-                <Row label={preset.name} icon={() => <ProviderGlyph name={preset.name} />} badge={<Show when={preset.beta}><BetaBadge /></Show>} text={preset.note}>
-                  <button type="button" class="btn btn-small" aria-label={`Koble til ${preset.name}`} onClick={() => setConnecting(preset)}><IconPlus size={14} /> Koble til</button>
-                </Row>
-              )}
-            </For>
-          </Group>
-        </Show>
-        <p class="beta-note">Beta: {BETA_TEXT}</p>
-        <Show
-          when={custom()}
-          fallback={<button type="button" class="link-button" onClick={() => setCustom(true)}>Egendefinert (OpenAI-kompatibel adresse)</button>}
-        >
-          <div class="card"><ProviderForm preset={(presets() ?? []).find((p) => p.id === "custom")} onDone={() => setCustom(false)} /></div>
-        </Show>
-      </Page>
-    </Show>
+    <>
+      <div hidden={!!connecting()}>
+        <Page title="Modeller og leverandører" intro="Velg standardmodell, administrer modellene dine og koble til leverandører på samme sted. Demo-modellen er alltid tilgjengelig uten nettverk.">
+          <KeyringNote />
+          <Row label="Nøkkellagring" text={app.keyring?.legacy ? "En nøkkelfil fra en eldre versjon finnes fortsatt. Se statusmeldingen under for flytting til nøkkelringen." : app.keyring?.store === "keyring" && !app.keyring.legacy ? "Nøklene oppbevares i operativsystemets nøkkelring. Appen lagrer ingen egen klartekstkopi." : app.keyring?.store === "session" ? "Nye nøkler beholdes bare i minnet til appen avsluttes. Se statusmeldingen for nøkkelringen." : "Kontrollerer nøkkelring og eventuell eldre nøkkellagring."}><span data-testid="key-storage-status">{app.keyring?.legacy ? "Eldre nøkkelfil finnes" : app.keyring?.store === "keyring" && !app.keyring.legacy ? "Systemnøkkelring" : app.keyring?.store === "session" ? "Kun denne økten" : "Venter på nøkkelringen"}</span></Row>
+          <p class="provider-key-note">Nye nøkler lagres ikke i en klartekstfil av appen, og sendes aldri tilbake til grensesnittet.</p>
+          <ModelDefaults active={props.active !== false && !connecting()} />
+          <div class="settings-group provider-cards">
+            <div class="settings-group-head"><h2>Tilkoblede leverandører</h2></div>
+            <For each={app.providers.map((p) => p.id)}>{(id) => <ProviderCard provider={app.providers.find((p) => p.id === id)!} beta={presetFor(app.providers.find((p) => p.id === id)!)?.beta} active={props.active !== false && !connecting()} />}</For>
+          </div>
+          <Suspense fallback={<p class="muted" role="status">Henter leverandører…</p>}>
+            <Show when={catalogError()}>
+              <div class="provider-catalog-error" role="alert"><span>Kunne ikke hente leverandører: {catalogError()}</span><button type="button" class="btn btn-small" onClick={() => void refetch()}>Prøv igjen</button></div>
+            </Show>
+            <Show when={popular().length}>
+              <Group title="Populære leverandører">
+                <For each={popular()}>
+                  {(preset) => (
+                    <Row label={preset.name} badge={<Show when={preset.beta}><BetaBadge /></Show>} text={preset.note}>
+                      <button type="button" class="btn btn-small" aria-label={`Koble til ${preset.name}`} onClick={() => setConnecting(preset)}><IconPlus size={14} /> Koble til</button>
+                    </Row>
+                  )}
+                </For>
+              </Group>
+            </Show>
+            <p class="beta-note">Beta: {BETA_TEXT}</p>
+          </Suspense>
+          <Show when={custom()} fallback={<button type="button" class="link-button" onClick={() => setCustom(true)}>Egendefinert (OpenAI-kompatibel adresse)</button>}>
+            <div class="card"><ProviderForm active={props.active !== false && !connecting()} onDone={() => setCustom(false)} /></div>
+          </Show>
+        </Page>
+      </div>
+      <Show when={connecting()} keyed>{(preset) => <ConnectView preset={preset} onClose={() => setConnecting(null)} />}</Show>
+    </>
   );
 }
 

@@ -2,13 +2,15 @@
 // the mode you are in. Kode: the start page, chosen from small drawings of each (round 11b, SPEC
 // 25.2: Tekst, Token-historikk or Prosjektboks, the same with and without a project), and what
 // shows beside a thread. Chat: the HTML preview and Chat projects.
-import { createSignal, For, Show, type JSX } from "solid-js";
-import { chatToolsOf, type ChatToolId, type CodeStart, type CodeStartSize } from "../../../../shared/protocol";
+import { createSignal, createUniqueId, For, Show, type JSX } from "solid-js";
+import { PERSONALITIES, chatToolsOf, type ChatToolId, type CodeStart, type CodeStartSize } from "../../../../shared/protocol";
 import { patch } from "../../lib/api";
 import { app, pinnedSummary, setApp, setPinnedSummary, sortedChatProjects } from "../../state/app";
 import { IconMark, IconPlus } from "../icons";
 import { Group, Page, Row, save, Segmented, Toggle } from "./parts";
+import { CodeAppearance } from "./code-appearance";
 import { newChatProject } from "../chat-projects";
+import { activeChatPersonality, PERSONALITY_TEXT, type ChatPersonalityContext } from "../../state/chat-personality";
 
 interface StartOption<T extends string> {
   value: T;
@@ -98,7 +100,7 @@ function StartChoice<T extends string>(props: { label: string; value: T; options
 export function CodeSettings() {
   const start = () => app.settings.codeStart ?? "text";
   return (
-    <Page title="Kode" intro="Hvordan Kode ser ut når du starter en ny tråd, med og uten et prosjekt.">
+    <Page title="Kode" intro="Tilpass kodevisning, samtaler og arbeidsområdet. Tilgang og modellatferd styres i Konfigurasjon.">
       <Group title="Startsiden">
         <div class="setting setting-block">
           <div class="setting-text">
@@ -113,8 +115,10 @@ export function CodeSettings() {
           </Row>
         </Show>
       </Group>
+      <CodeAppearance />
       <Group title="I tråden">
-        <Toggle label="Festet sammendrag" text="Vis mål, plan og et kort sammendrag øverst i hver samtale." checked={pinnedSummary()} onChange={setPinnedSummary} />
+        <Row label="Standard samtalevisning" text="Gjelder nye visninger i Kode. Normal folder trinnene sammen. Tenkning åpner tenkesammendrag, og Detaljert åpner også verktøyutdata og bakgrunnsarbeid. Du kan fortsatt folde hvert trinn selv. Chat påvirkes ikke."><Segmented<"normal" | "thinking" | "detailed"> label="Standard samtalevisning" value={app.settings.codeTranscriptView ?? "normal"} options={[{ value: "normal", label: "Normal" }, { value: "thinking", label: "Tenkning" }, { value: "detailed", label: "Detaljert" }]} onChange={(v) => save({ codeTranscriptView: v })} /></Row>
+        <Toggle label="Festet sammendrag" text="Vis knappen for mål, plan, endringer og bakgrunnsarbeid øverst til høyre i Kode." checked={pinnedSummary()} onChange={setPinnedSummary} />
         <Toggle label="Åpne agent-tråder i ny rute" text="Når en agent lager en tråd, vises den i en egen rute." checked={app.settings.autoOpenAgentThreads} onChange={(v) => save({ autoOpenAgentThreads: v })} />
       </Group>
     </Page>
@@ -167,11 +171,75 @@ const TOOL_DEFAULTS: Array<{ id: ChatToolId; label: string; text: string }> = [
   { id: "memory", label: "Minne", text: "Modellen bruker Chat-minnene dine (Chat-personalisering)." },
 ];
 
+// The choice belongs to the active Chat pane, never to all chats or to Kode.
+function ChatPersonalitySettings() {
+  const name = createUniqueId();
+  type Choice = { context: ChatPersonalityContext; threadId: string | null; value: string };
+  const [pending, setPending] = createSignal<Choice | null>(null);
+  const [error, setError] = createSignal<(Choice & { message: string }) | null>(null);
+  const inScope = (choice: Choice | null) => !!choice && choice.context === activeChatPersonality() && choice.threadId === choice.context.threadId();
+  const saving = () => inScope(pending());
+  const selected = () => saving() ? pending()!.value : activeChatPersonality()?.personality();
+  const errorMessage = () => inScope(error()) ? error()!.message : "";
+  const choose = async (value: string) => {
+    const context = activeChatPersonality();
+    if (!context || saving()) return;
+    const choice = { context, threadId: context.threadId(), value };
+    setError(null);
+    setPending(choice);
+    try {
+      await context.setPersonality(value);
+    } catch (err) {
+      if (inScope(choice)) setError({ ...choice, message: (err as Error).message });
+    } finally {
+      if (pending() === choice) setPending(null);
+    }
+  };
+  const scope = () => {
+    const active = activeChatPersonality();
+    if (!active) return "Åpne en chat eller et nytt Chat-utkast for å velge personlighet. Kode har sitt eget valg med /personality.";
+    return active.threadId()
+      ? `Gjelder bare den aktive chatten: «${active.title() || "Uten tittel"}».`
+      : "Gjelder utkastet i den aktive Chat-ruten. Valget lagres i chatten når du sender første melding.";
+  };
+  return (
+    <Group title="Personlighet">
+      <div class="setting">
+        <div class="setting-text">
+          <strong>Personlighet for aktiv chat</strong>
+          <span class="muted" id={`${name}-scope`}>{scope()} Egne instruksjoner for alle chatter finner du i Chat-personalisering.</span>
+          <Show when={saving()}><span class="muted" role="status">Lagrer personlighet …</span></Show>
+          <Show when={errorMessage()}><p class="form-error" role="alert">{errorMessage()}</p></Show>
+        </div>
+      </div>
+      <div class="chat-personality-options" role="radiogroup" aria-label="Personlighet for aktiv chat" aria-describedby={`${name}-scope`} aria-busy={saving() ? "true" : undefined} aria-disabled={!activeChatPersonality() || saving() ? "true" : undefined}>
+        <For each={PERSONALITIES}>
+          {(personality) => (
+            <Row as="label" label={personality.label} text={<span id={`${name}-${personality.id}`}>{PERSONALITY_TEXT[personality.id]}</span>}>
+              <input
+                type="radio"
+                name={name}
+                value={personality.id}
+                aria-label={personality.label}
+                aria-describedby={`${name}-${personality.id}`}
+                checked={selected() === personality.id}
+                disabled={!activeChatPersonality() || saving()}
+                onChange={(event) => { if (event.currentTarget.checked) void choose(personality.id); }}
+              />
+            </Row>
+          )}
+        </For>
+      </div>
+    </Group>
+  );
+}
+
 export function ChatSettings() {
   const count = () => sortedChatProjects().length;
   const defaults = () => chatToolsOf(undefined, app.settings);
   return (
     <Page title="Chat" intro="Samtaler uten prosjektmappe. Modellen får ingen verktøy for filer eller kommandoer her.">
+      <ChatPersonalitySettings />
       <Group title="Verktøy i nye chatter">
         <For each={TOOL_DEFAULTS}>
           {(tool) => <Toggle label={tool.label} text={tool.text} checked={defaults()[tool.id]} onChange={(v) => save({ chatTools: { ...defaults(), [tool.id]: v } })} />}

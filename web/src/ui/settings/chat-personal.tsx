@@ -4,11 +4,13 @@
 // any of this.
 import { createResource, createSignal, For, Show } from "solid-js";
 import type { ChatPersonal, ChatTone, HarnessInfo, MemoryItem, UpgradeProposal } from "../../../../shared/protocol";
+import { countChatWords, MAX_CHAT_FIELD, MAX_CHAT_WORDS } from "../../../../shared/protocol";
+import { ModelContextSettings } from "./model-context";
 import { del, get, post, put } from "../../lib/api";
-import { report, setSettingsOpen, toast } from "../../state/app";
+import { report, toast } from "../../state/app";
 import { confirmDialog } from "../dialogs";
 import { IconPencil, IconPlus, IconReset, IconTrash } from "../icons";
-import { Group, Page, Row, SkeletonRows, Toggle } from "./parts";
+import { Group, Row, SkeletonRows, Toggle } from "./parts";
 import { Select } from "../Select";
 import { UpgradeView } from "./memory-upgrade";
 
@@ -16,9 +18,10 @@ interface ChatState {
   personal: ChatPersonal;
   memories: MemoryItem[];
   file: string;
+  defaults?: { instructions: string; maxLength: number; maxWords: number };
+  instructionsAreDefault?: boolean;
 }
 
-const MAX = 1500;
 const MAX_MEMORY = 300;
 
 const TONES: Array<{ value: ChatTone; label: string; text: string }> = [
@@ -30,7 +33,7 @@ const TONES: Array<{ value: ChatTone; label: string; text: string }> = [
   { value: "formell", label: "Formell", text: "Presis og saklig" },
 ];
 
-export function ChatPersonalPage() {
+export function ChatPersonalSettings() {
   const [state, { refetch, mutate }] = createResource(() => get<ChatState>("/api/chat-personal"));
   const [instructions, setInstructions] = createSignal<string | null>(null);
   const [about, setAbout] = createSignal<string | null>(null);
@@ -67,7 +70,11 @@ export function ChatPersonalPage() {
       mutate({ ...state()!, personal });
     }, done);
 
+  const overLimit = (field: "instructions" | "about") => countChatWords(value(field)) > MAX_CHAT_WORDS || value(field).length > MAX_CHAT_FIELD;
+  const textsValid = () => !overLimit("instructions") && !overLimit("about");
+
   const saveTexts = async () => {
+    if (!textsValid()) return;
     const ok = await setPersonal({ instructions: value("instructions"), about: value("about") }, "Lagret. Nye svar i Chat bruker det.");
     if (ok) {
       setInstructions(null);
@@ -78,7 +85,7 @@ export function ChatPersonalPage() {
   const reset = async () => {
     const ok = await confirmDialog({
       title: "Tilbakestille Chat-personaliseringen?",
-      text: "Systeminstruksen og «Om deg» tømmes, og tonen blir Standard. Chat-minnene blir stående.",
+      text: "Systeminstruksen gjenopprettes til appens standard, «Om deg» tømmes og tonen blir Standard. Minnevalgene tilbakestilles også. Lagrede Chat-minner blir stående.",
       confirm: "Tilbakestill",
     });
     if (!ok) return;
@@ -88,6 +95,18 @@ export function ChatPersonalPage() {
       setInstructions(null);
       setAbout(null);
     }, "Chat-personaliseringen er tilbake til standard.");
+  };
+
+  const resetInstructions = async () => {
+    if (value("instructions") !== (state()?.defaults?.instructions ?? "")) {
+      const ok = await confirmDialog({ title: "Gjenopprette standard systeminstruks?", text: "Systeminstruksen erstattes med appens standard. «Om deg», tone, minnevalg og lagrede minner beholdes.", confirm: "Gjenopprett standard" });
+      if (!ok) return;
+    }
+    await run(async () => {
+      const personal = await post<ChatPersonal>("/api/chat-personal/instructions/reset");
+      mutate({ ...state()!, personal, instructionsAreDefault: true });
+      setInstructions(null);
+    }, "Standard systeminstruks er gjenopprettet.");
   };
 
   const addMemory = async () => {
@@ -112,38 +131,43 @@ export function ChatPersonalPage() {
   };
   const tidy = () => run(async () => setProposal(await post<UpgradeProposal>("/api/memories/upgrade", { scope: "chat" })));
 
-  const counter = (field: "instructions" | "about") => <span class="muted small chat-count" classList={{ over: value(field).length > MAX }}>{value(field).length} / {MAX}</span>;
+  const counter = (field: "instructions" | "about") => <span class="muted small chat-count" classList={{ over: overLimit(field) }}>{countChatWords(value(field)).toLocaleString("nb-NO")} / {MAX_CHAT_WORDS.toLocaleString("nb-NO")} ord</span>;
 
   return (
-    <Page title="Chat-personalisering" intro="Gjelder bare Chat. Kode har sin egen harness, med AGENTS.md og egne minner, og ingenting herfra går dit.">
+    <section aria-label="Chat-personalisering">
       <Show when={state()} fallback={<SkeletonRows label="Henter personaliseringen…" />}>
         <Group
           title="Om deg og svarene"
           action={
             <div class="memory-actions">
               <button type="button" class="btn btn-small" disabled={busy()} onClick={() => void reset()}><IconReset size={13} />Tilbakestill</button>
-              <button type="button" class="btn btn-small btn-primary" disabled={!dirty() || busy()} onClick={() => void saveTexts()}>Lagre</button>
+              <button type="button" class="btn btn-small btn-primary" disabled={!dirty() || !textsValid() || busy()} onClick={() => void saveTexts()}>Lagre</button>
             </div>
           }
         >
           <div class="setting setting-block">
             <label class="field">
               <span class="chat-field-head"><strong>Systeminstruks</strong>{counter("instructions")}</span>
-              <span class="muted small">Hvordan Chat skal svare. Gjelder alle nye svar i Chat.</span>
-              <textarea class="input chat-area" rows={4} maxLength={MAX} value={value("instructions")} onInput={(e) => setInstructions(e.currentTarget.value)} placeholder="For eksempel: Forklar som til en nybegynner. Bruk norske eksempler." />
+              <span class="muted small">Hvordan Chat skal svare. Standardteksten kan redigeres fritt og gjelder alle nye svar i Chat. Opptil 10 000 ord.</span>
+              <textarea class="input chat-area" aria-label="Systeminstruks" aria-invalid={overLimit("instructions") || undefined} rows={8} maxLength={MAX_CHAT_FIELD} value={value("instructions")} onInput={(e) => setInstructions(e.currentTarget.value)} placeholder="Skriv dine egne instruksjoner, eller gjenopprett standarden." />
             </label>
+            <button type="button" class="btn btn-small" disabled={busy() || value("instructions") === state()?.defaults?.instructions} onClick={() => void resetInstructions()}><IconReset size={13} />Gjenopprett standard</button>
           </div>
           <div class="setting setting-block">
             <label class="field">
               <span class="chat-field-head"><strong>Om deg</strong>{counter("about")}</span>
-              <span class="muted small">Det Chat bør vite om deg: hva du jobber med, hva du kan, hva du liker.</span>
-              <textarea class="input chat-area" rows={3} maxLength={MAX} value={value("about")} onInput={(e) => setAbout(e.currentTarget.value)} placeholder="For eksempel: Jeg er lærer i Bergen og lærer meg Python." />
+              <span class="muted small">Det Chat bør vite om deg: hva du jobber med, hva du kan, hva du liker. Opptil 10 000 ord.</span>
+              <textarea class="input chat-area" aria-label="Om deg" aria-invalid={overLimit("about") || undefined} rows={6} maxLength={MAX_CHAT_FIELD} value={value("about")} onInput={(e) => setAbout(e.currentTarget.value)} placeholder="For eksempel: Jeg er lærer i Bergen og lærer meg Python." />
             </label>
           </div>
           <Row label="Tone" text={TONES.find((t) => t.value === state()!.personal.tone)?.text ?? ""}>
             <Select<ChatTone> label="Tone" value={state()!.personal.tone} options={TONES.map((t) => ({ value: t.value, label: t.label }))} onChange={(tone) => void setPersonal({ tone })} />
           </Row>
         </Group>
+
+        <Show when={!textsValid()}><p class="form-error" role="alert">Hvert felt kan ha opptil 10 000 ord. Kort ned feltet som er over grensen før du lagrer.</p></Show>
+
+        <ModelContextSettings mode="chat" />
 
         <Group title="Chat-minner">
           <Toggle
@@ -232,10 +256,9 @@ export function ChatPersonalPage() {
           </Show>
         </Group>
         <p class="muted small memory-files">
-          Chat-minnene er vanlige linjer i <code>{state()!.file}</code>. Kode-minnene ligger under{" "}
-          <button type="button" class="link-button" onClick={() => setSettingsOpen("personalization")}>Personalisering og minner</button>.
+          Chat-minnene er vanlige linjer i <code>{state()!.file}</code>. Velg Kode over for å administrere Kode-minnene separat.
         </p>
       </Show>
-    </Page>
+    </section>
   );
 }

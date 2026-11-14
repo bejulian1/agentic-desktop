@@ -11,14 +11,16 @@ import { Dynamic } from "solid-js/web";
 import { get, post } from "../lib/api";
 import { formatTokens } from "../lib/format";
 import { on as onMessage } from "../lib/socket";
+import { cancelFrameTask, onNextFrame } from "../lib/frame";
 import { report } from "../state/app";
+import { peekModel, type ToolRow } from "../state/thread-model";
 import { shortPath } from "./Composer";
 import { IconChevron, IconFolder, IconGlobe, IconLaptop, IconPlug, IconServer, IconSpark, IconTerminal, IconUsers } from "./icons";
 import "../styles/session-panel.css";
 
-type Section = "env" | "context" | "connections" | "tasks" | "finished";
+type Section = "env" | "context" | "connections" | "commands" | "tasks" | "finished";
 const OPEN_KEY = "ad-okt-open";
-const DEFAULT_OPEN: Record<Section, boolean> = { env: true, context: false, connections: false, tasks: true, finished: false };
+const DEFAULT_OPEN: Record<Section, boolean> = { env: true, context: false, connections: false, commands: true, tasks: true, finished: false };
 
 function loadOpen(): Record<Section, boolean> {
   try {
@@ -53,9 +55,11 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
     }
   };
 
-  const [info, { refetch, mutate }] = createResource(() => props.threadId, (id) => get<SessionInfo>(`/api/threads/${id}/session`));
+  const [info, { refetch, mutate }] = createResource(() => props.threadId, async (id) => ({ threadId: id, value: await get<SessionInfo>(`/api/threads/${id}/session`) }));
   // The last good answer stays while a new one loads, so nothing blinks.
-  const data = createMemo<SessionInfo | undefined>((last) => (info.state === "ready" ? info() : info.state === "refreshing" || info.state === "errored" ? last : undefined));
+  const snapshot = createMemo<{ threadId: string; value: SessionInfo } | undefined>((last) => (info.state === "ready" ? info() : info.state === "refreshing" || info.state === "errored" ? last : undefined));
+  // A previous thread's answer must never be shown in the thread now in focus.
+  const data = createMemo(() => snapshot()?.threadId === props.threadId ? snapshot()?.value : undefined);
 
   // Fresh data when something it shows changes, and now and then for terminals and the clock.
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -70,6 +74,9 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
     }),
     onMessage("project.changed", ({ project }) => {
       if (project.id === data()?.environment.project?.id) soon();
+    }),
+    onMessage("thread.event", ({ envelope }) => {
+      if (envelope.threadId === props.threadId && ["run.started", "run.finished", "thread.spawned"].includes(envelope.event.type)) soon();
     }),
   ];
   const [now, setNow] = createSignal(Date.now());
@@ -86,14 +93,15 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
 
   const [stopping, setStopping] = createSignal<ReadonlySet<string>>(new Set());
   const stop = async (task: SessionTask) => {
+    const threadId = props.threadId;
     setStopping(new Set([...stopping(), task.id]));
     try {
-      await post(`/api/threads/${props.threadId}/session/stop`, { taskId: task.id });
+      await post(`/api/threads/${threadId}/session/stop`, { taskId: task.id });
       const current = data();
-      if (current) {
+      if (current && props.threadId === threadId) {
         // At once in the list; the next answer from the server confirms it.
         const ended = { ...task, running: false, finishedAt: Date.now() };
-        mutate({ ...current, tasks: current.tasks.filter((t) => t.id !== task.id), finished: [ended, ...current.finished] });
+        mutate({ threadId, value: { ...current, tasks: current.tasks.filter((t) => t.id !== task.id), finished: [ended, ...current.finished] } });
       }
       soon();
     } catch (err) {
@@ -108,8 +116,8 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
   const connectedCount = () => data()?.connections.filter((c) => c.status === "ok").length ?? 0;
 
   return (
-    <div class="okt" data-testid="session-panel" aria-busy={!data()}>
-      <Show when={data()} fallback={<SessionSkeleton failed={info.state === "errored"} />}>
+    <div class="okt" data-testid="session-panel" aria-busy={!data() && info.state !== "errored"}>
+      <Show when={data()} fallback={<SessionSkeleton failed={info.state === "errored"} onRetry={() => void refetch()} />}>
         {(d) => (
           <>
             <Fold id="env" title="Miljø" open={open().env} onToggle={toggle}>
@@ -173,6 +181,8 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
               </Fold>
             </Show>
 
+            <LiveCommands threadId={props.threadId} open={open().commands} onToggle={toggle} />
+
             <Fold id="tasks" title="Oppgaver i bakgrunnen" open={open().tasks} onToggle={toggle} summary={<Show when={d().tasks.length}><span class="okt-count">{d().tasks.length}</span></Show>}>
               <Show when={d().tasks.length || d().finished.length} fallback={<p class="okt-empty">Ingenting kjører i bakgrunnen.</p>}>
                 <ul class="okt-tasks" aria-label="Kjører nå">
@@ -216,6 +226,64 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
         )}
       </Show>
     </div>
+  );
+}
+
+// Model commands are work in this turn, distinct from persistent PTYs and servers below.
+// Read the existing event-backed rows; never take over ToolView's output callback or start a shell.
+function LiveCommands(props: { threadId: string; open: boolean; onToggle: (section: Section) => void }) {
+  const [outputRevision, setOutputRevision] = createSignal(0);
+  const refresh = () => setOutputRevision((n) => n + 1);
+  const off = onMessage("thread.event", ({ envelope }) => {
+    if (envelope.threadId === props.threadId && envelope.event.type.startsWith("tool.")) onNextFrame(refresh);
+  });
+  onCleanup(() => { off(); cancelFrameTask(refresh); });
+  const commands = createMemo(() => {
+    const model = peekModel(props.threadId);
+    if (!model?.activity()?.running) return [];
+    const rows: ToolRow[] = [];
+    for (const chunk of model.chunks()) for (const row of chunk.rows()) {
+      const items = row.kind === "steps" ? row.items() : row.kind === "tool" ? [row] : [];
+      for (const item of items) {
+        if (item.kind !== "tool" || item.tool !== "run_command") continue;
+        item.rev();
+        if (["pending", "running", "awaiting-approval"].includes(item.status)) rows.push(item);
+      }
+    }
+    return rows;
+  });
+  const output = (row: ToolRow) => {
+    outputRevision();
+    // Bound DOM work independently of the full command history in the conversation.
+    return row.output.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").slice(-6000).split("\n").slice(-30).join("\n");
+  };
+  const [stopping, setStopping] = createSignal(false);
+  createEffect(on(() => props.threadId, () => setStopping(false)));
+  const stop = async () => {
+    const id = props.threadId;
+    setStopping(true);
+    try { await post(`/api/threads/${id}/stop`); }
+    catch (err) { report(err); }
+    finally { if (props.threadId === id) setStopping(false); }
+  };
+  return (
+    <Show when={commands().length}>
+      <Fold id="commands" title="Kommandoer i turen" open={props.open} onToggle={props.onToggle} summary={<span class="okt-count">{commands().length}</span>}>
+        <For each={commands()}>{(row) => (
+          <div class="okt-command" data-testid="okt-command">
+            <div class="okt-row">
+              <IconTerminal size={15} />
+              <span class="okt-label">{(row.rev(), row.status) === "awaiting-approval" ? "Venter på godkjenning" : "Kjører nå"}</span>
+              <button type="button" class="okt-stop" title="Stopp turen og kommandoen" aria-label="Stopp turen og kommandoen" disabled={stopping()} onClick={() => void stop()}><span aria-hidden="true" /></button>
+            </div>
+            <pre class="okt-command-input">{row.summary}</pre>
+            <Show when={output(row)} fallback={<p class="okt-note">Ingen utdata ennå.</p>}>
+              <pre class="okt-command-output" data-testid="okt-command-output">{output(row)}</pre>
+            </Show>
+          </div>
+        )}</For>
+      </Fold>
+    </Show>
   );
 }
 
@@ -283,9 +351,9 @@ function TaskTitle(props: { task: SessionTask; onOpenThread?: (id: string) => vo
 }
 
 // Rows of the same height as the real ones, so nothing jumps when the data comes.
-function SessionSkeleton(props: { failed: boolean }) {
+function SessionSkeleton(props: { failed: boolean; onRetry: () => void }) {
   return (
-    <Show when={!props.failed} fallback={<p class="okt-empty">Kunne ikke hente økten.</p>}>
+    <Show when={!props.failed} fallback={<><p class="okt-empty" role="status">Kunne ikke hente økten.</p><button type="button" class="btn btn-small" onClick={props.onRetry}>Prøv igjen</button></>}>
       <div class="okt-skeleton" role="status">
         <span class="sr-only">Henter økten…</span>
         <For each={[0, 1, 2, 3]}>{() => <span class="skeleton skeleton-line" aria-hidden="true" />}</For>

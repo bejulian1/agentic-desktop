@@ -3,6 +3,7 @@
 import { createEffect, createRoot } from "solid-js";
 import { app } from "../state/app";
 import { actions } from "../state/actions";
+import { reopenFreshView } from "../state/startup";
 
 export type CloseBehavior = "tray" | "quit";
 export interface WindowState {
@@ -28,10 +29,11 @@ interface DesktopBridge {
   };
   closeBehavior: (value?: CloseBehavior) => Promise<{ value: CloseBehavior; statusArea: boolean } | null>;
   sandbox?: () => Promise<SandboxInfo | null>;
+  pickFolder?: (start?: string, title?: string) => Promise<string | null>;
   // Round 14 (SPEC 30.2). launcher: whether the app library's icon followed.
   appIcon?: (value?: string) => Promise<{ value: string; launcher: "updated" | "same" | "not-installed" | "failed" } | null>;
   reportActivity: (working: number, waiting: number) => void;
-  onCommand: (callback: (command: "new-thread") => void) => () => void;
+  onCommand: (callback: (command: "new-thread" | "reopen") => void) => () => void;
 }
 
 export const desktop: DesktopBridge | undefined = (globalThis as { agenticDesktop?: DesktopBridge }).agenticDesktop;
@@ -46,6 +48,7 @@ export function connectDesktop(): void {
   document.documentElement.dataset.shell = "electron";
   desktop.onCommand((command) => {
     if (command === "new-thread") actions.newThread();
+    if (command === "reopen") reopenFreshView();
   });
   createRoot(() => {
     let last = "";

@@ -18,6 +18,7 @@ export interface CollabHost {
   sendFromThread(threadId: string, text: string, from: ThreadRef, chainId: string): void;
   chainOf(threadId: string): string;
   runningAgentThreads(projectId: string): number;
+  hasAgentSlot(threadId: string): boolean;
   isBusy(threadId: string): boolean;
   waitIdle(threadId: string, timeoutMs: number, signal: AbortSignal): Promise<boolean>;
   threadChanged(threadId: string): void;
@@ -83,7 +84,7 @@ export class Collab implements CollabTools {
     const project = this.store.project(thread.projectId!) as Project;
     if (this.depth(thread) >= MAX_DEPTH) return fail(`Grensen er nådd: tråder kan ikke lages dypere enn ${MAX_DEPTH} nivåer`);
     if (this.host.runningAgentThreads(project.id) >= MAX_AGENT_THREADS) {
-      return fail(`Grensen er nådd: ${MAX_AGENT_THREADS} agent-startede tråder kjører allerede i prosjektet. Vent på en av dem.`);
+      return fail(`Grensen er nådd: ${MAX_AGENT_THREADS} tråder har agentarbeid som kjører eller venter i kø i prosjektet. Vent på en av dem.`);
     }
     const title = String(input.title ?? "").trim().slice(0, 120);
     const task = String(input.task ?? "").trim();
@@ -111,8 +112,10 @@ export class Collab implements CollabTools {
     const text = String(input.text ?? "").trim();
     if (!text) return fail("text må fylles ut");
     const busy = this.host.isBusy(other.id);
-    if (!busy && this.host.runningAgentThreads(thread.projectId!) >= MAX_AGENT_THREADS) {
-      return fail(`Grensen er nådd: ${MAX_AGENT_THREADS} agent-startede tråder kjører allerede i prosjektet. Vent på en av dem.`);
+    // A busy user-started thread also needs a slot: this message will start an agent run
+    // when its current work ends. An already reserved recipient may keep receiving messages.
+    if (!this.host.hasAgentSlot(other.id) && this.host.runningAgentThreads(thread.projectId!) >= MAX_AGENT_THREADS) {
+      return fail(`Grensen er nådd: ${MAX_AGENT_THREADS} tråder har agentarbeid som kjører eller venter i kø i prosjektet. Vent på en av dem.`);
     }
     const chainId = this.host.chainOf(thread.id);
     this.count(chainId);

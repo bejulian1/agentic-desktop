@@ -7,7 +7,7 @@
 // where the panes have no head of their own); then the panel buttons in the style chosen in
 // Innstillinger → Utseende (SPEC 24.2), and last an empty place for the window controls of the
 // Electron version, which takes no width in a browser.
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { ReasoningEffort } from "../../../shared/protocol";
 import { formatCost, formatTokens } from "../lib/format";
 import { app, currentProject, mode, modelFor, modelName, panelOpen, pinnedSummary, railEnabled, renameThread, report, scope, setPanelOpen, setPinnedSummary, setSidebarOpen, sidebarOpen, untitled } from "../state/app";
@@ -33,14 +33,17 @@ import {
 } from "./icons";
 import { MainMenu } from "./MenuBar";
 import { WindowControls } from "./WindowControls";
-import { openProjectPicker } from "./Composer";
+import { ProjectPicker } from "./Composer";
+import { useProjectPicker } from "../state/project-picker";
+import { skillsOpen } from "../state/skills-workspace";
 import { ModeSwitch } from "./ModeSwitch";
+import { PinnedSummary } from "./PinnedSummary";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { paneTools } from "./Pane";
 import { PANEL_TOOLS, NEEDS_PROJECT_TIP, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
 import { inStack, placement, setPlacement, stacking, stackTools } from "../state/stack";
 
-const EFFORT_LABELS: Record<ReasoningEffort, string> = { none: "Ingen", low: "Lav", medium: "Middels", high: "Høy", xhigh: "Svært høy", max: "Maks" };
+const EFFORT_LABELS: Record<ReasoningEffort, string> = { none: "Ingen", low: "Lav", medium: "Middels", high: "Høy", xhigh: "Ekstra høy", max: "Maks" };
 const PERMISSION_LABELS: Record<string, string> = { ask: "Spør", "accept-edits": "Godta redigeringer", full: "Full tilgang" };
 
 // The focused pane's thread name at the top of the middle. A click opens a small card to rename it,
@@ -48,7 +51,7 @@ const PERMISSION_LABELS: Record<string, string> = { ask: "Spør", "accept-edits"
 function ThreadTitle() {
   const [open, setOpen] = createSignal(false);
   const [details, setDetails] = createSignal(false);
-  const thread = createMemo(() => (room() || profileOpen() ? undefined : focusedThread()));
+  const thread = createMemo(() => (room() || profileOpen() || skillsOpen() ? undefined : focusedThread()));
   const model = createMemo(() => (thread() ? peekModel(thread()!.id) : undefined));
   let input!: HTMLInputElement;
 
@@ -56,6 +59,7 @@ function ThreadTitle() {
     setOpen(false);
     setDetails(false);
   };
+  createEffect(() => { if (skillsOpen()) close(); });
   const save = () => {
     const t = thread();
     const title = input?.value.trim();
@@ -161,40 +165,6 @@ function ThreadTitle() {
   );
 }
 
-// "+109 −24 · 9 filer": what the focused thread has changed, shown only when it has changed
-// something. A click opens Endringer.
-function ChangesChip() {
-  const totals = createMemo(() => {
-    const thread = focusedThread();
-    if (!thread || mode() !== "code" || room() || profileOpen()) return null;
-    const rows = peekModel(thread.id)?.changes() ?? [];
-    let additions = 0;
-    let deletions = 0;
-    const files = new Set<string>();
-    for (const row of rows) {
-      if (row.reverted) continue;
-      for (const file of row.files) {
-        additions += file.additions;
-        deletions += file.deletions;
-        files.add(file.path);
-      }
-    }
-    return files.size ? { additions, deletions, files: files.size } : null;
-  });
-  return (
-    <Show when={totals()}>
-      {(t) => (
-        <button type="button" class="changes-chip" data-testid="changes-chip" title="Endringer i tråden: åpne Endringer" onClick={() => actions.showTab("changes")}>
-          <span class="add">+{t().additions}</span>
-          <span class="del">−{t().deletions}</span>
-          <span class="changes-chip-files">· {t().files} {t().files === 1 ? "fil" : "filer"}</span>
-        </button>
-      )}
-    </Show>
-  );
-}
-
-
 const narrowPanes = matchMedia("(max-width: 720px)");
 const [panesAsTabs, setPanesAsTabs] = createSignal(narrowPanes.matches);
 narrowPanes.addEventListener("change", () => setPanesAsTabs(narrowPanes.matches));
@@ -202,7 +172,7 @@ const narrowWindow = matchMedia("(max-width: 860px)");
 const [narrow, setNarrow] = createSignal(narrowWindow.matches);
 narrowWindow.addEventListener("change", () => setNarrow(narrowWindow.matches));
 
-const away = () => !!room() || profileOpen();
+const away = () => !!room() || profileOpen() || skillsOpen();
 const grid = () => {
   const key = scope();
   return key ? gridFor(key) : null;
@@ -257,6 +227,7 @@ function PaneButtons() {
 // less used tools. Never empty: the command palette and the shortcuts are always there.
 function MoreMenu() {
   const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
+  createEffect(() => { if (away()) setAnchor(null); });
   const entries = (): MenuEntry[] => {
     const out: MenuEntry[] = [];
     const project = mode() === "code" && !away() ? currentProject() : undefined;
@@ -271,7 +242,7 @@ function MoreMenu() {
         { label: "Eksporter til Markdown", icon: IconDownload, title: "Lagrer samtalen som en .md-fil", run: () => paneTools.get(paneId)?.exportMarkdown() },
       );
     }
-    if (thread?.mode === "code") out.push({ label: "Festet sammendrag", icon: IconPin, toggle: pinnedSummary(), keys: "view.summary", title: "Mål, plan og et kort sammendrag øverst i samtalen", run: () => setPinnedSummary(!pinnedSummary()) });
+    if (thread?.mode === "code") out.push({ label: "Festet sammendrag", icon: IconPin, toggle: pinnedSummary(), keys: "view.summary", title: "Mål, plan og resultater øverst til høyre i Kode", run: () => setPinnedSummary(!pinnedSummary()) });
     if (g && paneId && thread && !untitled(thread)) {
       out.push({
         label: "Løsriv ruten til eget vindu",
@@ -326,9 +297,7 @@ function AddPanelMenu() {
   const anyOpen = () => stacked() && panelOpen() && stackTools().length > 0;
   const entries = (): MenuEntry[] => [
     { heading: <span class="menu-heading">Sidepanel</span> },
-    ...(stacked()
-      ? []
-      : [{ label: "Startside", icon: IconPanel, chosen: panelOpen() && onPanelHome() && app.settings.panelStart !== "tabs", disabled: app.settings.panelStart === "tabs", title: app.settings.panelStart === "tabs" ? "Startsiden er av: Innstillinger → Utseende → Sidepanel" : "Verktøyene som fliser", run: showPanelHome } as MenuEntry]),
+    { label: "Startside", icon: IconPanel, chosen: panelOpen() && onPanelHome(), title: "Åpne verktøyvelgeren", run: showPanelHome },
     ...PANEL_TOOLS.map((tool) => ({
       label: tool.label,
       icon: tool.icon,
@@ -472,6 +441,7 @@ export function TopBar() {
             where the main area starts instead, with room for the project's whole name. */}
         <Show when={sidebarOpen()}><StartCrumb /></Show>
         <ModeSwitch class="topbar-mode" />
+        <Show when={skillsOpen()}><span class="topbar-title-button" data-testid="topbar-workspace-title">Skills</span></Show>
         <ThreadTitle />
         <OriginTag />
       </div>
@@ -503,7 +473,7 @@ export function TopBar() {
             <button type="button" class="icon-button" title="Playtest: start prosjektet og åpne det i Nettleser-panelet" aria-label="Playtest" onClick={() => startPlaytest(project()!.id)}><IconPlay /></button>
           </Show>
         </Show>
-        <ChangesChip />
+        <Show when={mode() === "code" && !away() && pinnedSummary()}><PinnedSummary thread={focusedThread()} /></Show>
         <PaneButtons />
         <span class="topbar-divider" aria-hidden="true" />
         <PanelButtons />
@@ -517,11 +487,15 @@ export function TopBar() {
 
 // On a start page, where the thread has no name yet, the left of the top bar says where you are:
 // Kode › the project (or Denne datamaskinen), and a click on the project opens the project picker
-// of the focused pane. In Chat it is just Chat. With a named thread the name in the middle says it.
+// beside this trigger, for the focused pane. In Chat it is just Chat. With a named thread the name
+// in the middle says it.
 function StartCrumb() {
   const show = () => !away() && untitled(focusedThread());
   const paneKey = () => focusedThreadId() ?? grid()?.focused() ?? null;
   const project = () => (mode() === "code" ? currentProject() : undefined);
+  const picker = useProjectPicker(paneKey, "topbar");
+  let trigger: HTMLButtonElement | undefined;
+  createEffect(() => { if (!show() || narrow()) picker.close(); });
   return (
     <Show when={show()}>
       <nav class="topbar-crumb" aria-label="Hvor du er" data-testid="topbar-crumb">
@@ -530,20 +504,31 @@ function StartCrumb() {
         </span>
         <Show when={mode() === "code"}>
           <span class="crumb-sep" aria-hidden="true"><IconChevron size={11} /></span>
-          <button
+          <Popover
+            class="crumb-project-anchor"
+            fixed portal below returnFocus
+            open={picker.open()}
+            onClose={picker.close}
+            trigger={<button
             type="button"
             class="crumb-project"
+            data-testid="topbar-project-picker"
+            ref={trigger}
+            aria-haspopup="dialog"
+            aria-expanded={picker.open()}
             title={project() ? `${project()!.path}: bytt prosjekt` : "Velg prosjekt"}
-            onClick={() => {
-              const key = paneKey();
-              if (key) openProjectPicker(key);
-            }}
+            onPointerDown={(event) => { if (picker.open()) event.preventDefault(); }}
+            onClick={(event) => { const closing = picker.open(); picker.toggle(); if (closing) event.currentTarget.focus({ preventScroll: true }); }}
+            onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); picker.show(); } }}
           >
             <Show when={project()} fallback={<><IconLaptop size={13} /><span>Denne datamaskinen</span></>}>
               {(p) => <><ProjectGlyph project={p()} size={13} /><span>{p().name}</span></>}
             </Show>
             <IconChevronDown size={11} />
-          </button>
+          </button>}
+          >
+            <ProjectPicker current={project()?.id ?? null} paneKey={paneKey()!} onDone={picker.close} onCancel={() => { picker.close(); trigger?.focus({ preventScroll: true }); }} />
+          </Popover>
         </Show>
       </nav>
     </Show>

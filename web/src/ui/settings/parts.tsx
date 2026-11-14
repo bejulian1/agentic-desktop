@@ -79,8 +79,8 @@ export function BetaBadge(props: { title?: string }) {
 
 // A choice on the right of a row, in the app's own style (ui/Select.tsx). The label is the row
 // title, for screen readers too.
-export function Choice<T extends string | number>(props: { label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void }) {
-  return <Select<T> label={props.label} value={props.value} options={props.options} onChange={props.onChange} />;
+export function Choice<T extends string | number>(props: { active?: boolean; label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void }) {
+  return <Select<T> active={props.active} label={props.label} value={props.value} options={props.options} onChange={props.onChange} />;
 }
 
 export function Segmented<T extends string | number>(props: { label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void }) {

@@ -1,5 +1,10 @@
 // REST, as described in shared/protocol.ts.
+import type { PromptCompletions } from "../prompt-completion.ts";
+import { cleanContextText, lookupModelContextLocation, modelContextPatch, type ModelContextLookup } from "../model-context.ts";
+import { GitWorkspace } from "../git-workspace.ts";
+import { gitWorkspaceRoutes } from "./git-workspace-routes.ts";
 import { cleanName } from "../names.ts";
+import { NativeFolderPicker } from "../native-folder.ts";
 import { spawn } from "node:child_process";
 import { createReadStream, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -7,6 +12,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import type {
   Bootstrap,
+  BrowserAnnotationSnapshot,
   CommandInfo,
   MentionItem,
   ModelConfig,
@@ -21,7 +27,7 @@ import type {
   ThemeSetting,
   Thread,
 } from "../../../shared/protocol.ts";
-import { chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, type ProjectConfig } from "../../../shared/protocol.ts";
+import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, type ProjectConfig } from "../../../shared/protocol.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
 import { chatRoutes } from "./chat-routes.ts";
@@ -39,6 +45,8 @@ import { readGitHead } from "../git-head.ts";
 import { MOCK_MODEL_ID, MOCK_PROVIDER_ID, type Store, type ThreadPatch } from "../db.ts";
 import { HttpError } from "../errors.ts";
 import { fuzzyScore, listAllFiles, listDir, readFileContent } from "../files.ts";
+import { listLocalDir, readLocalFile } from "../local-files.ts";
+import { localFolder } from "../paths.ts";
 import { assertOutsideDataDir, guardPath, guardProjectRoot, LOCAL_PANEL, PathError, realDeepest } from "../paths.ts";
 import type { Playtest } from "../playtest.ts";
 import { apiKeyFor, createProvider } from "../providers/index.ts";
@@ -85,13 +93,13 @@ export const BUILTIN_COMMANDS: CommandInfo[] = [
   { name: "undo", aliases: ["angre"], description: "Angre siste tur", kind: "builtin" },
   { name: "playtest", description: "Start playtest", kind: "builtin" },
   { name: "vscode", description: "Åpne prosjektet i VS Code", kind: "builtin" },
-  { name: "review", aliases: ["gjennomgå"], description: "Kodegjennomgang av endringene i tråden", kind: "builtin" },
+  { name: "review-changes", aliases: ["review", "gjennomgå"], description: "Kodegjennomgang av endringene i tråden", kind: "builtin" },
   { name: "approve", description: "Godkjenn ett nytt forsøk etter et avslag fra automatisk gjennomgang", kind: "builtin", demo: true },
   { name: "ide-context", description: "Del kontekst fra editoren, som åpen fil og markering", kind: "builtin", demo: true },
   { name: "local", description: "Kjør tråden i det valgte lokale prosjektet", kind: "builtin", demo: true },
   { name: "mcp", description: "Vis status for MCP-tjenere", kind: "builtin", demo: true },
   { name: "memories", aliases: ["minner"], description: "Minner på tvers av tråder: se og endre dem i Innstillinger → Personalisering og minner", kind: "builtin" },
-  { name: "worktree", description: "Kjør tråden i et eget Git-worktree", kind: "builtin", demo: true },
+  { name: "worktree", aliases: ["arbeidstre"], description: "Velg grener eller opprett et eget arbeidstre for prosjektet", kind: "builtin" },
   { name: "storage", aliases: ["lagring"], description: "Vis hvor mye plass appen bruker, og rydd opp", kind: "builtin" },
   { name: "help", aliases: ["hjelp"], description: "Vis hjelp", kind: "builtin" },
 ];
@@ -118,7 +126,9 @@ interface Route {
 export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
+  promptCompletion?: PromptCompletions;
   store: Store;
+  modelContextLookup?: ModelContextLookup;
   runner: Runner;
   turns: Turns;
   terminals: Terminals;
@@ -137,7 +147,7 @@ export interface ApiDeps {
   threadChanged: (threadId: string) => void;
   downloads?: Downloads; // the Browser panel's downloads, v0.6
   servers?: Servers; // servers the app's own processes started, v0.6
-  browser?: { running: boolean; close: () => Promise<void>; screenshot?: (projectId: string, tabId?: string) => Promise<{ png: Buffer; url: string }> }; // Lagring closes Chrome before it cleans the profile; Annoter freezes a tab (round 11b)
+  browser?: { running: boolean; close: () => Promise<void>; annotationSnapshot?: (projectId: string, tabId: string) => Promise<BrowserAnnotationSnapshot>; screenshot?: (projectId: string, tabId?: string) => Promise<{ png: Buffer; url: string }> }; // Lagring closes Chrome before it cleans the profile; Annoter freezes a tab (round 11b)
   viewedAt?: (threadId: string) => number | undefined; // when a window last showed the thread (ws.ts)
   chromeConfigHome?: string; // round 10: where Chrome profiles are looked for; tests give a temporary home
   homeDir?: string; // round 12: the home folder Firefox profiles are looked for in; tests give a temporary one
@@ -182,11 +192,21 @@ export class Api {
   private routes: Route[] = [];
   private fileCache = new Map<string, { at: number; files: string[] }>();
   private artifacts: Artifacts;
+  private folderPicker: NativeFolderPicker;
+  private gitWorkspaces: GitWorkspace;
 
   constructor(deps: ApiDeps) {
     this.deps = deps;
+    this.gitWorkspaces = new GitWorkspace({ dataDir: deps.dataDir, env: deps.env, activeProjects: () => deps.store.projects().filter((project) => deps.store.projectThreads(project.id).some((thread) => thread.running)) });
+    this.folderPicker = new NativeFolderPicker({ env: deps.env });
     this.artifacts = new Artifacts(deps.store, deps.preview, deps.publish);
     this.registerRoutes();
+  }
+
+  async close(): Promise<void> {
+    this.folderPicker.close();
+    await this.gitWorkspaces.close();
+    this.deps.promptCompletion?.close();
   }
 
   private route(method: string, spec: string, handler: Handler): void {
@@ -251,8 +271,9 @@ export class Api {
     if (err instanceof HttpError) return json(res, err.status, { error: err.message, ...err.extra });
     if (err instanceof PathError) return json(res, err.status, { error: err.message });
     const code = (err as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM") return json(res, 403, { error: "Du har ikke tilgang til denne stien" });
     if (code === "ENOENT") return json(res, 404, { error: "Fant ikke filen" });
-    if (code === "ENOTDIR" || code === "EISDIR") return json(res, 400, { error: "Ugyldig sti" });
+    if (["ENOTDIR", "EISDIR", "ELOOP", "ENAMETOOLONG", "ENXIO", "ENODEV"].includes(code ?? "")) return json(res, 400, { error: "Ugyldig sti" });
     const status = (err as { status?: number }).status;
     if (status) return json(res, status, { error: (err as Error).message });
     console.error("API-feil:", (err as Error).message);
@@ -273,6 +294,7 @@ export class Api {
 
   // Round 9: a project whose folder is gone runs nothing until it is connected to a folder again.
   assertFolder(threadId: string): void {
+    if (this.gitWorkspaces.busy && this.thread(threadId).projectId) throw new HttpError(409, "En Git-handling pågår. Vent før du starter modellarbeid.");
     const projectId = this.deps.store.thread(threadId)?.projectId;
     const project = projectId ? this.deps.store.project(projectId) : undefined;
     if (project?.folderMissing) throw new HttpError(409, `Fant ikke mappen ${project.path}. Velg mappen på nytt for å fortsette.`);
@@ -340,10 +362,14 @@ export class Api {
   }
 
   private commands(project: Project | undefined): CommandInfo[] {
-    const skills = this.deps.runner.skillsFor(project)
-      .filter((skill) => !BUILTIN_NAMES.has(skill.name))
-      .map((skill): CommandInfo => ({ name: skill.name, description: skill.description, kind: "skill", source: skill.source }));
-    return [...BUILTIN_COMMANDS, ...skills];
+    const discovered = this.deps.runner.skillsFor(project);
+    const reviewSkill = discovered.some((skill) => skill.name === "review");
+    const skills = discovered
+      .filter((skill) => skill.name === "review" || !BUILTIN_NAMES.has(skill.name))
+      .map((skill): CommandInfo => ({ name: skill.name, description: skill.description, kind: "skill", source: skill.source, ...(skill.args !== undefined ? { args: skill.args } : {}) }));
+    const builtins = BUILTIN_COMMANDS.map((command) => command.name === "review-changes" && reviewSkill
+      ? { ...command, aliases: command.aliases?.filter((alias) => alias !== "review") } : command);
+    return [...builtins, ...skills];
   }
 
   private openVscode(project: Project): Promise<void> {
@@ -386,6 +412,8 @@ export class Api {
     this.route("POST", "/api/keyring/retry", () => secrets.load());
 
     this.route("POST", "/api/ws-ticket", () => ({ ticket: security.issueTicket() }));
+
+    gitWorkspaceRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps, this.gitWorkspaces, (id) => this.project(id), (id) => this.invalidateFiles(id));
 
     // Projects
 
@@ -550,6 +578,12 @@ export class Api {
       publish({ type: "project.deleted", projectId: params.id });
     });
 
+    this.route("POST", "/api/fs/pick-folder", async ({ body }) => {
+      const selected = await this.folderPicker.pick(body.start, body.title);
+      if (selected) assertOutsideDataDir(realDeepest(selected), dataDir);
+      return { path: selected };
+    });
+
     this.route("GET", "/api/fs/browse", ({ query }) => {
       const target = realDeepest(path.resolve(query.get("path") || homedir()));
       assertOutsideDataDir(target, dataDir);
@@ -596,6 +630,10 @@ export class Api {
     this.route("GET", "/api/projects/:id/tree", ({ params, query }) => {
       return listDir(this.project(params.id).path, query.get("path") || ".", dataDir, { respectIgnore: true });
     });
+    // Explicit manual reads for Denne datamaskinen. No local project or agent capability is created.
+    this.route("GET", "/api/local/files/root", () => ({ path: localFolder(dataDir, this.deps.homeDir) }));
+    this.route("GET", "/api/local/files/tree", ({ query }) => listLocalDir(requireString(query.get("path"), "path"), dataDir));
+    this.route("GET", "/api/local/files/file", ({ query }) => readLocalFile(requireString(query.get("path"), "path"), dataDir));
     this.route("GET", "/api/projects/:id/file", ({ params, query }) => {
       return readFileContent(this.project(params.id).path, requireString(query.get("path"), "path"), dataDir);
     });
@@ -740,6 +778,16 @@ export class Api {
       publish({ type: "thread.deleted", threadId: params.id });
     });
 
+    this.route("GET", "/api/threads/:id/queue", ({ params }) => {
+      this.thread(params.id);
+      return runner.queuedSnapshot(params.id);
+    });
+
+    this.route("GET", "/api/threads/:id/summary-changes", ({ params }) => {
+      if (this.thread(params.id).mode !== "code") throw new HttpError(400, "Endringssammendraget gjelder Kode");
+      return store.summaryChanges(params.id);
+    });
+
     // Sent as the stored JSON text, without parsing each event (db.ts, eventsJson).
     this.route("GET", "/api/threads/:id/events", ({ res, params, query }) => {
       this.thread(params.id);
@@ -750,6 +798,15 @@ export class Api {
         : store.eventsJson(params.id, Number(query.get("after") ?? 0) || 0, limit);
       jsonText(res, `[${rows.join(",")}]`);
       return HANDLED;
+    });
+
+    this.route("POST", "/api/prompt-completion", async ({ req, res, body }) => {
+      const cancelled = new AbortController();
+      const abort = () => { if (!res.writableEnded) cancelled.abort(); };
+      req.once("aborted", abort);
+      res.once("close", abort);
+      try { return await this.deps.promptCompletion?.generate(body, cancelled.signal) ?? { completion: "" }; }
+      finally { req.off("aborted", abort); res.off("close", abort); }
     });
 
     this.route("POST", "/api/threads/:id/messages", ({ params, body }) => {
@@ -784,6 +841,16 @@ export class Api {
 
     // Round 11b (SPEC 25.1): Annoter in the Browser panel freezes the tab on screen as a PNG. Nothing
     // is saved; the panel sends the finished picture as an ordinary image upload.
+    this.route("GET", "/api/browser/annotation", async ({ query }) => {
+      const projectId = query.get("projectId") ?? "";
+      if (projectId !== LOCAL_PANEL) this.project(projectId);
+      const tab = query.get("tabId") ?? "";
+      if (tab && !/^[a-z0-9-]{1,40}$/i.test(tab)) throw new HttpError(400, "Ugyldig nettleserfane");
+      const browser = this.deps.browser;
+      if (!browser?.annotationSnapshot) throw new HttpError(404, "Elementvalg er ikke tilgjengelig");
+      return browser.annotationSnapshot(projectId, tab);
+    });
+
     this.route("GET", "/api/browser/screenshot", async ({ res, query }) => {
       const projectId = query.get("projectId") ?? "";
       if (projectId !== LOCAL_PANEL) this.project(projectId);
@@ -820,6 +887,14 @@ export class Api {
 
     this.route("PATCH", "/api/settings", ({ body }) => {
       const patch: Partial<Settings> = {};
+      if (body.autoCompact !== undefined) {
+        if (typeof body.autoCompact !== "boolean") throw new HttpError(400, "Komprimering må være av eller på");
+        patch.autoCompact = body.autoCompact;
+      }
+      if (body.maxStepsPerTurn !== undefined) {
+        if (!isMaxStepsPerTurn(body.maxStepsPerTurn)) throw new HttpError(400, `Steg per tur må være et heltall fra ${MIN_STEPS_PER_TURN} til ${MAX_STEPS_PER_TURN}`);
+        patch.maxStepsPerTurn = body.maxStepsPerTurn;
+      }
       if (body.theme !== undefined) {
         if (!THEMES.includes(body.theme)) throw new HttpError(400, "Ugyldig tema");
         patch.theme = body.theme;
@@ -854,6 +929,22 @@ export class Api {
         if (body.panelStart !== "tools" && body.panelStart !== "tabs") throw new HttpError(400, "Ugyldig valg for sidepanelet");
         patch.panelStart = body.panelStart;
       }
+      if (body.startConversation !== undefined) {
+        if (body.startConversation !== "new" && body.startConversation !== "resume") throw new HttpError(400, "Ugyldig samtalevalg ved oppstart");
+        patch.startConversation = body.startConversation;
+      }
+      if (body.panelTabLayout !== undefined) {
+        if (body.panelTabLayout !== "unified" && body.panelTabLayout !== "grouped") throw new HttpError(400, "Ugyldig faneoppsett");
+        patch.panelTabLayout = body.panelTabLayout;
+      }
+      if (body.panelNewTab !== undefined) {
+        if (body.panelNewTab !== "tools" && body.panelNewTab !== "browser") throw new HttpError(400, "Ugyldig valg for ny sidepanelfane");
+        patch.panelNewTab = body.panelNewTab;
+      }
+      if (body.codeFontCustom !== undefined) {
+        if (typeof body.codeFontCustom !== "string" || body.codeFontCustom.length > 120 || /[\u0000-\u001f\u007f]/.test(body.codeFontCustom)) throw new HttpError(400, "Ugyldig skriftnavn");
+        patch.codeFontCustom = body.codeFontCustom.trim();
+      }
       if (body.sidebarLayout !== undefined) {
         if (body.sidebarLayout !== "standard" && body.sidebarLayout !== "smart") throw new HttpError(400, "Ugyldig sidefane");
         patch.sidebarLayout = body.sidebarLayout;
@@ -884,6 +975,15 @@ export class Api {
         if (body.busyMessages !== null && body.busyMessages !== "queue" && body.busyMessages !== "steer") throw new HttpError(400, "Ugyldig verdi for busyMessages");
         patch.busyMessages = body.busyMessages ?? undefined;
       }
+      if (body.modelContext !== undefined) patch.modelContext = modelContextPatch(body.modelContext, store.settings());
+      if (body.promptAutocompleteModelId !== undefined) {
+        if (body.promptAutocompleteModelId !== null && (typeof body.promptAutocompleteModelId !== "string" || !store.model(body.promptAutocompleteModelId))) throw new HttpError(400, "Fant ikke modellen til autofullføring");
+        patch.promptAutocompleteModelId = body.promptAutocompleteModelId;
+      }
+      if (body.promptAutocomplete !== undefined) {
+        if (body.promptAutocomplete !== null && typeof body.promptAutocomplete !== "boolean") throw new HttpError(400, "Ugyldig verdi for promptAutocomplete");
+        patch.promptAutocomplete = body.promptAutocomplete === true;
+      }
       Object.assign(patch, round5Settings(body));
       Object.assign(patch, runde12Settings(body)); // round 12: imported cookies (SPEC 26.4)
       Object.assign(patch, runde13Settings(body, store.settings(), DEFAULT_CHAT_TOOLS)); // round 13: Chat tools and web search (SPEC 27.2)
@@ -891,6 +991,26 @@ export class Api {
       // they stand for (migrateCodeStart reads it from them again).
       if ((body.codeStartEmpty !== undefined || body.codeStartProject !== undefined) && body.codeStart === undefined) patch.codeStart = undefined;
       const settings = store.updateSettings(patch);
+      if (patch.promptAutocomplete === false || body.promptAutocompleteModelId !== undefined) this.deps.promptCompletion?.clear();
+      this.settingsChanged();
+      return settings;
+    });
+
+    this.route("POST", "/api/model-context/location", async ({ body }) => {
+      const mode = body.mode;
+      if (mode !== "chat" && mode !== "code") throw new HttpError(400, "Velg Chat eller Kode");
+      const before = modelContextOf(store.settings(), mode);
+      if (!before.location) throw new HttpError(400, "Slå på sted før du henter det");
+      const snapshot = JSON.stringify(before);
+      let found: Awaited<ReturnType<ModelContextLookup>>;
+      try { found = await (this.deps.modelContextLookup ?? lookupModelContextLocation)(); }
+      catch { throw new HttpError(502, "Kunne ikke hente omtrentlig sted. Prøv igjen eller skriv stedet selv."); }
+      const current = modelContextOf(store.settings(), mode);
+      if (!current.location || JSON.stringify(current) !== snapshot) throw new HttpError(409, "Stedsinnstillingen ble endret under oppslaget. Prøv igjen.");
+      const city = cleanContextText(found.city, 70);
+      const country = cleanContextText(found.country, 70);
+      if (!city || !country) throw new HttpError(502, "Fant ikke et omtrentlig sted");
+      const settings = store.updateSettings({ modelContext: { [mode]: { ...current, locationText: `${city}, ${country}`, locationSource: "ip", locationUpdatedAt: new Date().toISOString() } } });
       this.settingsChanged();
       return settings;
     });
@@ -931,6 +1051,7 @@ export class Api {
       if (params.id === MOCK_PROVIDER_ID) throw new HttpError(400, "Demo-leverandøren kan ikke slettes");
       if (!store.provider(params.id)) throw new HttpError(404, "Fant ikke leverandøren");
       store.deleteProvider(params.id);
+      this.deps.promptCompletion?.clear();
       await secrets.set(params.id, null);
       this.settingsChanged();
     });
@@ -1050,6 +1171,7 @@ export class Api {
       if (params.id === MOCK_MODEL_ID) throw new HttpError(400, "Demo-modellen kan ikke slettes");
       if (!store.model(params.id)) throw new HttpError(404, "Fant ikke modellen");
       store.deleteModel(params.id);
+      this.deps.promptCompletion?.clear();
       this.settingsChanged();
     });
 
@@ -1097,7 +1219,7 @@ export class Api {
 
 const EFFORTS: ReasoningEffort[] = ["none", "low", "medium", "high", "xhigh", "max"];
 const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "thread.search", "pane.new", "folder.open", "settings.open", "view.sidebar", "view.panel", "view.summary", "view.mode", "help.shortcuts",
-  "palette.open", "thread.rename", "thread.pin", "thread.side", "thread.archive",
+  "palette.open", "thread.rename", "thread.pin", "thread.unread", "thread.side", "thread.archive",
   "panel.files", "panel.changes", "panel.terminal", "panel.browser", "panel.team", "panel.overview",
   "browser.annotate", // round 11b
   "browser.newTab", "browser.newTabFull", // round 10, missing until round 12
@@ -1106,6 +1228,9 @@ const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "th
 // The settings added in round 5 (Innstillinger). Choices must be one of the listed values and
 // numbers whole and in range; null resets a field to its default, which is to leave it out.
 const ROUND5_CHOICES: Record<string, readonly string[]> = {
+  codeThemeLight: ["app", "clear", "warm", "contrast"],
+  codeThemeDark: ["app", "clear", "warm", "contrast"],
+  codeTranscriptView: ["normal", "thinking", "detailed"],
   startMode: ["last", "chat", "code"],
   notifyOnDone: ["off", "unfocused", "always"],
   accent: ["blue", "violet", "green", "orange", "pink", "red", "graphite"],

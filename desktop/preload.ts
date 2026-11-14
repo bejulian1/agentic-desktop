@@ -25,11 +25,12 @@ contextBridge.exposeInMainWorld("agenticDesktop", {
     ipcRenderer.invoke("desktop:close-behavior", value === "tray" || value === "quit" ? value : undefined),
   // SPEC 29.2: whether Chromium's sandbox is on, and if not why, for Innstillinger -> Om.
   sandbox: (): Promise<{ on: boolean; reason: string | null; command: string | null } | null> => ipcRenderer.invoke("desktop:sandbox"),
+  pickFolder: (start?: string, title?: string): Promise<string | null> => ipcRenderer.invoke("desktop:pick-folder", start, title),
   // Round 14 (SPEC 30.2): the app icon for the window, the status area and (installed) the app library.
   appIcon: (value?: string): Promise<{ value: string; launcher: "updated" | "same" | "not-installed" | "failed" } | null> =>
     ipcRenderer.invoke("desktop:app-icon", typeof value === "string" ? value : undefined),
   reportActivity: (working: number, waiting: number) => ipcRenderer.send("desktop:activity", { working: Number(working) || 0, waiting: Number(waiting) || 0 }),
-  onCommand: (callback: (command: "new-thread") => void) => subscribe("desktop:command", callback),
+  onCommand: (callback: (command: "new-thread" | "reopen") => void) => subscribe("desktop:command", callback),
   // SPEC 29.3: where the Browser panel's page shows in the window (null hides it), and a picture of
   // it to show while a menu covers the panel.
   browserPanel: {

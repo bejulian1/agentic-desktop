@@ -74,8 +74,7 @@ dialog[open] { animation: ad-lift var(--dur-3) var(--ease-emphasized); }
 dialog[open]::backdrop { animation: ad-fade var(--dur-2) var(--ease-out); }
 .image-viewer { animation: ad-fade var(--dur-2) var(--ease-out); }
 .image-viewer img { animation: ad-lift var(--dur-3) var(--ease-emphasized); }
-.settings-page { animation: ad-fade var(--dur-2) var(--ease-out); }
-.settings-section { animation: ad-rise var(--dur-2) var(--ease-out); }
+/* Settings navigation is immediate: fading or moving each new page looks like a delayed popup. */
 .profile-page, .artifacts-room { animation: ad-fade var(--dur-2) var(--ease-out); }
 
 /* 5. Toasts slide in from below. The one that leaves is a copy made in ui/dialogs.tsx. */

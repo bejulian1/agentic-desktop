@@ -1,32 +1,45 @@
 // The message field. The textarea is uncontrolled, so typing costs what typing costs in a plain
 // textarea: nothing reactive runs on a keystroke unless the word under the caret starts with / or @.
-import { createEffect, createMemo, createSignal, For, on, onMount, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import type { Accessor } from "solid-js";
-import { get, patch, post } from "../lib/api";
-import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, MentionItem, ModelConfig, PermissionMode, ReasoningEffort, Thread } from "../../../shared/protocol";
+import { ApiError, del, get, patch, post } from "../lib/api";
+import { on as onSocket, onOpen } from "../lib/socket";
+import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, MentionItem, ModelConfig, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
-import { app, LOCAL_SCOPE, modelFor, modelName, report, setMode, mode, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, toast } from "../state/app";
+import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
-import { createThreadFor, newThreadIn } from "../state/navigate";
+import { createThreadFor, newThreadIn, openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
 import { revertLastTurn, startPlaytest, openVscode } from "../state/project-actions";
 import { formatCost, formatTokens } from "../lib/format";
 import {
   IconFile, IconFolder, IconBranch, IconSend, IconStop, IconCode, IconSpark, IconClose, IconTerminal, IconChevronDown, IconCheck, IconList, IconPlus,
-  IconLaptop, IconMic, IconShieldCheck, IconBolt, IconSearch, IconImage, IconHand, IconPencil, IconAlert, IconReset, IconBack, IconSliders,
+  IconLaptop, IconMic, IconBolt, IconSearch, IconImage, IconReset, IconBack, IconSliders,
   IconNewThread, IconBrain, IconInfo, IconTarget, IconBook, IconArchive, IconHelp, IconChat, IconPlay, IconUndo, IconEye, IconUsers, IconSplitRight,
-  IconMonitor, IconChevron, IconWarn,
+  IconMonitor, IconChevron, IconWarn, IconDots, IconPencil, IconTrash,
 } from "./icons";
 import { GoalLine } from "./Goal";
-import { ChatToolButton, ChatToolChips, useChatTools } from "./ChatToolMenu";
+import { ChatToolButton, useChatTools } from "./ChatToolMenu";
+import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
+import "../styles/queue.css";
 import { Popover } from "./Popover";
+import { PermissionPicker } from "./PermissionPicker";
+import "../styles/permissions.css";
 import { ProjectGlyph } from "./ProjectGlyph";
-import { ProviderGlyph } from "./ProviderGlyph";
 import { AttachmentChip, imageUrl, showImage } from "./rows";
 import { FolderMissingBar } from "./FolderMissingBar";
 import { gitInfo, loadGitInfo } from "../state/home";
 import { displayKeys } from "../state/shortcuts";
+import { registerChatPersonality } from "../state/chat-personality";
+import { composerDeliveries, deliverToComposer, setComposerDeliveries } from "../state/composer-delivery";
+import { openedFileContext } from "../state/nav";
+import { closeProjectPicker, useProjectPicker } from "../state/project-picker";
+import { openGitWorkspace } from "./dialog-state";
+import { ProjectEnvironmentPicker } from "./ProjectEnvironmentPicker";
+import "../styles/project-picker.css";
+export { deliverToComposer, type ComposerDelivery } from "../state/composer-delivery";
+export { openProjectPicker } from "../state/project-picker";
 
 type Menu =
   | { kind: "command"; query: string; start: number; end: number }
@@ -52,7 +65,7 @@ export const EFFORTS: Array<{ id: ReasoningEffort; label: string }> = [
   { id: "low", label: "Lav" },
   { id: "medium", label: "Middels" },
   { id: "high", label: "Høy" },
-  { id: "xhigh", label: "Svært høy" },
+  { id: "xhigh", label: "Ekstra høy" },
   { id: "max", label: "Maks" },
 ];
 
@@ -63,10 +76,10 @@ const DEMO_TEXT: Record<string, string> = {
   local: "Skal flytte en tråd fra skyen til det valgte lokale prosjektet. Alle tråder kjører lokalt i denne appen, så det er ingenting å flytte.",
   mcp: "Skal vise MCP-tjenere som er koblet til, med status og verktøy. MCP er ikke bygget ennå, og ingen tjenere er koblet til.",
   memories: "Minnene er ekte nå: modellen lagrer korte notater med remember og får dem i nye tråder. Se, endre og slett dem i Innstillinger → Personalisering og minner.",
-  worktree: "Skal kjøre tråden i et eget Git-worktree, så flere instanser ikke går i beina på hverandre. Ingen git-kommandoer kjøres i denne versjonen.",
 };
 
-const CODE_ONLY = new Set(["undo", "playtest", "vscode", "init", "review"]);
+const CODE_ONLY = new Set(["undo", "playtest", "vscode", "init", "review", "review-changes", "worktree"]);
+const CODE_MODE_ONLY = new Set(["goal", "plan"]);
 
 // An icon per command, by what it is about: the thread, the model, the project or the agent.
 const COMMAND_ICONS: Record<string, (p: { size?: number }) => any> = {
@@ -78,7 +91,7 @@ const COMMAND_ICONS: Record<string, (p: { size?: number }) => any> = {
 };
 
 // The arguments as the user can type them, in Norwegian where the app understands both.
-const ARG_WORDS: Record<string, string> = { none: "ingen", low: "lav", medium: "middels", high: "høy", xhigh: "svært høy", max: "maks" };
+const ARG_WORDS: Record<string, string> = { none: "ingen", low: "lav", medium: "middels", high: "høy", xhigh: "ekstra høy", max: "maks" };
 function argsText(args: string): string {
   return args.replace(/[a-z]+/g, (word) => ARG_WORDS[word] ?? word).replace(/\|/g, " | ");
 }
@@ -89,42 +102,29 @@ function matchScore(command: CommandInfo, query: string): number | null {
   if (names.includes(query)) return 0;
   if (names.some((n) => n.startsWith(query))) return 1;
   if (names.some((n) => n.includes(query))) return 2;
-  return null;
+  // Subsequence matches let /rvw find /review without weakening exact/prefix matches.
+  const scores = names.flatMap((name) => {
+    let at = -1;
+    let gaps = 0;
+    for (const char of query) {
+      const next = name.indexOf(char, at + 1);
+      if (next < 0) return [];
+      gaps += next - at - 1;
+      at = next;
+    }
+    return [3 + gaps / Math.max(1, name.length)];
+  });
+  return scores.length ? Math.min(...scores) : null;
 }
 
 type Chip = AttachmentRef & { label: string; key: string };
 
 const drafts = new Map<string, string>();
+const draftParts = new Map<string, { chips: Chip[]; skill: string | null }>();
 
 // Round 11b (SPEC 25.1): images and text handed to a pane's field from outside, by Annoter in the
 // Browser panel. The field with that key (the thread's id, or the empty pane's) takes them, now or
 // when it mounts. The text goes under what is already typed, and nothing is sent.
-export interface ComposerDelivery {
-  images: File[];
-  text: string;
-}
-const [deliveries, setDeliveries] = createSignal<Record<string, ComposerDelivery>>({});
-export function deliverToComposer(key: string, delivery: ComposerDelivery): void {
-  setDeliveries({ ...deliveries(), [key]: delivery });
-}
-
-const PERMISSION_LABELS: Record<PermissionMode, string> = { ask: "Spør", "accept-edits": "Godta redigeringer", full: "Godkjenn for meg" };
-const PERMISSION_TEXT: Record<PermissionMode, string> = {
-  ask: "Spør alltid før filendringer, kommandoer og nettleseren",
-  "accept-edits": "Endrer filer i prosjektet uten å spørre. Kommandoer og nettleseren spør",
-  full: "Full tilgang uten å spørre. .env og .git/hooks spør likevel",
-};
-const PERMISSION_ICONS: Record<PermissionMode, (p: { size?: number }) => any> = { ask: IconHand, "accept-edits": IconPencil, full: IconAlert };
-
-// Chat: what each personality does, in the words of the app. The prompts in PERSONALITIES are for the model.
-const PERSONALITY_TEXT: Record<string, string> = {
-  standard: "Vanlige svar, uten egen stil",
-  kort: "Korte svar, med så få ord som oppgaven tillater",
-  grundig: "Forklarer resonnementet og avveiningene",
-  vennlig: "Varm og oppmuntrende, med enkle ord",
-  lærer: "Forklarer hvorfor, og foreslår hva du kan prøve",
-};
-
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const LIMIT_TEXT = `Du kan legge ved maks ${MAX_ATTACHMENTS} bilder og filer per melding.`;
 
@@ -137,13 +137,8 @@ function readBase64(file: File): Promise<string> {
   });
 }
 
-const LOCAL_TEXT = "Tråden kjører på denne maskinen, i prosjektmappen din. Senere skal du kunne velge en annen vert, for eksempel en server over SSH eller en sky-instans. Det finnes ikke ennå, så alt kjører lokalt.";
+const LOCAL_TEXT = "Appen og verktøyene kjører på denne maskinen, i prosjektmappen når du har valgt en. Modellforespørsler går til den valgte leverandøren eller endepunktet. Du kan ikke velge en annen vert over SSH eller i skyen ennå.";
 const MIC_TEXT = "Skal la deg snakke inn meldingen. Ingen lyd tas opp i denne versjonen, og mikrofonen brukes ikke.";
-
-// The project picker opens from the chip above the field, and from the project name on the start
-// page of the same pane. One open at a time, so a signal with the pane's key is enough.
-const [pickerPane, setPickerPane] = createSignal<string | null>(null);
-export const openProjectPicker = (paneKey: string) => setPickerPane(paneKey);
 
 // The picker opened from somewhere without a field of its own (Vis alle prosjekter on the start page).
 export const NO_PROJECT_KEY = "no-project";
@@ -152,16 +147,17 @@ let carried: string | null = null;
 // Picks a project for Kode. What was typed in the field the picker came from goes with it, into a
 // new thread in the project.
 export function chooseProject(id: string, fromKey: string = NO_PROJECT_KEY): void {
+  closeProjectPicker();
+  if (mode() === "code" && selectedProjectId() === id) return;
   carried = drafts.get(fromKey) || null;
   drafts.delete(fromKey);
-  setPickerPane(null);
   setProjectId(id);
   setMode("code");
 }
 
 // Ikke jobb i et prosjekt: Kode on Denne datamaskinen, without a folder and without tools.
 export function chooseNoProject(): void {
-  setPickerPane(null);
+  closeProjectPicker();
   setProjectId(null);
   setMode("code");
 }
@@ -201,7 +197,7 @@ type PickerEntry = { kind: "project"; project: ReturnType<typeof sortedProjects>
 // The project picker: search at the top, Nylige and Alle prosjekter below, and Nytt prosjekt and
 // Ikke jobb i et prosjekt at the bottom. The focus stays in the search field; the arrow keys move a
 // marker through every row, Enter picks it and Esc closes.
-function ProjectPicker(props: { current: string | null; paneKey: string; onDone: () => void; onCancel: () => void }) {
+export function ProjectPicker(props: { current: string | null; paneKey: string; onDone: () => void; onCancel: () => void }) {
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal(0);
   let list: HTMLDivElement | undefined;
@@ -243,7 +239,12 @@ function ProjectPicker(props: { current: string | null; paneKey: string; onDone:
   const run = (entry: PickerEntry | undefined) => {
     if (!entry) return;
     // Round 12 (SPEC 26.1): no new threads in a project whose folder is gone.
-    if (entry.kind === "project") return entry.project.folderMissing ? undefined : chooseProject(entry.project.id, props.paneKey);
+    if (entry.kind === "project") {
+      if (entry.project.folderMissing) return;
+      if (entry.project.id === props.current) return props.onCancel();
+      props.onDone();
+      return chooseProject(entry.project.id, props.paneKey);
+    }
     props.onDone();
     if (entry.kind === "new") setFolderPickerOpen(true);
     else chooseNoProject();
@@ -270,7 +271,7 @@ function ProjectPicker(props: { current: string | null; paneKey: string; onDone:
     if (selected() !== index) setSelected(index);
   };
   return (
-    <div class="project-picker" role="dialog" aria-label="Velg prosjekt" data-testid="project-picker-menu">
+    <div class="project-picker" role="dialog" aria-label="Velg prosjekt" data-testid="project-picker-menu" onFocusOut={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) props.onDone(); }}>
       <label class="picker-search">
         <IconSearch size={14} />
         <input
@@ -453,7 +454,9 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   const listId = `model-list-${++modelMenuSeq}`;
   const [query, setQuery] = createSignal("");
   const [active, setActive] = createSignal<string | null>(props.chosen);
+  let search!: HTMLInputElement;
   let list!: HTMLDivElement;
+  let frame = 0;
   const groups = createMemo(() => {
     const words = query().trim().toLowerCase().split(/\s+/).filter(Boolean);
     const out: Array<{ id: string; name: string; models: ModelConfig[] }> = [];
@@ -472,8 +475,19 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   createEffect(on(flat, (ids) => {
     if (!ids.includes(active() ?? "")) setActive(ids[0] ?? null);
   }));
-  const optionId = (id: string) => `${listId}-${id.replace(/[^a-z0-9_-]/gi, "_")}`;
-  const reveal = () => requestAnimationFrame(() => list?.querySelector(".model-option.active")?.scrollIntoView({ block: "nearest" }));
+  const optionId = (id: string) => `${listId}-${encodeURIComponent(id)}`;
+  const reveal = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      const row = list?.querySelector<HTMLElement>(".model-option.active");
+      if (!row) return;
+      const box = list.getBoundingClientRect();
+      const item = row.getBoundingClientRect();
+      // Scroll only the model list. scrollIntoView can also move the surrounding pane.
+      if (item.top < box.top) list.scrollTop -= box.top - item.top;
+      else if (item.bottom > box.bottom) list.scrollTop += item.bottom - box.bottom;
+    });
+  };
   const move = (step: number) => {
     const ids = flat();
     if (!ids.length) return;
@@ -481,13 +495,19 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
     setActive(ids[at < 0 ? 0 : (at + step + ids.length) % ids.length]);
     reveal();
   };
-  onMount(() => reveal());
+  onMount(() => {
+    search.focus({ preventScroll: true });
+    reveal();
+  });
+  onCleanup(() => cancelAnimationFrame(frame));
+  createEffect(on(query, reveal, { defer: true }));
   return (
     <div class="model-menu" data-testid="model-menu">
+      <div class="model-heading">Velg modell</div>
       <label class="model-search">
         <IconSearch size={14} />
         <input
-          ref={(el) => requestAnimationFrame(() => el.focus({ preventScroll: true }))}
+          ref={search}
           type="text"
           role="combobox"
           aria-label="Søk etter modeller"
@@ -512,7 +532,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
               e.preventDefault();
               setActive(flat().at(-1) ?? null);
               reveal();
-            } else if (e.key === "Enter") {
+            } else if (e.key === "Enter" && !e.isComposing) {
               e.preventDefault();
               const id = active();
               if (id) props.onPick(id);
@@ -524,7 +544,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
         <For each={groups()} fallback={<p class="model-none">Ingen modeller passer «{query().trim()}».</p>}>
           {(group) => (
             <div role="group" aria-label={group.name} class="model-group">
-              <div class="model-group-head" aria-hidden="true"><ProviderGlyph name={group.name} small /><span>{group.name}</span></div>
+              <div class="model-group-head" aria-hidden="true"><span>{group.name}</span></div>
               <For each={group.models}>
                 {(model) => (
                   <button
@@ -556,11 +576,6 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   );
 }
 
-const providerOf = (modelId: string | null | undefined) => {
-  const model = modelFor(modelId);
-  return model ? app.providers.find((p) => p.id === model.providerId) : undefined;
-};
-
 const effortLabel = (value: ReasoningEffort | null | undefined) => EFFORTS.find((e) => e.id === value)?.label ?? "";
 
 // Innsats (SPEC 21.3, 23.4): a popover over the field. In the middle, straight on the popover, the level in the
@@ -579,7 +594,7 @@ function EffortPicker(props: {
   // The dragged value stands until the choice has come back, so the thumb never jumps back.
   createEffect(on(() => props.chosen, () => setPreview(null), { defer: true }));
   const last = () => props.steps.length - 1;
-  // Where a value sits on the track. xhigh is not a step: it sits between Høy and Maks.
+  // Legacy/custom values outside this provider's scale still get a stable position.
   const positionOf = (value: ReasoningEffort | null): number | null => {
     if (!value) return null;
     const at = props.steps.indexOf(value);
@@ -587,7 +602,7 @@ function EffortPicker(props: {
     const high = props.steps.indexOf("high");
     return value === "xhigh" && high >= 0 ? Math.min(last(), high + 0.5) : null;
   };
-  // Nothing chosen and no known standard: the thumb waits, dimmed, in the middle, so it is there
+  // Nothing chosen and no known standard: the thumb waits in the middle, so it is there
   // from the first moment and slides from there to what is picked.
   const middle = () => {
     const at = props.steps.indexOf("medium");
@@ -595,7 +610,7 @@ function EffortPicker(props: {
   };
   const position = () => preview() ?? positionOf(props.chosen) ?? positionOf(props.modelDefault) ?? middle();
   const standard = () => preview() === null && props.chosen === null;
-  // The model's standard is not a known level: the thumb waits dimmed in the middle until one is
+  // The model's standard is not a known level: the thumb waits in the middle until one is
   // chosen, and the arrows start from there.
   const unset = () => standard() && positionOf(props.modelDefault) === null;
   const name = () => {
@@ -607,17 +622,18 @@ function EffortPicker(props: {
   };
   const fraction = () => (last() > 0 ? position() / last() : 0);
   let track!: HTMLDivElement;
+  onMount(() => track.focus({ preventScroll: true }));
   const stepAt = (clientX: number) => {
-    const box = track.getBoundingClientRect();
-    const thumb = 26;
-    const x = (clientX - box.left - thumb / 2) / Math.max(1, box.width - thumb);
+    const rail = track.querySelector<HTMLElement>(".effort-rail")!.getBoundingClientRect();
+    const x = (clientX - rail.left) / Math.max(1, rail.width);
     return Math.max(0, Math.min(last(), Math.round(x * last())));
   };
   const commit = (index: number) => {
     const value = props.steps[index];
-    setPreview(index);
-    if (value !== props.chosen) props.onPick(value);
-    else setPreview(null);
+    // The parent keeps the optimistic choice while persistence is pending. Always commit,
+    // including a return to the stored level while an earlier choice is still being saved.
+    props.onPick(value);
+    setPreview(null);
   };
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return;
@@ -656,9 +672,9 @@ function EffortPicker(props: {
     if (next !== now || standard() || position() % 1) commit(next);
   };
   return (
-    <div class="effort-pop" data-testid="effort-picker" role="group" aria-label="Innsats">
+    <div class="effort-pop" data-testid="effort-picker" role="dialog" aria-label="Innsats">
       <div class="effort-head">
-        <button type="button" class="effort-mid" title="Velg en annen modell" onClick={props.onModel}>
+        <button type="button" class="effort-mid" title="Velg en annen modell" aria-label={`Velg modell. Nåværende modell: ${props.modelName}`} onClick={props.onModel}>
           <span class="effort-level" data-testid="effort-name" classList={{ standard: standard() }}>{name()}</span>
           <span class="effort-model"><span class="effort-model-name">{props.modelName}</span><IconChevron size={12} /></span>
         </button>
@@ -675,7 +691,7 @@ function EffortPicker(props: {
         aria-label="Innsats"
         aria-valuemin={0}
         aria-valuemax={last()}
-        aria-valuenow={unset() ? undefined : position()}
+        aria-valuenow={position()}
         aria-valuetext={name()}
         data-testid="effort-slider"
         style={{ "--pos": fraction(), "--steps": last() }}
@@ -724,10 +740,24 @@ export function Composer(props: {
   registerFill?: (fill: (text: string) => void) => void;
 }) {
   let textarea!: HTMLTextAreaElement;
+  let draftRevision = 0;
   let projectChip: HTMLButtonElement | undefined;
   const [menu, setMenu] = createSignal<Menu | null>(null);
+  const menuId = `composer-suggestions-${props.paneKey}`;
+  const optionId = (index: number) => `${menuId}-${index}`;
+  let composing = false;
+  const completionClientId = crypto.randomUUID();
+  const [completion, setCompletion] = createSignal("");
+  const [completionPrefix, setCompletionPrefix] = createSignal("");
+  const [completionRevision, setCompletionRevision] = createSignal(0);
+  const [completionFocused, setCompletionFocused] = createSignal(false);
+  let completionDismissed = false;
+  let completionRequest = 0;
+  let completionOverlay: HTMLDivElement | undefined;
+  let completionFrame = 0;
   const [selected, setSelected] = createSignal(0);
   const [commands, setCommands] = createSignal<CommandInfo[]>([]);
+  const [resolvingCommand, setResolvingCommand] = createSignal(false);
   const [mentions, setMentions] = createSignal<MentionItem[]>([]);
   const [chips, setChips] = createSignal<Chip[]>([]);
   const [uploading, setUploading] = createSignal(0);
@@ -740,14 +770,14 @@ export function Composer(props: {
   const [draftModel, setDraftModel] = createSignal<string | null>(null);
   const [modelOpen, setModelOpen] = createSignal(false);
   const [effortOpen, setEffortOpen] = createSignal(false);
-  const [permissionOpen, setPermissionOpen] = createSignal(false);
+  let modelButton!: HTMLButtonElement;
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [attachOpen, setAttachOpen] = createSignal(false);
   // Chosen before the thread exists: applied when the first message creates it.
   const [draftReasoning, setDraftReasoning] = createSignal<ReasoningEffort | null | undefined>(undefined);
   const [draftPersonality, setDraftPersonality] = createSignal<string | null>(null);
-  const [personalityOpen, setPersonalityOpen] = createSignal(false);
-  const pickerOpen = () => pickerPane() === props.paneKey;
+  const projectPicker = useProjectPicker(() => props.paneKey, "composer");
+  const pickerOpen = projectPicker.open;
   const [picker, setPicker] = createSignal<Picker | null>(null);
   const [info, setInfo] = createSignal<InfoCard | null>(null);
 
@@ -773,62 +803,172 @@ export function Composer(props: {
   const draftKey = () => props.threadId() ?? props.paneKey;
   const branchInfo = () => (props.projectId ? gitInfo(props.projectId) : undefined);
   const branch = () => branchInfo()?.branch ?? null;
+  const [pendingEffort, setPendingEffort] = createSignal<Record<string, ReasoningEffort | null>>({});
+  const effortWrites = new Map<string, { value: ReasoningEffort | null; revision: number; done: Promise<unknown> }>();
   const chosenEffort = (): ReasoningEffort | null => {
     const current = thread();
-    if (current) return current.reasoning;
+    if (current) {
+      const pending = pendingEffort();
+      return Object.hasOwn(pending, current.id) ? pending[current.id] : current.reasoning;
+    }
     return draftReasoning() ?? null;
   };
   // The steps the model takes (SPEC 21.3). A model that takes none has no effort button.
   const steps = createMemo(() => {
     const model = modelFor(modelId());
-    return model ? effortSteps(app.providers.find((p) => p.id === model.providerId)?.kind, model) : [];
+    const provider = app.providers.find((p) => p.id === model?.providerId);
+    return model ? effortSteps(provider?.kind, model, provider?.baseUrl) : [];
   });
   // «Høy», or «Velg innsats» while the model's own standard is used.
   const effortChip = () => effortLabel(chosenEffort()) || "Velg innsats";
   const setEffort = (value: ReasoningEffort | null, close = true) => {
     if (close) setEffortOpen(false);
-    const current = props.threadId();
-    if (current) patch(`/api/threads/${current}`, { reasoning: value }).catch(report);
-    else setDraftReasoning(value);
+    const id = props.threadId();
+    if (!id) return setDraftReasoning(value);
+    setPendingEffort((pending) => ({ ...pending, [id]: value }));
+    const active = effortWrites.get(id);
+    if (active) {
+      active.value = value;
+      active.revision += 1;
+      return;
+    }
+    const write = { value, revision: 0, done: Promise.resolve<unknown>(undefined) };
+    effortWrites.set(id, write);
+    // One PATCH at a time per thread. Coalesce further slider/reset choices and save the
+    // newest one after this response, so an older request can never arrive last.
+    write.done = (async () => {
+      while (effortWrites.get(id) === write) {
+        const revision = write.revision;
+        let failure: unknown;
+        try {
+          const saved: Thread = await patch<Thread>(`/api/threads/${id}`, { reasoning: write.value });
+          if (saved.id === id && app.threads[id]) setApp("threads", id, "reasoning", saved.reasoning);
+        } catch (error) {
+          failure = error;
+          report(error);
+        }
+        if (revision !== write.revision) continue;
+        effortWrites.delete(id);
+        setPendingEffort((pending) => {
+          const next = { ...pending };
+          delete next[id];
+          return next;
+        });
+        return failure;
+      }
+    })();
   };
   const personality = () => {
     const current = thread();
     return (current ? current.personality : draftPersonality()) ?? "standard";
   };
-  const setPersonality = (value: string) => {
-    setPersonalityOpen(false);
+  const setPersonality = async (value: string): Promise<void> => {
     const current = props.threadId();
-    if (current) patch(`/api/threads/${current}`, { personality: value }).catch(report);
-    else setDraftPersonality(value);
+    if (!current) {
+      setDraftPersonality(value);
+      return;
+    }
+    const saved = await patch<Thread>(`/api/threads/${current}`, { personality: value });
+    // Apply only the saved field to the original chat; a delayed response must not recreate a
+    // deleted thread or overwrite another pane's choice (or newer unrelated thread fields).
+    if (saved.id === current && app.threads[current]) setApp("threads", current, "personality", saved.personality);
   };
-  // Settings.busyMessages: what a message sent while the agent works does. The switch is in the queue row.
+  // Settings stays beside the mounted app, so this also preserves the pre-first-message choice.
+  // Autofocus follows the pane selection, rather than DOM focus inside the Settings page.
+  createEffect(() => {
+    if (kode() || !props.autofocus) return;
+    onCleanup(registerChatPersonality({
+      threadId: props.threadId,
+      title: () => thread()?.title,
+      personality,
+      setPersonality,
+    }));
+  });
+  // The global default applies to Chat and Code. Capture this queue before awaiting a
+  // settings write, so navigating to another pane cannot retarget messages already waiting.
   const busyMode = (): BusyMessages => app.settings.busyMessages ?? "queue";
+  const [busySaving, setBusySaving] = createSignal(false);
+  const [queueAction, setQueueAction] = createSignal<string | null>(null);
+  const [queueMenu, setQueueMenu] = createSignal<{ threadId: string; messageId: string; anchor: MenuAnchor } | null>(null);
+  const [queueEdit, setQueueEdit] = createSignal<{ threadId: string; messageId: string; text: string } | null>(null);
+  createEffect(on(() => props.threadId(), () => { setQueueMenu(null); setQueueEdit(null); }));
+  createEffect(() => { if (settingsOpen()) setQueueMenu(null); });
   const setBusyMode = async (value: BusyMessages) => {
-    if (busyMode() === value) return;
+    if (busySaving() || busyMode() === value) return;
+    const id = props.threadId();
+    const waiting = queued().filter((q) => !q.from && q.steerable !== false).map((q) => ({ ...q }));
+    setBusySaving(true);
     try {
       await patch("/api/settings", { busyMessages: value });
-      // What waits already follows the switch, so "Send med en gang" also sends what is in the queue.
-      const id = props.threadId();
+      setApp("settings", "busyMessages", value);
       const steer = value === "steer";
       if (!id) return;
-      for (const q of queued()) {
+      for (const q of waiting) {
         if (!!q.steer === steer) continue;
-        const done = await patch(`/api/threads/${id}/queue/${encodeURIComponent(q.messageId)}`, { steer }).then(() => true, () => false);
-        if (done) peekModel(id)?.setQueuedSteer(q.messageId, steer);
+        try {
+          await patch(`/api/threads/${id}/queue/${encodeURIComponent(q.messageId)}`, { steer });
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 404) toast("En melding forlot køen før valget kunne endres.", "info");
+          else throw error;
+        }
       }
-    } catch (err) {
-      report(err);
+    } catch (error) {
+      report(error);
+    } finally {
+      setBusySaving(false);
     }
   };
   const steerOne = async (messageId: string) => {
     const id = props.threadId();
-    if (!id) return;
+    if (!id || queueAction()) return;
+    setQueueAction(messageId);
+    try { await patch(`/api/threads/${id}/queue/${encodeURIComponent(messageId)}`, { steer: true }); }
+    catch (error) { report(error); }
+    finally { setQueueAction(null); }
+  };
+  const removeOne = async (id: string, messageId: string) => {
+    if (queueAction()) return;
+    setQueueAction(messageId);
+    try { await del(`/api/threads/${id}/queue/${encodeURIComponent(messageId)}`); }
+    catch (error) { report(error); }
+    finally { setQueueAction(null); }
+  };
+  const saveQueueEdit = async () => {
+    const edit = queueEdit();
+    if (!edit || queueAction()) return;
+    setQueueAction(edit.messageId);
     try {
-      await patch(`/api/threads/${id}/queue/${encodeURIComponent(messageId)}`, { steer: true });
-      peekModel(id)?.setQueuedSteer(messageId, true);
-    } catch (err) {
-      report(err);
-    }
+      await patch(`/api/threads/${edit.threadId}/queue/${encodeURIComponent(edit.messageId)}`, { text: edit.text });
+      if (queueEdit() === edit) setQueueEdit(null);
+    } catch (error) { report(error); }
+    finally { setQueueAction(null); }
+  };
+  const moveToSide = async (id: string, messageId: string) => {
+    if (queueAction()) return;
+    setQueueAction(messageId);
+    try {
+      const moved = await post<{ thread: Thread; text: string; attachments?: Attachment[] }>(`/api/threads/${id}/queue/${encodeURIComponent(messageId)}/side-draft`);
+      deliverToComposer(moved.thread.id, { text: moved.text, images: [], attachments: moved.attachments });
+      const targetGrid = gridFor(scopeOf(moved.thread));
+      await targetGrid.loaded;
+      const original = targetGrid.paneWith(id);
+      if (!original || !targetGrid.split(original.id, "right", moved.thread.id)) await openThread(moved.thread);
+      toast("Meldingen er flyttet fra køen til et utkast i sidesamtalen.", "info");
+    } catch (error) { report(error); }
+    finally { setQueueAction(null); }
+  };
+  const queueEntries = (): MenuEntry[] => {
+    const menu = queueMenu();
+    const item = menu && queued().find((q) => q.messageId === menu.messageId);
+    if (!menu || !item) return [];
+    const disabled = !!queueAction();
+    return [
+      { label: "Rediger melding", icon: IconPencil, disabled: disabled || item.editable === false, title: item.editable === false ? "Flytt skills, gjennomganger og skallkommandoer til en sidesamtale for å redigere dem" : "Endre teksten uten å endre plassen i køen", run: () => { setQueueEdit({ threadId: menu.threadId, messageId: menu.messageId, text: item.text }); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".queue-editor textarea")?.focus()); } },
+      { label: "Flytt til sidesamtale", icon: IconSplitRight, disabled, title: "Ta meldingen ut av køen og legg tekst og vedlegg i et usendt utkast i en ny sidesamtale", run: () => moveToSide(menu.threadId, menu.messageId) },
+      { label: "Fjern fra køen", icon: IconTrash, disabled, run: () => removeOne(menu.threadId, menu.messageId) },
+      "sep",
+      { label: busyMode() === "queue" ? "Slå av kø" : "Slå på kø", icon: IconSend, disabled: busySaving(), title: "Gjelder nye meldinger i Chat og Kode og dine ventende meldinger i denne tråden", run: () => setBusyMode(busyMode() === "queue" ? "steer" : "queue") },
+    ];
   };
   const insertTrigger = (char: string) => {
     setAttachOpen(false);
@@ -840,18 +980,27 @@ export function Composer(props: {
     onInput();
   };
 
-  const loadCommands = () => {
+  let commandRequest = 0;
+  let commandsAlive = true;
+  onCleanup(() => { commandsAlive = false; commandRequest += 1; });
+  const loadCommands = async () => {
+    const request = ++commandRequest;
     const url = props.projectId ? `/api/projects/${props.projectId}/commands` : "/api/commands";
-    get<CommandInfo[]>(url).then(setCommands).catch(() => undefined);
+    try {
+      const found = await get<CommandInfo[]>(url);
+      if (commandsAlive && request === commandRequest) setCommands(found);
+      return found;
+    } catch { return null; /* Keep the last working menu. */ }
   };
 
   let mentionRequest = 0;
+  onCleanup(() => { mentionRequest += 1; });
   const loadMentions = (query: string) => {
     if (!props.projectId) return;
     const id = ++mentionRequest;
     get<MentionItem[]>(`/api/projects/${props.projectId}/mentions?q=${encodeURIComponent(query)}`)
       .then((items) => {
-        if (id === mentionRequest) {
+        if (id === mentionRequest && menu()?.kind === "mention" && menu()?.query === query) {
           setMentions(items);
           setSelected(0);
         }
@@ -860,6 +1009,7 @@ export function Composer(props: {
   };
 
   const closeMenu = () => {
+    mentionRequest += 1;
     if (menu()) setMenu(null);
   };
 
@@ -868,29 +1018,40 @@ export function Composer(props: {
     const value = textarea.value;
     const caret = textarea.selectionStart;
     setHasText(value.length > 0);
-    if (value.startsWith("!") && !value.slice(0, caret).includes("\n")) {
+    if (composing || caret !== textarea.selectionEnd) return closeMenu();
+    if (kode() && value.startsWith("!") && !value.slice(0, caret).includes("\n")) {
       setMenu({ kind: "shell", query: value.slice(1) });
       return;
     }
-    const before = value.slice(Math.max(0, caret - 120), caret);
-    const match = /(?:^|\s)([/@$])([^\s/@$]*)$/.exec(before);
+    const before = value.slice(0, caret);
+    const match = /(?:^|\s)([/@$])([^\s@$]*)$/.exec(before);
     if (!match) return closeMenu();
     const query = match[2];
     const start = caret - query.length - 1;
     const kind = match[1] === "/" ? "command" : match[1] === "$" ? "skill" : "mention";
+    if (kind !== "mention" && query.includes("/")) return closeMenu();
+    if (kind === "command" && value.slice(0, start).trim()) return closeMenu();
     if (kind === "mention" && !props.projectId) return closeMenu();
     const previous = menu();
-    if (!previous || previous.kind !== kind || previous.query !== query) setSelected(0);
-    setMenu({ kind, query, start, end: caret });
-    if (kind === "mention") loadMentions(query);
-    else if (!commands().length) loadCommands();
+    const changed = !previous || previous.kind !== kind || previous.query !== query || previous.start !== start;
+    if (changed) setSelected(0);
+    let end = caret;
+    const tokenChar = kind === "mention" ? /[^\s@$]/ : /[^\s/@$]/;
+    while (end < value.length && tokenChar.test(value[end])) end += 1;
+    setMenu({ kind, query, start, end });
+    if (kind === "mention" && changed) {
+      setMentions([]);
+      loadMentions(query);
+    }
+    else if (kind !== "mention") mentionRequest += 1;
+    if (kind !== "mention" && !commands().length) loadCommands();
   };
 
   const commandItems = createMemo(() => {
     const current = menu();
     if (current?.kind !== "command" && current?.kind !== "skill") return [];
     const query = current.query.toLowerCase();
-    const hidden = (c: CommandInfo) => (current.kind === "skill" && c.kind !== "skill") || (!props.projectId && c.kind === "builtin" && CODE_ONLY.has(c.name));
+    const hidden = (c: CommandInfo) => c.demo || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
     return commands()
       .flatMap((c) => {
         const score = hidden(c) ? null : matchScore(c, query);
@@ -906,6 +1067,87 @@ export function Composer(props: {
     if (current?.kind === "mention") return mentions().length;
     return 0;
   };
+  const hasSuggestions = () => !!menu() && menu()?.kind !== "shell";
+
+  // The preview shares the textarea's exact width and typography, including wrapped lines.
+  // Only the suffix is visible; the existing draft remains the native textarea's text.
+  const syncCompletionLayout = () => {
+    if (!completionOverlay) return;
+    const style = getComputedStyle(textarea);
+    completionOverlay.style.width = `${textarea.clientWidth}px`;
+    for (const property of ["font", "line-height", "letter-spacing", "word-spacing", "text-indent", "tab-size", "padding", "box-sizing"]) {
+      completionOverlay.style.setProperty(property, style.getPropertyValue(property));
+    }
+    textarea.style.minHeight = `${Math.max(26, Math.min(completionOverlay.scrollHeight, innerHeight * 0.38))}px`;
+    completionOverlay.scrollTop = textarea.scrollTop;
+    completionOverlay.scrollLeft = textarea.scrollLeft;
+  };
+  createEffect(() => {
+    completion(); completionPrefix();
+    cancelAnimationFrame(completionFrame);
+    if (!completion()) {
+      if (textarea) textarea.style.removeProperty("min-height");
+      return;
+    }
+    completionFrame = requestAnimationFrame(syncCompletionLayout);
+  });
+  onCleanup(() => cancelAnimationFrame(completionFrame));
+
+  createEffect(() => {
+    completionRevision();
+    const enabled = app.settings.promptAutocomplete;
+    const focused = completionFocused() && props.autofocus;
+    const threadId = props.threadId();
+    const projectId = props.projectId;
+    const selectedModel = app.settings.promptAutocompleteModelId ?? modelId();
+    const filePath = kode() && projectId ? openedFileContext(projectId, threadId) : undefined;
+    // Persisted completed turns decide readiness; loaded/partial timeline rows cannot.
+    const blocked = menu() || running() || locked() || thread()?.promptHistoryReady !== true || !enabled || !focused || composing || completionDismissed;
+    const request = ++completionRequest;
+    setCompletion("");
+    if (blocked || !textarea) return;
+    const text = textarea.value;
+    if (text.trim().length < 3 || text.length > 4000 || textarea.selectionStart !== text.length || textarea.selectionEnd !== text.length) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch("/api/prompt-completion", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          signal: controller.signal,
+          body: JSON.stringify({ clientId: completionClientId, threadId: threadId ?? undefined, projectId: projectId ?? undefined, mode: kode() ? "code" : "chat", modelId: selectedModel ?? undefined, text, filePath }),
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (request !== completionRequest || controller.signal.aborted || textarea.value !== text || document.activeElement !== textarea || textarea.selectionStart !== text.length || textarea.selectionEnd !== text.length) return;
+        if (typeof result.completion !== "string" || !result.completion || result.completion.length > 400) return;
+        setCompletionPrefix(text);
+        setCompletion(result.completion);
+      } catch { /* Suggestions are optional; failed requests never change the draft. */ }
+    }, 650);
+    onCleanup(() => { clearTimeout(timer); controller.abort(); });
+  });
+
+  let slashMenu: HTMLDivElement | undefined;
+  let slashFrame = 0;
+  onCleanup(() => cancelAnimationFrame(slashFrame));
+  createEffect(() => {
+    const count = itemCount();
+    setSelected((index) => count ? Math.min(index, count - 1) : 0);
+  });
+  createEffect(() => {
+    menu(); selected(); commandItems();
+    cancelAnimationFrame(slashFrame);
+    slashFrame = requestAnimationFrame(() => {
+      const row = slashMenu?.querySelector<HTMLElement>(".menu-item.selected");
+      if (!slashMenu || !row) return;
+      const list = slashMenu.getBoundingClientRect();
+      const item = row.getBoundingClientRect();
+      if (item.top < list.top) slashMenu.scrollTop -= list.top - item.top;
+      else if (item.bottom > list.bottom) slashMenu.scrollTop += item.bottom - list.bottom;
+    });
+  });
 
   const replaceWord = (start: number, end: number, text: string) => {
     textarea.setRangeText(text, start, end, "end");
@@ -953,6 +1195,8 @@ export function Composer(props: {
   };
 
   const runBuiltin = async (name: string, args = "") => {
+    if (CODE_ONLY.has(name) && (!kode() || !props.projectId)) return toast(`/${name} krever Kode-modus og et prosjekt.`, "info");
+    if (!kode() && CODE_MODE_ONLY.has(name)) return toast(`/${name} er bare tilgjengelig i Kode.`, "info");
     const id = props.threadId();
     const arg = args.trim();
     try {
@@ -1012,6 +1256,9 @@ export function Composer(props: {
           toast(next ? "Planmodus er på. Modellen planlegger uten å endre filer." : "Planmodus er av.", "info");
           break;
         }
+        case "worktree":
+          if (props.projectId) openGitWorkspace(props.projectId, true);
+          break;
         case "init":
           await actions.init();
           break;
@@ -1058,6 +1305,7 @@ export function Composer(props: {
           if (props.projectId) await openVscode(props.projectId);
           break;
         case "review":
+        case "review-changes":
           if (!id) return toast("Tråden har ingen endringer å gjennomgå ennå.", "info");
           await post(`/api/threads/${id}/messages`, { text: arg, review: true });
           break;
@@ -1081,7 +1329,7 @@ export function Composer(props: {
     }
   };
 
-  const findCommand = (word: string) => commands().find((c) => c.name === word || c.aliases?.includes(word));
+  const findCommand = (word: string, entries = commands()) => entries.find((c) => c.name === word || c.aliases?.includes(word));
 
   const pickCommand = (item: CommandInfo) => {
     const current = menu();
@@ -1089,11 +1337,11 @@ export function Composer(props: {
     setMenu(null);
     if (item.kind === "builtin") {
       // Commands that need text get it typed after them; the rest run at once.
-      if (item.args?.startsWith("<")) return replaceWord(current.start, textarea.selectionStart, `/${item.name} `);
-      replaceWord(current.start, textarea.selectionStart, "");
+      if (item.args?.startsWith("<")) return replaceWord(current.start, current.end, `/${item.name} `);
+      replaceWord(current.start, current.end, "");
       void runBuiltin(item.name);
     } else {
-      replaceWord(current.start, textarea.selectionStart, "");
+      replaceWord(current.start, current.end, "");
       setSkill(item.name);
     }
   };
@@ -1196,7 +1444,7 @@ export function Composer(props: {
     if (current?.kind !== "mention") return;
     setMenu(null);
     if (atLimit()) {
-      replaceWord(current.start, textarea.selectionStart, "");
+      replaceWord(current.start, current.end, "");
       return toast(LIMIT_TEXT, "info");
     }
     const key = item.threadId ?? item.path ?? item.label;
@@ -1206,11 +1454,14 @@ export function Composer(props: {
         : { kind: item.kind, path: item.path!, label: item.label, key };
       setChips([...chips(), chip]);
     }
-    replaceWord(current.start, textarea.selectionStart, "");
+    replaceWord(current.start, current.end, "");
   };
 
   const reset = () => {
+    draftRevision++;
+    setCompletion("");
     textarea.value = "";
+    setCompletionRevision((revision) => revision + 1);
     drafts.delete(draftKey());
     setHasText(false);
     setChips([]);
@@ -1239,39 +1490,51 @@ export function Composer(props: {
   };
 
   const submit = async () => {
-    if (locked()) return;
+    if (locked() || resolvingCommand()) return;
     const raw = textarea.value;
     const text = raw.trim();
     if (uploading()) return toast("Vent til bildene er lastet opp.", "info");
-    const attachments = chips().map(chipRef);
+    const startingChips = chips();
+    const startingSkill = skill();
+    const attachments = startingChips.map(chipRef);
     if (attachments.length > MAX_ATTACHMENTS) return toast(LIMIT_TEXT, "info");
     let usedSkill = skill();
     let body: Record<string, unknown>;
 
-    if (!usedSkill && text.startsWith("!")) {
+    if (kode() && !usedSkill && text.startsWith("!")) {
       const shell = text.slice(1).trim();
       if (!shell) return;
       if (!props.projectId) return toast("! krever Kode-modus og et prosjekt.");
       body = { text: "", shell };
     } else if (!usedSkill && /^[/$]\S+/.test(text)) {
-      const [word, ...rest] = text.slice(1).split(/\s+/);
-      if (!commands().length) {
-        const url = props.projectId ? `/api/projects/${props.projectId}/commands` : "/api/commands";
-        setCommands(await get<CommandInfo[]>(url).catch(() => []));
+      // Consume the command and one separator, retaining the user's remaining spaces/newlines.
+      const invocation = /^[/$]([^\s/$]+)(?:[ \t]([\s\S]*)|\r?\n([\s\S]*))?$/.exec(raw.trimStart());
+      const word = invocation?.[1] ?? "";
+      const args = invocation?.[2] ?? invocation?.[3] ?? "";
+      // Hot reload keeps populated menus fresh; the server validates the skill again at send.
+      // When initial loading is slow, do not send/reset an older snapshot over newer typing.
+      let available = commands();
+      if (!available.length) {
+        setResolvingCommand(true);
+        let found: CommandInfo[] | null;
+        try { found = await loadCommands(); } finally { setResolvingCommand(false); }
+        if (textarea.value !== raw || chips() !== startingChips || skill() !== startingSkill) return;
+        if (!found) return toast("Kunne ikke hente kommandoene. Utkastet er beholdt.");
+        available = found;
       }
-      const known = findCommand(word);
+      const known = findCommand(word, available);
       if (known?.kind === "builtin") {
         reset();
-        return runBuiltin(known.name, rest.join(" "));
+        return runBuiltin(known.name, args);
       }
       if (known?.kind === "skill") {
         usedSkill = known.name;
-        body = { text: rest.join(" "), skill: known.name, attachments };
+        body = { text: args, skill: known.name, attachments };
       } else body = { text, attachments };
     } else {
       if (!text && !usedSkill && !attachments.length) return;
       if (!text && attachments.length && !usedSkill) return toast("Skriv en melding til vedleggene.", "info");
-      body = { text, attachments, ...(usedSkill ? { skill: usedSkill } : {}) };
+      body = { text: usedSkill ? raw : text, attachments, ...(usedSkill ? { skill: usedSkill } : {}) };
     }
 
     // While the agent works, the setting decides whether the message waits or goes in at once.
@@ -1280,15 +1543,31 @@ export function Composer(props: {
     const restoreSkill = usedSkill;
     reset();
     props.onSent();
+    let effortSaveFailed = false;
     try {
       const id = await ensureThread();
+      // The run must see the effort level already shown in the composer. A failed save
+      // follows the regular send-failure path below, which preserves the unsent draft.
+      let pendingWrite = effortWrites.get(id);
+      while (pendingWrite) {
+        const failure = await pendingWrite.done;
+        if (failure) { effortSaveFailed = true; throw failure; }
+        pendingWrite = effortWrites.get(id);
+      }
       await post(`/api/threads/${id}/messages`, body);
     } catch (err) {
-      textarea.value = raw;
+      const current = textarea.value;
+      const currentChips = chips();
+      const pristine = !current && !currentChips.length && !skill();
+      // A failed request must not overwrite text or attachments added after Send.
+      const failed = restoreSkill && !/^[/$]/.test(raw.trimStart()) ? `/${restoreSkill}${raw ? ` ${raw}` : ""}` : raw;
+      textarea.value = pristine ? raw : [current, failed].filter(Boolean).join("\n\n");
+      drafts.set(draftKey(), textarea.value);
       setHasText(true);
-      setChips(restoreChips);
-      setSkill(restoreSkill === skill() ? skill() : restoreSkill);
-      report(err);
+      setChips(pristine ? restoreChips : [...currentChips, ...restoreChips.filter((chip) => !currentChips.some((current) => current.key === chip.key))]);
+      if (pristine) setSkill(restoreSkill);
+      else toast("Meldingen ble ikke sendt. Ny tekst er bevart, og den usendte teksten er lagt under utkastet.", "info");
+      if (!effortSaveFailed) report(err);
     }
   };
 
@@ -1298,7 +1577,24 @@ export function Composer(props: {
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.isComposing) return;
+    if (composing || event.isComposing || event.keyCode === 229) return;
+    // Modified Tab always keeps the browser's normal focus navigation.
+    if (event.key === "Tab" && (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey)) return;
+    if (event.key === "Escape" && app.settings.promptAutocomplete) {
+      const visible = !!completion();
+      completionDismissed = true;
+      setCompletion("");
+      setCompletionRevision((revision) => revision + 1);
+      if (visible) { event.preventDefault(); return; }
+    }
+    if (event.key === "Tab" && completion() && textarea.value === completionPrefix() && textarea.selectionStart === textarea.value.length && textarea.selectionEnd === textarea.value.length) {
+      event.preventDefault();
+      const suffix = completion();
+      setCompletion("");
+      textarea.setRangeText(suffix, textarea.value.length, textarea.value.length, "end");
+      onInput();
+      return;
+    }
     const current = menu();
     if (current && current.kind !== "shell" && itemCount() > 0) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -1309,7 +1605,16 @@ export function Composer(props: {
       }
       if (event.key === "Enter" || event.key === "Tab") {
         event.preventDefault();
-        if (current.kind === "command" || current.kind === "skill") pickCommand(commandItems()[selected()]);
+        if (event.key === "Tab" && (current.kind === "command" || current.kind === "skill")) {
+          const item = commandItems()[selected()];
+          const prefix = current.kind === "skill" ? "$" : "/";
+          const separator = /\s/.test(textarea.value[current.end] ?? "") ? "" : " ";
+          replaceWord(current.start, current.end, `${prefix}${item.name}${separator}`);
+          // A pre-existing separator is retained, and the caret moves past it.
+          if (!separator) textarea.setSelectionRange(textarea.selectionStart + 1, textarea.selectionStart + 1);
+          closeMenu();
+        }
+        else if (current.kind === "command" || current.kind === "skill") pickCommand(commandItems()[selected()]);
         else pickMention(mentions()[selected()]);
         return;
       }
@@ -1334,23 +1639,30 @@ export function Composer(props: {
   };
 
   const onInput = () => {
+    draftRevision++;
+    completionDismissed = false;
+    setCompletionRevision((revision) => revision + 1);
     drafts.set(draftKey(), textarea.value);
     inspect();
   };
 
   const setModel = (id: string) => {
     setModelOpen(false);
+    modelButton.focus({ preventScroll: true });
     const current = props.threadId();
     setDraftModel(id);
     if (current) patch(`/api/threads/${current}`, { modelId: id }).catch(report);
   };
 
-  const setPermission = (value: PermissionMode) => {
-    setPermissionOpen(false);
-    if (props.projectId) patch(`/api/projects/${props.projectId}`, { permissionMode: value }).catch(report);
-  };
-
   onMount(() => {
+    // Cleanup must retain this composer's original key even after the focused thread changes.
+    const mountedDraftKey = draftKey();
+    const parts = draftParts.get(mountedDraftKey);
+    if (parts) { setChips(parts.chips.map((chip) => ({ ...chip }))); setSkill(parts.skill); }
+    onCleanup(() => draftParts.set(mountedDraftKey, { chips: chips().map((chip) => ({ ...chip })), skill: skill() }));
+    const completionResize = new ResizeObserver(syncCompletionLayout);
+    completionResize.observe(textarea);
+    onCleanup(() => completionResize.disconnect());
     textarea.value = drafts.get(draftKey()) ?? "";
     if (carried && props.projectId && !props.threadId() && !textarea.value.trim()) {
       textarea.value = carried;
@@ -1360,83 +1672,122 @@ export function Composer(props: {
     setHasText(textarea.value.length > 0);
     props.registerFill?.((text) => {
       textarea.value = text;
-      drafts.set(draftKey(), text);
-      setHasText(true);
       textarea.focus();
+      onInput();
     });
     if (props.autofocus && !matchMedia("(pointer: coarse)").matches) textarea.focus({ preventScroll: true });
-    loadCommands();
+    void loadCommands();
+    const subscriptions = [onSocket("skills.changed", () => void loadCommands()), onOpen(() => void loadCommands())];
+    onCleanup(() => subscriptions.forEach((stop) => stop()));
     if (props.projectId) loadGitInfo(props.projectId);
   });
 
   createEffect(() => {
     const key = draftKey();
-    const delivery = deliveries()[key];
+    const delivery = composerDeliveries()[key];
     if (!delivery) return;
     untrack(() => {
-      const { [key]: _taken, ...rest } = deliveries();
-      setDeliveries(rest);
+      draftRevision++;
+      const { [key]: _taken, ...rest } = composerDeliveries();
+      setComposerDeliveries(rest);
       if (delivery.text) {
-        const before = textarea.value.trimEnd();
+        const before = textarea.value;
         textarea.value = before ? `${before}\n\n${delivery.text}` : delivery.text;
-        drafts.set(key, textarea.value);
-        setHasText(true);
       }
       textarea.focus({ preventScroll: true });
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      if (delivery.text) onInput();
+      if (delivery.attachments?.length) {
+        const incoming: Chip[] = [];
+        for (const item of delivery.attachments) {
+          const ref: AttachmentRef | undefined = item.kind === "image" && item.imageId ? { kind: "image", imageId: item.imageId, name: item.label }
+            : item.kind === "upload" && item.uploadId ? { kind: "upload", uploadId: item.uploadId, name: item.label }
+            : item.kind === "thread" && item.threadId ? { kind: "thread", threadId: item.threadId }
+            : (item.kind === "file" || item.kind === "dir") && item.path ? { kind: item.kind, path: item.path } : undefined;
+          if (ref) incoming.push({ ...ref, label: item.label, key: item.imageId ?? item.uploadId ?? item.threadId ?? item.path ?? item.label });
+        }
+        setChips([...chips(), ...incoming.filter((item) => !chips().some((current) => current.key === item.key))]);
+      }
       void addImages(delivery.images);
     });
+  });
+
+  createEffect(on([chips, skill], () => { draftRevision++; }, { defer: true }));
+
+  // A moved queue message is recoverable even if its original move response was lost.
+  // Local typing/deliveries win; the stored snapshot clears only when a message is accepted.
+  createEffect(() => {
+    const id = props.threadId();
+    if (!id) return;
+    let current = true;
+    const revision = draftRevision;
+    const off = onSocket("thread.event", ({ envelope }) => {
+      if (envelope.threadId === id && envelope.event.type === "user.message" && !envelope.event.from) current = false;
+    });
+    void get<{ draft: { text: string; attachments?: Attachment[] } | null }>(`/api/threads/${id}/queued-draft`).then(({ draft }) => {
+      if (!current || revision !== draftRevision || !draft || composerDeliveries()[id] || drafts.has(id) || draftParts.has(id) || textarea.value || chips().length || uploading()) return;
+      deliverToComposer(id, { text: draft.text, images: [], attachments: draft.attachments });
+    }).catch(report);
+    onCleanup(() => { current = false; off(); });
   });
 
   const queued = createMemo(() => {
     const id = props.threadId();
     return id ? (peekModel(id)?.queued() ?? []) : [];
   });
+  createEffect(() => {
+    const menu = queueMenu();
+    if (menu && !queued().some((item) => item.messageId === menu.messageId)) setQueueMenu(null);
+  });
 
   return (
     <div class="composer-wrap">
-      <Show when={queued().length}>
+      <Show when={queued().length || running() || queueEdit()}>
         <div class="queue" data-testid="queue">
-          <span class="queue-label">{queued().every((q) => q.steer) ? "Sendes inn i turen" : `${queued().length} i kø`}</span>
-          <For each={queued()}>
-            {(q) => (
-              <span class="queue-entry">
-                <span class="queue-item" classList={{ steer: !!q.steer }} title={q.steer ? `Går inn i turen ved neste steg: ${q.text}` : q.text}>{q.text}</span>
-                <Show when={!q.steer && !q.from}>
-                  <button type="button" class="queue-now" title="Send akkurat denne inn i turen som kjører, ved neste steg" aria-label={`Send «${q.text}» med en gang`} onClick={() => void steerOne(q.messageId)}>
-                    <IconSend size={12} />
-                  </button>
-                </Show>
-              </span>
-            )}
-          </For>
-          <span class="queue-spacer" />
-          <div class="queue-switch" role="group" aria-label="Meldinger mens agenten jobber" data-testid="busy-switch">
-            <button type="button" aria-pressed={busyMode() === "queue"} aria-label="Legg i kø" title="Legg i kø: meldinger venter til turen er ferdig" onClick={() => void setBusyMode("queue")}>Kø</button>
-            <button type="button" aria-pressed={busyMode() === "steer"} aria-label="Send med en gang" title="Send med en gang: meldinger går inn i turen som kjører, ved neste steg" onClick={() => void setBusyMode("steer")}>Straks</button>
+          <div class="queue-header">
+            <span class="queue-label">{queued().length ? queued().every((q) => q.steer) ? "Sendes inn i turen" : `${queued().length} i kø` : "Nye meldinger"}</span>
+            <div class="queue-switch" role="group" aria-label="Meldinger mens agenten jobber" data-testid="busy-switch">
+              <button type="button" disabled={busySaving()} aria-pressed={busyMode() === "queue"} aria-label="Legg i kø" title="Legg i kø: meldinger venter til turen er ferdig" onClick={() => void setBusyMode("queue")}>Kø</button>
+              <button type="button" disabled={busySaving()} aria-pressed={busyMode() === "steer"} aria-label="Send med en gang" title="Send med en gang: ved neste steg mellom verktøykall" onClick={() => void setBusyMode("steer")}>Straks</button>
+            </div>
           </div>
+          <For each={queued()}>{(q) => <div class="queue-entry" data-message-id={q.messageId}>
+            <span class="queue-item" classList={{ steer: !!q.steer }} title={q.steer ? `Går inn i turen ved neste steg: ${q.text}` : q.text}>{q.text}<Show when={q.attachments?.length}><span class="queue-attachments"> · {q.attachments!.length} vedlegg</span></Show></span>
+            <Show when={!q.from}>
+              <Show when={!q.steer && q.steerable !== false}><button type="button" class="queue-now" disabled={!!queueAction()} title="Send akkurat denne inn i turen som kjører, ved neste steg" aria-label={`Send «${q.text}» med en gang`} onClick={() => void steerOne(q.messageId)}><IconSend size={12} /></button></Show>
+              <button type="button" class="queue-now" disabled={!!queueAction()} aria-label={`Fjern «${q.text}» fra køen`} title="Fjern fra køen" onClick={() => { const id = props.threadId(); if (id) void removeOne(id, q.messageId); }}><IconTrash size={12} /></button>
+              <button type="button" class="queue-now" disabled={!!queueAction()} aria-label={`Valg for kømeldingen «${q.text}»`} aria-haspopup="menu" aria-expanded={queueMenu()?.messageId === q.messageId} onClick={(event) => { const id = props.threadId(); if (id) setQueueMenu({ threadId: id, messageId: q.messageId, anchor: { x: 0, y: 0, rect: event.currentTarget.getBoundingClientRect() } }); }}><IconDots size={14} /></button>
+            </Show>
+          </div>}</For>
+          <Show when={queueEdit()}>{(edit) => <div class="queue-editor">
+            <label>Rediger kømelding<textarea aria-label="Rediger kømelding" value={edit().text} maxLength={200000} disabled={!!queueAction()} onInput={(event) => setQueueEdit({ ...edit(), text: event.currentTarget.value })} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setQueueEdit(null); } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void saveQueueEdit(); } }} /></label>
+            <div><button type="button" class="btn btn-small" disabled={!!queueAction() || !edit().text.trim()} onClick={() => void saveQueueEdit()}>Lagre melding</button><button type="button" class="btn btn-small" disabled={!!queueAction()} onClick={() => setQueueEdit(null)}>Avbryt</button></div>
+          </div>}</Show>
         </div>
       </Show>
+      <Show when={!settingsOpen() && queueMenu()}>{(menu) => <ContextMenu anchor={menu().anchor} label="Kømelding" entries={queueEntries()} onClose={() => setQueueMenu(null)} />}</Show>
       <Show when={kode()}>
       <div class="composer-context">
         <Popover
           class="context-anchor"
+          fixed portal returnFocus
           open={pickerOpen()}
-          onClose={() => setPickerPane(null)}
+          onClose={projectPicker.close}
           trigger={
-            <button type="button" class="context-chip" data-testid="project-picker" ref={projectChip} aria-haspopup="dialog" aria-expanded={pickerOpen()} title={project()?.path ?? "Velg prosjekt"} onClick={() => setPickerPane(pickerOpen() ? null : props.paneKey)}>
+            <button type="button" class="context-chip" data-testid="project-picker" ref={projectChip} aria-haspopup="dialog" aria-expanded={pickerOpen()} title={project()?.path ?? "Velg prosjekt"} onPointerDown={(event) => { if (pickerOpen()) event.preventDefault(); }} onClick={(event) => { const closing = pickerOpen(); projectPicker.toggle(); if (closing) event.currentTarget.focus({ preventScroll: true }); }} onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); projectPicker.show(); } }}>
               <Show when={project()} fallback={<IconFolder size={15} />}><ProjectGlyph project={project()!} size={15} /></Show>
               <span>{project()?.name ?? "Velg prosjekt"}</span>
             </button>
           }
         >
-          <ProjectPicker current={props.projectId} paneKey={props.paneKey} onDone={() => setPickerPane(null)} onCancel={() => { setPickerPane(null); projectChip?.focus(); }} />
+          <ProjectPicker current={props.projectId} paneKey={props.paneKey} onDone={projectPicker.close} onCancel={() => { projectPicker.close(); projectChip?.focus({ preventScroll: true }); }} />
         </Popover>
+        <Show when={project()}>{(current) => <ProjectEnvironmentPicker project={current()} paneKey={props.paneKey} />}</Show>
         <button type="button" class="context-chip" title="Kjører på denne maskinen" onClick={() => setInfo({ title: "Lokal", demo: true, text: LOCAL_TEXT })}>
           <IconLaptop size={15} /><span>Lokal</span>
         </button>
         <Show when={project() && branch()}>
-          <span class="context-chip static" data-testid="branch" title={branchInfo()?.detached ? "Ingen gren, HEAD peker på en commit. Lest fra .git/HEAD." : "Grenen er lest fra .git/HEAD. Ingen git-kommandoer kjøres."}>
+          <span class="context-chip static" data-testid="branch" title={branchInfo()?.detached ? "Ingen gren, HEAD peker på en commit. Lest fra .git/HEAD." : "Gjeldende gren. Bruk prosjektets tannhjul for grener og arbeidstrær."}>
             <IconBranch size={15} /><span>{branch()}</span>
           </span>
         </Show>
@@ -1465,14 +1816,19 @@ export function Composer(props: {
         }}
       >
         <Show when={menu()}>
-          <div class="slash-menu" role="listbox" data-testid="composer-menu">
+          <div ref={slashMenu} id={menuId} class="slash-menu" role={hasSuggestions() ? "listbox" : undefined} aria-label="Kommandoer, skills og vedlegg" data-testid="composer-menu">
+            <Show when={hasSuggestions() && itemCount() > 0}>
+              <div class="menu-heading" aria-hidden="true"><kbd>Tab</kbd> fullfører · <kbd>↑↓</kbd> velger · <kbd>Esc</kbd> lukker</div>
+            </Show>
             <Show when={menu()!.kind === "command" || menu()!.kind === "skill"}>
               <div class="menu-heading">{menu()!.kind === "skill" ? "Skills" : "Kommandoer"}</div>
-              <For each={commandItems()} fallback={<div class="menu-empty">{menu()!.kind === "skill" ? "Ingen skills. Legg dem i .agentic/skills/ i prosjektet." : "Ingen treff"}</div>}>
+              <For each={commandItems()} fallback={<div class="menu-empty">{menu()!.kind === "skill" ? "Ingen skills. Legg dem i skills/ i prosjektet." : "Ingen treff"}</div>}>
                 {(item, index) => (
                   <button
                     type="button"
                     role="option"
+                    id={optionId(index())}
+                    tabindex="-1"
                     class="menu-item command-item"
                     classList={{ selected: index() === selected() }}
                     aria-selected={index() === selected()}
@@ -1484,10 +1840,10 @@ export function Composer(props: {
                       return <Icon size={14} />;
                     })()}
                     <span class="menu-name">{menu()!.kind === "skill" ? "$" : "/"}{item.name}</span>
-                    <Show when={item.args && index() === selected()}><span class="menu-args">{argsText(item.args!)}</span></Show>
+                    <Show when={item.args && index() === selected()}><span class="menu-args">{item.kind === "skill" ? item.args : argsText(item.args!)}</span></Show>
                     <span class="menu-desc">{item.description}</span>
                     <Show when={item.demo}><span class="demo-badge">Demo</span></Show>
-                    <Show when={item.kind === "skill"}><span class="menu-tag">{item.source === "project" ? "prosjekt" : "skill"}</span></Show>
+                    <Show when={item.kind === "skill"}><span class="menu-tag">{item.source === "project" ? "prosjekt" : item.source === "app" ? "app" : "skill"}</span></Show>
                   </button>
                 )}
               </For>
@@ -1498,6 +1854,8 @@ export function Composer(props: {
                   <button
                     type="button"
                     role="option"
+                    id={optionId(index())}
+                    tabindex="-1"
                     class="menu-item"
                     classList={{ selected: index() === selected() }}
                     aria-selected={index() === selected()}
@@ -1520,7 +1878,20 @@ export function Composer(props: {
           </div>
         </Show>
         <Show when={chips().length || skill() || uploading()}>
-          <div class="chips">
+          <div class="chips composer-attachments" role="region" aria-label="Vedleggsrad" tabindex="0" data-testid="attachment-strip" title="Rull bortover for å se alle vedlegg"
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              const row = event.currentTarget;
+              if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); row.scrollLeft += event.key === "ArrowRight" ? 120 : -120; }
+              else if (event.key === "Home" || event.key === "End") { event.preventDefault(); row.scrollLeft = event.key === "Home" ? 0 : row.scrollWidth; }
+            }}
+            on:wheel={{ passive: false, handleEvent: (event: WheelEvent) => {
+              const row = event.currentTarget as HTMLDivElement;
+              if (event.ctrlKey || event.metaKey || event.shiftKey || Math.abs(event.deltaX) > 0 || row.scrollWidth <= row.clientWidth) return;
+              const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? row.clientWidth : 1);
+              const next = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, row.scrollLeft + delta));
+              if (next !== row.scrollLeft) { event.preventDefault(); row.scrollLeft = next; }
+            } }}>
             <Show when={skill()}>
               <span class="chip chip-skill"><IconSpark size={12} />/{skill()}
                 <button type="button" class="chip-x" title="Fjern skillen" aria-label="Fjern skill" onClick={() => setSkill(null)}><IconClose size={11} /></button>
@@ -1564,23 +1935,42 @@ export function Composer(props: {
             placeholder={locked() ? "Mappen mangler. Velg mappen på nytt for å skrive her." : kode() ? "" : enterNewline() ? `Spør om hva som helst (${displayKeys("Mod+Enter")} sender)` : "Spør om hva som helst"}
             aria-placeholder={locked() ? undefined : kode() ? `Spør om hva som helst. / for kommandoer, @ for filer, $ for skills.${enterNewline() ? ` ${displayKeys("Mod+Enter")} sender.` : ""}` : undefined}
             aria-label="Melding"
+            aria-autocomplete="list"
+            aria-describedby={completion() ? `${menuId}-completion-status` : undefined}
+            aria-controls={hasSuggestions() ? menuId : undefined}
+            aria-activedescendant={hasSuggestions() && itemCount() > 0 ? optionId(selected()) : undefined}
             disabled={locked()}
             spellcheck={false}
             onInput={onInput}
             onKeyDown={onKeyDown}
-            onClick={inspect}
+            onKeyUp={(event) => {
+              if (!event.isComposing && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+                if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) inspect();
+                setCompletionRevision((revision) => revision + 1);
+              }
+            }}
+            onSelect={() => { if (textarea.selectionStart !== textarea.selectionEnd) { closeMenu(); setCompletionRevision((revision) => revision + 1); } }}
+            onCompositionStart={() => { composing = true; closeMenu(); setCompletionRevision((revision) => revision + 1); }}
+            onCompositionEnd={() => { composing = false; onInput(); }}
+            onClick={() => { inspect(); setCompletionRevision((revision) => revision + 1); }}
+            onFocus={() => setCompletionFocused(true)}
+            onScroll={syncCompletionLayout}
             onPaste={(e) => {
               const files = imagesFrom(e.clipboardData?.files).filter((f) => f.type.startsWith("image/"));
               if (!files.length) return;
               e.preventDefault();
               void addImages(files);
             }}
-            onBlur={() => setTimeout(() => {
+            onBlur={() => { setCompletionFocused(false); setTimeout(() => {
               // A click in the menu blurs the field for a moment. A blur from before the menu opened
               // (focus went to the + menu and came back) must not close the menu that opened since.
               if (document.activeElement !== textarea) closeMenu();
-            }, 120)}
+            }, 120); }}
           />
+          <Show when={completion()}>
+            <div ref={completionOverlay} class="composer-completion" aria-hidden="true" data-testid="prompt-completion"><span class="composer-completion-prefix">{completionPrefix()}</span><span data-testid="prompt-completion-suffix">{completion()}</span></div>
+            <span id={`${menuId}-completion-status`} class="sr-only" role="status">Forslag: {completion()}. Trykk Tab for å sette inn, eller Escape for å avvise.</span>
+          </Show>
           {/* The three helpers and what they do (SPEC 21.1). In a narrow pane the words go first,
               then the keys, so the line never wraps. */}
           <Show when={kode() && !hasText() && !locked()}>
@@ -1680,84 +2070,24 @@ export function Composer(props: {
               </div>
             </Show>
           </Popover>
+          <Show when={kode()}>
+            <PermissionPicker project={project()} cap={thread()?.permissionCap} />
+          </Show>
           <Show when={!kode()}>
             <ChatToolButton state={chatTools} />
           </Show>
-          <Show when={!kode()}>
-            <Popover
-              class="keep"
-              open={personalityOpen()}
-              onClose={() => setPersonalityOpen(false)}
-              trigger={
-                <button
-                  type="button"
-                  class="foot-chip personality-chip"
-                  data-testid="personality-button"
-                  data-custom={personality() !== "standard" ? "" : undefined}
-                  title={personality() === "standard" ? "Personlighet: hvordan modellen svarer i denne chatten" : `Personlighet: ${PERSONALITIES.find((p) => p.id === personality())?.label}`}
-                  aria-label="Personlighet"
-                  aria-haspopup="menu"
-                  aria-expanded={personalityOpen()}
-                  onClick={() => setPersonalityOpen(!personalityOpen())}
-                >
-                  <IconSliders size={15} />
-                  <Show when={personality() !== "standard"}><span>{PERSONALITIES.find((p) => p.id === personality())?.label}</span></Show>
-                </button>
-              }
-            >
-              <div class="menu-list personality-menu" role="menu" aria-label="Personlighet">
-                <div class="menu-heading">Personlighet for denne chatten</div>
-                <For each={PERSONALITIES}>
-                  {(p) => (
-                    <button type="button" role="menuitemradio" aria-checked={personality() === p.id} class="menu-item menu-item-tall" onClick={() => setPersonality(p.id)}>
-                      <span class="menu-stack"><span class="menu-name">{p.label}</span><span class="menu-desc">{PERSONALITY_TEXT[p.id] ?? ""}</span></span>
-                      <span class="menu-check"><Show when={personality() === p.id}><IconCheck size={14} /></Show></span>
-                    </button>
-                  )}
-                </For>
-                <p class="personality-note">Gjelder bare denne chatten. Egne instruksjoner for alle chatter skriver du i Innstillinger → Konfigurasjon.</p>
-              </div>
-            </Popover>
-          </Show>
-          <Show when={project()}>
-            <Popover
-              class="keep"
-              open={permissionOpen()}
-              onClose={() => setPermissionOpen(false)}
-              trigger={
-                <button type="button" class="foot-chip" data-testid="permission-button" data-mode={project()!.permissionMode} title="Velg hvordan handlinger godkjennes i prosjektet" onClick={() => setPermissionOpen(!permissionOpen())}>
-                  <IconShieldCheck size={15} /><span>{PERMISSION_LABELS[project()!.permissionMode]}</span>
-                </button>
-              }
-            >
-              <div class="menu-list permission-menu" role="menu" aria-label="Tillatelser">
-                <div class="menu-heading">Hvordan skal handlinger godkjennes?</div>
-                <For each={Object.keys(PERMISSION_LABELS) as PermissionMode[]}>
-                  {(value) => {
-                    const Icon = PERMISSION_ICONS[value];
-                    return (
-                      <button type="button" role="menuitemradio" aria-checked={project()!.permissionMode === value} class="menu-item menu-item-tall permission-item" data-mode={value} onClick={() => setPermission(value)}>
-                        <span class="permission-icon"><Icon size={15} /></span>
-                        <span class="menu-stack"><span class="menu-name">{PERMISSION_LABELS[value]}</span><span class="menu-desc">{PERMISSION_TEXT[value]}</span></span>
-                        <span class="menu-check"><Show when={project()!.permissionMode === value}><IconCheck size={14} /></Show></span>
-                      </button>
-                    );
-                  }}
-                </For>
-              </div>
-            </Popover>
-          </Show>
-          <Show when={!kode()}>
-            <ChatToolChips state={chatTools} />
-          </Show>
-          <Show when={thread()?.planMode}>
+          <Show when={kode() && thread()?.planMode}>
             <button type="button" class="pill pill-accent" title="Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av." onClick={() => void runBuiltin("plan")}><IconList size={12} />Plan</button>
           </Show>
           <span class="composer-spacer" />
           <Show when={steps().length}>
             <Popover
               class="effort-anchor"
+              stable
               align="right"
+              fixed
+              portal
+              returnFocus
               open={effortOpen()}
               onClose={() => setEffortOpen(false)}
               trigger={
@@ -1770,6 +2100,12 @@ export function Composer(props: {
                   aria-haspopup="dialog"
                   aria-expanded={effortOpen()}
                   onClick={() => { setModelOpen(false); setEffortOpen(!effortOpen()); }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                    event.preventDefault();
+                    setModelOpen(false);
+                    setEffortOpen(true);
+                  }}
                 >
                   <span class="effort-chip-label"><Show when={effortLabel(chosenEffort())} fallback={<><span class="effort-chip-verb">Velg </span><span class="effort-chip-noun">innsats</span></>}>{effortChip()}</Show></span><IconChevronDown size={12} />
                 </button>
@@ -1790,9 +2126,16 @@ export function Composer(props: {
             onClose={() => setModelOpen(false)}
             align="right"
             class="model-anchor"
+            fixed
+            portal
+            returnFocus
             trigger={
-              <button type="button" class="foot-chip model-button" data-testid="model-button" title={`${modelName(modelId())}: velg modell`} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }}>
-                <Show when={providerOf(modelId())} fallback={<IconBolt size={14} />}>{(provider) => <ProviderGlyph name={provider().name} small />}</Show>
+              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={`${modelName(modelId())}: velg modell`} aria-label={`Velg modell: ${modelName(modelId())}`} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }} onKeyDown={(event) => {
+                if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                event.preventDefault();
+                setEffortOpen(false);
+                setModelOpen(true);
+              }}>
                 <span class="model-label">{modelName(modelId())}</span><IconChevronDown size={12} />
               </button>
             }
@@ -1819,7 +2162,7 @@ export function Composer(props: {
             <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setHelpOpen(false)}><IconClose size={14} /></button>
           </div>
           <dl>
-            <For each={commands()}>
+            <For each={commands().filter((command) => command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name))))}>
               {(c) => (
                 <>
                   <dt>{c.kind === "skill" ? "$" : "/"}{c.name}<Show when={c.demo}> <span class="demo-badge">Demo</span></Show></dt>
@@ -1829,7 +2172,7 @@ export function Composer(props: {
             </For>
             <dt>@</dt><dd>Legg ved filer, mapper og tråder</dd>
             <dt>$</dt><dd>Bruk en skill</dd>
-            <dt>!kommando</dt><dd>Kjør en kommando i prosjektmappen</dd>
+            <Show when={kode() && props.projectId}><dt>!kommando</dt><dd>Kjør en kommando i prosjektmappen</dd></Show>
           </dl>
         </div>
       </Show>

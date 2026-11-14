@@ -85,7 +85,7 @@ async function readAll(picked: Picked[], folder: boolean): Promise<Local> {
 
 const STATUS: Record<SkillImportRow["status"], string> = { ok: "Klar", conflict: "Navnet er tatt", invalid: "Ugyldig", ignored: "Hoppes over" };
 
-export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose: (imported: boolean) => void }) {
+export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose: (imported: boolean) => void; active?: boolean }) {
   const [target, setTarget] = createSignal("user");
   const [files, setFiles] = createSignal<SkillImportFile[]>([]);
   const [rows, setRows] = createSignal<SkillImportRow[] | null>(null);
@@ -171,6 +171,7 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
         </div>
         <div class="setting-control">
           <Select<string>
+            active={props.active}
             label="Importer til"
             value={target()}
             options={[{ value: "user", label: "Dine skills" }, ...projects().map((p) => ({ value: p.id, label: `Prosjektet ${p.name}` }))]}
@@ -204,6 +205,7 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
                   <div class="setting-control">
                     <Show when={row.status === "conflict"}>
                       <Select<Decision>
+                        active={props.active}
                         label={`Hva skal skje med ${row.name}`}
                         value={decisions()[row.key] ?? "skip"}
                         options={[

@@ -605,7 +605,7 @@ function line(system: string, label: string): string | null {
 }
 
 export function introduce(system: string, tools: string[], intent: Intent): string {
-  if (!tools.length || !/^You are the coding agent/m.test(system)) {
+  if (!/^You are the coding agent/m.test(system)) {
     const personal = /^Tone: |The user's own instructions for Chat:|About the user, written by the user:/m.test(system);
     const memories = /^Notes saved in earlier conversations/m.test(system);
     return [
@@ -616,6 +616,7 @@ export function introduce(system: string, tools: string[], intent: Intent): stri
       "Hva har du lyst til å snakke om?",
     ].join("\n");
   }
+  if (!tools.length) return `${intent === "greet" ? "Hei! " : ""}Jeg er kodeagenten i Agentic Desktop. Du er i Kode uten et valgt prosjekt. Jeg kan forklare kode og hjelpe deg å planlegge, men har ingen fil- eller kommandoverktøy her. Velg et prosjekt hvis oppgaven krever det. Hva vil du jobbe med?`;
   const name = line(system, "Project") ?? "prosjektet";
   const folder = line(system, "Project folder");
   const git = line(system, "Git repository");
@@ -740,6 +741,16 @@ export function createMockProvider(options: { delayMs: number }): Provider {
   async function* stream(request: ProviderRequest): AsyncGenerator<StreamPart> {
     const { signal, messages } = request;
     const inputTokens = estimateTokens(request);
+
+    if (request.purpose === "completion") {
+      let draft = "";
+      try { draft = JSON.parse(textOf(messages.at(-1)?.content ?? [])).draft ?? ""; } catch { /* no suggestion */ }
+      const completion = /kan du\s*$/i.test(draft) ? " forklare dette steg for steg?" : draft ? " og forklar kort hvorfor." : "";
+      yield { type: "text", text: completion };
+      yield { type: "usage", inputTokens, outputTokens: Math.ceil(completion.length / 4), cachedInputTokens: 0 };
+      yield { type: "stop", reason: "end" };
+      return;
+    }
 
     if (request.purpose === "summary") {
       const summary = `Sammendrag fra demo-modellen: ${textOf(messages.at(-1)?.content ?? []).slice(0, 200).replace(/\s+/g, " ")}`;

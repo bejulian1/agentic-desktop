@@ -2,6 +2,174 @@
 
 Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **Demo** i appen.
 
+## 0.20.0: Arbeidstrær, versjonslogg og verktøypolish (14. november 2026, bygg 60)
+
+- **Grener og arbeidstrær:** prosjektets tannhjul ved meldingsfeltet åpner en ekte gren-/arbeidstrevelger. Bytt lokal gren, opprett gren eller åpne et nytt arbeidstre som eget prosjekt. `/worktree` åpner oppretting i Kode. Git-innstillinger er samlet på én fungerende side. Lokale endringer sperrer grenbytte; aktive modellkjøringer sperrer Git-endringer i samme repo, også fra andre arbeidstrær. Filvisningen oppfriskes etter bytte. Ingen automatisk stash, commit, push, tvunget bytte eller sletting.
+- **Versjonslogg fra Profil:** direkte menyvalg åpner hele den medfølgende historikken, med søk og utfellbare oppføringer. «Hva er nytt» beholder de tre siste versjonene. Escape lukker også når søkefeltet har fokus; meldingsutkastet beholdes.
+- **Flere verktøystartsider:** pluss lager en ny, selvstendig startfane i felles topprad. Verktøyvalg bruker bare den valgte startsiden, og eksisterende nettleser-/terminaløkter beholdes. Utseende → Pluss i sidepanelet velger verktøystartside eller direkte ny nettleserfane. Grå kant rundt valgt fane er fjernet.
+- **Elementannotering:** hold over et synlig nettsideelement for å se ramme, tagg, størrelse, skrift og farge. Klikk legger til en kommentar ved elementet. Skjermbilde og elementkontekst legges i utkastet ved Ferdig, uten automatisk sending. Tegneverktøyene beholdes. Snapshotet leser ikke verdier i skjemafelt; annoteringen gjelder en frossen ramme i hoveddokumentet.
+- **Midtstilt Til bunnen:** knappen ligger sentrert over meldingsfeltet i hver samtalerute, også når sidepanelet er åpent.
+- **Vedlegg som kan rulles bortover:** bilder og filer ligger i én rad i meldingsfeltet. Musehjul og tastatur kan rulle til vedlegg utenfor kanten; åpning og fjerning virker fortsatt.
+- **Utfyllende Kode-innstillinger:** egne lyse og mørke kodepaletter med forhåndsvisning, egen installert monospace-skrift, skriftstørrelse, tabulatorbredde og linjebryting. Standard samtalevisning velger Normal, Tenkning eller Detaljert. Kodekontrollene er samlet under Kode, med inngang fra Utseende.
+- **Stabil innsatsmeny:** flytting og skalering av hele menyen er fjernet. Tittel, nullstilling og skyveknapp holder vertikal plass under raske åpninger ved både 100 og 125 prosent skalering.
+- **Tydelig nøkkellagring:** modell-/leverandørsiden viser systemnøkkelring, bare øktminne eller eventuell eldre nøkkelfil. Nye nøkler får ingen klartekstreserve på disk. OpenRouter er ikke lenger Beta etter brukerens bekreftede tilkobling og modellhenting; andre leverandører beholder Beta til egne ekte tilkoblinger er bekreftet.
+
+## 0.19.0: Tom oppstart, felles øktfaner og slash-kontroll (14. november 2026)
+
+- **Ny samtale ved oppstart:** standarden er en tom samtalerute i sist brukte modus, eller Chat/Kode valgt under Generelt. Lagrede samtaler beholdes i sidefanen. Fortsett der jeg slapp er et eget valg. Oppfriskning og eksplisitte trådlenker gjenoppretter visningen. Gjenåpning fra statusfeltet følger valget, uten å stoppe arbeid i bakgrunnen eller overskrive andre vinduers lagrede oppsett.
+- **Felles topprad:** hver terminaløkt og nettleserfane vises ved siden av øvrige verktøy. Pluss åpner startsiden med egne Ny terminal og Ny nettleserfane. Valg, lukking og tastatur virker per økt. Verktøyene beholdes under fanebytte; skjult nettleser slipper skjermstrøm/native visning. Utseende → Faner i sidepanelet velger felles topprad eller separate rader, også med stablede paneler.
+- **Slash:** prosjekthandlinger gir tydelig beskjed uten Kode/prosjekt, også ved direkte inntasting. Hjelp og forslag følger modus. Fem planlagte Demo-kommandoer er skjult fra vanlige forslag; direkte bruk forklarer fortsatt at funksjonen mangler. Norske innsatsargumenter viser Ekstra høy. Alias, argumenter, skills og berørte prosjekthandlinger er kontrollert med lokale testdata.
+
+## 0.18.0: Sidepanel og lokal nettleser uten prosjekt (14. november 2026, bygg 58)
+
+- **Nettleser uten prosjekt:** bare vertsnavn som google.com får riktig adresseoppløsning i Denne datamaskinen. Lokal identifikator behandles ikke som et lagret prosjekt. Adressefeltet støtter også søkeord, med konfigurert søketjeneste.
+- **Tydelig verktøyrad:** bare åpnede verktøy vises som lukkbare faner. Fast pluss åpner verktøystartsiden i begge startinnstillinger og stablet modus. Ny terminal og Ny nettleserfane er separate navngitte handlinger. Siste lukking viser startsiden. Faner/valg skilles per prosjekt og lokalt arbeidsområde; lagret stack gjenopprettes etter omlasting.
+- **Lokal fillesing:** Filer åpner hjemmemappen uten prosjekt, med full mappesti, systemmappevalg, Hjem, overordnet mappe, oppfriskning og skrivebeskyttet filvisning. Ingen prosjektoppretting eller nye modellrettigheter følger av manuell lesing. Appens datamappe og symlenker inn i den er sperret.
+- **Alle verktøy kan åpnes i Kode:** Oversikt viser lokal kontekst uten prosjekt; Endringer og Økt følger aktiv tråd. Team/GitHub forklarer prosjektbehov og har fungerende innganger til valg/innstillinger. Chat beholder sitt separate grensesnitt.
+- **Feil og fokus:** nettleserfeil vises per fane med nytt forsøk. Forespørsels-ID hindrer gammel feil i å skjule nyere vellykket navigasjon. Reattach overskriver ikke retry. Ugyldig WS-JSON kan ikke krasje feilbehandleren. Terminalen stjeler ikke fokus fra fanetastaturet. Skjulte stackpaneler slipper portalmenyer og native nettleservisning.
+- **Kontroll:** lokale falske sider/API-er, tempfiler, ekte PTY og headless Chrome/Electron. Se docs/SIDEPANEL-WORKSPACE.md for bruk og avgrensninger.
+
+## 0.17.0: Skills-arbeidsområde og stabile prosjektmenyer (13. november 2026, bygg 57)
+
+- **Eget Skills-arbeidsområde:** søk, kilde-/prosjekt-/statusfiltre, instruksjonsredigering, ny skill, importkontroll og på/av. Appens originaler er skrivebeskyttet; lag en egen variant for tilpassing. Utkast beholdes under navigasjon og observerte eksterne filendringer beskyttes ved lagring.
+- **Modeller og leverandører samlet:** standardmodell, komprimering, steggrense, leverandørnøkler og modellhåndtering på én side. Skjemaer og feil beholdes under sidebytte i samme innstillingsbesøk. Gamle lenker og søketreff åpner riktig side.
+- **Roligere innstillinger:** valgt sidemarkering er umiddelbar og tydeligere enn hover. Ingen flytting eller uttoning av hele rammen under raske sidebytter. Sidemenyen er unntatt fra appens felles glidemarkør, slik at gammelt menyvalg ikke fremheves over nytt innhold. Skjulte beholdte visninger slipper fokus, portalmenyer og lagresnarveier.
+- **Riktig prosjektforankring:** topplinjens prosjektvelger åpner ved topplinjen; prosjektbrikken åpner ved meldingsfeltet. Søk, tastatur, mappevalg og tillit er bevart. Menyene lukkes ved navigasjon og følger aktiv rute.
+- **Lokalt prosjektmiljø:** tannhjul ved valgt Kode-prosjekt viser faktisk gren, lokal maskin og mappe, med fungerende snarveier til prosjektinnstillingene. Grenbytte og arbeidstrær er ikke implementert i menyen.
+- **Stabil innsatsvelger:** faste radhøyder og skyveknapp uten skalering ved trykk/drag. Blåfarge, nivåvalg og tilbakestilling beholdes uten vertikalt hopp.
+- **Kontroll:** isolerte lokale modellservere og headless Chrome/Electron. Ingen ekte nøkler, betalte modellkall eller installasjonsendring. Bruk og avgrensninger i docs/WORKSPACE-POLISH.md.
+
+## 0.16.0: Prosjektmenyer og redigerbar meldingskø (13. november 2026, bygg 55)
+
+- **Prosjekt- og trådmenyer:** like handlinger fra høyreklikk og ⋯, med tastaturnavigasjon. Kode har fungerende prosjektfiler og kopiering av prosjektsti; Chat har egne prosjektkort uten mappevalg. Informasjonskort viser riktig modus, navn, antall samtaler og eventuell mappe, og lukkes ved navigasjon/innstillinger.
+- **Lest/ulest og eksport:** manuell markering beholdes også på aktiv tråd og etter sidelast. Ctrl+Shift+U kan tilpasses i Hurtigtaster. Trådmenyen har lokal Markdown-eksport med hele samtalen, i tillegg til kopiering, forgrening, festing og arkivering.
+- **Kø eller straks:** Generelt → Samtale velger standard for nye meldinger i begge modus. Kø/Straks ved feltet kan også endre egne ventende vanlige meldinger i aktuell tråd. Meldingene kommer inn ved neste steg; det avbryter ikke en pågående tekststrøm midt i svaret.
+- **Kømeny:** rediger tekst uten å endre køplass/vedlegg, fjern meldingen, eller flytt den til en usendt sidesamtale. Menyen lukkes når meldingen forlater køen. Skallkommandoer, skills og agentmeldinger beholder sine grenser og snapshot.
+- **Gjenopprettbart sideutkast:** flytting lagrer tekst og vedleggsreferanser i samme transaksjon som køuttak og sidechatoppretting. Utkastet tåler mistet HTTP-svar og kan åpnes på nytt uten modellkall. Sen gjenoppretting overskriver ikke nyere skriving eller sending; vedlegg/skill bevares ved lokal navigasjon. Kopien ryddes først ved akseptert egen sending og beskytter vedlegg fra opprydding i mellomtiden.
+- **Autoritativ køvisning:** køen hentes separat fra samtalehistorikken med hendelsesgrense. Eldre kømeldinger blir ikke borte når bare siste samtaleside er lastet, og sene svar gjenoppliver ikke fjernede meldinger. Redigering, fjerning og styring synkes via loggen til andre vinduer.
+- **Kontroll:** lokale falske modellservere og headless Chrome/Electron. Bruk og avgrensninger i docs/SIDEBAR-AND-QUEUE.md. Installert PC-app er ikke endret.
+
+## 0.15.0: Samlede innstillinger og Kode-sammendrag (13. november 2026, bygg 54)
+
+- **Fire sider blir to:** Konfigurasjon samler kode-harness, global AGENTS.md, innstillingsfiler og prosjektkonfigurasjon, med seksjonshopp. Personalisering og minner samler Chat og Kode i en lokal modusvelger. Gamle innganger og søkeresultater åpner riktig side og del.
+- **Plass til egne instrukser:** Systeminstruks og Om deg har hver sin grense på 10 000 ord, med ordtelling og lik servervalidering. Overlange utkast beholdes og kan rettes før lagring. Ulagrede Chat-felt beholdes ved bytte til Kode-delen. Chat- og Kode-minner lagres, slettes og brukes hver for seg.
+- **Ekstra høy innsats:** nytt valgbart trinn før Maks for demo, Anthropic og OpenRouter. OpenRouter får nivået i reasoning.effort, uten tidligere nedjustering til Høy. Andre kompatible servere beholder den konservative skalaen.
+- **Stabil innsatslagring:** raske nivåvalg og nullstilling lagres i rekkefølge, med siste valg som mål. Send venter på bekreftet lagring. Ved lagrefeil beholdes utkastet og riktig lagret nivå vises.
+- **Sammendrag øverst til høyre:** Kode får et kompakt kort med prosjekt, registrerte filendringer, trådens underagenter og prosjektets bakgrunnsterminaler. Utvid detaljer for mål, plan, kilder og kapitler. Åpning starter ingen terminal eller modellkall.
+- **Komplett filhistorikk:** kortet og Endringer-panelet henter egne endringsmetadata for hele tråden, også før siste lastede samtaleside. Angre, forgreninger og prosjekt-/trådbytte er avgrenset. Diffen hentes bare for valgt tur.
+- **Innstillingsfokus:** åpning lukker sammendragskortets portal. Samtalens dokumentsnarveier kan ikke arkivere eller lage tråder mens brukeren redigerer innstillinger. Ctrl+, og Escape fungerer fortsatt.
+- **Kontroll:** isolerte lokale modellservere og headless Chrome/Electron; ingen ekte API-nøkler eller betalte modellkall. Installert PC-app er ikke oppdatert. Bruk og avgrensninger er beskrevet i docs/SETTINGS-AND-SUMMARY.md.
+
+## 0.14.0: Kontekstbasert TAB-fullføring og UI-polish (12. november 2026, bygg 52)
+
+- **Grå tekstforslag:** et kort forslag vises etter markøren i promptfeltet. TAB setter inn suffikset uten å sende meldingen; Escape avviser. Linjebryting følger tekstfeltet. Ingen forhåndstekst blir lagret i utkastet før den godtas.
+- **Historikk først:** funksjonen er av som standard og begynner først ved tredje brukermelding etter to tidligere besvarte brukerturer. Første og andre utkast lager ingen forslagskall. Gjelder både Chat og Kode.
+- **Av/på og egen modell:** Generelt → Samtale har «Autofullfør meldinger med TAB» og «Modell til autofullføring». Velg en egen konfigurert modell eller «Samme som samtalen». Valget endrer ikke samtalens modell; slettes modellen, brukes samtalens modell igjen.
+- **Avgrenset kontekst:** siste samtaleutdrag og faktisk åpnet tekstfil i riktig Kode-tråd. Chat får ikke kodefiler. Ingen prosjektgjennomsøking, minner, systeminstruksfiler, terminalbuffer eller verktøytilgang. Forslag bruker egne modellkall og API-kvote.
+- **Rolig livsløp:** kort skrivepause før oppslag, avbrudd ved ny tekst, Escape, fokus-/tråd-/modellbytte og av-valg. Gamle svar kan ikke erstatte nyere utkast. IME, Shift+TAB og vanlig fokusvandring bevares. Forslag vises bare ved markøren i slutten av utkastet.
+- **Trygg menyfullføring:** TAB fullfører `/`-kommandoer og skills som tekst uten å utføre; Enter/klikk beholder sin handling. `@` støtter filstier, og sene treff forkastes. Disse menyene virker fortsatt uten tidligere historikk.
+- **Rene innstillinger:** fjernet rulleskyggene som ga en svak svart stripe på tvers av siden. Innsatsvelgeren beholder blåfargen ved standard, nivåvalg og tilbakestilling. Leverandørenes små bokstavmerker, blant annet OR, er fjernet fra modellknappen og innstillingene; navn og modellgrupper beholdes.
+- **Kontroll:** lokale falske modellservere, tempfiler og headless UI. Ingen betalte kall, ekte nøkler eller installasjonsendringer. Se `docs/PROMPT-COMPLETION.md` for bruken og avgrensningene.
+
+## 0.13.3: Chat som egen samtalemodus (12. november 2026, bygg 49)
+
+- **Tydelig modusskille:** Chat får samtaleveiledning i harness 15.6, uten Kodes mål-/planinstruksjoner eller prosjektarbeidsflyt. Personlighet og egen Chat-personalisering beholdes. `/goal` og `/plan` er Kode-handlinger; `!` er vanlig tekst i Chat.
+- **Tryggere redigering:** vedlegg, skill og erstatningsmelding valideres før historikken kuttes. Manglende vedlegg eller ugyldig melding bevarer gamle svar, kapittel og modellvalg. Valgt ny modell og opprinnelige vedlegg brukes ved vellykket nytt forsøk.
+- **Synlige svar ved feil:** mislykket redigering opphever falming og beholder utkastet; nytt svar kan prøves igjen. Rene samtaler får ikke Kodes tillatelsesvelger, planbrikke, arbeidsrad eller endringskort.
+- **Midlertidig uten lagrede minner:** midlertidige chatter verken leser eller oppdaterer Chat-minner. Minnevalget er tydelig av og deaktivert. Teksten beskriver midlertidig lokal oppbevaring og sletting ved lukking korrekt.
+- **Kontroll:** faktisk utsendt prompt og serverens verktøyavvisning er testet mot lokal falsk API-modell. Vedlegg, redigering, nytt svar, minnevalg, stopp og modusskille kontrolleres headless. Se `docs/reviews/2026-11-12-chat-readiness.md`. Installert app er ikke oppdatert.
+
+## 0.13.2: Kodeflyt, underagenter og tryggere Angre (12. november 2026, bygg 48)
+
+- **Tryggere filhistorikk:** etterbytes registreres ved hver vellykket filskriving/sletting. En annen agents senere endringer blir ikke tilskrevet feil tur. Overlappende redigeringer merkes og vanlig Angre avvises; eksplisitt overstyring krever bekreftelse. Prosjektets apptråder må være ferdige før Angre.
+- **Underagentkø:** meldinger bak opptatt brukerarbeid reserverer nå kapasitet og kan ikke omgå grensen på fire. Testet med samtidige lokale API-hjelpere, feil, stopp, reconnect og omstart.
+- **Filer og endringer:** faktisk arbeidsfil vises uten å overta brukerens filvalg. Grønne/røde linjetall vises i filtre, filhode, Oversikt, sluttkort og diff. Ordnet linjediff, EOF-markør, tydelige anslag og binærmerking erstatter misvisende tall.
+- **Levende arbeid:** første strømmede kommandoutdata blir synlig, med avgrenset gjengivelse. Økt viser kjørende modellkommandoer, siste utdata og eksplisitt Stopp turen. Trådbytte isolerer innholdet.
+- **Stabile sluttkort:** gjentatte endringshendelser gir ett kort. Angre oppdaterer eldre historikk, oversikt og topplinje; forsinkede diff-svar forkastes. Rene svar/kommandoer uten filverktøyendringer får ikke et tomt endringskort.
+- **Oppdragsstyring:** obligatorisk brukeroppdrag og siste avklaringer gjelder også med gamle egendefinerte instrukser eller workflow avslått. Harness 15.5. Kodegjennomgang merker binærfiler, overlapp og shell-dekning, slik at modellen ikke skal gjette innhold eller forfatterskap.
+- **Ærlige grenser:** vilkårlige shellendringer spores fortsatt ikke; shell er ikke en OS-filsandkasse. Se `docs/reviews/2026-11-12-code-readiness.md` for funn, rettelser og videre arbeid. Installert app er ikke oppdatert.
+
+## 0.13.1: Valgfri modellkontekst i innstillinger (12. november 2026, bygg 47)
+
+- **Tre brytere per modus:** lokal dato/tid, modell/leverandør og omtrentlig posisjon ligger under Kode-harness og Chat-personalisering. Chat og Kode lagrer egne valg. Dato og modellopplysninger er på som standard; posisjon er av.
+- **Tid:** maskinens ukedag, lokale dato, klokkeslett og IANA-tidssone erstatter den tidligere UTC-datoen. Av-valget fjerner denne automatiske tidskonteksten.
+- **Modell:** valgt visningsnavn, teknisk modell-ID, leverandørnavn/-type og et endepunkt uten innloggingsdata kan deles. Av-valget fjerner den automatiske identitetskonteksten og ber modellen unngå gjetting.
+- **Posisjon:** skriv by/land manuelt, eller velg «Hent fra IP». Oppslaget gjøres bare ved dette klikket mot ipapi.co, fra appmaskinens nettverk. Bare by/land og tidspunkt lagres, med tydelig kilde; rå IP og koordinater sendes ikke som posisjonskontekst.
+- **Korrekte grenser:** modus, faktisk verktøyliste, bildebegrensninger og gjeldende tillatelsesnivå er fast informasjon. Kontekstbryterne gir ingen ekstra verktøy eller rettigheter. Harnessversjonen er 15.4.
+- **Stabil lagring:** delvise endringer bevarer andre felt og den andre modusen. En feilet lagring ruller bryteren tilbake; nyere manuelt utkast beholdes ved et forsinket IP-svar. IP-oppslag som kommer etter en nyere lagret endring avvises.
+- **Kontroll:** falske IP-svar og midlertidige mapper brukes i testene. Ingen ekte posisjonsoppslag, betalte modellkall eller endring av installert app.
+
+## 0.13.0: Slash-skills, trådfaner og terminaldeling (12. november 2026, bygg 46)
+
+- **Skills fra filer:** `skills/<navn>/SKILL.md` i appen og prosjektet, med navn, beskrivelse og valgfri argumentbeskrivelse. Prosjekt overstyrer globalt; eldre skill-mapper og import beholdes. Ugyldige metadata gir advarsel uten å stoppe appen.
+- **Slash-meny:** `/` åpner navn og beskrivelser, med fuzzy-filtrering, piltaster, Enter og Esc. Menyen oppdateres ved filendring uten omstart. Rå argumenter, inkludert mellomrom og linjeskift, erstatter `{{args}}` bokstavelig.
+- **Instruksjoner per tur:** skill-kroppen settes i systeminstruksen for gjeldende tur, også ved kø og styring. Kroppen vises ikke som brukertekst og blir ikke liggende i senere modellhistorikk eller komprimeringssammendrag. Harnessversjon 15.3.
+- **Én demo:** `/review` følger med og kan vises skrivebeskyttet i Innstillinger. Den tidligere endringsgjennomgangen heter `/review-changes`; review-alias beholdes når ingen review-skill finnes.
+- **Egen nettleserfane per Kode-tråd:** modellens navigasjon, snapshot, klikk, tekst, console, skjermbilder og innloggingssamtykke bindes til faktisk servertråd. Manuelle panelbytter endrer ikke modellens fane. Eier vises i tabstripen, med knapp for å vise den fokuserte trådens fane.
+- **Terminaldeling:** «Del utvalg» og «Del siste utdata» legger ren terminaltekst i riktig kodetråds eksisterende utkast. Ingen sending eller ny tråd opprettes automatisk. Grensen er 200 linjer / 12 000 tegn, med tydelig avkortingsmerknad.
+- **Uavhengig review:** rettet tap av nyere utkast ved forsinkede kommando-/sendesvar, et lukke-/oppretterace for nettleserfaner og manglende endringssignal sent i store Unicode-skills. Se review-notatet for omfang og begrensninger.
+- **Kontroll:** lokale falske modellservere, ekte tempfiler og PTY, headless UI og native Electron under xvfb. Ingen betalte modellkall, ekte nøkler eller installasjonsendringer.
+
+## 0.12.2: Markert svartekst og kontroll av modell/paneler (12. november 2026, bygg 45)
+
+- **Markeringsmeny:** markert tekst i et modellsvar får «Legg til i chat» og «Legg til i sidechat». Utdraget legges som sitat i et utkast uten å sende; eksisterende tekst beholdes. Sidechat opprettes i samme modus/prosjekt med bare utdraget, uten kopiert samtalehistorikk. Menyen støtter tastatur, Escape og smale vinduer, og skjules ved rulling. Den native nettleservisningen i Electron viker hvis menyen overlapper. Grensen er 64 000 tegn per utdrag.
+- **Løsrevet vindu:** samme-chat-handlingen virker; sidechat-handlingen er deaktivert med forklaring om å bruke hovedvinduet. Det opprettes ingen skjult tråd.
+- **Filer:** gammel forhåndsvisning og Rediger-knapp skjules under lasting, ved feil og for binærfiler. Forsinkede svar kan ikke erstatte den valgte filen. Mappesignaler oppfrisker også den åpne filen.
+- **Nettleser:** en aktiv fane som lukkes fra et annet vindu erstattes av en eksisterende fane. En ny fane som venter på serveren beholdes. Finn svarer riktig også når søket har mellomrom rundt teksten.
+- **Terminal:** forsinket henting av terminaler kan ikke lenger starte et skjult skall etter at panelet er forlatt.
+- **Modellens miljø:** prompten beskriver den delte aktive prosjektfanen og skillet mellom modellens separate kommando og brukerens PTY-terminal. Lokal-forklaringen skiller app/verktøy på maskinen fra modellens valgte leverandør. Harnessversjonen er 15.2; egne lagrede instrukser bevares.
+- **Bildestøtte:** OpenAI-kompatible modeller uten bildestøtte får nå uttrykkelig beskjed når et bilde i et verktøyresultat ikke er videresendt. Tekstdelen beholdes.
+- **Kontroll:** ekte filendringer, PTY og lokale nettsider/falsk modellserver brukes i testene. Ingen betalte modellkall eller ekte nøkler. Den installerte appen er ikke oppdatert.
+
+## 0.12.1: Modellvelger, Kode-tidslinje og panelpolish (11. november 2026, bygg 43)
+
+- **Tillatelser før prosjektvalg:** knappen i Kode virker også uten prosjekt. Den lagrer standarden for nye prosjekter, synkronisert med en egen tillatelsesgruppe øverst i Generelt. Eksisterende prosjekter og tråders tillatelsestak beholdes; valget legger ikke til fil- eller kommandotilgang uten prosjekt.
+- **Tidslinje bare i Kode:** vises fra fire meningsfulle meldinger (spørsmål og svar), med tynne streker. Forhåndsvisningen viser spørsmål og siste svartekst, samt kapittel når det finnes. Meldingshopp og tastaturstøtte beholdes.
+- **Modell og innsats:** avrundet modellknapp, nøytral avhuking, søk og leverandørgrupper. Menyene vises utenfor rutens avgrensning og følger vindus- og rutestørrelsen. OpenRouter-oppsettet og modellens faktiske innsatsnivåer beholdes.
+- **Generelt:** tillatelser først, ryddige grupper og vindusvalg som faktisk fungerer. Plassholderen «Alltid øverst» er tatt ut av siden.
+- **Sammendrag, Oversikt og Økt:** kontrollert mot faktisk redigering av testfiler, kontekstdata og resultatknapper. Oversikt og Økt viser feil med «Prøv igjen» og unngår å vise forrige tråds data ved trådbytte.
+- **Avgrensning:** Sammendrag er strukturert status fra innlastet trådhistorikk, ikke en separat KI-oppsummering av hele samtalen. Ingen ekte API-nøkler eller betalte modellkall brukes i kontrollene. Installert app er ikke oppdatert.
+
+## 0.12.0: Nye standardinstrukser, agentvalg og stabile innstillinger (11. november 2026, bygg 40)
+
+- **Standarder i Markdown:** `docs/system-instructions/chat.md` og `code.md` er forkortede, leverandøruavhengige tilpasninger av referansefilen brukeren fant. Claude-spesifikke verktøy, modellpåstander, private maskinstier og øktdata er utelatt. De samme filene følger den pakkede appen.
+- **Chat-personalisering:** en ikke-tom systeminstruks følger med. «Gjenopprett standard» for bare systeminstruksen bevarer «Om deg», tone og minner. Eksisterende egne instrukser bevares, også bevisst tømt tekst.
+- **Riktig modus og verktøy:** Kode uten prosjekt fikk tidligere Chat-instruksjoner. Den beholder nå Kode-identiteten og holdes adskilt fra Chat-minner. Miljølaget beskriver faktisk prosjekt, verktøy, modellendepunkt og panelbegrensninger uten å love tilgang til hele skrivebordet.
+- **Modeller:** automatisk komprimering kan slås av og på. Manuell `/compact` virker fortsatt. Steg per tur kan settes fra 1 til 1000, med 50 som standard; den valgte grensen gjelder fra neste tur.
+- **Fest tråder:** en egen knapp ved ⋯ fester og løsner tråden, også i Kode uten prosjekt. Tastaturfokus følger tråden når den flyttes.
+- **Endringer:** endringskort og lenken til Endringer vises etter registrerte filendringer, uten tomme endringsoppsummeringer etter vanlige svar, lesing eller kommandoer uten filendringer. Filoversikt, diff og Angre er beholdt.
+- **Innstillinger:** lasting av én underside skjuler ikke lenger hele innstillingsvinduet. Navigasjonen beholder plasseringen, innholdet har en lokal lastetilstand, og sideanimasjonene som ga «pop inn/ut» er fjernet. Rullefeltet har fast plass, og gamle søke-/rullekall avbrytes ved rask navigasjon.
+- Den installerte appen er ikke oppdatert.
+
+## 0.11.3: Ryddigere Chat-modus (11. november 2026, bygg 38)
+
+- **Sidefanen:** Prosjekter står over Chatter i Chat. Prosjektgrupper, tomtilstander og knappene for å legge til er beholdt.
+- **Meldingsfeltet:** én knapp med innstillingsikon samler Chat-funksjonene. Verktøyvalgene finnes fortsatt i menyen, mens de separate brikkene for aktive verktøy er fjernet.
+- **Personlighet:** flyttet fra meldingsfeltet til Innstillinger → Chat. Valget gjelder den aktive chatten eller utkastet før første melding.
+- **Lagring og egne vinduer:** personlighetsvalget viser lagring, beholder faktisk verdi ved feil og kan prøves igjen. Innstillinger åpnes også fra Chat i et eget vindu.
+- **Modellvelgeren i Chat:** viser modellnavn og pil uten leverandørikon. Leverandørgruppene i modellmenyen er beholdt.
+- **Kontroll:** typesjekk for server, web og Electron består. Ti relevante UI-tester består, inkludert sidefanens rekkefølge, verktøyvalg, personlighet i utkast og eksisterende chat, feil og nytt forsøk, Chat i eget vindu og kontroll av Kode. Visuelt kontrollert i lyst og mørkt tema, samt ved 390 px bredde.
+- Endringene er avgrenset til Chat. Den installerte appen er ikke oppdatert.
+
+## 0.11.2: Tillatelsesvalg i meldingsfeltet i Kode (11. november 2026, bygg 35)
+
+- **Knapp i meldingsfeltet:** tillatelsesnivået kan endres direkte i Kode, med en meny over feltet og en hake ved valgt nivå. Knappen vises ikke i Chat.
+- **Tre tydelige nivåer:** Be om godkjenning, Godkjenn for meg og Full tilgang. Forklaringene beskriver appens faktiske tillatelser: automatisk filredigering på mellomnivået og automatisk godkjenning av vanlige verktøykall ved Full tilgang. Beskyttede filer krever fortsatt godkjenning.
+- **Prosjektet:** valget gjelder prosjektets Kode-tråder og endrer ikke standardvalget i Innstillinger. Uten et prosjekt forklarer knappen at et prosjekt må velges først.
+- **Trådgrenser:** hjelpetrådens faktiske tillatelsesnivå vises på knappen. Høyere nivåer er deaktivert hvis tråden har et tillatelsestak.
+- **Betjening:** piltaster, Home/End og Escape med tilbakeføring av fokus, lagring med feilmelding og nytt forsøk, samt plassering som holder menyen innenfor vinduet.
+- **Kontroll:** typesjekk for server, web og Electron består. Åtte nye og tre berørte UI-tester består, blant annet ekte prosjektlagring, hjelpetrådens grense og godkjenning av beskyttet fil selv ved Full tilgang. Menyen er visuelt kontrollert i lyst og mørkt tema og ved 390 px bredde; testene dekker også 360 px.
+- Den installerte appen er ikke oppdatert.
+
+## 0.11.1: Ny prosjektflyt i Kode (11. november 2026, bygg 34)
+
+- **Opprett prosjekt:** en egen dialog med prosjektnavn og kildemappe, inspirert av referansebildene. Mappen kan endres eller fjernes før oppretting, og mappenavnet foreslås som prosjektnavn.
+- **Ubuntus mappevelger:** skrivebordsappen bruker systemdialogen gjennom en avgrenset Electron-bro. Localhost bruker `zenity`. Hvis systemvelgeren ikke er tilgjengelig, brukes appens mappevelger som reserve. Flytting og ny tilkobling til en prosjektmappe bruker samme mappevalg.
+- **Stol på mappen:** Agentic Desktop forklarer tilgang til filer, kommandoer og mappeinstruksjoner før prosjektet opprettes. Avbryt bevarer utkastet. Bekreftelsen gir ikke flere tillatelser.
+- **Avbryt og feil:** vern mot dobbel innsending og sene svar fra mappevelgeren, forståelige feilmeldinger og mulighet til å prøve igjen. Systemvelgeren har tidsavbrudd og avsluttes når localhost-serveren stopper.
+- **Versjon:** `package.json`, låsefilen og `version.json` er samkjørt. Den installerte appen er ikke oppdatert.
+- **Kontroll:** typesjekk og alle 335 servertester består; 14 nye/berørte UI-tester og 7 berørte Electron-tester består. Skjermbilder er kontrollert i lyst og mørkt tema og ved 390 px bredde. Nettleserens miljøtest sjekker nå variabelprefikset `AD_` uten å feiltolke `CODEX_THREAD_ID`.
+
 ## 0.11.0: Artifacts i Chat med forhåndsvisning og kode, også React (9. november 2026, bygg 32)
 Runde 15, SPEC del 31. Bygget av én Opus-agent og verifisert av koordinatoren. Den installerte appen er ikke oppdatert.
 

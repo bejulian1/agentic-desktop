@@ -10,12 +10,13 @@
 // The panels are one flat list keyed by tool and placed with percentages, so moving one, resizing
 // or maximizing never mounts a tool again: a terminal keeps its shell, the browser its page. While a
 // divider is dragged the sizes change directly, without animation; only opacity and transform move.
-import { createMemo, createSignal, For, Index, onCleanup, Show, type JSX } from "solid-js";
+import { unifiedPanelTabs } from "../state/panel-sessions";
+import { createEffect, createMemo, createSignal, For, Index, onCleanup, Show, type JSX } from "solid-js";
 import { cancelFrameTask, onNextFrame } from "../lib/frame";
-import { setPanelOpen } from "../state/app";
-import type { PanelTab } from "../state/panel";
+import { setPanelOpen, settingsOpen } from "../state/app";
+import { closePanelTool, onPanelHome, type PanelTab } from "../state/panel";
 import {
-  equalizeColumns, equalizePanels, focusedTool, moveInStack, removeFromStack, setColumnSizes, setFocusedTool, setPanelSizes, stackLayout, toggleMaximized,
+  equalizeColumns, equalizePanels, focusedTool, moveInStack, setColumnSizes, setFocusedTool, setPanelSizes, stackLayout, toggleMaximized,
   type Edge, type StackLayout,
 } from "../state/stack";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
@@ -336,6 +337,7 @@ function StackPanelView(props: {
   const tabbed = TABBED.has(props.tool);
   const [head, setHead] = createSignal<HTMLElement>();
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
+  createEffect(() => { if (props.hidden || onPanelHome() || settingsOpen()) setMenu(null); });
 
   // Moves from ⋯: within the column, to the neighbouring column, or a column of its own.
   const menuEntries = (): MenuEntry[] => {
@@ -357,7 +359,7 @@ function StackPanelView(props: {
       { label: rightColumn ? "Flytt til kolonnen til høyre" : "Egen kolonne til høyre", disabled: !toRight, run: () => toRight?.() },
       "sep",
       { label: props.maximized ? "Gjenopprett" : "Maksimer", icon: props.maximized ? IconRestore : IconExpand, run: () => toggleMaximized(props.tool) },
-      { label: `Lukk ${tool.label}`, icon: IconClose, run: () => removeFromStack(props.tool) },
+      { label: `Lukk ${tool.label}`, icon: IconClose, run: () => closePanelTool(props.tool) },
     ];
   };
 
@@ -400,7 +402,7 @@ function StackPanelView(props: {
         >
           <Show when={props.maximized} fallback={<IconExpand size={13} />}><IconRestore size={13} /></Show>
         </button>
-        <button type="button" class="icon-button stack-button" aria-label={`Lukk ${tool.label}`} title="Lukk" onClick={() => removeFromStack(props.tool)}>
+        <button type="button" class="icon-button stack-button" aria-label={`Lukk ${tool.label}`} title="Lukk" onClick={() => closePanelTool(props.tool)}>
           <IconClose size={13} />
         </button>
       </header>
@@ -408,7 +410,7 @@ function StackPanelView(props: {
       <div class="stack-body" data-tool={props.tool}>
         {/* Tabbed tools wait for the top line, so their tabs go there from the start. */}
         <Show when={!tabbed || head()}>
-          <ToolView tool={props.tool} projectId={props.projectId} threadId={props.threadId} head={tabbed ? head : undefined} />
+          <ToolView tool={props.tool} projectId={props.projectId} threadId={props.threadId} head={tabbed ? head : undefined} sharedTabs={unifiedPanelTabs()} visible={!props.hidden} />
         </Show>
       </div>
     </section>

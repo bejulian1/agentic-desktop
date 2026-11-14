@@ -23,6 +23,7 @@ import {
 import { ChatTools, UserEdit } from "./ChatTools";
 import { enter, seconds, StepsView, SummaryView, ToolView } from "./steps";
 import { stepSentence } from "./step-words";
+import { FileChangeCounts } from "./FileChangeCounts";
 export { NowLine } from "./steps";
 
 // The conversation's timeline map learns where the user messages are from this. Rows register
@@ -688,8 +689,13 @@ function ChangesView(props: { row: ChangesRow }) {
   const reverted = createMemo(() => (row.rev(), row.reverted));
   const [all, setAll] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
-  const totals = row.files.reduce((sum, f) => ({ add: sum.add + f.additions, del: sum.del + f.deletions }), { add: 0, del: 0 });
-  const shown = () => (all() ? row.files : row.files.slice(0, SHOWN_FILES));
+  const files = createMemo(() => (row.rev(), row.files));
+  const totals = createMemo(() => ({
+    additions: files().reduce((n, f) => n + (f.binary ? 0 : f.additions), 0),
+    deletions: files().reduce((n, f) => n + (f.binary ? 0 : f.deletions), 0),
+    countsExact: files().every((f) => f.binary || f.countsExact === true),
+  }));
+  const shown = () => (all() ? files() : files().slice(0, SHOWN_FILES));
   const show = () => peekPanelActions()?.showTurn(row.turnId);
   const undo = async () => {
     setBusy(true);
@@ -698,12 +704,12 @@ function ChangesView(props: { row: ChangesRow }) {
   };
   return (
     <div class="row row-changes" data-row="changes">
-      <div class="changes-card" classList={{ reverted: reverted() }} data-testid="changes-card">
+      <div class="changes-card" classList={{ reverted: reverted() }} data-testid="changes-card" data-turn-id={row.turnId}>
         <div class="changes-head">
           <span class="changes-icon"><IconDiff size={16} /></span>
           <span class="changes-title">
-            <span>{row.files.length === 1 ? "Endret 1 fil" : `Endret ${row.files.length} filer`}</span>
-            <span class="changes-totals"><span class="diff-add">+{totals.add}</span> <span class="diff-del">−{totals.del}</span></span>
+            <span>{files().length === 1 ? "Endret 1 fil" : `Endret ${files().length} filer`}</span>
+            <Show when={files().some((file) => !file.binary)}><span class="changes-totals"><FileChangeCounts file={totals()} title={totals().countsExact ? "Linjetall for tekstfilene i denne turen" : "Anslåtte linjetall for tekstfilene i denne turen"} /></span></Show>
           </span>
           <Show when={reverted()} fallback={
             <button type="button" class="btn btn-small btn-ghost" disabled={busy()} title="Angre filendringene fra denne turen" onClick={() => void undo()}>Angre<IconUndo size={13} /></button>
@@ -712,6 +718,7 @@ function ChangesView(props: { row: ChangesRow }) {
           </Show>
           <button type="button" class="btn btn-small" onClick={show}>Vis endringer</button>
         </div>
+        <Show when={files().some((file) => file.overlapping)}><p class="changes-note">Overlapper annet arbeid. Angre ber om bekreftelse.</p></Show>
         <div class="changes-files">
           <For each={shown()}>
             {(file) => {
@@ -719,15 +726,14 @@ function ChangesView(props: { row: ChangesRow }) {
               return (
                 <button type="button" class="changes-file" title={file.path} onClick={show}>
                   <span class="changes-path"><span class="changes-dir">{dir}</span><span class="changes-name">{name}</span></span>
-                  <span class="diff-add">+{file.additions}</span>
-                  <span class="diff-del">−{file.deletions}</span>
+                  <FileChangeCounts file={file} />
                 </button>
               );
             }}
           </For>
-          <Show when={row.files.length > SHOWN_FILES}>
+          <Show when={files().length > SHOWN_FILES}>
             <button type="button" class="changes-more" aria-expanded={all()} onClick={() => setAll(!all())}>
-              {all() ? "Vis færre" : `Vis ${row.files.length - SHOWN_FILES} flere`}
+              {all() ? "Vis færre" : `Vis ${files().length - SHOWN_FILES} flere`}
               <span class="work-chevron" classList={{ open: all() }}><IconChevronDown size={12} /></span>
             </button>
           </Show>

@@ -1,0 +1,6 @@
+.terminal-share { flex: none; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.terminal-share-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.terminal-share-actions button { min-height: 27px; padding: 3px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--text-2); }
+.terminal-share-actions button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.terminal-share-actions button:disabled { opacity: .5; cursor: default; }
+.terminal-share-hint { margin-top: 4px; color: var(--text-3); font-size: var(--text-xs); line-height: 1.4; overflow-wrap: anywhere; }

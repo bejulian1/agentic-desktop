@@ -36,7 +36,7 @@ export interface ReadonlyEditor {
 }
 
 const theme = EditorView.theme({
-  "&": { height: "100%", fontSize: "var(--code-font-size, 12.5px)", backgroundColor: "transparent", color: "var(--text)" },
+  "&": { height: "100%", fontSize: "var(--code-font-size, 12.5px)", backgroundColor: "var(--code-bg, transparent)", color: "var(--code-fg, var(--text))" },
   ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.55", overflow: "auto" },
   ".cm-gutters": { backgroundColor: "transparent", color: "var(--text-3)", border: "none" },
   "&.cm-focused": { outline: "none" },
@@ -60,16 +60,18 @@ export function createReadonlyEditor(parent: HTMLElement): ReadonlyEditor {
     }),
   });
   let shownPath = "";
+  let destroyed = false;
   return {
     async show(path, text) {
+      if (destroyed) return;
       const sameFile = path === shownPath;
       shownPath = path;
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       if (!sameFile) {
         const extension = await languageFor(path);
-        if (shownPath === path) view.dispatch({ effects: language.reconfigure(extension) });
+        if (!destroyed && shownPath === path) view.dispatch({ effects: language.reconfigure(extension) });
       }
     },
-    destroy: () => view.destroy(),
+    destroy: () => { destroyed = true; shownPath = ""; view.destroy(); },
   };
 }

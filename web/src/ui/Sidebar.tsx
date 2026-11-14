@@ -2,8 +2,8 @@
 // Kode; the navigation (new thread, Artifacts, Skills); Festet, shown only when something is pinned;
 // the sections made with ⋯ → Ny seksjon; then the mode's own lists. Kode (round 11, SPEC 24.4):
 // Chatter, with the projects and their threads (grouped by project or by date, sorted and folded as
-// chosen in ⋯), and Denne datamaskinen for Kode threads without a folder. Chat: the chats, then
-// Prosjekter (Chat projects, a name and no folder). The profile and the gear
+// chosen in ⋯), and Denne datamaskinen for Kode threads without a folder. Chat: Prosjekter
+// (Chat projects, a name and no folder), then the chats. The profile and the gear
 // are at the bottom; the version is only in Innstillinger (SPEC 21.6). Threads
 // have a menu on right-click and ⋯, and threads and projects show a card on hover. Settings can
 // switch the middle part to the smart sidebar.
@@ -14,20 +14,21 @@ import { connection } from "../lib/socket";
 import type { ChatProject, Project, Thread } from "../../../shared/protocol";
 import {
   app, collapsed, listed, setApp, mode, projectId, renameThread, report, scope, setFolderPickerOpen, setSettingsOpen, setSidebarWidth,
-  setSidebarOpen, setMode, setProjectId, sortedProjects, toggleCollapsed,
+  setSidebarOpen, setMode, setProjectId, settingsOpen, sortedProjects, toast, toggleCollapsed,
 } from "../state/app";
 import { applyDrop, beginDrag, sectionTarget } from "../state/drag";
 import { gridFor } from "../state/grid";
 import { newChatIn, newThreadIn, openThread, preloadThread } from "../state/navigate";
 import { onNextFrame } from "../lib/frame";
-import { confirmDialog, promptDialog } from "./dialogs";
-import { newChatProject } from "./chat-projects";
+import { confirmDialog } from "./dialogs";
+import { newChatProject, renameChatProject } from "./chat-projects";
 import {
   IconArtifact, IconBell, IconBranch, IconChevron, IconClose, IconCompose, IconDots, IconHelp, IconPlus, IconPlusCircle, IconSearch,
   IconSettings, IconSpark, IconWarn, IconCheck,
 } from "./icons";
 import { artifactCount, closeArtifacts, openArtifacts, room } from "../state/artifacts";
 import { actions } from "../state/actions";
+import { skillsOpen } from "../state/skills-workspace";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { clearFinished, finished, markSeen, searchOpen, setSearchOpen } from "../state/home";
 import { STATE_LABEL, threadState } from "../state/thread-status";
@@ -57,7 +58,8 @@ import { IconFoldAll, IconMonitor, IconUnfoldAll } from "./icons";
 import { setSnoozed } from "../state/thread-actions";
 import { forkSourceTitle } from "../state/fork";
 import { archiveMany, openArchive } from "../state/archive";
-import { IconArchive } from "./icons";
+import { IconArchive, IconCopy, IconFolder } from "./icons";
+import { showPanel } from "../state/panel";
 
 // Round 14 (SPEC 30.4): a project's threads, live and archived, for its menu.
 const liveIn = (key: { projectId?: string; chatProjectId?: string }) =>
@@ -91,6 +93,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   const { thread } = props;
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
   const [renaming, setRenaming] = createSignal(false);
+  const [pinBusy, setPinBusy] = createSignal(false);
   const parent = createMemo(() => (thread.parentThreadId ? app.threads[thread.parentThreadId] : undefined));
   let row!: HTMLDivElement;
 
@@ -102,7 +105,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
 
   const startDrag = (event: PointerEvent) => {
     hideHoverCard();
-    if ((event.target as HTMLElement).closest("button.thread-menu, button.thread-snooze, input, .popover")) return;
+    if ((event.target as HTMLElement).closest("button.thread-menu, button.thread-pin, button.thread-snooze, input, .popover")) return;
     if (event.button !== 0) return;
     beginDrag(event, {
       source: { kind: "thread", threadId: thread.id, label: thread.title },
@@ -136,12 +139,33 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
     setMenu(null);
     suppressHoverCards(false);
   };
+  createEffect(() => { if (settingsOpen()) closeMenu(); });
+
+  const togglePin = async () => {
+    if (pinBusy()) return;
+    const focus = row.contains(document.activeElement) && document.activeElement?.classList.contains("thread-pin");
+    setPinBusy(true);
+    try {
+      const saved = await patch<Thread>(`/api/threads/${thread.id}`, { pinned: !thread.pinned });
+      if (app.threads[thread.id]) setApp("threads", thread.id, "pinned", saved.pinned);
+      if (saved.pinned) setShowPinned(true);
+      if (focus) requestAnimationFrame(() => {
+        const item = document.querySelector<HTMLElement>(`[data-thread-item="${CSS.escape(thread.id)}"]`);
+        item?.querySelector<HTMLButtonElement>(".thread-text")?.focus({ preventScroll: true });
+        item?.querySelector<HTMLButtonElement>(".thread-pin")?.focus({ preventScroll: true });
+      });
+    } catch (error) {
+      report(error);
+    } finally {
+      setPinBusy(false);
+    }
+  };
 
   return (
     <div
       ref={row}
       class="thread-item"
-      classList={{ active: props.active, archived: thread.archived, child: (props.depth ?? 0) > 0, "menu-open": !!menu(), snoozed: isSnoozed(thread) }}
+      classList={{ active: props.active, archived: thread.archived, pinned: thread.pinned, child: (props.depth ?? 0) > 0, "menu-open": !!menu(), snoozed: isSnoozed(thread) }}
       style={props.depth ? `--depth:${props.depth}` : undefined}
       data-thread-item={thread.id}
       onPointerDown={startDrag}
@@ -206,6 +230,9 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           <IconSnooze size={13} />
         </button>
       </Show>
+      <button type="button" class="icon-button thread-pin" aria-label={thread.pinned ? "Løsne tråden" : "Fest tråden"} aria-pressed={thread.pinned} title={thread.pinned ? "Løsne fra Festet" : "Fest øverst i sidefanen"} disabled={pinBusy()} onClick={() => void togglePin()}>
+        <IconPinned size={14} />
+      </button>
       <button
         type="button"
         class="icon-button thread-menu"
@@ -271,10 +298,30 @@ function ThreadTree(props: { threads: Thread[]; activeIds: ReadonlySet<string>; 
 
 // In Chat a project is one row: its threads belong to Kode, and the row takes you there.
 function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: ReadonlySet<string>; headOnly?: boolean }) {
-  const [menuOpen, setMenuOpen] = createSignal(false);
+  const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
+  const closeMenu = () => { setMenu(null); suppressHoverCards(false); };
+  const showMenu = (anchor: MenuAnchor) => { suppressHoverCards(true); setMenu(anchor); };
+  onCleanup(() => { if (menu()) suppressHoverCards(false); });
+  createEffect(() => { if (settingsOpen()) closeMenu(); });
+  const entries = (): MenuEntry[] => [
+    { label: props.project.pinned ? "Løsne prosjektet" : "Fest prosjektet", icon: IconPinned, run: () => patch<Project>(`/api/projects/${props.project.id}`, { pinned: !props.project.pinned }).then((project) => { setApp("projects", project.id, project); if (project.pinned) setShowPinned(true); }).catch(report) },
+    { label: "Rediger prosjekt…", icon: IconEdit, run: () => openEditProject(props.project.id) },
+    { label: "Ny bakgrunnstråd…", icon: IconAddRun, disabled: !!props.project.folderMissing, run: () => void startBackground(props.project.id) },
+    "sep",
+    { label: "Vis prosjektfiler", icon: IconFolder, disabled: !!props.project.folderMissing, title: "Åpne prosjektets filer i appens sidepanel", run: () => { setProjectId(props.project.id); setMode("code"); showPanel("files"); afterPick(); } },
+    { label: "Kopier prosjektsti", icon: IconCopy, run: () => navigator.clipboard.writeText(props.project.path).then(() => toast("Kopierte prosjektstien.", "info")).catch(() => toast("Kunne ikke kopiere prosjektstien.", "error")) },
+    "sep",
+    { label: "Arkiver alle trådene", icon: IconArchive, disabled: !liveIn({ projectId: props.project.id }), title: "Trådene forsvinner fra sidefanen, men ingenting slettes. Du kan angre etterpå.", run: () => void archiveMany({ projectId: props.project.id }, `«${props.project.name}»`) },
+    ...(archivedIn({ projectId: props.project.id }) ? [{ label: `Vis arkiverte (${archivedIn({ projectId: props.project.id })})`, icon: IconArchive, run: () => openArchive({ kind: "project", id: props.project.id }) } as MenuEntry] : []),
+    "sep",
+    { label: "Fjern prosjektet…", icon: IconRemove, danger: true, run: async () => {
+      const ok = await confirmDialog({ title: "Fjerne prosjektet?", text: `«${props.project.name}» og trådene fjernes fra appen. Mappen på disken røres aldri.`, confirm: "Fjern", danger: true });
+      if (ok) del(`/api/projects/${props.project.id}`).catch(report);
+    } },
+  ];
   const isCollapsed = () => props.headOnly || collapsed().includes(props.project.id);
   const pending = () => props.threads.reduce((sum, t) => sum + t.pendingApprovals, 0);
-  const selected = () => mode() === "code" && projectId() === props.project.id && !room();
+  const selected = () => mode() === "code" && projectId() === props.project.id && !room() && !skillsOpen();
   let head!: HTMLDivElement;
   return (
     <div class="group" data-project={props.project.name}>
@@ -285,6 +332,7 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
         onPointerEnter={() => hoverIn("project", props.project.id, head)}
         onPointerLeave={hoverOut}
         onPointerDown={hideHoverCard}
+        onContextMenu={(event) => { event.preventDefault(); showMenu({ x: event.clientX, y: event.clientY }); }}
       >
         <Show
           when={!props.headOnly}
@@ -310,61 +358,9 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
           <span class="folder-badge" data-testid="folder-badge" title={`Fant ikke mappen ${props.project.path}. Åpne en tråd i prosjektet for å velge mappen på nytt.`} aria-label="Fant ikke mappen"><IconWarn size={12} /></span>
         </Show>
         <Show when={isCollapsed() && pending() > 0}><span class="badge" title="Venter på godkjenning">{pending()}</span></Show>
-        <span class="group-actions">
-          <Popover
-            open={menuOpen()}
-            onClose={() => setMenuOpen(false)}
-            align="right"
-            fixed
-            trigger={<button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" onClick={() => { hideHoverCard(); setMenuOpen(!menuOpen()); }}><IconDots size={14} /></button>}
-          >
-            <div class="menu-list">
-              <button type="button" class="menu-item" onClick={() => { setMenuOpen(false); openEditProject(props.project.id); }}><IconEdit size={14} /><span class="menu-name">Rediger prosjekt…</span></button>
-              <button type="button" class="menu-item" onClick={() => { setMenuOpen(false); void startBackground(props.project.id); }}><IconAddRun size={14} /><span class="menu-name">Ny bakgrunnstråd…</span></button>
-              <button
-                type="button"
-                class="menu-item"
-                onClick={() => {
-                  setMenuOpen(false);
-                  patch<Project>(`/api/projects/${props.project.id}`, { pinned: !props.project.pinned })
-                    .then((project) => setApp("projects", project.id, project))
-                    .catch(report);
-                }}
-              >
-                <IconPinned size={14} /><span class="menu-name">{props.project.pinned ? "Løsne prosjektet" : "Fest prosjektet"}</span>
-              </button>
-              <div class="menu-sep" role="separator" />
-              <button
-                type="button"
-                class="menu-item"
-                disabled={!liveIn({ projectId: props.project.id })}
-                title="Trådene forsvinner fra sidefanen, men ingenting slettes. Angre i meldingen som kommer."
-                onClick={() => {
-                  setMenuOpen(false);
-                  void archiveMany({ projectId: props.project.id }, `«${props.project.name}»`);
-                }}
-              >
-                <IconArchive size={14} /><span class="menu-name">Arkiver alle trådene</span>
-              </button>
-              <Show when={archivedIn({ projectId: props.project.id })}>
-                <button type="button" class="menu-item" onClick={() => { setMenuOpen(false); openArchive({ kind: "project", id: props.project.id }); }}>
-                  <span class="menu-icon-space" aria-hidden="true" /><span class="menu-name">Vis arkiverte</span><span class="menu-tag">{archivedIn({ projectId: props.project.id })}</span>
-                </button>
-              </Show>
-              <div class="menu-sep" role="separator" />
-              <button
-                type="button"
-                class="menu-item danger"
-                onClick={async () => {
-                  setMenuOpen(false);
-                  const ok = await confirmDialog({ title: "Fjerne prosjektet?", text: `«${props.project.name}» og trådene fjernes fra appen. Mappen på disken røres aldri.`, confirm: "Fjern", danger: true });
-                  if (ok) del(`/api/projects/${props.project.id}`).catch(report);
-                }}
-              >
-                <IconRemove size={14} /><span class="menu-name">Fjern prosjektet…</span>
-              </button>
-            </div>
-          </Popover>
+        <span class="group-actions" classList={{ open: !!menu() }}>
+          <button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(event) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: event.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
+          <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${props.project.name}`} entries={entries()} onClose={closeMenu} class="project-context-menu" />}</Show>
           {/* Round 12 (SPEC 26.1): no new threads while the folder is gone; the tip says what to do. */}
           <button
             type="button"
@@ -449,7 +445,7 @@ export function Notifications(props: { rail?: boolean }) {
             </For>
           </Show>
           <Show when={done().length}>
-            <div class="menu-heading">Ferdige</div>
+            <div class="menu-heading">Uleste</div>
             <For each={done()}>
               {(thread) => (
                 <button type="button" class="menu-item notify-item" onClick={() => go(thread)}>
@@ -514,6 +510,7 @@ export function ProfileMenu(props: { rail?: boolean }) {
     "sep",
     { label: "Profil", icon: IconUser, run: () => { closeArtifacts(); openProfile(); afterPick(); } },
     { label: "Innstillinger", icon: IconSettings, keys: "settings.open", run: () => setSettingsOpen("general") },
+    { label: "Versjonslogg", icon: IconSpark, run: () => setInfoDialog("releases") },
     { label: "Hurtigtaster", icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts, title: "Se hurtigtastene. De endres i Innstillinger → Hurtigtaster." },
     "sep",
     {
@@ -589,6 +586,11 @@ export function ProfileMenu(props: { rail?: boolean }) {
 // + starts a chat in it, and ⋯ renames, pins or removes it (the chats stay).
 function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; activeIds: ReadonlySet<string> }) {
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
+  let head!: HTMLDivElement;
+  const closeMenu = () => { setMenu(null); suppressHoverCards(false); };
+  const showMenu = (anchor: MenuAnchor) => { suppressHoverCards(true); setMenu(anchor); };
+  onCleanup(() => { if (menu()) suppressHoverCards(false); });
+  createEffect(() => { if (settingsOpen()) closeMenu(); });
   const key = () => `chat:${props.project.id}`;
   const isCollapsed = () => collapsed().includes(key());
   const entries = (): MenuEntry[] => [
@@ -619,7 +621,7 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
   ];
   return (
     <div class="group chat-project" data-chat-project={props.project.name}>
-      <div class="group-head">
+      <div class="group-head" ref={head} onPointerEnter={() => hoverIn("chat-project", props.project.id, head)} onPointerLeave={hoverOut} onPointerDown={hideHoverCard} onContextMenu={(event) => { event.preventDefault(); showMenu({ x: event.clientX, y: event.clientY }); }}>
         <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? "Vis chatter" : "Skjul chatter"} title={isCollapsed() ? "Vis chattene i prosjektet" : "Skjul chattene i prosjektet"} onClick={() => toggleCollapsed(key())}>
           <ProjectGlyph project={props.project} size={16} open={!isCollapsed()} />
           <span class="fold-chevron" classList={{ open: !isCollapsed() }}><IconChevron size={12} /></span>
@@ -627,10 +629,10 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
         <button type="button" class="group-title" title={props.project.name} onClick={() => toggleCollapsed(key())}><span>{props.project.name}</span></button>
         <Show when={isCollapsed() && props.threads.length}><span class="group-count">{props.threads.length}</span></Show>
         <span class="group-actions" classList={{ open: !!menu() }}>
-          <button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => setMenu(menu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
+          <button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
           <button type="button" class="icon-button" title="Ny chat i prosjektet" aria-label={`Ny chat i ${props.project.name}`} onClick={() => { void newChatIn(props.project.id); afterPick(); }}><IconPlus size={14} /></button>
         </span>
-        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${props.project.name}`} entries={entries()} onClose={() => setMenu(null)} />}</Show>
+        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${props.project.name}`} entries={entries()} onClose={closeMenu} class="project-context-menu" />}</Show>
       </div>
       <Show when={!isCollapsed()}>
         <div class="group-body">
@@ -643,15 +645,11 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
   );
 }
 
-async function renameChatProject(project: ChatProject): Promise<void> {
-  const name = await promptDialog({ title: "Gi prosjektet nytt navn", value: project.name, confirm: "Lagre" });
-  if (name?.trim() && name.trim() !== project.name) await patch(`/api/chat-projects/${project.id}`, { name: name.trim() }).catch(report);
-}
 
 // Denne datamaskinen (round 9): Kode threads that have no project folder, at the bottom in Kode.
 function LocalGroup(props: { threads: Thread[]; activeIds: ReadonlySet<string> }) {
   const isCollapsed = () => collapsed().includes(LOCAL_SCOPE);
-  const selected = () => mode() === "code" && projectId() === null && !room();
+  const selected = () => mode() === "code" && projectId() === null && !room() && !skillsOpen();
   return (
     <div class="group local-group" data-testid="local-group">
       <div class="group-head" classList={{ active: selected() }}>
@@ -994,7 +992,7 @@ export function Sidebar() {
           >
             <IconArtifact size={16} /><span>Artifacts</span><span class="nav-count" aria-label={`${artifactCount()} artifacts`}>{artifactCount()}</span>
           </button>
-          <button type="button" class="nav-item" title="Skills som finnes for prosjektet og for deg" onClick={() => { actions.skills(); afterPick(); }}>
+          <button type="button" class="nav-item" aria-current={skillsOpen() ? "page" : undefined} title="Skills som finnes for prosjektet og for deg" onClick={() => { actions.skills(); afterPick(); }}>
             <IconSpark size={16} /><span>Skills</span>
           </button>
         </nav>
@@ -1037,15 +1035,6 @@ export function Sidebar() {
               when={!inChat()}
               fallback={
                 <>
-                  <div class="section-head" data-section="chats">
-                    <span class="section-label">Chatter</span>
-                    <button type="button" class="icon-button" title="Ny tråd i Chat" aria-label="Ny tråd i Chat" onClick={() => { void newThreadIn(null); afterPick(); }}><IconPlus size={14} /></button>
-                  </div>
-                  <Show when={chats().length} fallback={<div class="sidebar-empty">Ingen chatter ennå</div>}>
-                    <Show when={projectGroup() === "list"} fallback={<ThreadTree threads={chats()} activeIds={activeIds()} limit={THREADS_SHOWN} />}>
-                      <DateList threads={chats()} activeIds={activeIds()} />
-                    </Show>
-                  </Show>
                   <Show when={chatProjectsShown()}>
                     <div class="section-head" data-section="projects">
                       <span class="section-label">Prosjekter</span>
@@ -1054,6 +1043,15 @@ export function Sidebar() {
                     <For each={chatProjects()} fallback={<Show when={!pinnedChatProjects().length}><div class="sidebar-empty">Samle chatter i et prosjekt med +</div></Show>}>
                       {(project) => <ChatProjectGroup project={project} threads={forChatProject(project.id)} activeIds={activeIds()} />}
                     </For>
+                  </Show>
+                  <div class="section-head" data-section="chats">
+                    <span class="section-label">Chatter</span>
+                    <button type="button" class="icon-button" title="Ny tråd i Chat" aria-label="Ny tråd i Chat" onClick={() => { void newThreadIn(null); afterPick(); }}><IconPlus size={14} /></button>
+                  </div>
+                  <Show when={chats().length} fallback={<div class="sidebar-empty">Ingen chatter ennå</div>}>
+                    <Show when={projectGroup() === "list"} fallback={<ThreadTree threads={chats()} activeIds={activeIds()} limit={THREADS_SHOWN} />}>
+                      <DateList threads={chats()} activeIds={activeIds()} />
+                    </Show>
                   </Show>
                 </>
               }

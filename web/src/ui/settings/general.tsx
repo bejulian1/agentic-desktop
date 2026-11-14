@@ -1,16 +1,16 @@
 // Generelt, Utseende and Personvern og data. Kode and Chat are in ./modes.tsx (round 9). Every control here is saved on the server and acts at
-// once, except Alltid øverst, which waits for the Electron version and says so.
-import { createMemo, createResource, For, Show } from "solid-js";
-import type { AccentColor, BusyMessages, CodeFont, Density, EnterKey, GlobalConfig, StartMode, ThemeSetting, TurnNotify } from "../../../../shared/protocol";
-import { get } from "../../lib/api";
+// once. Native window behavior is shown only inside the Electron app.
+import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import type { AccentColor, BusyMessages, Density, EnterKey, GlobalConfig, PermissionMode, StartMode, ThemeSetting, TurnNotify } from "../../../../shared/protocol";
+import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
-import { app, deleteThread, report, toast } from "../../state/app";
+import { app, deleteThread, report, setApp, setSettingsOpen, toast } from "../../state/app";
 import { allowNotifications, chime } from "../../state/look";
 import { confirmDialog } from "../dialogs";
 import { IconPlay } from "../icons";
 import { ThemePicker } from "../ThemePicker";
 import { AppIconPicker } from "../AppIconPicker";
-import { Choice, Group, Page, reset, Row, save, Segmented, Toggle } from "./parts";
+import { Choice, Group, Page, Row, save, Segmented, Toggle } from "./parts";
 
 const THEMES: Array<{ value: ThemeSetting; label: string }> = [
   { value: "light", label: "Lys" },
@@ -28,14 +28,6 @@ const ACCENTS: Array<{ value: AccentColor; label: string }> = [
   { value: "graphite", label: "Grafitt" },
 ];
 
-const CODE_FONTS: Array<{ value: CodeFont; label: string }> = [
-  { value: "system", label: "Systemets monospace" },
-  { value: "ubuntu", label: "Ubuntu Mono" },
-  { value: "dejavu", label: "DejaVu Sans Mono" },
-  { value: "jetbrains", label: "JetBrains Mono" },
-  { value: "fira", label: "Fira Code" },
-  { value: "cascadia", label: "Cascadia Code" },
-];
 
 export function General() {
   const notifyChoice = async (value: TurnNotify) => {
@@ -46,14 +38,18 @@ export function General() {
   };
   return (
     <Page title="Generelt">
+      <PermissionDefaults />
       <Group title="Oppstart">
-        <Row label="Åpne appen i" text="Chat eller Kode når appen starter. Sist brukte husker hvor du var.">
+        <Row label="Åpne appen i" text="Velg Chat, Kode eller sist brukte modus. Samtalene dine beholdes i sidefanen.">
           <Choice<StartMode>
             label="Åpne appen i"
             value={app.settings.startMode ?? "last"}
             options={[{ value: "last", label: "Sist brukte" }, { value: "chat", label: "Chat" }, { value: "code", label: "Kode" }]}
             onChange={(v) => save({ startMode: v })}
           />
+        </Row>
+        <Row label="Samtale ved oppstart" text="Ny, tom samtale åpner et blankt meldingsfelt i valgt modus, også når et lukket vindu åpnes fra statusfeltet. Lagrede samtaler beholdes i sidefanen. Vanlig sideoppfriskning beholder visningen.">
+          <Choice<"new" | "resume"> label="Samtale ved oppstart" value={app.settings.startConversation ?? "new"} options={[{ value: "new", label: "Ny, tom samtale" }, { value: "resume", label: "Fortsett der jeg slapp" }]} onChange={(v) => save({ startConversation: v })} />
         </Row>
       </Group>
       <Group title="Når en tur er ferdig">
@@ -70,12 +66,6 @@ export function General() {
             onChange={(v) => void notifyChoice(v)}
           />
         </Row>
-        <Toggle
-          label="Spør før fanen lukkes"
-          text="Nettleseren spør om du vil lukke eller laste siden på nytt mens en tråd kjører. Kjøringen fortsetter på serveren uansett."
-          checked={app.settings.confirmQuit ?? false}
-          onChange={(v) => save({ confirmQuit: v })}
-        />
       </Group>
       <Group title="Samtale">
         <Row label="Enter i meldingsfeltet" text="Enter sender, og Shift+Enter gir ny linje. Eller omvendt: Enter gir ny linje, og Ctrl+Enter sender.">
@@ -84,6 +74,20 @@ export function General() {
             value={app.settings.enterKey ?? "send"}
             options={[{ value: "send", label: "Enter sender" }, { value: "newline", label: "Enter gir ny linje" }]}
             onChange={(v) => save({ enterKey: v })}
+          />
+        </Row>
+        <Toggle
+          label="Autofullfør meldinger med TAB"
+          text="Grå tekstforslag fra tredje brukermelding, basert på tidligere svar og åpen kodefil. TAB godtar uten å sende. Forslag bruker egne modellkall og kan bruke API-kvote."
+          checked={app.settings.promptAutocomplete === true}
+          onChange={(v) => save({ promptAutocomplete: v })}
+        />
+        <Row label="Modell til autofullføring" text="Utdrag av samtalen og åpen kodefil sendes til denne modellen. Du kan følge samtalemodellen eller velge en egen.">
+          <Choice<string>
+            label="Modell til autofullføring"
+            value={app.models.some((m) => m.id === app.settings.promptAutocompleteModelId) ? app.settings.promptAutocompleteModelId! : ""}
+            options={[{ value: "", label: "Samme som samtalen" }, ...app.models.map((m) => ({ value: m.id, label: `${m.name} (${app.providers.find((p) => p.id === m.providerId)?.name ?? "Leverandør"})` }))]}
+            onChange={(v) => save({ promptAutocompleteModelId: v || null })}
           />
         </Row>
         <Toggle
@@ -98,7 +102,7 @@ export function General() {
           checked={app.settings.expandShell === true}
           onChange={(v) => save({ expandShell: v })}
         />
-        <Row label="Meldinger mens agenten jobber" text="Kø: meldingen venter til turen er ferdig. Send med en gang: den går inn i turen som kjører, ved neste steg (mellom verktøykall), og modellen kan endre kurs.">
+        <Row label="Meldinger mens agenten jobber" text="Gjelder Chat og Kode. Kø: meldingen venter til turen er ferdig. Send med en gang: den går inn i turen som kjører, ved neste steg (mellom verktøykall), og modellen kan endre kurs.">
           <Choice<BusyMessages>
             label="Meldinger mens agenten jobber"
             value={app.settings.busyMessages ?? "queue"}
@@ -112,15 +116,46 @@ export function General() {
           <CloseBehaviorRow />
         </Show>
         <Toggle
-          label="Alltid øverst"
-          demo
-          text="Holder vinduet over andre vinduer. Kommer med Electron-versjonen; en nettleserfane kan ikke gjøre dette, så valget lagres bare."
-          checked={app.settings.alwaysOnTop ?? false}
-          onChange={(v) => save({ alwaysOnTop: v })}
+          label="Spør før fanen lukkes"
+          text="Nettleseren spør før lukking eller ny innlasting mens en tråd kjører. Kjøringen fortsetter på serveren."
+          checked={app.settings.confirmQuit ?? false}
+          onChange={(v) => save({ confirmQuit: v })}
         />
       </Group>
     </Page>
   );
+}
+
+// Exclusive permission modes, shared with the no-project composer through persisted settings.
+function PermissionDefaults() {
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const options: Array<{ value: PermissionMode; label: string; text: string }> = [
+    { value: "ask", label: "Be om godkjenning", text: "Lesing er tillatt. Spør før filendringer, kommandoer og bruk av nettleseren." },
+    { value: "accept-edits", label: "Godkjenn for meg", text: "Endrer prosjektfiler automatisk. Spør før kommandoer og bruk av nettleseren." },
+    { value: "full", label: "Full tilgang", text: "Godkjenner vanlige verktøyhandlinger i prosjektet automatisk. Beskyttede filer krever fortsatt godkjenning." },
+  ];
+  const choose = async (value: PermissionMode) => {
+    if (busy() || value === app.settings.defaultPermissionMode) return;
+    setBusy(true);
+    setError("");
+    try {
+      await patch("/api/settings", { defaultPermissionMode: value });
+      setApp("settings", "defaultPermissionMode", value);
+    } catch (err) {
+      setError("Kunne ikke lagre standardtillatelsen. Prøv igjen.");
+      report(err);
+    } finally { setBusy(false); }
+  };
+  return <Group title="Tillatelser i Kode">
+    <div class="setting setting-block"><div class="setting-text"><strong>Standard for nye prosjekter</strong><span class="muted">Eksisterende prosjekter beholder sine tillatelser. Du kan endre dem i meldingsfeltet i prosjektet. Kode uten prosjekt får ikke fil- eller kommandotilgang av dette valget.</span></div></div>
+    <div class="default-code-permissions" role="radiogroup" aria-label="Standardtillatelser i Kode" aria-busy={busy()}>
+      <For each={options}>{(option) => <Row as="label" label={option.label} text={option.text}>
+        <input type="radio" name="default-code-permission" value={option.value} checked={app.settings.defaultPermissionMode === option.value} disabled={busy()} onChange={() => void choose(option.value)} />
+      </Row>}</For>
+    </div>
+    <Show when={error()}><p class="permission-error" role="alert">{error()}</p></Show>
+  </Group>;
 }
 
 // Only in the Electron app (SPEC 29.6). The choice is kept by the app itself, not on the server,
@@ -211,13 +246,19 @@ export function Appearance() {
             onChange={(v) => save({ panelButtons: v })}
           />
         </Row>
-        <Row label="Sidepanel" text="Startside med verktøy viser verktøyene som fliser når panelet åpnes, og navnet på verktøyet øverst fører tilbake dit. Faner øverst er én rad med faner, som før.">
+        <Row label="Sidepanel" text="Velg hva panelet viser når det åpnes. Plussknappen åpner alltid startsiden med verktøy.">
           <Segmented<"tools" | "tabs">
             label="Sidepanel"
             value={app.settings.panelStart ?? "tools"}
             options={[{ value: "tools", label: "Startside med verktøy" }, { value: "tabs", label: "Faner øverst" }]}
             onChange={(v) => save({ panelStart: v })}
           />
+        </Row>
+        <Row label="Faner i sidepanelet" text="Felles topprad viser hver nettleserfane og terminal ved siden av Filer og Endringer. Separate rader samler nettleser og terminal under hver sin verktøyfane. Endring bytter visning uten å lukke øktene.">
+          <Segmented<"unified" | "grouped"> label="Faner i sidepanelet" value={app.settings.panelTabLayout ?? "unified"} options={[{ value: "unified", label: "Felles topprad" }, { value: "grouped", label: "Separate rader" }]} onChange={(v) => save({ panelTabLayout: v })} />
+        </Row>
+        <Row label="Pluss i sidepanelet" text="Velg hva en ny fane skal inneholde. Verktøystartsiden får sin egen fane for hvert trykk. Bare nettleser åpner en ny nettsidefane direkte, uten verktøyfliser.">
+          <Segmented<"tools" | "browser"> label="Pluss i sidepanelet" value={app.settings.panelNewTab ?? "tools"} options={[{ value: "tools", label: "Verktøystartside" }, { value: "browser", label: "Bare nettleser" }]} onChange={(v) => save({ panelNewTab: v })} />
         </Row>
       </Group>
       <Group title="Tekst og bevegelse">
@@ -244,28 +285,7 @@ export function Appearance() {
           onChange={(v) => save({ reduceMotion: v })}
         />
       </Group>
-      <Group title="Kode">
-        <Row label="Kodeskrift" text="Brukes hvis skriften er installert på maskinen. Ellers brukes systemets monospace.">
-          <Choice<CodeFont> label="Kodeskrift" value={app.settings.codeFont ?? "system"} options={CODE_FONTS} onChange={(v) => save({ codeFont: v })} />
-        </Row>
-        <Row label="Skriftstørrelse for kode" text="Kodeblokker, verktøyutdata, endringer og godkjenningskort.">
-          <Choice<number>
-            label="Skriftstørrelse for kode"
-            value={app.settings.codeFontSize ?? 0}
-            options={[{ value: 0, label: "Standard" }, ...[11, 12, 13, 14, 15, 16, 17, 18].map((n) => ({ value: n, label: `${n} px` }))]}
-            onChange={(v) => (v === 0 ? reset("codeFontSize") : save({ codeFontSize: v }))}
-          />
-        </Row>
-        <Row label="Tabulatorbredde" text="Hvor bredt et tabulatortegn vises i kode i tråden.">
-          <Segmented<number> label="Tabulatorbredde" value={app.settings.tabSize ?? 4} options={[2, 4, 8].map((n) => ({ value: n, label: String(n) }))} onChange={(v) => save({ tabSize: v })} />
-        </Row>
-        <Toggle
-          label="Bryt lange linjer"
-          text="Lange linjer i kodeblokker brytes i stedet for å rulle sidelengs."
-          checked={app.settings.wrapCode ?? false}
-          onChange={(v) => save({ wrapCode: v })}
-        />
-      </Group>
+      <Group title="Kodevisning"><Row label="Tilpass kodeutseendet" text="Lyst og mørkt kodetema, skrift, linjebryting og standard samtalevisning finnes under Kode."><button type="button" class="btn btn-small" onClick={() => setSettingsOpen("code")}>Åpne Kode-innstillinger</button></Row></Group>
     </Page>
   );
 }
@@ -299,7 +319,7 @@ export function Privacy() {
         <Row label="Nettverk" text="Serveren lytter bare på 127.0.0.1. Appen kontakter bare leverandørene du kobler til, og sidene som åpnes i Nettleser-panelet." />
       </Group>
       <Group title="Lagret på denne maskinen">
-        <Row label="API-nøkler og GitHub-token" text={app.keyring?.store === "session" ? "Bare i minnet til appen lukkes, fordi nøkkelringen ikke kan brukes nå. Aldri i klartekst på disken. De sendes aldri til nettleseren og skrives aldri til logger." : "Kryptert i systemets nøkkelring (GNOME-nøkkelringen), ikke i noen fil i datamappen. De sendes aldri til nettleseren og skrives aldri til logger."} />
+        <Row label="API-nøkler og GitHub-token" text={app.keyring?.legacy ? "En nøkkelfil fra en eldre versjon finnes fortsatt. Se Modeller og leverandører for status og flytting til nøkkelringen." : app.keyring?.store === "pending" || !app.keyring ? "Kontrollerer nøkkelringen. Se Modeller og leverandører for lagringsstatus." : app.keyring?.store === "session" ? "Bare i minnet til appen lukkes, fordi nøkkelringen ikke kan brukes nå. Aldri i klartekst på disken. De sendes aldri til nettleseren og skrives aldri til logger." : "Kryptert i systemets nøkkelring (GNOME-nøkkelringen), ikke i noen fil i datamappen. De sendes aldri til nettleseren og skrives aldri til logger."} />
         <Row label="Instruksjoner og settings.json" text={<>I <code>{config()?.dir ?? "…"}</code>.</>} />
       </Group>
       <Group title="Slett data">

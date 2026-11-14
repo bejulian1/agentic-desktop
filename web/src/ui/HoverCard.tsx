@@ -1,20 +1,21 @@
 // A small card beside a thread or project in the sidebar, after the pointer has rested on it a
 // moment. Nothing runs per pointer move: entering starts one timer and leaving starts another.
-import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import type { Project, Thread } from "../../../shared/protocol";
+import type { ChatProject, Project, Thread } from "../../../shared/protocol";
 import { relativeTime } from "../lib/format";
-import { app, modelName, sidebarOpen } from "../state/app";
+import { app, modelName, scope, settingsOpen, sidebarOpen } from "../state/app";
 import { peekModel, type ThreadModel } from "../state/thread-model";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { openThread } from "../state/navigate";
-import { IconBranch, IconChat, IconClock, IconCpu, IconFolder, IconPin, IconSettings } from "./icons";
+import { IconBranch, IconChat, IconClock, IconCode, IconCpu, IconMonitor, IconFolder, IconPin, IconSettings } from "./icons";
 import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
 import { IconSnooze } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { openEditProject } from "./dialog-state";
+import { renameChatProject } from "./chat-projects";
 
-type Target = { kind: "thread" | "project"; id: string; rect: DOMRect; anchor: HTMLElement };
+type Target = { kind: "thread" | "project" | "chat-project"; id: string; rect: DOMRect; anchor: HTMLElement };
 
 const [card, setCard] = createSignal<Target | null>(null);
 let showTimer: ReturnType<typeof setTimeout> | undefined;
@@ -51,7 +52,7 @@ export function suppressHoverCards(on: boolean): void {
 }
 
 function threadStatus(t: Thread): string {
-  return STATE_LABEL[threadState(t)];
+  return STATE_LABEL[threadState(t, false)];
 }
 
 function messageCount(model: ThreadModel): string {
@@ -63,6 +64,7 @@ function messageCount(model: ThreadModel): string {
 
 function ThreadCard(props: { thread: Thread }) {
   const project = createMemo(() => (props.thread.projectId ? app.projects[props.thread.projectId] : undefined));
+  const chatProject = createMemo(() => props.thread.chatProjectId ? app.chatProjects[props.thread.chatProjectId] : undefined);
   const parent = createMemo(() => (props.thread.parentThreadId ? app.threads[props.thread.parentThreadId] : undefined));
   // The model is loaded when the pointer reaches the row (preloadThread), so this is usually known.
   const model = () => peekModel(props.thread.id);
@@ -74,8 +76,8 @@ function ThreadCard(props: { thread: Thread }) {
         <span class="hover-card-age">{relativeTime(props.thread.updatedAt)}</span>
       </div>
       <div class="hover-card-row">
-        <Show when={project()} fallback={<><IconChat size={14} /><span>Chat uten prosjekt</span></>}>
-          {(p) => <><ProjectGlyph project={p()} size={14} /><span>{p().name}</span></>}
+        <Show when={project()} fallback={<>{props.thread.mode === "code" ? <IconMonitor size={14} /> : <IconChat size={14} />}<span>{props.thread.mode === "code" ? "Kode · Denne datamaskinen" : chatProject() ? `Chat · ${chatProject()!.name}` : "Chat uten prosjekt"}</span></>}>
+          {(p) => <><ProjectGlyph project={p()} size={14} /><span>{p().name}</span><span class="hover-card-mode">Kode</span></>}
         </Show>
       </div>
       <div class="hover-card-row muted hover-card-facts">
@@ -122,7 +124,7 @@ function ProjectCard(props: { project: Project }) {
         <span class="hover-card-title">{props.project.name}</span>
         <Show when={props.project.pinned}><span class="hover-card-age" title="Festet"><IconPin size={13} /></span></Show>
       </div>
-      <div class="hover-card-row"><IconChat size={14} /><span>{count()} {count() === 1 ? "chat" : "chatter"}</span></div>
+      <div class="hover-card-row"><IconCode size={14} /><span>{count()} {count() === 1 ? "tråd" : "tråder"} i Kode</span></div>
       <div class="hover-card-sep" />
       <div class="hover-card-row path"><IconFolder size={14} /><bdo dir="ltr">{props.project.path}</bdo></div>
       <div class="hover-card-sep" />
@@ -133,18 +135,38 @@ function ProjectCard(props: { project: Project }) {
   );
 }
 
+function ChatProjectCard(props: { project: ChatProject }) {
+  const count = createMemo(() => Object.values(app.threads).filter((thread) => thread && !thread.archived && !thread.temporary && thread.mode === "chat" && !thread.projectId && thread.chatProjectId === props.project.id).length);
+  const rename = async () => {
+    hideHoverCard();
+    await renameChatProject(props.project);
+  };
+  return <>
+    <div class="hover-card-head"><ProjectGlyph project={props.project} size={15} /><span class="hover-card-title">{props.project.name}</span><Show when={props.project.pinned}><span class="hover-card-age" title="Festet"><IconPin size={13} /></span></Show></div>
+    <div class="hover-card-row"><IconChat size={14} /><span>{count()} {count() === 1 ? "chat" : "chatter"} i Chat</span></div>
+    <div class="hover-card-row muted hover-card-note"><span>Samler samtaler, uten prosjektmappe på disken.</span></div>
+    <div class="hover-card-sep" />
+    <button type="button" class="hover-card-action" onClick={() => void rename()}><IconSettings size={14} />Gi prosjektet nytt navn</button>
+  </>;
+}
+
 export function HoverCardHost() {
   // The card belongs to a row in the sidebar. When the window changes size, or the sidebar closes
   // and takes the row with it, the card goes too, instead of hanging where the row was.
   createEffect(() => {
-    if (!card()) return;
+    const target = card();
+    if (!target) return;
     const hide = () => hideHoverCard();
+    const observe = new MutationObserver(() => { if (!target.anchor.isConnected) hide(); });
+    observe.observe(document.querySelector(".sidebar") ?? document.body, { childList: true, subtree: true });
     addEventListener("resize", hide);
-    onCleanup(() => removeEventListener("resize", hide));
+    addEventListener("scroll", hide, true);
+    onCleanup(() => { removeEventListener("resize", hide); removeEventListener("scroll", hide, true); observe.disconnect(); });
   });
   createEffect(() => {
-    if (!sidebarOpen()) hideHoverCard();
+    if (!sidebarOpen() || settingsOpen()) hideHoverCard();
   });
+  createEffect(on(scope, hideHoverCard, { defer: true }));
   const place = (el: HTMLElement) => {
     const target = card();
     if (!target) return;
@@ -165,18 +187,20 @@ export function HoverCardHost() {
       {(target) => {
         const thread = target.kind === "thread" ? app.threads[target.id] : undefined;
         const project = target.kind === "project" ? app.projects[target.id] : undefined;
-        if (!thread && !project) return null;
+        const chatProject = target.kind === "chat-project" ? app.chatProjects[target.id] : undefined;
+        if (!thread && !project && !chatProject) return null;
         return (
           <Portal>
             <div
               ref={place}
               class="popover hover-card"
-              role="tooltip"
+              role="group"
+              aria-label={thread ? "Om tråden" : "Om prosjektet"}
               data-testid={`hover-card-${target.kind}`}
               onPointerEnter={() => clearTimeout(hideTimer)}
               onPointerLeave={hoverOut}
             >
-              {thread ? <ThreadCard thread={thread} /> : <ProjectCard project={project!} />}
+              {thread ? <ThreadCard thread={thread} /> : project ? <ProjectCard project={project} /> : <ChatProjectCard project={chatProject!} />}
             </div>
           </Portal>
         );

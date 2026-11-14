@@ -170,6 +170,11 @@ interface Saved {
   detached?: Detached[];
 }
 
+// Startup is local to this window: do not overwrite another window's saved grid merely by opening
+// the app. Explicit thread links and reload still restore their requested layout.
+let freshStartupScope: string | null = null;
+export function prepareFreshGrid(scope: string): void { freshStartupScope = scope; }
+
 function validNode(node: any): node is GridNode {
   if (node?.t === "pane") return typeof node.id === "string";
   return node?.t === "split" && Array.isArray(node.kids) && node.kids.length > 0 && node.kids.every(validNode);
@@ -191,6 +196,7 @@ export class Grid {
   private saveTimer?: ReturnType<typeof setTimeout>;
   private retryArmed = false;
   private pending = false; // a change waits for scheduleSave's timer
+  private loadGeneration = 0;
   loaded: Promise<void>;
 
   constructor(scope: string) {
@@ -228,13 +234,28 @@ export class Grid {
   }
 
   private async load(): Promise<void> {
+    if (freshStartupScope === this.scope) { freshStartupScope = null; return; }
+    const generation = this.loadGeneration;
     try {
       const { layout } = await get<{ layout: Saved | null }>(`/api/projects/${this.scope}/layout`);
+      if (generation !== this.loadGeneration) return;
       if (layout && validNode(layout.root)) this.applySaved(layout);
       else this.openLatest();
     } catch (err) {
       report(err);
     }
+  }
+
+  freshView(): void {
+    this.loadGeneration++;
+    clearTimeout(this.saveTimer);
+    this.pending = false;
+    const pane = newPane();
+    this.states.clear();
+    this.setRoot(pane);
+    this.setFocused(pane.id);
+    this.setDetached([]);
+    this.lastJson = "";
   }
 
   // A project without a stored layout opens on its most recent thread.

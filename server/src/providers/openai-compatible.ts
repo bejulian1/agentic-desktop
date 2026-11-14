@@ -1,7 +1,7 @@
 // OpenAI-style chat completions: OpenRouter, OpenAI, Ollama, LM Studio, Groq and others.
 import { getJson, mergeRoles, parseToolInput, postSse, redact } from "./http.ts";
 import { ProviderError, type Block, type Message, type Provider, type ProviderRequest, type StopReason, type StreamPart } from "./types.ts";
-import type { WebSource } from "../../../shared/protocol.ts";
+import { isOpenRouter, type WebSource } from "../../../shared/protocol.ts";
 
 export interface OpenAiOptions {
   baseUrl: string;
@@ -38,7 +38,10 @@ export function toOpenAiMessages(system: string, messages: Message[], supportsIm
     const images: unknown[] = [];
     for (const block of message.content) {
       if (block.type !== "tool_result") continue;
-      out.push({ role: "tool", tool_call_id: block.toolUseId, content: block.content });
+      const content = block.image && !supportsImages
+        ? `${block.content}\n\n[Verktøyet laget et bilde, men modellen er ikke satt opp for bilder. Bildet er ikke videresendt; du har bare tekstdelen av resultatet.]`
+        : block.content;
+      out.push({ role: "tool", tool_call_id: block.toolUseId, content });
       if (block.image && supportsImages) {
         images.push({ type: "image_url", image_url: { url: `data:${block.image.mime};base64,${block.image.base64}` } });
       }
@@ -83,9 +86,7 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
       ...(model.maxOutputTokens ? { max_tokens: model.maxOutputTokens } : {}),
       // Round 13 (SPEC 27.2): the provider's own web search, for models that have it.
       ...(request.webSearch ? { web_search_options: {} } : {}),
-      // Only sent when chosen, since not every server knows it. OpenAI's scale stops at high.
-      // "none" is not offered for these servers (effortSteps), and is left out if set with /reasoning.
-      ...(model.effort && model.effort !== "none" ? { reasoning_effort: model.effort === "xhigh" || model.effort === "max" ? "high" : model.effort } : {}),
+      ...reasoningOptions(baseUrl, model.effort),
     };
 
     const calls = new Map<number, PendingCall>();
@@ -191,4 +192,10 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
       return { ok: true, message: count ? `Tilkoblingen virker, ${count} modeller` : "Tilkoblingen virker" };
     },
   };
+}
+
+export function reasoningOptions(baseUrl: string, effort: ProviderRequest["model"]["effort"]): object {
+  if (!effort) return {};
+  if (isOpenRouter(baseUrl)) return { reasoning: { effort } };
+  return effort === "none" ? {} : { reasoning_effort: effort === "xhigh" || effort === "max" ? "high" : effort };
 }

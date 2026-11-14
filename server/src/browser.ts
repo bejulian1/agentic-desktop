@@ -1,10 +1,10 @@
 // One headless Chrome with its own profile, and pages per project: one per tab in the Browser panel.
 // The user's panel (screencast and input over CDP) and the agent's tools act on the same pages; the
-// agent uses the tab the panel showed last. Chrome starts on first use and closes when nobody has
+// agent uses its own thread tab. Chrome starts on first use and closes when nobody has
 // used it for a while.
 //
 // Round 10 (SPEC 23.1): tabs. The first tab has the id "" and is the page every project had before,
-// so nothing changes for the agent until a second tab is opened. Each tab's favicon is read from the
+// for older callers. Each tab's favicon is read from the
 // page's own <link rel=icon> (or /favicon.ico) and sent as a small data URL.
 //
 // Web search and web reading for the model (round 13) do not use this Chrome: its profile holds the
@@ -16,13 +16,16 @@
 // process (browser-panel.ts), and everything below works the same on both, except that a panel in
 // the Electron window shows the page itself and needs no frames. playwright-core is loaded on
 // first use, not when the server starts.
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Browser, BrowserContext, CDPSession, ConnectOverCDPTransport, Locator, Page } from "playwright-core";
-import type { BrowserInput, BrowserState, BrowserTabInfo, ServerMessage } from "../../shared/protocol.ts";
+import type { BrowserAnnotationSnapshot, BrowserInput, BrowserState, BrowserTabInfo, ServerMessage } from "../../shared/protocol.ts";
+import { annotationElements } from "./annotation-snapshot.ts";
 import type { BrowserTools } from "./agent/tools.ts";
 import type { ImportedCookies } from "./browser-cookies.ts";
 import { HttpError } from "./errors.ts";
+import { LOCAL_PANEL } from "./paths.ts";
 import type { Downloads } from "./downloads.ts";
 import { connectPanel, panelAvailable } from "./browser-panel.ts";
 
@@ -114,7 +117,8 @@ export class BrowserManager implements BrowserTools {
   private agentAt = 0; // when the agent last used the browser
   private launching?: Promise<BrowserContext>;
   private sessions = new Map<string, Promise<Session>>(); // by keyOf(projectId, tabId), in the order the tabs were opened
-  private activeTabs = new Map<string, string>(); // the tab each project's panel showed last, which the agent uses
+  private activeTabs = new Map<string, string>(); // the tab each project's panel showed last
+  private threadOwners = new Map<string, string>(); // by project/tab key; survives tab recreation
   private watchers = new Map<string, Set<BrowserClient>>(); // panels open per project, for the list of tabs
   private faviconCache = new Map<string, string | null>();
   private pagesInUse = new Set<Page>();
@@ -127,6 +131,25 @@ export class BrowserManager implements BrowserTools {
 
   constructor(options: BrowserOptions) {
     this.options = { ...options, panel: options.panel ?? (panelAvailable() ? () => connectPanel() : undefined) };
+  }
+
+  // A model owns one deterministic tab per project/thread. It remains a normal, visible panel
+  // tab; selecting another tab only changes the user's view. Legacy callers retain panel behavior.
+  forThread(projectId: string, threadId: string): BrowserTools {
+    if (projectId === LOCAL_PANEL) throw new HttpError(403, "Nettleseren uten prosjekt brukes bare av brukeren");
+    const tabId = `thread-${createHash("sha256").update(threadId).digest("hex").slice(0, 32)}`;
+    this.threadOwners.set(keyOf(projectId, tabId), threadId);
+    const active = () => { this.agentAt = Date.now(); };
+    return {
+      navigate: (_project, url) => { active(); return this.navigate(projectId, url, tabId); },
+      snapshot: () => this.snapshot(projectId, tabId),
+      click: (_project, target) => this.click(projectId, target, tabId),
+      type: (_project, target, value, submit) => this.type(projectId, target, value, submit, tabId),
+      screenshot: () => { active(); return this.screenshot(projectId, tabId); },
+      console: () => this.console(projectId, tabId),
+      signedInSite: (_project, _thread, url) => this.signedInSite(projectId, threadId, url, tabId),
+      grantSignedIn: (_thread, site) => this.grantSignedIn(threadId, site),
+    };
   }
 
   get running(): boolean {
@@ -203,14 +226,14 @@ export class BrowserManager implements BrowserTools {
     return session;
   }
 
-  // The tab the agent and the panel's commands without a tab use.
+  // Panel commands and legacy callers without a tab use the last panel selection.
   private tabFor(projectId: string, tabId?: string): string {
     return tabId === undefined ? (this.activeTabs.get(projectId) ?? "") : cleanTabId(tabId);
   }
 
   private async createSession(projectId: string, tabId: string): Promise<Session> {
     const context = await this.launch();
-    const page = context.pages().find((candidate) => !this.pagesInUse.has(candidate)) ?? (await context.newPage());
+    const page = context.pages().find((candidate) => !candidate.isClosed() && !this.pagesInUse.has(candidate)) ?? (await context.newPage());
     this.pagesInUse.add(page);
     const cdp = await context.newCDPSession(page);
     const session: Session = { projectId, tabId, key: keyOf(projectId, tabId), page, cdp, viewers: new Set(), frameViewers: new Set(), console: [], screencasting: false, loading: false, pushing: false, pushAgain: false, ...DEFAULT_SIZE };
@@ -390,7 +413,7 @@ export class BrowserManager implements BrowserTools {
   // One at a time, with another round if something happened meanwhile, so the last state a
   // viewer gets is always a fresh one.
   private async pushState(session: Session): Promise<void> {
-    if (!session.viewers.size) return;
+    if (!session.viewers.size) return this.pushTabs(session.projectId);
     session.pushAgain = true;
     if (session.pushing) return;
     session.pushing = true;
@@ -412,7 +435,7 @@ export class BrowserManager implements BrowserTools {
     const tabs: BrowserTabInfo[] = [];
     for (const s of all) {
       if (!s || s.page.isClosed()) continue;
-      tabs.push({ id: s.tabId, url: s.page.url(), title: await s.page.title().catch(() => ""), loading: s.loading, favicon: s.favicon });
+      tabs.push({ id: s.tabId, threadId: this.threadOwners.get(s.key), url: s.page.url(), title: await s.page.title().catch(() => ""), loading: s.loading, favicon: s.favicon });
     }
     return tabs;
   }
@@ -508,7 +531,7 @@ export class BrowserManager implements BrowserTools {
   }
 
   // A panel shows a tab: it gets that tab's frames and the project's list of tabs, and stops
-  // getting the frames of the tab it showed before. The agent follows to this tab.
+  // getting the frames of the tab it showed before. Thread tools keep their own tab.
   // Without a tab (a panel that has not shown one yet, after a reload), the one shown last.
   // inWindow: the panel is in the Electron window and shows the page itself, without frames, when
   // the pages are views there (SPEC 29.3). Any other panel gets frames, from either kind of page.
@@ -534,7 +557,7 @@ export class BrowserManager implements BrowserTools {
     this.pushTabs(projectId);
   }
 
-  // A tab closed from the panel. The agent moves to the tab the panel shows next.
+  // A tab closed from the panel. Thread tools recreate their own tab on the next use.
   async closeTab(projectId: string, tabId: string): Promise<void> {
     const tab = cleanTabId(tabId);
     const session = await this.sessions.get(keyOf(projectId, tab))?.catch(() => null);
@@ -546,7 +569,8 @@ export class BrowserManager implements BrowserTools {
     if (!session) return this.pushTabs(projectId);
     this.sessions.delete(session.key);
     this.ready.delete(session.key);
-    this.pagesInUse.delete(session.page);
+    // Keep the page claimed until its actual close event. A new thread/session can start while
+    // stopScreencast or page.close waits, and must never adopt this still-open closing page.
     if (session.screencasting) await session.cdp.send("Page.stopScreencast").catch(() => undefined);
     await session.page.close().catch(() => undefined);
     this.pushTabs(projectId);
@@ -684,11 +708,11 @@ export class BrowserManager implements BrowserTools {
     }, tabId);
   }
 
-  snapshot(projectId: string): Promise<string> {
+  snapshot(projectId: string, tabId?: string): Promise<string> {
     this.agentAt = Date.now();
     return this.use(projectId, async ({ page }) => {
       return `Side: ${page.url()}\nTittel: ${await page.title()}\n\n${await page.ariaSnapshot({ mode: "ai" })}`;
-    });
+    }, tabId);
   }
 
   private locate(page: Page, target: { ref?: string; text?: string }): Locator {
@@ -697,28 +721,38 @@ export class BrowserManager implements BrowserTools {
     throw new HttpError(400, "Oppgi ref eller text");
   }
 
-  click(projectId: string, target: { ref?: string; text?: string }): Promise<string> {
+  click(projectId: string, target: { ref?: string; text?: string }, tabId?: string): Promise<string> {
     this.agentAt = Date.now();
     return this.use(projectId, async ({ page }) => {
       await this.locate(page, target).click();
       return `Klikket. Siden er nå ${page.url()}`;
-    });
+    }, tabId);
   }
 
-  type(projectId: string, target: { ref?: string; text?: string }, value: string, submit: boolean): Promise<string> {
+  type(projectId: string, target: { ref?: string; text?: string }, value: string, submit: boolean, tabId?: string): Promise<string> {
     this.agentAt = Date.now();
     return this.use(projectId, async ({ page }) => {
       const locator = this.locate(page, target);
       await locator.fill(value);
       if (submit) await locator.press("Enter");
       return "Skrev inn teksten";
-    });
+    }, tabId);
   }
 
-  // The agent's tool takes the tab shown last; Annoter in the panel (round 11b) names its tab.
+  // Annoter and thread-bound tools name their tab; legacy calls use the panel selection.
   screenshot(projectId: string, tabId?: string): Promise<{ png: Buffer; url: string }> {
     if (tabId === undefined) this.agentAt = Date.now();
     return this.use(projectId, async ({ page }) => ({ png: await page.screenshot({ type: "png" }), url: page.url() }), tabId);
+  }
+
+  annotationSnapshot(projectId: string, tabId: string): Promise<BrowserAnnotationSnapshot> {
+    return this.use(projectId, async ({ page }) => {
+      const url = page.url();
+      const meta = await page.evaluate(annotationElements);
+      const png = await page.screenshot({ type: "png", scale: "css" });
+      if (page.url() !== url) throw new HttpError(409, "Siden ble endret. Åpne annotering på nytt.");
+      return { ...meta, url, pngBase64: png.toString("base64") };
+    }, tabId);
   }
 
   // Round 12 (SPEC 26.4): imported cookies. They wait in the data folder until Chrome runs; when it
@@ -733,10 +767,10 @@ export class BrowserManager implements BrowserTools {
   // The imported site the agent would act on, when the user wants to be asked first and has not
   // said yes to it in this thread. With a url, that address (browser_navigate); without, the page
   // the agent's tab shows now. The check is synchronous, from what is known about the page.
-  signedInSite(projectId: string, threadId: string, url?: string): string | null {
+  signedInSite(projectId: string, threadId: string, url?: string, tabId?: string): string | null {
     const cookies = this.options.cookies;
     if (!cookies || this.options.askSignedIn?.() === false) return null;
-    const address = url ?? this.ready.get(keyOf(projectId, this.tabFor(projectId)))?.page.url();
+    const address = url ?? this.ready.get(keyOf(projectId, this.tabFor(projectId, tabId)))?.page.url();
     const site = address ? cookies.siteFor(address) : null;
     if (!site || this.signedInGrants.has(`${threadId}\u0001${site}`)) return null;
     return site;
@@ -752,9 +786,9 @@ export class BrowserManager implements BrowserTools {
     for (const key of this.signedInGrants) if (key.endsWith(`\u0001${site}`)) this.signedInGrants.delete(key);
   }
 
-  console(projectId: string): Promise<string> {
+  console(projectId: string, tabId?: string): Promise<string> {
     this.agentAt = Date.now();
-    return this.use(projectId, async (session) => session.console.join("\n") || "(ingen meldinger)");
+    return this.use(projectId, async (session) => session.console.join("\n") || "(ingen meldinger)", tabId);
   }
 }
 

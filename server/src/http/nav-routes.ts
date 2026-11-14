@@ -107,6 +107,17 @@ export function navRoutes(route: Route, deps: ApiDeps, h: { project: (id: string
 
   route("GET", "/api/thread-stats", () => store.threadDiffStats());
 
+  // Full, bundled history. Rendered as escaped text; never executes markdown/HTML.
+  route("GET", "/api/releases", () => {
+    try {
+      const text = readFileSync(path.join(REPO_ROOT, "docs/PATCHLOG.md"), "utf8");
+      return { entries: text.split(/^## /m).slice(1).map(section => {
+        const end = section.indexOf("\n");
+        return { title: (end < 0 ? section : section.slice(0, end)).trim(), body: end < 0 ? "" : section.slice(end + 1).trim() };
+      }) };
+    } catch { return { entries: [] }; }
+  });
+
   // Hva er nytt in the profile menu: the newest entries of docs/PATCHLOG.md, read as text.
   route("GET", "/api/whatsnew", () => {
     let text = "";

@@ -50,9 +50,10 @@ async function openBeside(originalId: string, thread: Thread): Promise<void> {
   if (!pane || !grid.split(pane.id, "right", thread.id)) await openThread(thread);
 }
 
-export async function sideChat(thread: Thread): Promise<void> {
+export async function sideChat(thread: Thread, onCreated?: (side: Thread) => void): Promise<void> {
   try {
     const side = await post<Thread>("/api/threads", { projectId: thread.projectId, mode: thread.mode, sideOf: thread.id });
+    onCreated?.(side);
     await openBeside(thread.id, side);
   } catch (err) {
     report(err);

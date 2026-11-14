@@ -1,0 +1,4 @@
+.model-context-location { gap: 10px; }
+.model-context-location .field { width: 100%; }
+.model-context-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.model-context-error { color: var(--danger); overflow-wrap: anywhere; }

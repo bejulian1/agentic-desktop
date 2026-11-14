@@ -11,7 +11,7 @@ import { javascript } from "@codemirror/lang-javascript";
 const GROUP_MS = 600;
 
 const theme = EditorView.theme({
-  "&": { height: "100%", fontSize: "var(--code-font-size, 12.5px)", backgroundColor: "transparent", color: "var(--text)" },
+  "&": { height: "100%", fontSize: "var(--code-font-size, 12.5px)", backgroundColor: "var(--code-bg, transparent)", color: "var(--code-fg, var(--text))" },
   ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.55", overflow: "auto" },
   ".cm-gutters": { backgroundColor: "transparent", color: "var(--text-3)", border: "none" },
   ".cm-activeLine": { backgroundColor: "var(--hover)" },

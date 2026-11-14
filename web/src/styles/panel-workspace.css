@@ -1,0 +1,28 @@
+/* The shared row opens tools; actions inside each tool name the resource they create. */
+.panel-workspace-bar { gap: 5px; padding: 0 6px; height: 39px; border-bottom: 1px solid var(--border); }
+.panel-workspace-bar > .panel-tabs { height: 38px; gap: 3px; }
+.panel-workspace-label { display: flex; align-items: center; gap: 7px; padding: 0 7px; color: var(--text-3); font-size: var(--text-xs); }
+.panel-tool-tab { flex: none; min-width: 0; max-width: 180px; display: flex; align-items: center; height: 28px; border: 1px solid transparent; border-radius: 7px; color: var(--text-3); }
+.panel-tool-tab:hover { background: var(--hover); }
+.panel-tool-tab.selected { background: var(--surface); border-color: transparent; color: var(--text); }
+.panel-workspace .panel-tool-tab .panel-tab { min-width: 0; height: 26px; padding: 0 6px 0 8px; gap: 6px; background: transparent; font-size: var(--text-xs); color: inherit; }
+.panel-workspace .panel-tab > .icon { display: block; flex: none; width: 13px; height: 13px; }
+.panel-workspace .panel-tab > span { display: block; overflow: hidden; text-overflow: ellipsis; max-width: 106px; }
+.panel-workspace .panel-tool-close { flex: none; width: 21px; height: 22px; margin-right: 2px; border-radius: 4px; color: var(--text-3); }
+.panel-workspace .panel-tool-close:hover { color: var(--text); background: var(--surface-3); }
+.panel-workspace .panel-add-tool { flex: none; width: 28px; height: 28px; border-radius: 7px; }
+.panel-add-tool[aria-pressed="true"] { background: var(--active); color: var(--text); }
+.panel-workspace-divider { height: 15px; border-left: 1px solid var(--border); flex: none; margin-inline: 2px; }
+.panel-workspace-bar > .panel-close { margin-left: 0; width: 26px; height: 28px; }
+.panel-workspace > .panel-body { border-top: 0; }
+.panel-stack-surface { display: flex; flex: 1; min-height: 0; }
+.panel-stack-surface[hidden] { display: none; }
+.panel-retained-tool { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.panel-retained-tool > * { flex: 1; height: 100%; }
+.panel-retained-tool[hidden] { display: none; }
+.panel-new-sessions { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.panel-new-sessions button { flex: 1; justify-content: center; gap: 7px; min-height: 33px; white-space: nowrap; }
+.terminal-new { flex: none; min-height: 25px; margin-left: 5px; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; font-size: var(--text-xs); color: var(--text-2); white-space: nowrap; }
+.terminal-new:hover { color: var(--text); background: var(--hover); }
+.terminal-new:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.stack-tabs .terminal-new { min-height: 23px; padding-inline: 6px; font-size: 11px; }

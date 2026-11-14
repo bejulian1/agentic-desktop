@@ -19,6 +19,11 @@
 .thread-item.menu-open { background: var(--hover); color: var(--text); }
 .thread-item.menu-open .thread-menu { display: inline-flex; }
 .thread-item.menu-open .thread-time { display: none; }
+.thread-item .thread-pin { display: none; flex: none; width: 24px; height: 24px; }
+.thread-item:hover .thread-pin, .thread-item:focus-within .thread-pin, .thread-item.menu-open .thread-pin, .thread-item.pinned .thread-pin { display: inline-flex; }
+.thread-item:focus-within .thread-menu { display: inline-flex; }
+.thread-item:focus-within .thread-time, .thread-item.pinned .thread-time { display: none; }
+.thread-item .thread-pin[aria-pressed="true"] { color: var(--accent-text); }
 
 /* 2. Hover cards beside the sidebar */
 
@@ -700,3 +705,10 @@
   .sidebar-rail { display: none; }
   .app.rail-open .topbar-mode { display: flex; }
 }
+
+/* Keep the project controls visible while their context menu owns focus. */
+.group-head:has(.group-actions.open) { background: var(--hover); border-radius: var(--radius-md); }
+.hover-card-mode { margin-left: auto; color: var(--text-3); font-size: var(--text-xs); }
+.project-context-menu .menu-name { white-space: nowrap; }
+
+.hover-card-row.hover-card-note span { white-space: normal; line-height: var(--leading-tight); padding-block: 4px; }

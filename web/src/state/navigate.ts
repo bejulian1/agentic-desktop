@@ -6,6 +6,7 @@ import { post } from "../lib/api";
 import { LOCAL_SCOPE, projectOfScope, refreshProject, report, scopeOf, setMode, setProjectId } from "./app";
 import { gridFor } from "./grid";
 import { loadModel, peekModel } from "./thread-model";
+import { markSeen } from "./home";
 import { focusDetachedWindow } from "./windows";
 
 export function preloadThread(id: string): void {
@@ -15,6 +16,7 @@ export function preloadThread(id: string): void {
 // Each open is numbered. Loading takes a moment, so two quick clicks can come back in the wrong
 // order: only the newest may change the view, or a pane jumps back to the thread clicked first.
 let opening = 0;
+export function cancelPendingThreadOpen(): void { opening++; }
 
 export async function openThread(thread: Thread): Promise<void> {
   const seq = ++opening;
@@ -28,6 +30,7 @@ export async function openThread(thread: Thread): Promise<void> {
   const grid = gridFor(target);
   await grid.loaded;
   if (seq !== opening) return;
+  markSeen(thread.id, true);
   if (focusDetachedWindow(grid, thread.id)) return;
   showScope(target);
   grid.open(thread.id);

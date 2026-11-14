@@ -3,11 +3,14 @@
 // own file, with «Gjenopprett standard» that shows the difference and keeps a backup first; and a
 // preview of the whole system prompt, layer by layer, with tokens, exactly as a new thread gets it.
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
-import type { DiffLineInfo, GlobalConfig, HarnessInfo, HarnessPartInfo, PromptLayerInfo } from "../../../../shared/protocol";
+import type { DiffLineInfo, GlobalConfig, HarnessInfo, HarnessPartInfo, ProjectConfig, PromptLayerInfo } from "../../../../shared/protocol";
+import { modelContextOf } from "../../../../shared/protocol";
+import { ModelContextSettings } from "./model-context";
 import { get, patch, post, put } from "../../lib/api";
 import { app, currentProject, report, sortedProjects, toast } from "../../state/app";
 import { IconChevronDown, IconCopy, IconReset } from "../icons";
 import { Select } from "../Select";
+import { openProjectSettings } from "../ProjectSettings";
 import { Group, Page, Row, Segmented, SkeletonRows } from "./parts";
 
 interface Preview {
@@ -67,7 +70,44 @@ function PartRow(props: { part: HarnessPartInfo; busy: boolean; onChange: (on: b
   );
 }
 
+// File configuration and the harness share one AGENTS.md editor below.
+function ConfigurationGroups() {
+  const [config] = createResource(() => get<GlobalConfig>("/api/config"));
+  const project = currentProject;
+  const [projectConfig] = createResource(() => project()?.id, (id) => get<ProjectConfig>(`/api/projects/${id}/config`));
+  const json = (value: unknown) => JSON.stringify(value ?? {}, null, 2);
+  return (
+    <>
+      <Group title="Global settings.json">
+        <div class="setting setting-block">
+          <span class="muted">Globale innstillinger ligger i <code>{config()?.dir ?? "…"}</code>. <code>model</code>, <code>permissionMode</code> og <code>personality</code> kan redigeres i filen og leses ved neste tråd i Kode.</span>
+          <pre class="code-view">{json(config()?.settings)}</pre>
+          <Show when={config()?.settingsError}><p class="form-error">{config()!.settingsError}</p></Show>
+        </div>
+      </Group>
+      <Show when={project()}>
+        <Group title={`Prosjektet ${project()!.name}`} action={<button type="button" class="btn btn-small" onClick={() => openProjectSettings(project()!.id)}>Rediger prosjekt…</button>}>
+          <Row label=".agentic/AGENTS.md" text={projectConfig()?.project.agentsMd ? `${projectConfig()!.project.agentsMd!.length} tegn` : "Finnes ikke. Lag den i Rediger prosjekt → Agent, eller med /init."} />
+          <Row label="Det modellen leser, i rekkefølge" text={projectConfig()?.instructionFiles.length ? projectConfig()!.instructionFiles.join(", ") : "Ingen instruksjonsfiler"} />
+          <div class="setting setting-block">
+            <span class="muted">Gjeldende innstillinger for prosjektet. Prosjektets <code>.agentic/</code> går foran de globale innstillingene.</span>
+            <pre class="code-view">{json(projectConfig()?.effective)}</pre>
+          </div>
+        </Group>
+      </Show>
+    </>
+  );
+}
+
 export function HarnessPage() {
+  let baseSection!: HTMLElement;
+  let instructionsSection!: HTMLElement;
+  let filesSection!: HTMLElement;
+  let previewSection!: HTMLElement;
+  const jumpTo = (element: HTMLElement) => {
+    element.scrollIntoView({ block: "start" });
+    element.focus({ preventScroll: true });
+  };
   const [info, { mutate }] = createResource(() => get<HarnessInfo>("/api/harness"));
   const [busy, setBusy] = createSignal(false);
   const [text, setText] = createSignal<string | null>(null);
@@ -77,7 +117,7 @@ export function HarnessPage() {
   const [projectId, setProjectId] = createSignal<string>(currentProject()?.id ?? sortedProjects()[0]?.id ?? "");
   const [previewKey, setPreviewKey] = createSignal(0);
   const [preview] = createResource(
-    () => ({ mode: mode(), projectId: projectId(), key: previewKey() }),
+    () => ({ mode: mode(), projectId: projectId(), key: previewKey(), context: JSON.stringify(modelContextOf(app.settings, mode())) }),
     ({ mode, projectId }) => get<Preview>(`/api/harness/preview?mode=${mode}${mode === "code" && projectId ? `&projectId=${encodeURIComponent(projectId)}` : ""}`),
   );
   const agentsText = () => text() ?? info()?.agents.text ?? "";
@@ -146,9 +186,17 @@ export function HarnessPage() {
 
   return (
     <Page
-      title="Kode-harness"
-      intro="Det modellen alltid får i Kode, lag på lag: en innebygd grunn, miljøet appen setter inn, din globale AGENTS.md, prosjektets instruksjoner, minner og skills. Chat har sin egen personalisering."
+      title="Konfigurasjon"
+      intro="Instruksjoner, innstillinger og kode-harness samlet: grunnreglene, konteksten, global AGENTS.md og prosjektets konfigurasjon. Dette gjelder Kode. Chat har egne instruksjoner under Personalisering og minner."
     >
+      <nav class="settings-group memory-actions" style={{ "flex-wrap": "wrap" }} aria-label="Deler av konfigurasjonen">
+        <button type="button" class="btn btn-small" onClick={() => jumpTo(baseSection)}>Grunn-harness</button>
+        <button type="button" class="btn btn-small" onClick={() => jumpTo(instructionsSection)}>Instruksjoner</button>
+        <button type="button" class="btn btn-small" onClick={() => jumpTo(filesSection)}>Filer og prosjekt</button>
+        <button type="button" class="btn btn-small" onClick={() => jumpTo(previewSection)}>Forhåndsvisning</button>
+      </nav>
+      <section ref={baseSection} tabindex="-1" aria-label="Grunn-harness og kontekst">
+      <ModelContextSettings mode="code" />
       <Show when={info()} fallback={<SkeletonRows label="Henter harnessen…" />}>
         <Group
           title="Grunn-harness"
@@ -173,6 +221,10 @@ export function HarnessPage() {
           <For each={info()!.parts}>{(part) => <PartRow part={part} busy={busy()} onChange={(on) => void setPart(part, on)} />}</For>
         </Group>
 
+        </Show>
+      </section>
+      <section ref={instructionsSection} tabindex="-1" aria-label="Instruksjoner">
+      <Show when={info()}>
         <Group
           title="Global AGENTS.md"
           action={
@@ -199,7 +251,7 @@ export function HarnessPage() {
           </Show>
           <div class="setting setting-block">
             <span class="muted">
-              Dine egne regler for alle prosjekter, i <code>{info()!.agents.file}</code>. {info()!.agents.text === null ? "Fila finnes ikke nå." : info()!.agents.isDefault ? "Dette er standardinnholdet appen la inn." : "Endret av deg."} Prosjektets egen AGENTS.md går foran.
+              Instruksjoner for alle prosjekter i Kode, i <code>{info()!.agents.file}</code>. {info()!.agents.text === null ? "Fila finnes ikke nå." : info()!.agents.isDefault ? "Dette er standardinnholdet appen la inn." : "Endret av deg."} Prosjektets egen AGENTS.md går foran.
             </span>
             <textarea
               class="input code-area harness-agents"
@@ -217,6 +269,12 @@ export function HarnessPage() {
         </Group>
       </Show>
 
+      </section>
+      <section ref={filesSection} tabindex="-1" aria-label="Filer og prosjekt">
+        <ConfigurationGroups />
+      </section>
+      <section ref={previewSection} tabindex="-1" aria-label="Forhåndsvisning">
+
       <Group
         title="Forhåndsvisning"
         action={
@@ -231,12 +289,12 @@ export function HarnessPage() {
           <div class="setting-control">
             <Segmented<"code" | "chat"> label="Forhåndsvis modus" value={mode()} options={[{ value: "code", label: "Kode" }, { value: "chat", label: "Chat" }]} onChange={setMode} />
             <Show when={mode() === "code" && sortedProjects().length}>
-              <Select<string> label="Prosjekt" value={projectId()} options={sortedProjects().map((p) => ({ value: p.id, label: p.name }))} onChange={setProjectId} />
+              <Select<string> label="Prosjekt" value={projectId()} options={[{ value: "", label: "Ingen prosjekt valgt" }, ...sortedProjects().map((p) => ({ value: p.id, label: p.name }))]} onChange={setProjectId} />
             </Show>
           </div>
         </div>
-        <Show when={mode() === "code" && !sortedProjects().length}>
-          <div class="setting"><span class="muted">Kode trenger et prosjekt. Legg til et prosjekt for å se hele harnessen; under vises Chat-grunnen.</span></div>
+        <Show when={mode() === "code" && !projectId()}>
+          <div class="setting"><span class="muted">Du er i Kode uten et valgt prosjekt. Modellen kan svare på spørsmål, men får ingen fil- eller kommandoverktøy. Velg et prosjekt når oppgaven trenger det.</span></div>
         </Show>
         <Show when={preview()} fallback={<SkeletonRows label="Bygger systemprompten…" count={4} />}>
           {(p) => (
@@ -270,6 +328,7 @@ export function HarnessPage() {
           )}
         </Show>
       </Group>
+      </section>
       <p class="muted small memory-files">
         Grunn-harnessen er versjon {info()?.version ?? "…"} og ligger i appen{app.build ? ` (v${app.build.version})` : ""}. Den kan slås av i deler, men ikke skrives om. Valgene lagres i datamappen.
       </p>

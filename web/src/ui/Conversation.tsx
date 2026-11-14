@@ -2,7 +2,7 @@
 // line of scroll code: it opens at the bottom on the first frame, it stays pinned there while text
 // grows, and loading older messages above does not move what is on screen. Nothing listens to
 // scroll events. Position is read by an IntersectionObserver.
-import { createEffect, createMemo, createSelector, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSelector, createSignal, createUniqueId, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { frameBudget } from "../lib/frame";
 import { motionOff } from "./Motion";
 import { observeResize } from "../lib/resize";
@@ -18,11 +18,13 @@ import { openThread } from "../state/navigate";
 import { registerJumper } from "../state/message-jump";
 import { confirmDialog, promptDialog } from "./dialogs";
 import type { Thread } from "../../../shared/protocol";
+import { ResponseSelection } from "./ResponseSelection";
 
 // The pinned summary jumps to a chapter in the conversation of its pane (state/message-jump.ts).
 export { jumpToMessage } from "../state/message-jump";
 
 const MAX_TICKS = 80;
+const MIN_TIMELINE_MARKS = 4;
 
 // Markdown as plain text, for Kopier som tekst: the words without the marks around them.
 export function plainText(markdown: string): string {
@@ -48,22 +50,20 @@ interface Mark {
   kind: "user" | "answer";
   row: UserRow | TextRow;
   question: UserRow; // the question the mark belongs to, for what is in view
+  answer?: TextRow; // the latest answer text in this turn, for the paired preview
   n: number; // which question, from 1
 }
 
-// How far the dock reaches, in px from the pointer, and how much a mark under it grows.
-const DOCK_REACH = 56;
-
-// The timeline along the left edge (SPEC 21.5), in Chat and in Kode: a mark per message, yours a
-// little longer and brighter than the model's, the one in view lit up. Marks near the pointer grow
-// like a dock, a card shows the start of the message, and a click jumps there. What is in view
-// comes from an IntersectionObserver on the user rows, so scrolling itself runs no code here, and
-// the dock only writes one custom property per mark, on pointer moves over the timeline.
-function Timeline(props: { marks: Mark[]; current: string | null; jump: (row: Row) => void; chapter: (row: UserRow) => string | undefined; modelName: string }) {
-  const [hover, setHover] = createSignal<{ mark: Mark; top: number } | null>(null);
-  let nav!: HTMLElement;
-  let frame = 0;
-  let pointerY: number | null = null;
+// Kode's quiet left-edge timeline: one tick per question and answer. Hover and keyboard focus
+// show the question with its answer; clicking still jumps to the individual message.
+function Timeline(props: { marks: Mark[]; current: string | null; jump: (row: Row) => void; chapter: (row: UserRow) => string | undefined }) {
+  const [hover, setHover] = createSignal<{ key: string; top: number } | null>(null);
+  const tooltipId = createUniqueId();
+  const hovered = createMemo(() => {
+    const shown = hover();
+    const mark = shown && props.marks.find((mark) => mark.row.key === shown.key);
+    return shown && mark ? { ...shown, mark } : null;
+  });
   const buckets = createMemo(() => {
     const marks = props.marks;
     if (marks.length <= MAX_TICKS) return marks.map((mark) => [mark]);
@@ -78,41 +78,17 @@ function Timeline(props: { marks: Mark[]; current: string | null; jump: (row: Ro
   // Counted once per change of the marks. Each mark used to count them itself, twice, every time the
   // mark in view changed: some 800 000 steps per change in a thread of 5 000 messages.
   const questions = createMemo(() => props.marks.reduce((n, m) => n + (m.kind === "user" ? 1 : 0), 0));
-  const dock = () => {
-    frame = 0;
-    const ticks = nav.querySelectorAll<HTMLElement>(".minimap-tick");
-    const top = nav.getBoundingClientRect().top;
-    for (const tick of ticks) {
-      if (pointerY === null || motionOff()) {
-        tick.style.removeProperty("--mag");
-        continue;
-      }
-      const center = tick.offsetTop + tick.offsetHeight / 2 + top;
-      const near = Math.max(0, 1 - Math.abs(center - pointerY) / DOCK_REACH);
-      if (near > 0) tick.style.setProperty("--mag", (near * near).toFixed(3));
-      else tick.style.removeProperty("--mag");
-    }
+  const answerText = (mark: Mark) => {
+    mark.answer?.rev(); // The open preview refreshes when the answer completes.
+    return shorten(mark.answer?.text ?? "", 360) || "Venter på svar …";
   };
-  const schedule = () => {
-    if (!frame) frame = requestAnimationFrame(dock);
-  };
-  onCleanup(() => cancelAnimationFrame(frame));
-  const text = (mark: Mark) => shorten(mark.row.text, 140) || (mark.kind === "user" ? "(vedlegg)" : "…");
   return (
     <nav
-      ref={nav}
       class="minimap"
       aria-label="Tidslinje"
       data-testid="minimap"
-      onPointerMove={(e) => {
-        pointerY = e.clientY;
-        schedule();
-      }}
-      onPointerLeave={() => {
-        pointerY = null;
-        schedule();
-        setHover(null);
-      }}
+      onPointerLeave={() => setHover(null)}
+      onKeyDown={(e) => { if (e.key === "Escape") setHover(null); }}
     >
       <For each={buckets()}>
         {(bucket, index) => {
@@ -128,20 +104,21 @@ function Timeline(props: { marks: Mark[]; current: string | null; jump: (row: Ro
               title={mark.kind === "user" && props.chapter(mark.row as UserRow) ? `Gå til kapittelet «${props.chapter(mark.row as UserRow)}»` : "Gå til meldingen"}
               aria-label={`${label()}: ${shorten(mark.row.text, 60)}`}
               aria-current={index() === currentIndex() ? "true" : undefined}
-              onPointerEnter={(e) => setHover({ mark, top: e.currentTarget.offsetTop + e.currentTarget.offsetHeight / 2 })}
-              onFocus={(e) => setHover({ mark, top: e.currentTarget.offsetTop + e.currentTarget.offsetHeight / 2 })}
+              aria-describedby={hovered()?.mark.row.key === mark.row.key ? tooltipId : undefined}
+              onPointerEnter={(e) => setHover({ key: mark.row.key, top: e.currentTarget.offsetTop + e.currentTarget.offsetHeight / 2 })}
+              onFocus={(e) => setHover({ key: mark.row.key, top: e.currentTarget.offsetTop + e.currentTarget.offsetHeight / 2 })}
               onBlur={() => setHover(null)}
               onClick={() => props.jump(mark.row)}
             />
           );
         }}
       </For>
-      <Show when={hover()} keyed>
+      <Show when={hovered()} keyed>
         {(shown) => (
-          <div class="minimap-card" role="tooltip" style={{ top: `${shown.top}px` }} data-testid="minimap-card" data-kind={shown.mark.kind}>
-            <Show when={shown.mark.kind === "user" && props.chapter(shown.mark.row as UserRow)}>{(name) => <div class="minimap-chapter">{name()}</div>}</Show>
-            <div class="minimap-who">{shown.mark.kind === "user" ? "Du" : props.modelName}</div>
-            <div class="minimap-question">{text(shown.mark)}</div>
+          <div id={tooltipId} class="minimap-card" role="tooltip" style={{ top: `${shown.top}px` }} data-testid="minimap-card">
+            <Show when={props.chapter(shown.mark.question)}>{(name) => <div class="minimap-chapter">{name()}</div>}</Show>
+            <div class="minimap-question">{shorten(shown.mark.question.text, 160) || "(vedlegg)"}</div>
+            <div class="minimap-answer">{answerText(shown.mark)}</div>
           </div>
         )}
       </Show>
@@ -226,7 +203,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
   const [current, setCurrent] = createSignal<string | null>(null);
   let userObserver: IntersectionObserver | undefined;
 
-  // Only built when there is more than one message to map. A thread of 5 000 rows rebuilds this
+  // A thread of 5 000 rows rebuilds this
   // when a row is added, never per token or per scroll.
   const users = createMemo(() => props.model.chunks().flatMap((chunk) => chunk.rows().filter((row): row is UserRow => row.kind === "user")));
   // The timeline's marks: each question, and the first text of the answer after it. Built when rows
@@ -234,17 +211,23 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
   const marks = createMemo(() => {
     const out: Mark[] = [];
     let question: UserRow | null = null;
-    let answered = true;
+    let questionMark: Mark | undefined;
+    let answerMark: Mark | undefined;
     let n = 0;
     for (const chunk of props.model.chunks()) {
       for (const row of chunk.rows()) {
         if (row.kind === "user") {
           question = row;
-          answered = false;
-          out.push({ kind: "user", row, question, n: ++n });
-        } else if (row.kind === "text" && question && !answered) {
-          answered = true;
-          out.push({ kind: "answer", row: row as TextRow, question, n });
+          answerMark = undefined;
+          questionMark = { kind: "user", row, question, n: ++n };
+          out.push(questionMark);
+        } else if (row.kind === "text" && question && questionMark) {
+          questionMark.answer = row;
+          if (!answerMark) {
+            answerMark = { kind: "answer", row, question, n };
+            out.push(answerMark);
+          }
+          answerMark.answer = row;
         }
       }
     }
@@ -332,16 +315,17 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
     return rewinding;
   };
   // What goes when a message is sent again fades out first, calmly, so the cut is seen (SPEC 21.8).
-  const fadeAfter = async (key: string) => {
+  const fadeAfter = async (key: string): Promise<() => void> => {
     const rowEl = scroller.querySelector<HTMLElement>(`.row-user[data-key="${CSS.escape(key)}"]`);
-    if (!rowEl || motionOff()) return;
+    if (!rowEl || motionOff()) return () => {};
     const gone: HTMLElement[] = [];
     for (const el of scroller.querySelectorAll<HTMLElement>(".row, .msg-actions, .chapter-mark, .now-line")) {
       if (rowEl.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING && !rowEl.contains(el)) gone.push(el);
     }
-    if (!gone.length) return;
+    if (!gone.length) return () => {};
     const animations = gone.map((el) => el.animate([{ opacity: 1 }, { opacity: 0, transform: "translateY(4px)" }], { duration: 280, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" }));
     await Promise.all(animations.map((a) => a.finished.catch(() => undefined)));
+    return () => animations.forEach((animation) => animation.cancel());
   };
   const [selected, setSelected] = createSignal<ReadonlySet<string>>(new Set());
   const selecting = createMemo(() => selected().size > 0);
@@ -361,8 +345,9 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
           });
           if (!ok) return;
         }
-        await fadeAfter(key);
-        await rewind(key, { text });
+        const restore = await fadeAfter(key);
+        try { await rewind(key, { text }); }
+        catch (err) { restore(); throw err; }
         setEditing(null);
       } catch (err) {
         report(err);
@@ -671,6 +656,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
 
   return (
     <div class="conversation" ref={root} classList={{ "chat-conversation": chat, busy: running(), "can-run": props.model.code && !!thread()?.projectId, selecting: selecting() }}>
+      <ResponseSelection root={() => root} thread={thread} selecting={selecting} />
       <Show when={selecting()}>
         <div
           class="select-bar"
@@ -694,7 +680,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
         <ConversationSearch model={props.model} root={() => scroller} jump={jump} onClose={() => setSearching(false)} register={(focus) => (focusSearch = focus)} />
       </Show>
       <Show when={thread()?.temporary}>
-        <div class="temp-banner" data-testid="temp-banner"><IconClock size={12} />Midlertidig chat. Lagres ikke, og slettes når du lukker den.</div>
+        <div class="temp-banner" data-testid="temp-banner"><IconClock size={12} />Midlertidig chat. Vises ikke i historikken, og slettes når du lukker den.</div>
       </Show>
       <Show when={regen()} keyed>
         {(menu) => (
@@ -749,9 +735,9 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
           <div ref={bottom} class="scroll-bottom" />
         </div>
       </div>
-      {/* From two messages: a question and its answer. Hidden in narrow panes (styles/kode.css). */}
-      <Show when={marks().length >= 2}>
-        <Timeline marks={marks()} current={current()} jump={jump} chapter={(row) => chapterOf(row.key) ?? turnChapters().get(row.key)} modelName={modelName(thread()?.modelId)} />
+      {/* From the fourth conversation message in Kode; tool and status rows do not count. */}
+      <Show when={props.model.code && marks().length >= MIN_TIMELINE_MARKS}>
+        <Timeline marks={marks()} current={current()} jump={jump} chapter={(row) => chapterOf(row.key) ?? turnChapters().get(row.key)} />
       </Show>
       <Show when={!atBottom()}>
         <button type="button" class="to-bottom" title="Til bunnen" aria-label="Til bunnen" onClick={() => (scroller.scrollTop = 0)}>

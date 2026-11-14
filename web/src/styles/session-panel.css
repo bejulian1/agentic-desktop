@@ -82,5 +82,11 @@
 .okt-finished { padding-left: var(--space-2); animation: ad-unfold var(--dur-2) var(--ease-out); }
 
 .okt-empty { margin: 0; padding: 6px var(--space-2); color: var(--text-3); font-size: var(--text-xs); }
+.okt-command { min-width: 0; margin: 4px var(--space-1); padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.okt-command .okt-stop { margin-left: auto; }
+.okt-command-input, .okt-command-output { max-height: 200px; margin: 4px; padding: 8px; overflow: auto; font-family: var(--font-mono); font-size: var(--text-xs); white-space: pre-wrap; overflow-wrap: anywhere; }
+.okt-command-input { color: var(--text); background: var(--surface-2); border-radius: var(--radius-xs); }
+.okt-command-output { color: var(--text-2); scrollbar-gutter: stable; }
+.okt-command .okt-note { padding: 0 4px 4px; }
 .okt-skeleton { display: flex; flex-direction: column; gap: 14px; padding: 12px var(--space-2); }
 .okt-skeleton .skeleton-line:nth-child(2n) { width: 70%; }

@@ -27,6 +27,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "thread.rename", label: "Gi tråden nytt navn", group: "Tråder", keys: "Mod+Alt+R" },
   { id: "thread.pin", label: "Fest eller løsne tråden", group: "Tråder", keys: "Mod+Alt+P" },
   { id: "thread.side", label: "Ny sidechat", group: "Tråder", keys: "Mod+Alt+S" },
+  { id: "thread.unread", label: "Merk som lest eller ulest", group: "Tråder", keys: "Mod+Shift+U" },
   { id: "thread.archive", label: "Arkiver tråden", group: "Tråder", keys: "Mod+Shift+A" },
   // v0.5, Innstillinger: each tab of the right panel. Ctrl+Alt and a digit is free in Chrome and GNOME.
   { id: "panel.files", label: "Vis Filer i panelet", group: "Panel", keys: "Mod+Alt+1" },

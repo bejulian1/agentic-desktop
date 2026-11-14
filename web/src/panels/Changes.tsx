@@ -1,28 +1,28 @@
 // Diff per turn, with Angre tur. Only rendered lines are the changed ones with some context, and
 // long diffs stop at a limit with a button for the rest.
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { get, post } from "../lib/api";
 import { diffLines, hunks } from "../lib/diff";
-import type { ChangedFile, TurnDiff } from "../../../shared/protocol";
+import type { ChangedFile, SummaryTurnChanges, TurnDiff } from "../../../shared/protocol";
 import { app, report } from "../state/app";
 import { openMiniEditor, preloadMiniEditor } from "../ui/MiniEditorHooks";
 import { IconPencil } from "../ui/icons";
 import { selectedTurn, setSelectedTurn } from "../state/panel";
 import { revertTurn } from "../state/project-actions";
-import { peekModel, type ChangesRow } from "../state/thread-model";
+import { on as onMessage } from "../lib/socket";
+import { FileChangeCounts } from "../ui/FileChangeCounts";
 
 const LINE_LIMIT = 1500;
 
 function FileDiff(props: { file: TurnDiff["files"][number]; turnId: string; threadId: string | null }) {
   const [limit, setLimit] = createSignal(LINE_LIMIT);
-  const lines = createMemo(() => hunks(diffLines(props.file.before, props.file.after)));
+  const lines = createMemo(() => props.file.binary ? [] : hunks(diffLines(props.file.before, props.file.after)));
   return (
     <div class="diff-file" data-testid="diff-file" data-path={props.file.path}>
       <div class="diff-file-head">
         <span class="diff-path">{props.file.path}</span>
         <span class="diff-kind">{props.file.change === "added" ? "ny" : props.file.change === "deleted" ? "slettet" : "endret"}</span>
-        <span class="diff-add">+{props.file.additions}</span>
-        <span class="diff-del">-{props.file.deletions}</span>
+        <FileChangeCounts file={props.file} />
         <Show when={props.file.change !== "deleted"}>
           <button type="button" class="icon-button diff-open" title="Åpne filen i mini-editoren, med endringene" aria-label={`Åpne ${props.file.path} i mini-editoren`} onPointerEnter={preloadMiniEditor} onClick={(e) => {
             const projectId = props.threadId ? app.threads[props.threadId]?.projectId : null;
@@ -30,17 +30,23 @@ function FileDiff(props: { file: TurnDiff["files"][number]; turnId: string; thre
           }}><IconPencil size={13} /></button>
         </Show>
       </div>
+      <Show when={props.file.binary}><div class="file-note">Binærfilen er registrert. Innhold og linjetall vises ikke.</div></Show>
+      <Show when={props.file.overlapping}><div class="file-note">Denne turen overlapper annet arbeid i filen. Angre krever bekreftelse før noe overskrives.</div></Show>
+      <Show when={!props.file.binary && props.file.countsExact !== true}><div class="file-note">Linjetallene er anslått. Store endringsområder kan vises som erstattet.</div></Show>
       <div class="diff-lines">
         <For each={lines().slice(0, limit())}>
           {(line) =>
             line.kind === "skip" ? (
               <div class="diff-skip">{line.count} uendrede linjer</div>
             ) : (
+              <>
               <div class={`diff-line ${line.kind}`}>
                 <span class="diff-no">{line.oldLine ?? ""}</span>
                 <span class="diff-no">{line.newLine ?? ""}</span>
                 <span class="diff-text">{line.kind === "add" ? "+" : line.kind === "del" ? "-" : " "}{line.text}</span>
               </div>
+              <Show when={line.noNewline}><div class="diff-eof">Ingen linjeskift ved filslutt</div></Show>
+              </>
             )
           }
         </For>
@@ -57,25 +63,56 @@ function fileSummary(files: ChangedFile[]): string {
 }
 
 export default function ChangesPanel(props: { threadId: () => string | null }) {
-  const model = createMemo(() => {
+  const [turns, setTurns] = createSignal<SummaryTurnChanges[]>([]);
+  const [turnState, setTurnState] = createSignal<"loading" | "ready" | "error">("loading");
+  let reloadTurns: (() => void) | undefined;
+  // Metadata covers the complete thread, including turns outside the loaded conversation page.
+  // Only the selected turn's diff is fetched below.
+  createEffect(() => {
     const id = props.threadId();
-    return id ? peekModel(id) : undefined;
+    setTurns([]);
+    setTurnState(id ? "loading" : "ready");
+    if (!id) return;
+    let current = true;
+    let sequence = 0;
+    const refresh = async () => {
+      const request = ++sequence;
+      try {
+        const value = await get<SummaryTurnChanges[]>(`/api/threads/${id}/summary-changes`);
+        if (!current || sequence !== request) return;
+        setTurns(value.reverse());
+        setTurnState("ready");
+      } catch {
+        if (current && sequence === request) setTurnState("error");
+      }
+    };
+    reloadTurns = () => void refresh();
+    void refresh();
+    const off = onMessage("thread.event", ({ envelope }) => {
+      if (envelope.threadId === id && ["turn.changes", "turn.reverted"].includes(envelope.event.type)) void refresh();
+    });
+    onCleanup(() => { current = false; off(); reloadTurns = undefined; });
   });
-  const turns = createMemo<ChangesRow[]>(() => [...(model()?.changes() ?? [])].reverse());
   const current = createMemo(() => {
     const wanted = selectedTurn();
     return turns().find((t) => t.turnId === wanted) ?? turns()[0];
   });
   const [diff, setDiff] = createSignal<TurnDiff | null>(null);
   const [busy, setBusy] = createSignal(false);
+  const [diffError, setDiffError] = createSignal("");
+  let requestId = 0;
+  onCleanup(() => { requestId++; });
 
   createEffect(() => {
     const turn = current();
+    const mine = ++requestId;
+    setDiff(null);
+    setDiffError("");
     if (!turn) return setDiff(null);
     const { turnId } = turn;
     get<TurnDiff>(`/api/turns/${turnId}/diff`).then((loaded) => {
-      if (current()?.turnId === turnId) setDiff(loaded);
-    }).catch(report);
+      if (mine === requestId) setDiff(loaded);
+    }).catch((err) => { if (mine === requestId) { setDiffError((err as Error).message); report(err); } });
   });
 
   const [reviewing, setReviewing] = createSignal(false);
@@ -103,23 +140,29 @@ export default function ChangesPanel(props: { threadId: () => string | null }) {
   return (
     <div class="changes-panel" data-testid="changes-panel">
       <p class="changes-note">Endringer fra kommandoer fanges ikke. Her vises bare det filverktøyene gjorde.</p>
-      <Show when={turns().length} fallback={<div class="panel-empty">Ingen filendringer i denne tråden ennå.</div>}>
+      <Show when={turns().length} fallback={<div class="panel-empty" role="status">
+        {turnState() === "loading" ? "Henter turene…" : turnState() === "error" ? "Kunne ikke hente filendringene." : "Ingen filendringer i denne tråden ennå."}
+        <Show when={turnState() === "error"}><button type="button" class="btn btn-small" onClick={() => reloadTurns?.()}>Prøv igjen</button></Show>
+      </div>}>
         <div class="turn-list">
           <For each={turns()}>
             {(turn, i) => (
               <button type="button" class="turn-item" classList={{ selected: current() === turn }} onClick={() => setSelectedTurn(turn.turnId)}>
                 <span>Tur {turns().length - i()}</span>
                 <span class="turn-files">{fileSummary(turn.files)}</span>
-                <Show when={(turn.rev(), turn.reverted)}><span class="changes-reverted">Angret</span></Show>
+                <Show when={turn.reverted}><span class="changes-reverted">Angret</span></Show>
               </button>
             )}
           </For>
         </div>
         <div class="turn-actions">
           <button type="button" class="btn btn-small" title="Be modellen om en kodegjennomgang av alle endringene i tråden" disabled={reviewing()} onClick={review}>Gjennomgå</button>
-          <button type="button" class="btn btn-small" disabled={busy() || (current()?.rev(), current()?.reverted)} onClick={revert}>Angre tur</button>
+          <button type="button" class="btn btn-small" disabled={busy() || current()?.reverted} onClick={revert}>Angre tur</button>
         </div>
         <div class="diff-view">
+          <Show when={!diff() && !diffError()}><div class="panel-empty" role="status">Henter endringene…</div></Show>
+          <Show when={diffError()}><div class="panel-empty" role="status">{diffError()}</div></Show>
+          <Show when={current()?.reverted}><div class="file-note">Turen er angret. Diffen viser de opprinnelige endringene.</div></Show>
           <For each={diff()?.files ?? []}>{(file) => <FileDiff file={file} turnId={diff()!.turnId} threadId={props.threadId()} />}</For>
         </div>
       </Show>

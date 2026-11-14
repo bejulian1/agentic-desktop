@@ -2,9 +2,22 @@
 
 En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøkler**. Du snakker med en modell i Chat, eller gir den et prosjekt i Kode. Der kan den lese og endre filer, kjøre kommandoer i en terminal og teste det den lager i en innebygd nettleser.
 
-Alt ligger på maskinen din. Det er ingen konto, ingen sky og ingen telemetri. En demo-modell følger med, så du kan prøve hele appen uten nøkkel.
+Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-![Kode-fanen i mørkt tema](docs/bilder/kode.png)
+![Kode-modus med samtale, endringskort og diff i sidepanelet](docs/bilder/kode.png)
+
+*Skjermbildene viser v0.20.0 med demo-modellen og et midlertidig eksempelprosjekt.*
+
+## Nytt siden v0.11
+
+- **Ryddigere Chat og Kode:** egne instrukser og minner, kontekstinnstillinger og samlet modell-/leverandørvalg.
+- **Kodearbeid som er synlig:** filendringer med grønne/røde differanser, arbeidssteg, underagenter og sammendrag ved samtalen.
+- **Bedre sidepanel:** felles fanerad for nettleser, terminal og verktøy, flere startfaner og manuell bruk uten prosjektmappe. Nettsider kan annoteres med elementvalg og kommentarer.
+- **Grener og arbeidstrær:** opprett eller bytt lokal gren fra prosjektets tannhjul, og åpne arbeidstrær som egne prosjekter.
+- **Bedre meldingsfelt:** redigerbar kø eller send straks, horisontal rulling av vedlegg og valgfri kontekstbasert TAB-fullføring med eget modellvalg.
+- **Mer tilpassing:** Skills-arbeidsområde, Kode-innstillinger med egne lyse/mørke kodefarger og skrifter, og søkbar versjonslogg fra profilmenyen.
+
+Hele historikken står i [versjonsloggen](docs/PATCHLOG.md).
 
 ## Hva den kan
 
@@ -12,17 +25,44 @@ Alt ligger på maskinen din. Det er ingen konto, ingen sky og ingen telemetri. E
 - **Artifacts.** En hel app i én fil, i HTML eller React (JSX/TSX), blir en boks i chatten.
   - Boksen åpner et panel med **Forhåndsvisning** og **Kode**, og du kan bla mellom versjonene.
   - React kjører lokalt og uten nett, i en isolert sandkasse som ikke når appen eller filene dine.
-- **Verktøy ved siden av samtalen:** terminal, filer, endringer (diff) med angre, mini-editor, økt, team og en nettleser som agenten kan styre med Playwright.
+- **Verktøy ved siden av samtalen:** terminal, filer, endringer (diff) med angre, mini-editor, økt, team og en nettleser som agenten kan styre med Playwright. Åpne verktøy får egne lukkbare faner; pluss lager en ny verktøystartside eller nettleserfane, etter eget valg. Nettleser, terminal og lokal fillesing fungerer også uten prosjektmappe. Se [`docs/SIDEPANEL-WORKSPACE.md`](docs/SIDEPANEL-WORKSPACE.md).
 - **Tråder som samarbeider.** Hjelpetråder, team med oppgaveliste, flere ruter side om side og tråder i egne vinduer.
 - **Gafler og arkiv.**
   - Du kan lage en gaffel fra hvilken som helst melding, og gaffelen viser hvor den kom fra.
   - Du kan arkivere én tråd eller et helt prosjekt, med angre.
-- **Tillatelser.** Spør, Godta redigeringer eller Full tilgang. Godkjenningen kommer rett over meldingsfeltet.
-- **Nøklene ligger i GNOME-nøkkelringen.** De lagres kryptert der og aldri i klartekst på disken, og grensesnittet får dem aldri tilbake.
-- **Skills, AGENTS.md og minner,** både globalt og per prosjekt.
-- **Lett.** Rundt 320 MB minne i hvile, med statusfelt og eget ikon. Du velger ikon i Innstillinger.
+- **Prosjektmenyer og kø.** Høyreklikk, informasjonskort, merk som ulest og lokal eksport. Kømeldinger kan redigeres, fjernes eller flyttes til et usendt sideutkast. Se [`docs/SIDEBAR-AND-QUEUE.md`](docs/SIDEBAR-AND-QUEUE.md).
+- **Tillatelser.** Velg Be om godkjenning, Godkjenn for meg eller Full tilgang direkte fra meldingsfeltet i Kode. Godkjenningskort kommer rett over meldingsfeltet.
+- **Nøklene ligger i GNOME-nøkkelringen.** Nye nøkler lagres der når nøkkelringen kan brukes, ellers bare i øktminnet. Grensesnittet viser lagringsstatus og eventuell eldre nøkkelfil som venter på flytting; nøklene sendes aldri tilbake til grensesnittet.
+- **Skills, AGENTS.md og minner,** både globalt og per prosjekt. Skills har eget søkbart arbeidsområde med filtre, redigering, import og egne varianter av appens skills.
+- **Samlede modellinnstillinger.** Modeller og leverandører på én side, prosjektvelger ved topplinjen og lokal miljømeny med faktisk gren og mappe. Se [`docs/WORKSPACE-POLISH.md`](docs/WORKSPACE-POLISH.md).
+- **Tilpassing og sammendrag.** To samlede innstillingssider, egne Chat/Kode-valg, Chat-felt på 10 000 ord og Kode-sammendrag øverst til høyre. Se [`docs/SETTINGS-AND-SUMMARY.md`](docs/SETTINGS-AND-SUMMARY.md).
+- **Lokale grener og arbeidstrær.** Prosjektets tannhjul og `/worktree` åpner reelle Git-handlinger. Profilmenyen har søkbar versjonslogg. Se [`docs/GIT-AND-TOOLS.md`](docs/GIT-AND-TOOLS.md).
+- **Statusfelt og appikon.** Appen kan jobbe videre med vinduet lukket. Du velger ikon i Innstillinger.
+
+<details>
+<summary>Flere skjermbilder: Chat, artifacts, sidepanel og innstillinger</summary>
+
+**Chat**
+
+![Chat-modus med kodeeksempel](docs/bilder/chat.png)
+
+**React-artifact med forhåndsvisning**
 
 ![Artifact med React: forhåndsvisning](docs/bilder/artifact-react.png)
+
+**Koden bak artifacten**
+
+![Artifact med kildekode](docs/bilder/artifact-kode.png)
+
+**Sidepanel med flere startfaner**
+
+![Sidepanelets felles topprad og verktøystartside](docs/bilder/sidepanel.png)
+
+**Kodeutseende og tilpassing**
+
+![Kodeinnstillinger med lys og mørk forhåndsvisning](docs/bilder/innstillinger-kode.png)
+
+</details>
 
 ## Det du trenger
 
@@ -84,24 +124,33 @@ Demo-modellen er forhåndsvalgt og merket **Demo-modell (uten API)**. Den bruker
 
 ### Med en ekte modell
 
-**Innstillinger → Leverandører:** velg OpenRouter, OpenAI, Anthropic eller en annen, og lim inn nøkkelen.
+**Innstillinger → Modeller og leverandører:** velg OpenRouter, OpenAI, Anthropic eller en annen, og lim inn nøkkelen.
 - Feltet viser prikker. Nøkkelen lagres i GNOME-nøkkelringen.
 - Lokale modeller via **Ollama** og **LM Studio** virker uten nøkkel.
 
 Velg så modellen i meldingsfeltet.
 
-> Leverandørene er merket **Beta** til de er prøvd med ekte nøkler. Si fra om noe ikke virker.
+> OpenRouter er bekreftet med ekte tilkobling og modellhenting. Øvrige integrasjoner som fortsatt er merket **Beta**, er kontrollert mot lokale prøveservere; ekte tilgang må bekreftes med din konto.
 
 ## Bruk
 
-- **`/`** i meldingsfeltet gir kommandoer og skills, **`@`** legger ved filer, mapper og tråder, og **`!kommando`** kjører en kommando direkte.
+- **`/`** i meldingsfeltet gir kommandoer og skills, **`@`** legger ved filer, mapper og tråder, og **`!kommando`** kjører en kommando direkte i Kode.
+- **TAB-forslag:** slå på **Generelt → Samtale → Autofullfør meldinger med TAB**, og velg eventuelt en egen modell. Fra tredje brukermelding vises grå forslag etter to tidligere besvarte turer. TAB godtar uten å sende; Escape avviser. Se [`docs/PROMPT-COMPLETION.md`](docs/PROMPT-COMPLETION.md).
+- **Nytt prosjekt i Kode:** velg **Nytt prosjekt**, gi prosjektet et navn og legg til en mappe med Ubuntus mappevelger. Bekreft at du stoler på mappen før prosjektet opprettes. I localhost-versjonen brukes `zenity`; hvis den ikke er tilgjengelig, får du appens mappevelger.
+- **Chat:** Prosjekter står over Chatter i sidefanen. Knappen med innstillingsikon ved plussknappen samler Chat-funksjonene, og personlighet velges under **Innstillinger → Chat** for den aktive chatten eller utkastet.
+- **Standardinstrukser:** Chat-personalisering kommer med en redigerbar systeminstruks og egen **Gjenopprett standard**. Kode-standarden kan gjenopprettes under Konfigurasjon med diff og sikkerhetskopi. Kildene ligger i [`docs/system-instructions/`](docs/system-instructions/README.md).
+- **Agentvalg:** Under **Innstillinger → Modeller og leverandører** kan du slå automatisk komprimering av eller på og velge 1–1000 steg per tur. Standard er på og 50 steg. `/compact` komprimerer manuelt også når automatikk er av.
 - **Ruter:** dra en tråd inn i en rute, eller ut av vinduet for å få den i et eget vindu.
 - **Skills** er mapper med en `SKILL.md`, i `.agentic/skills/` i prosjektet eller i `~/.config/agentic-desktop/skills/`. Hver skill blir sin egen `/kommando`.
+- **Grener og arbeidstrær:** velg et Kode-prosjekt og åpne tannhjulet ved meldingsfeltet. `/worktree` åpner samme dialog. Repoet må ha en første commit. Appen gjør ingen automatisk stash, commit eller push.
+- **Oppstart og historikk:** appen starter med en tom samtale i valgt/sist brukte modus. Velg gjenopptaking under Generelt om du vil fortsette der du slapp. Profilmenyen har **Versjonslogg** med hele historikken.
 - **Oppsett:** `~/.config/agentic-desktop/` gjelder alle prosjekter, og `.agentic/` gjelder bare prosjektet. Begge kan ha `AGENTS.md`, `settings.json` og `skills/`.
 - **Snarveier** står i **Hjelp → Hurtigtaster** og kan endres. For eksempel gir Ctrl+J ny tråd, Ctrl+B skjuler sidefanen, og Alt+← og Alt+→ går tilbake og frem.
 - **Lukker du vinduet**, legger appen seg i statusfeltet. Ctrl+Q avslutter.
 
 ## For utviklere
+
+GitHub-repoet inneholder appkoden, nødvendige byggeskript og brukerdokumentasjon. Automatiserte testpakker, lokale målerapporter, brukerdata og ferdigbygde installasjonspakker inngår ikke. `npm run typecheck` kontrollerer kildekoden som følger med.
 
 | Kommando | Hva den gjør |
 |---|---|
@@ -126,4 +175,8 @@ Localhost-versjonen og appen kan ikke bruke den samme datamappen samtidig. Bruk 
 
 ## Status
 
-Versjon **0.11.0**. Laget og testet på Ubuntu 26.04 med GNOME på Wayland. Det som gjenstår, står i [`docs/STATUS.md`](docs/STATUS.md).
+Versjon **0.20.0**. Laget og testet på Ubuntu 26.04 med GNOME på Wayland. Det som gjenstår, står i [`docs/STATUS.md`](docs/STATUS.md).
+
+Slash-skills er beskrevet i [brukerveiledningen](docs/SLASH-SKILLS.md).
+
+Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.md).

@@ -2,14 +2,15 @@
 // themselves (global, and per project) with search, add, edit, delete and Slett alle. The memories
 // are lines in MEMORY.md files, so they can also be edited in an editor.
 import { Select } from "../Select";
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js";
 import type { HarnessInfo, MemoryItem, MemoryList, UpgradeProposal } from "../../../../shared/protocol";
 import { del, get, patch, post, put } from "../../lib/api";
-import { app, report, toast } from "../../state/app";
+import { app, mode as activeMode, report, settingsOpen, toast } from "../../state/app";
 import { confirmDialog } from "../dialogs";
 import { IconAlert, IconPencil, IconPlus, IconSearch, IconSpark, IconTrash } from "../icons";
 import { Group, Page, Row, save, Segmented, SkeletonRows, Toggle } from "./parts";
 import { UpgradeView } from "./memory-upgrade";
+import { ChatPersonalSettings } from "./chat-personal";
 
 interface Shown extends MemoryItem {
   where: string; // "Global" or the project's name
@@ -17,7 +18,12 @@ interface Shown extends MemoryItem {
 
 const MAX_CHARS = 300;
 
-export function Memories() {
+export function Memories(props: { target?: string | null }) {
+  const chatTargets = new Set(["Systeminstruks", "Om deg", "Tone", "Oppdater minnet av seg selv", "Lagrede Chat-minner", "Lokal dato og tid", "Modell og leverandør", "Omtrentlig posisjon"]);
+  const [memoryMode, setMemoryMode] = createSignal<"chat" | "code">(props.target ? (chatTargets.has(props.target) ? "chat" : "code") : settingsOpen() === "chat-personal" ? "chat" : activeMode());
+  createEffect(() => {
+    if (props.target) setMemoryMode(chatTargets.has(props.target) ? "chat" : "code");
+  });
   const [list, { refetch }] = createResource(() => get<MemoryList>("/api/memories"));
   const [query, setQuery] = createSignal("");
   const [scope, setScope] = createSignal("all"); // all, global or a project id
@@ -87,8 +93,8 @@ export function Memories() {
     const count = all().length;
     if (!count) return;
     const ok = await confirmDialog({
-      title: "Slette alle minner?",
-      text: `${count === 1 ? "Ett minne" : `Alle ${count} minnene`}, globale og i alle prosjekter, slettes fra MEMORY.md-filene. Det kan ikke angres. Annen tekst i filene blir stående.`,
+      title: "Slette alle Kode-minner?",
+      text: `${count === 1 ? "Ett minne" : `Alle ${count} minnene`}, globale og i alle Kode-prosjekter, slettes fra MEMORY.md-filene. Det kan ikke angres. Chat-minnene og annen tekst i filene blir stående.`,
       confirm: "Slett alle",
       danger: true,
     });
@@ -128,14 +134,22 @@ export function Memories() {
   };
 
   return (
-    <Page title="Personalisering og minner">
-      <Group title="Svarene">
-        <Row label="Personlighet" text="Velges per tråd med /personality: Standard, Kort, Grundig, Vennlig eller Lærer. Standard for alle tråder settes med personality i settings.json under Konfigurasjon." icon={IconSpark} />
+    <Page title="Personalisering og minner" intro="Tilpass svarene og administrer minner på ett sted. Chat og Kode har hvert sitt innhold og sine egne minnevalg.">
+      <Group title="Tilpass modus">
+        <Row label={memoryMode() === "chat" ? "Chat" : "Kode"} text={memoryMode() === "chat" ? "Personlig profil, skrivestil og minner for Chat. Endringene deles ikke med Kode." : "Minner for kodearbeid, globalt og per prosjekt. Chat har sin egen profil og sine egne minner."}>
+          <Segmented<"chat" | "code"> label="Personalisering for" value={memoryMode()} options={[{ value: "chat", label: "Chat" }, { value: "code", label: "Kode" }]} onChange={setMemoryMode} />
+        </Row>
+      </Group>
+      {/* Keep both panels mounted so switching modes preserves unsaved edits. */}
+      <div hidden={memoryMode() !== "chat"}><ChatPersonalSettings /></div>
+      <section aria-label="Kode-minner" hidden={memoryMode() !== "code"}>
+      <Group title="Kode">
+        <Row label="Personlighet" text="Velg personlighet per Kode-tråd med /personality. Standard for nye Kode-tråder kan settes med personality i settings.json under Konfigurasjon. Minnene under brukes bare i Kode." icon={IconSpark} />
       </Group>
       <Group title="Minner">
         <Toggle
           label="Minner på tvers av tråder"
-          text="Modellen kan lagre korte notater om deg og prosjektene, og får dem i nye tråder. Av betyr at ingenting lagres eller lastes inn. Nøkler, tokens og passord blir aldri lagret."
+          text="Kode kan lagre korte notater om deg og prosjektene, og får dem i nye Kode-tråder. Av betyr at Kode verken lagrer eller laster inn minner. Velg Chat over for å endre Chat-minnene. Nøkler, tokens og passord blir aldri lagret."
           checked={app.settings.memories !== false}
           onChange={(v) => save({ memories: v })}
         />
@@ -269,6 +283,7 @@ export function Memories() {
       <p class="muted small memory-files">
         Minnene er vanlige linjer i <code>{list()?.global.file ?? "MEMORY.md"}</code> (globale) og i <code>.agentic/MEMORY.md</code> i hvert prosjekt. Du kan også endre filene i en editor. Nye tråder får de nyeste minnene, opptil omtrent 3000 tegn, og prosjektets minner først.
       </p>
+      </section>
     </Page>
   );
 }

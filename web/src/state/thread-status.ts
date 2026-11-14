@@ -11,7 +11,7 @@ export const STATE_LABEL: Record<ThreadState, string> = {
   running: "Jobber…",
   error: "Feilet",
   stopped: "Stoppet",
-  new: "Ferdig, ikke sett",
+  new: "Ulest",
   idle: "",
 };
 

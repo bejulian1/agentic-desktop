@@ -20,3 +20,11 @@ docs/design-ref/
 .env.*
 *.log
 .DS_Store
+
+# Lokale kontrollnotater og private utviklingsverktøy
+docs/reviews/
+/scripts/e2e.ts
+/scripts/perf.ts
+/scripts/perf-desktop.ts
+/scripts/seed-perf.ts
+/scripts/kontrast.ts

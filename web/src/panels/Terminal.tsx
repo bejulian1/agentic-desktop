@@ -3,6 +3,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import "../styles/terminal-share.css";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { get } from "../lib/api";
@@ -10,8 +11,13 @@ import { isDark } from "../lib/theme";
 import { terminalColors } from "../state/themes";
 import { observeResize } from "../lib/resize";
 import { on, onOpen, send } from "../lib/socket";
-import { app, report } from "../state/app";
-import { IconClose, IconPlus } from "../ui/icons";
+import { app, LOCAL_SCOPE, mode, report, scope, scopeOf, toast, untitled } from "../state/app";
+import { gridFor } from "../state/grid";
+import { deliverToComposer } from "../state/composer-delivery";
+import { formatTerminalShare } from "../lib/terminal-share";
+import { IconClose } from "../ui/icons";
+import { closePanelTool, showPanel } from "../state/panel";
+import { publishPanelSessions, releasePanelSessions, takeTerminalRequest, terminalRequest } from "../state/panel-sessions";
 
 interface Tab {
   terminalId: string;
@@ -35,6 +41,8 @@ const tabMemory = new Map<string, string>();
 
 function View(props: { projectId: string; tab: Tab }) {
   let host!: HTMLDivElement;
+  const [hasSelection, setHasSelection] = createSignal(false);
+  const [hasOutput, setHasOutput] = createSignal(false);
   const terminal = new Terminal({
     ...terminalFont(),
     cursorBlink: false,
@@ -64,7 +72,9 @@ function View(props: { projectId: string; tab: Tab }) {
       }
     });
     fit.fit();
-    terminal.focus();
+    // Activating this tool from the shared tab row must leave its keyboard navigation intact.
+    // The terminal can mount later, after lazy imports or the server's initial replay.
+    if (!document.activeElement?.closest(".panel-workspace-bar")) terminal.focus();
 
     const stops = [
       // Also after a reconnect: the replay holds what was missed meanwhile.
@@ -87,9 +97,21 @@ function View(props: { projectId: string; tab: Tab }) {
       }),
     ];
     const data = terminal.onData((input) => send({ type: "terminal.input", terminalId, data: input }));
+    const selection = terminal.onSelectionChange(() => setHasSelection(!!terminal.getSelection().trim()));
+    const parsed = terminal.onWriteParsed(() => {
+      const buffer = terminal.buffer.active;
+      // A prompt near the end normally answers this immediately, without copying scrollback
+      // on every streamed chunk. The full excerpt is read only when the user shares it.
+      for (let i = buffer.length - 1; i >= 0; i--) {
+        if (buffer.getLine(i)?.translateToString(true).trim()) { setHasOutput(true); return; }
+      }
+      setHasOutput(false);
+    });
     onCleanup(() => {
       for (const stop of stops) stop();
       data.dispose();
+      selection.dispose();
+      parsed.dispose();
     });
   });
 
@@ -112,7 +134,7 @@ function View(props: { projectId: string; tab: Tab }) {
   // The colours follow <html> itself, not only the settings: with System chosen, the operating
   // system switching between light and dark changes data-theme without any setting changing.
   const colours = new MutationObserver(() => (terminal.options.theme = terminalTheme()));
-  colours.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "data-accent"] });
+  colours.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "data-accent", "data-code-light", "data-code-dark"] });
   onCleanup(() => colours.disconnect());
 
   onCleanup(() => terminal.dispose());
@@ -120,17 +142,56 @@ function View(props: { projectId: string; tab: Tab }) {
   const readBuffer = () => {
     const lines: string[] = [];
     const buffer = terminal.buffer.active;
-    for (let i = 0; i < buffer.length; i++) lines.push(buffer.getLine(i)?.translateToString(true) ?? "");
+    for (let i = 0; i < buffer.length; i++) {
+      const line = buffer.getLine(i);
+      const text = line?.translateToString(!buffer.getLine(i + 1)?.isWrapped) ?? "";
+      if (line?.isWrapped && lines.length) lines[lines.length - 1] += text;
+      else lines.push(text);
+    }
     return lines.join("\n");
   };
-  return <div class="terminal-host" ref={(el) => { host = el; (el as any).readBuffer = readBuffer; }} data-testid="terminal" data-terminal-id={terminalId} />;
+  // Resolve the target at click time too: project switches and pane focus must never send a
+  // terminal excerpt to the thread that happened to be focused when the terminal mounted.
+  const target = () => {
+    if (mode() !== "code" || scope() !== props.projectId) return undefined;
+    const id = gridFor(props.projectId).focusedThreadId();
+    const thread = id ? app.threads[id] : undefined;
+    return thread?.mode === "code" && scopeOf(thread) === props.projectId ? thread : undefined;
+  };
+  const hint = () => {
+    const thread = target();
+    return thread
+      ? `Til utkastet i ${untitled(thread) ? "aktiv kodetråd" : `«${thread.title}»`}. Gjennomgå før sending.`
+      : `Åpne en kodetråd ${props.projectId === LOCAL_SCOPE ? "i Denne datamaskinen" : "i dette prosjektet"} for å dele til utkastet.`;
+  };
+  const share = (selected: boolean) => {
+    const thread = target();
+    if (!thread) return;
+    const excerpt = formatTerminalShare(selected ? terminal.getSelection() : readBuffer(), selected);
+    if (!excerpt) return;
+    deliverToComposer(thread.id, { text: excerpt.text, images: [] });
+    toast(excerpt.truncated ? "Avkortede terminalutdata er lagt i utkastet. Gjennomgå før sending." : "Terminalutdata er lagt i utkastet. Gjennomgå før sending.", "info");
+  };
+  return <>
+    <div class="terminal-share" data-testid="terminal-share">
+      <div class="terminal-share-actions">
+        <button type="button" disabled={!target() || !hasSelection()} title={target() ? "Marker tekst i terminalen og legg utvalget i utkastet (maks 200 linjer / 12 000 tegn)" : hint()} onMouseDown={(event) => event.preventDefault()} onClick={() => share(true)}>Del utvalg</button>
+        <button type="button" disabled={!target() || !hasOutput()} title={target() ? "Legg siste terminalutdata, inkludert kommandoer, i utkastet (maks 200 linjer / 12 000 tegn)" : hint()} onMouseDown={(event) => event.preventDefault()} onClick={() => share(false)}>Del siste utdata</button>
+      </div>
+      <div class="terminal-share-hint">{hint()}</div>
+    </div>
+    <div class="terminal-host" ref={(el) => { host = el; (el as any).readBuffer = readBuffer; }} data-testid="terminal" data-terminal-id={terminalId} />
+  </>;
 }
 
-// head: round 12 (SPEC 26.3), a stacked panel's slim top line, where the tabs and + go instead.
-export default function TerminalPanel(props: { projectId: string; place?: string; head?: () => HTMLElement | undefined }) {
+// head: a stacked panel's slim top line, where the terminal's sessions and action go instead.
+export default function TerminalPanel(props: { projectId: string; place?: string; head?: () => HTMLElement | undefined; sharedTabs?: boolean; visible?: boolean }) {
   const [tabs, setTabs] = createSignal<Tab[]>([]);
   const [active, setActive] = createSignal<string | null>(null);
   const [ready, setReady] = createSignal(false);
+  const owner = {};
+  let alive = true;
+  onCleanup(() => { alive = false; });
 
   const select = (id: string) => {
     tabMemory.set(props.projectId, id);
@@ -142,14 +203,15 @@ export default function TerminalPanel(props: { projectId: string; place?: string
   const load = async () => {
     try {
       const list = await get<Tab[]>(`/api/projects/${props.projectId}/terminals`);
+      if (!alive) return;
       setTabs(list);
-      setReady(true);
       const remembered = tabMemory.get(props.projectId);
       if (list.some((t) => t.terminalId === remembered)) setActive(remembered!);
       else if (list.length) setActive(list.at(-1)!.terminalId);
-      else create();
+      if (takeTerminalRequest(props.projectId) || !list.length) create();
+      setReady(true);
     } catch (err) {
-      report(err);
+      if (alive) report(err);
     }
   };
 
@@ -168,9 +230,10 @@ export default function TerminalPanel(props: { projectId: string; place?: string
         if (state.projectId !== props.projectId || !state.terminalId) return;
         const id = state.terminalId;
         get<Tab[]>(`/api/projects/${props.projectId}/terminals`).then((list) => {
+          if (!alive) return;
           setTabs(list);
           if (list.some((t) => t.terminalId === id)) select(id);
-        }).catch(report);
+        }).catch((err) => { if (alive) report(err); });
       }),
     ];
     onCleanup(() => stops.forEach((stop) => stop()));
@@ -182,7 +245,19 @@ export default function TerminalPanel(props: { projectId: string; place?: string
     const rest = tabs().filter((t) => t.terminalId !== id);
     setTabs(rest);
     if (active() === id) setActive(rest.at(-1)?.terminalId ?? null);
+    if (props.sharedTabs && !rest.length) closePanelTool("terminal");
   };
+
+  createEffect(() => {
+    if (ready() && terminalRequest() === props.projectId && takeTerminalRequest(props.projectId)) create();
+  });
+  createEffect(() => {
+    publishPanelSessions(props.projectId, "terminal", { owner, create, tabs: tabs().map((tab, i) => ({
+      id: tab.terminalId, title: tab.title === "Terminal" ? `Terminal ${i + 1}` : tab.title,
+      active: tab.terminalId === active(), select: () => { showPanel("terminal"); select(tab.terminalId); }, close: () => close(tab.terminalId),
+    })) });
+  });
+  onCleanup(() => releasePanelSessions(props.projectId, "terminal", owner));
 
   const tabRow = () => (
       <div class="terminal-tabs" classList={{ "in-head": !!props.head?.() }}>
@@ -194,7 +269,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
             </div>
           )}
         </For>
-        <button type="button" class="icon-button" title="Ny terminal" aria-label="Ny terminal" onClick={create}><IconPlus size={14} /></button>
+        <button type="button" class="terminal-new" title="Start en ny terminal i dette miljøet" aria-label="Ny terminal" onClick={create}>Ny terminal</button>
         {/* Round 9: without a project the shell starts in the home folder, and says where it is. */}
         <Show when={props.place}><span class="terminal-place" data-testid="terminal-place" title="Uten prosjekt starter terminalen i hjemmemappen">{props.place}</span></Show>
       </div>
@@ -202,14 +277,14 @@ export default function TerminalPanel(props: { projectId: string; place?: string
 
   return (
     <div class="terminal-panel" data-testid="terminal-panel">
-      <Show when={props.head?.()} fallback={tabRow()}>{(head) => <Portal mount={head()}>{tabRow()}</Portal>}</Show>
+      <Show when={!props.sharedTabs}><Show when={props.head?.()} fallback={tabRow()}>{(head) => <Portal mount={head()}>{tabRow()}</Portal>}</Show></Show>
       <Show when={active()} keyed>
         {(id) => {
           const tab = tabs().find((t) => t.terminalId === id);
           return tab ? <View projectId={props.projectId} tab={tab} /> : null;
         }}
       </Show>
-      <Show when={ready() && !tabs().length}><div class="panel-empty">Ingen terminaler. Trykk + for en ny.</div></Show>
+      <Show when={ready() && !tabs().length}><div class="panel-empty">Ingen terminaler. Velg «Ny terminal» for å starte en.</div></Show>
     </div>
   );
 }

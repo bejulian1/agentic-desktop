@@ -1,0 +1,22 @@
+/* Code palettes are independent from the application palette; theme.js restores their data attributes before paint. */
+:root[data-theme="light"][data-code-light][data-code-light="clear"], .code-settings-preview[data-theme="light"][data-code-light="clear"] { --code-bg: #ffffff; --code-fg: #243247; --tok-keyword: #7b3294; --tok-string: #1c6b3c; --tok-comment: #697482; --tok-number: #9a4b00; --tok-type: #165c86; --tok-function: #2456a6; --tok-prop: #8b3c20; --tok-meta: #68727b; }
+:root[data-theme="dark"][data-code-dark][data-code-dark="clear"], .code-settings-preview[data-theme="dark"][data-code-dark="clear"] { --code-bg: #171c24; --code-fg: #e4ebf5; --tok-keyword: #c7a0ff; --tok-string: #90d3a1; --tok-comment: #9ba9ba; --tok-number: #edbf81; --tok-type: #8bc9ef; --tok-function: #a4c1ff; --tok-prop: #efb38c; --tok-meta: #a9b6c6; }
+:root[data-theme="light"][data-code-light][data-code-light="warm"], .code-settings-preview[data-theme="light"][data-code-light="warm"] { --code-bg: #fffaf0; --code-fg: #40362c; --tok-keyword: #854d8b; --tok-string: #427348; --tok-comment: #867866; --tok-number: #99511f; --tok-type: #39718b; --tok-function: #5a5fa4; --tok-prop: #9b5738; --tok-meta: #80725f; }
+:root[data-theme="dark"][data-code-dark][data-code-dark="warm"], .code-settings-preview[data-theme="dark"][data-code-dark="warm"] { --code-bg: #27231e; --code-fg: #e8dcc8; --tok-keyword: #d0a0c9; --tok-string: #b4ca8c; --tok-comment: #ada08b; --tok-number: #e5b679; --tok-type: #91c2cd; --tok-function: #b9b3e8; --tok-prop: #e4a27b; --tok-meta: #bcad96; }
+:root[data-theme="light"][data-code-light][data-code-light="contrast"], .code-settings-preview[data-theme="light"][data-code-light="contrast"] { --code-bg: #ffffff; --code-fg: #101010; --tok-keyword: #69008e; --tok-string: #006124; --tok-comment: #595959; --tok-number: #8f3400; --tok-type: #004c80; --tok-function: #0032a2; --tok-prop: #7e2400; --tok-meta: #3d3d3d; }
+:root[data-theme="dark"][data-code-dark][data-code-dark="contrast"], .code-settings-preview[data-theme="dark"][data-code-dark="contrast"] { --code-bg: #050505; --code-fg: #ffffff; --tok-keyword: #e0b1ff; --tok-string: #a5ffb6; --tok-comment: #c7c7c7; --tok-number: #ffd596; --tok-type: #9bddff; --tok-function: #c1d2ff; --tok-prop: #ffbd9c; --tok-meta: #e0e0e0; }
+.md-code pre, .diff-view { background: var(--code-bg, transparent); color: var(--code-fg, var(--text)); }
+.code-palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.code-palette-grid > div { min-width: 0; }
+.code-palette-grid .select-trigger { width: 100%; margin-bottom: 10px; }
+.code-settings-preview { border: 1px solid var(--border-strong); border-radius: 9px; overflow: hidden; background: var(--code-bg, #fff); color: var(--code-fg, #243247); }
+.code-settings-preview[data-theme="light"][data-code-light="app"] { --tok-keyword: #8a3ea8; --tok-string: #2c7a4b; --tok-function: #2558b5; --tok-type: #1a6fa8; --code-bg: #fff; --code-fg: #243247; }
+.code-settings-preview[data-theme="dark"][data-code-dark="app"] { --tok-keyword: #cf9df0; --tok-string: #8fcf9f; --tok-function: #9db8f2; --tok-type: #7ec2ee; --code-bg: #222; --code-fg: #ededed; }
+.code-settings-preview pre { margin: 0; padding: 11px 0; font: var(--code-font-size, 12.5px)/1.65 var(--font-mono); overflow-x: auto; }
+.code-preview-line { display: block; min-width: max-content; padding-inline: 9px; }
+.code-preview-line i { display: inline-block; width: 18px; opacity: .6; font-style: normal; }
+.code-preview-line.add { background: #3baf6030; border-left: 3px solid #3baf60; padding-left: 6px; }
+.code-preview-line.del { background: #df5b6d28; border-left: 3px solid #df5b6d; padding-left: 6px; }
+.cm-content { tab-size: var(--tab-size, 4) !important; }
+@container (max-width: 520px) { .code-palette-grid { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .code-palette-grid { grid-template-columns: 1fr; } }

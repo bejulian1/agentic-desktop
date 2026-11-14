@@ -1,6 +1,7 @@
 // Round 9: a new Chat project, from the sidebar, the thread menu and Innstillinger → Chat.
 import type { ChatProject } from "../../../shared/protocol";
 import { collapsed, createChatProject, report, toggleCollapsed } from "../state/app";
+import { patch } from "../lib/api";
 import { promptDialog } from "./dialogs";
 
 export async function newChatProject(): Promise<ChatProject | null> {
@@ -16,3 +17,8 @@ export async function newChatProject(): Promise<ChatProject | null> {
   }
 }
 
+
+export async function renameChatProject(project: ChatProject): Promise<void> {
+  const name = await promptDialog({ title: "Gi prosjektet nytt navn", value: project.name, confirm: "Lagre" });
+  if (name?.trim() && name.trim() !== project.name) await patch(`/api/chat-projects/${project.id}`, { name: name.trim() }).catch(report);
+}

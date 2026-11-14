@@ -48,9 +48,10 @@ export async function revertTurn(turnId: string): Promise<boolean> {
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
       const conflicts: string[] = err.body?.conflicts ?? [];
+      if (!conflicts.length) { report(err); return false; }
       const overwrite = await confirmDialog({
-        title: "Filene er endret siden denne turen",
-        text: `${conflicts.join(", ")} er endret etterpå. Vil du overskrive dem?`,
+        title: "Angre kan overskrive annet arbeid",
+        text: `${conflicts.join(", ")} har endringer fra under eller etter denne turen. Vil du likevel overskrive dem?`,
         confirm: "Overskriv",
         danger: true,
       });
