@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { constants as fsConstants, existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, stat, unlink } from "node:fs/promises";
 import path from "node:path";
-import type { AutoSkills, Project, Thread, WebSource } from "../../../shared/protocol.ts";
+import type { AutoSkills, ChatFile, Project, Thread, WebSource } from "../../../shared/protocol.ts";
 import { listDir, looksBinary } from "../files.ts";
 import { cleanMemory, type Memories } from "../memory.ts";
 import { guardPath, PathError } from "../paths.ts";
@@ -41,6 +41,7 @@ export interface ToolResult {
   isError?: boolean;
   image?: ImageData;
   screenshotId?: string;
+  files?: ChatFile[];
   sources?: WebSource[]; // round 13: what a web search found, or the page that was read
 }
 

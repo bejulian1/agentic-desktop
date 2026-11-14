@@ -1,35 +1,13 @@
 # Status
 
-## v0.21.1 – bygg 63
+## 0.22.0
 
-Oppdatert 14. november 2026. Endringer siden v0.11.0 er samlet i [versjonsloggen](PATCHLOG.md).
+**v0.22.0 (bygg 64):** Chat har egne verktøy for ekte nedlastbare Word-, Excel-, PowerPoint-, Markdown-, tekst-, CSV- og JSON-filer. Filkort vises etter verktøysteget. Valgfri Python-analyse kjører isolert uten nettverk, hjemmemappe, API-nøkler eller Kode-prosjektfiler. Standardbiblioteket er tilgjengelig; variabler nullstilles mellom kjøringer, arbeidsfiler beholdes i chat-konteksten. Python er av som standard og krever Python 3/bubblewrap med fungerende isolering. Ingen usikret reservekjøring.
 
-- Midtstilte modellbytter, riktige modusikoner i siste samtaler og navneendring direkte i topplinjen.
-- Chat-prosjekter med egen startside, toppstilt meldingsfelt, 15 ikoner, ikonfarger, egne instruksjoner og egne eller eksplisitt delte Chat-minner. Global personalisering holdes utenfor.
-- Historisk modell-/leverandørinfo under svar, diskrete modellbytter, tankeboble og løftet samtaletittel.
-- Separate Chat- og Kode-modus med egne instrukser og minner, valgfri modellkontekst og ryddigere innstillinger.
-- Skills-arbeidsområde, slash-kommandoer, TAB-forslag fra samtalehistorikk, redigerbar meldingskø og rullbare vedlegg.
-- Felles topprad i sidepanelet med nettleser-/terminaløkter, flere startfaner og manuell fil-/nettleserbruk uten prosjekt.
-- Elementannotering med kommentarer og skjermbilde til samtaleutkastet.
-- Lokale Git-grener og arbeidstrær som egne prosjekter, med sperrer ved lokale endringer og pågående modellarbeid.
-- Sammendrag, underagenter, synlige arbeidssteg, filverktøyenes endringskort og grønne/røde differanser.
-- Kodepaletter, skrifter og samtalevisning kan tilpasses. Profilmenyen har full, søkbar versjonslogg.
+Profilens tokenkalender viser umiddelbart dag og full dato over eksakt tokenantall ved musepekeren. Dag-/ukevisning og aktivitetskart støtter tastatur. Fargenivåer beregnes én gang per datasett.
 
-## Kontrollert
+**Kontroll:** 439 servertester, 12 ulike berørte UI-forløp og typekontroll av server/web/Electron består. Native dokumentnedlasting og Python gjennom utility-prosessen er kontrollert under virtuell skjerm, sammen med oppstart/gjenåpning. Dokumenter er åpnet og visuelt kontrollert via LibreOffice/PDF. Produksjonsavhengighetene har ingen kjente npm-varsler etter kompatible rettinger av underavhengigheter. Ingen ekte nøkler eller betalte modellkall brukes i kontrollene.
 
-v0.21.1 er kontrollert med fem berørte UI-forløp, native navneendring/oppstart, pakkekontroll og typekontroll av server, web og Electron. Serverkoden er uendret fra v0.21.0, der 435 servertester og 27 berørte UI-forløp bestod. Kontrollene bruker demo-modell, lokale prøveservere og midlertidige data. Testpakker og interne målerapporter er ikke med i dette repoet. Kildekoden i repoet kontrolleres med `npm run typecheck`; bygg og installasjon er beskrevet i [README](../README.md).
+Se [Filer og Python i Chat](CHAT-FILES.md) for grenser og avgrensninger. Opplasting/tolkning av eksisterende Office-filer er ikke innført. Dette er ikke en full ytelsessammenligning med forrige produksjonsversjon.
 
-OpenRouter og abliteration.ai er bekreftet av brukeren med ekte tilkobling. Beta-merkene er fjernet fra leverandørene etter brukerens ønske; OpenAI/Anthropic er kontrollert lokalt uten ekte API-kall. Hver leverandør beholder sin tilkoblingstest.
-
-## Kjente avgrensninger
-
-- Endringskort og Angre følger filverktøyenes registrerte endringer. Vilkårlige endringer fra shellkommandoer er ikke en komplett Git-diff eller automatisk sporbar historikk.
-- Kommandoer kjører med lokal brukers OS-tilgang. Godkjenningsvalg og prosjektgrenser er ikke full filsystemisolasjon.
-- Git krever et eksisterende repo med første commit. Ingen automatisk stash, commit, push eller sletting. Eksterne Git-/terminalprosesser låses ikke av appen.
-- Elementannotering er et frossent snapshot av hoveddokumentet; iframe-/shadow-DOM-inspeksjon er ikke innført.
-- Chat-prosjekter avgrenser modellkontekst, ikke OS-tilgang. Synlig historikk og vedlegg beholdes ved flytting; globale Chat-minner deles bare etter eksplisitt valg.
-- Eldre svarlogger kan mangle historiske modellnavn.
-- Vanlige usendte utkast er minnelagret og overlever ikke full prosessavslutning.
-- MCP-servere, hooks og andre uttrykkelig merkede Demo-funksjoner er ikke ferdige.
-
-Se [Git og verktøy](GIT-AND-TOOLS.md), [sidepanelet](SIDEPANEL-WORKSPACE.md), [skills](SLASH-SKILLS.md) og [modellkontekst](MODEL-CONTEXT.md) for bruk og detaljer.
+Se [full versjonslogg](PATCHLOG.md) for tidligere versjoner.

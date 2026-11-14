@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.21.1](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.22.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -12,7 +12,15 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Klikk på et bilde for full størrelse.*
 
-*Hovedbildene viser v0.21.0; detaljbildene under viser v0.21.1. Alle bruker demo og midlertidige data.*
+*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0. Alle bruker demo og midlertidige data.*
+
+## Nytt i v0.22
+
+Chat kan lage nedlastbare Word-, Excel-, PowerPoint-, Markdown- og tekstfiler, med egne filkort. Valgfri Python-analyse bruker et isolert arbeidsområde uten nettverk eller PC-/prosjektfiler. Python har standardbiblioteket; arbeidsfiler beholdes, variabler nullstilles. Profilens tokenkalender viser dag, dato og tokens straks ved pekeren. Se [Filer og Python i Chat](docs/CHAT-FILES.md).
+
+| Chat-filer | Chat-verktøy | Tokenkalender |
+|---|---|---|
+| [![Nedlastbar Excel-fil](docs/bilder/chat-filer.png)](docs/bilder/chat-filer.png) | [![Verktøy i Chat](docs/bilder/chat-verktoy.png)](docs/bilder/chat-verktoy.png) | [![Profilens tokenkalender](docs/bilder/tokenkalender.png)](docs/bilder/tokenkalender.png) |
 
 ## Nytt i v0.21.1
 

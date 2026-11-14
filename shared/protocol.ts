@@ -360,10 +360,10 @@ export const APP_ICONS: Array<{ id: AppIconId; name: string; note: string }> = [
 export const isAppIcon = (value: unknown): value is AppIconId => APP_ICONS.some((icon) => icon.id === value);
 
 // Round 13 (SPEC 27.2): the tools of a chat, switched in the tool menu by the message field.
-export type ChatToolId = "web" | "fetch" | "artifacts" | "memory";
+export type ChatToolId = "web" | "fetch" | "artifacts" | "memory" | "documents" | "python";
 export type ChatTools = Record<ChatToolId, boolean>;
-export const CHAT_TOOL_IDS: ChatToolId[] = ["web", "fetch", "artifacts", "memory"];
-export const DEFAULT_CHAT_TOOLS: ChatTools = { web: false, fetch: false, artifacts: true, memory: true };
+export const CHAT_TOOL_IDS: ChatToolId[] = ["web", "fetch", "artifacts", "memory", "documents", "python"];
+export const DEFAULT_CHAT_TOOLS: ChatTools = { web: false, fetch: false, artifacts: true, memory: true, documents: true, python: false };
 
 export function chatToolsOf(thread: (Pick<Thread, "chatTools"> & Partial<Pick<Thread, "temporary">>) | undefined, settings: Pick<Settings, "chatTools">): ChatTools {
   const tools = { ...DEFAULT_CHAT_TOOLS, ...settings.chatTools, ...thread?.chatTools };
@@ -380,6 +380,8 @@ export function webSearchRoute(model: Pick<ModelConfig, "webSearch"> | undefined
   if (model && kind && (model.webSearch ?? kind === "anthropic")) return "provider";
   return settings.webSearchUrl ? "browser" : null;
 }
+
+export interface ChatFile { id: string; threadId: string; name: string; mime: string; bytes: number; createdAt: number; url: string }
 
 // A source a web search or a read page gave, as a small card under the step.
 export interface WebSource {
@@ -628,7 +630,7 @@ export type ThreadEvent =
   | { type: "tool.output"; runId: string; callId: string; text: string }
   // screenshotId, when set, is served by GET /api/screenshots/:id.
   // sources: what a web search found or the page a web read gave (round 13).
-  | { type: "tool.finished"; runId: string; callId: string; status: ToolStatus; result?: string; durationMs: number; screenshotId?: string; sources?: WebSource[] }
+  | { type: "tool.finished"; runId: string; callId: string; status: ToolStatus; result?: string; durationMs: number; screenshotId?: string; sources?: WebSource[]; files?: ChatFile[] }
   | { type: "approval.requested"; runId: string; approvalId: string; callId: string; title: string; detail: string; canAllowAlways: boolean }
   | { type: "approval.resolved"; runId: string; approvalId: string; decision: ApprovalDecision }
   | { type: "thread.spawned"; runId: string; childThreadId: string; title: string }

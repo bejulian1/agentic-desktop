@@ -1,3 +1,4 @@
+import "./styles/chat-files.css";
 import { render } from "solid-js/web";
 import { ApiError, get, post, setUnauthorizedHandler } from "./lib/api";
 import { expire } from "./lib/socket";

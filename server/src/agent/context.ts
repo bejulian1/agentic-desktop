@@ -79,7 +79,7 @@ export interface ChatExtras {
   project?: ChatProject; // explicit Chat scope: suppress every global personalisation layer
   memories?: string; // Chat memories, already rendered
   // Round 13 (SPEC 27.2): the tools switched on in this chat. web is how a search is made, or null.
-  tools?: { web: "provider" | "browser" | "demo" | null; fetch: boolean; artifacts: boolean; memory: boolean };
+  tools?: { web: "provider" | "browser" | "demo" | null; fetch: boolean; artifacts: boolean; memory: boolean; documents?: boolean; python?: boolean };
 }
 
 // What the chat assistant is told about its tools, one line each. Without tools it is as before.
@@ -87,11 +87,12 @@ function chatToolLines(tools: ChatExtras["tools"]): string[] {
   const lines: string[] = [];
   if (tools?.web) lines.push("Web search is on: search the web when the question needs current or exact facts, and name the sources you used with their address.");
   if (tools?.fetch) lines.push("Reading web pages is on: when the user gives you an address, read it with web_fetch before you answer about it.");
-  if (!tools?.web && !tools?.fetch) {
-    lines.push("In Chat you have no tools for files, commands or the web, so you answer from what you know and what the user gives you. For work in a project folder, the user can switch to Kode, where the coding agent works.");
-  } else {
-    lines.push("You have no tools for files or commands here. For work in a project folder, the user can switch to Kode, where the coding agent works.");
-  }
+  if (!tools?.web && !tools?.fetch) lines.push("Web access is off. Answer from provided content and your knowledge; do not claim to have browsed.");
+  lines.push("Chat cannot inspect or edit the user's PC, home folder or Code projects, or control terminal/browser side panels. Those panels are user interfaces, not model tools. For project filesystem work, use Kode.");
+  if (tools?.documents) lines.push("Document generation is on: use create_document to create genuine downloadable Markdown, text, CSV, JSON, Excel, Word or PowerPoint files. Only claim a file exists after a successful tool result. Link the returned download URL; never invent paths or download links.");
+  else lines.push("Document generation is off. You may show code or text blocks, but do not claim to have saved/exported files.");
+  if (tools?.python) lines.push("Python analysis is on via run_python: an isolated Chat workspace, standard library only, no network or host/project access. Working files persist within this conversation's current scope, but variables reset every call. Only explicit text attachments and this workspace's generated files are available. Never claim arbitrary PC or package access. Use list_chat_files when you need actual filenames.");
+  else lines.push("Python execution is off or unavailable. Do not claim to have run or tested code; provide code examples or suggest enabling Python under Chat tools.");
   if (tools && !tools.artifacts) lines.push("Artifacts are off in this chat: do not write whole HTML programs unless the user asks for one; show short code examples instead.");
   else {
     lines.push("Artifacts: when the user wants a small app, game or page, write the whole thing as one file in a single block: ```html for a complete HTML document, or ```jsx / ```tsx for a React component exported by default. A React file may import only react and react-dom, and nothing loads from the network. Put a file name after the language, as in ```jsx timer.jsx, and keep that name when you write a new version. The app shows the block as a box the user can open to run it, read the code and save it.");

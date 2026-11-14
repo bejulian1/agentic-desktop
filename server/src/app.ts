@@ -1,3 +1,4 @@
+import {ChatWorkspace} from './chat-workspace.ts';
 // Wires everything together. startApp() is what index.ts and the tests call.
 import { PromptCompletions } from "./prompt-completion.ts";
 import type { ModelContextLookup } from "./model-context.ts";
@@ -182,7 +183,9 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     testing: options.webTesting,
   });
 
+  const chatWorkspace = new ChatWorkspace(store, config.dataDir);
   const runner = new Runner({
+    chatWorkspace,
     store,
     log,
     turns,
@@ -230,6 +233,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
 
   hub = new Hub({ store, security, terminals, browser, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   api = new Api({
+    chatWorkspace,
     promptCompletion: new PromptCompletions(store, (model) => {
       const provider = store.provider(model.providerId);
       if (!provider) throw new HttpError(400, "Fant ikke leverandøren");
@@ -325,6 +329,8 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       removeInstance(config.dataDir);
       servers.close();
       await runner.shutdown();
+      chatWorkspace.close();
+      await chatWorkspace.ready;
       await playtest.stopAll();
       await terminals.closeAll();
       await browser.dispose();

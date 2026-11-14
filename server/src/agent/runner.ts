@@ -1,3 +1,5 @@
+import {chatFileTools} from './chat-files.ts';
+import type {ChatWorkspace} from '../chat-workspace.ts';
 // The agent loop and everything around a run: queue, approvals, stop, recovery. All run state is
 // keyed by thread, so threads run side by side.
 import { REPO_ROOT } from "../config.ts";
@@ -147,6 +149,7 @@ interface ToolCall {
 }
 
 export interface RunnerDeps {
+  chatWorkspace?: ChatWorkspace;
   store: Store;
   log: EventLog;
   turns: Turns;
@@ -564,6 +567,7 @@ export class Runner {
     const route = tools.web ? this.webRoute(thread) : null;
     if (route === "browser" || route === "demo") out.push(webSearchTool);
     if (tools.fetch && this.deps.web) out.push(webFetchTool);
+    if (this.deps.chatWorkspace) out.push(...chatFileTools(this.deps.chatWorkspace, tools.documents, tools.python && this.deps.chatWorkspace.status().available));
     return out;
   }
 
@@ -689,13 +693,13 @@ export class Runner {
     );
   }
 
-  private chatPromptTools(thread: Thread, project: Project | undefined): { web: WebSearchRoute | null; fetch: boolean; artifacts: boolean; memory: boolean } | undefined {
+  private chatPromptTools(thread: Thread, project: Project | undefined): { web: WebSearchRoute | null; fetch: boolean; artifacts: boolean; memory: boolean; documents: boolean; python: boolean } | undefined {
     if (!this.isChat(thread, project)) return undefined;
     const tools = this.chatTools(thread);
     if (!tools) return undefined;
     const offered = this.chatToolDefs(thread).map((t) => t.def.name);
     const route = tools.web ? this.webRoute(thread) : null;
-    return { web: route === "provider" || offered.includes("web_search") ? route : null, fetch: offered.includes("web_fetch"), artifacts: tools.artifacts, memory: tools.memory };
+    return { web: route === "provider" || offered.includes("web_search") ? route : null, fetch: offered.includes("web_fetch"), artifacts: tools.artifacts, memory: tools.memory, documents: offered.includes("create_document"), python: offered.includes("run_python") };
   }
 
   systemPrompt(thread: Thread, project: Project | undefined, skills: Skill[], forRun = false): string {
@@ -1284,6 +1288,7 @@ export class Runner {
         durationMs: Date.now() - startedAt,
         ...(result.screenshotId ? { screenshotId: result.screenshotId } : {}),
         ...(result.sources ? { sources: result.sources } : {}),
+        ...(result.files ? { files: result.files } : {}),
       });
       return { result, status };
     };
@@ -1394,19 +1399,20 @@ export class Runner {
     }
   }
 
-  // Round 13 (SPEC 27.2): a chat's tools. They only read the web, so nothing asks first; the
+  // Chat tools operate only on web content and the isolated Chat workspace; the
   // switches in the chat's tool menu are the permission.
   private async runChatTool(active: ActiveRun, thread: Thread, call: ToolCall, offered: Set<string>): Promise<{ result: ToolResult; status: ToolStatus }> {
     const { threadId, runId, abort } = active;
     const startedAt = Date.now();
-    const tool = [webSearchTool, webFetchTool].find((t) => t.def.name === call.name && offered.has(t.def.name));
+    const tool = this.chatToolDefs(thread).find((t) => t.def.name === call.name && offered.has(t.def.name));
     const input = tool && call.input && typeof call.input === "object" && !Array.isArray(call.input) ? coerceArgs(call.input, tool.def.parameters) : call.input;
     const web = call.name === "web_search" ? this.webAccess(this.webRoute(thread)) : this.deps.web ? browserWeb(this.deps.web, undefined) : undefined;
-    const ctx = { thread, runId, signal: abort.signal, web, maxResultChars: resultBudget(this.resolveModelSafe(thread)) } as unknown as ToolContext;
+    const ctx = { thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web, maxResultChars: resultBudget(this.resolveModelSafe(thread)) } as unknown as ToolContext;
     const finish = (status: ToolStatus, result: ToolResult) => {
       this.log.append(threadId, {
         type: "tool.finished", runId, callId: call.id, status, result: result.text, durationMs: Date.now() - startedAt,
         ...(result.sources ? { sources: result.sources } : {}),
+        ...(result.files ? { files: result.files } : {}),
       });
       return { result, status };
     };
@@ -1416,8 +1422,11 @@ export class Runner {
     this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: tool && !problem ? tool.summary(input, ctx) : "", input, status: "running" });
     if (!tool || problem) return finish("error", { text: problem!, isError: true });
     try {
+      this.assertRunContext(active);
       const raw = await Promise.race([tool.run(input, ctx), rejectOnAbort(abort.signal)]);
-      return finish(raw.isError ? "error" : "done", raw);
+      this.assertRunContext(active);
+      const result = {...raw, text: clip(raw.text,ctx.maxResultChars)};
+      return finish(result.isError ? "error" : "done", result);
     } catch (err) {
       if (abort.signal.aborted) return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
       return finish("error", { text: (err as Error).message || "Verktøyet feilet", isError: true });

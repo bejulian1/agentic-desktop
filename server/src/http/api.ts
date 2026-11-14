@@ -1,3 +1,4 @@
+import type {ChatWorkspace} from '../chat-workspace.ts';
 // REST, as described in shared/protocol.ts.
 import type { PromptCompletions } from "../prompt-completion.ts";
 import { cleanContextText, lookupModelContextLocation, modelContextPatch, type ModelContextLookup } from "../model-context.ts";
@@ -127,6 +128,7 @@ interface Route {
 export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
+  chatWorkspace?: ChatWorkspace;
   promptCompletion?: PromptCompletions;
   store: Store;
   modelContextLookup?: ModelContextLookup;
@@ -392,6 +394,15 @@ export class Api {
 
     this.route("POST", "/api/auth/exchange", ({ res, body }) => {
       if (!security.exchange(res, body.token)) throw new HttpError(401, "Ugyldig token");
+    });
+
+    this.route("GET", "/api/chat-workspace/status", () => this.deps.chatWorkspace?.status() ?? {available:false, reason:"Python er ikke tilgjengelig."});
+    this.route("GET", "/api/chat-files/:threadId", ({params}) => ({files:this.deps.chatWorkspace?.list(params.threadId) ?? []}));
+    this.route("GET", "/api/chat-files/:threadId/:fileId/download", ({params,res}) => {
+      if (!this.deps.chatWorkspace) throw new HttpError(404,"Fant ikke filen.");
+      const {file,data}=this.deps.chatWorkspace.download(params.threadId,params.fileId);
+      res.writeHead(200,{"content-type":file.mime,"content-length":data.length,"content-disposition":`attachment; filename="download.${file.name.split('.').pop()}"; filename*=UTF-8''${encodeRfc5987(file.name)}`,"cache-control":"no-store","x-content-type-options":"nosniff","content-security-policy":"sandbox; default-src 'none'"});
+      res.end(data);return HANDLED;
     });
 
     this.route("GET", "/api/bootstrap", (): Bootstrap => ({
@@ -756,6 +767,7 @@ export class Api {
     this.route("DELETE", "/api/threads/:id", ({ params }) => {
       if (this.thread(params.id).running) throw new HttpError(409, "Tråden kjører");
       store.deleteThread(params.id);
+      this.deps.chatWorkspace?.remove(params.id);
       runner.files.forgetThread(params.id);
       publish({ type: "thread.deleted", threadId: params.id });
     });
@@ -1192,6 +1204,7 @@ export class Api {
       downloadDir: () => this.deps.downloads?.dir() ?? (store.settings().downloadDir || defaultDownloadDir()),
       deleteThread: (thread) => {
         store.deleteThread(thread.id);
+        this.deps.chatWorkspace?.remove(thread.id);
         runner.files.forgetThread(thread.id);
         publish({ type: "thread.deleted", threadId: thread.id });
       },

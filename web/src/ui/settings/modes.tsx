@@ -167,6 +167,8 @@ function SearchUrlRow() {
 const TOOL_DEFAULTS: Array<{ id: ChatToolId; label: string; text: string }> = [
   { id: "web", label: "Nettsøk", text: "Modellen kan søke på nettet: med leverandørens eget søk når modellen har det, ellers på søkesiden under." },
   { id: "fetch", label: "Les nettsider", text: "Modellen kan lese en adresse du limer inn, med appens nettleser." },
+  { id: "documents", label: "Lag filer", text: "Lag nedlastbare Word-, Excel-, PowerPoint-, Markdown- og tekstfiler i chatten." },
+  { id: "python", label: "Python-analyse", text: "Valgfri isolert kodekjøring for beregninger og data. Krever Python 3 og bubblewrap. Uten nettverk, tilgang til PC-filer eller ekstra Python-pakker. Variabler nullstilles mellom kjøringer, arbeidsfiler beholdes i chatten." },
   { id: "artifacts", label: "Artifacts", text: "Modellen kan lage små HTML-programmer som kjører i chatten." },
   { id: "memory", label: "Minne", text: "Modellen bruker Chat-minnene dine (Chat-personalisering)." },
 ];

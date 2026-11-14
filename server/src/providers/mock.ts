@@ -503,6 +503,19 @@ function searchQuery(text: string): string {
 
 function chatWithTools(text: string, done: DoneCall[], tools: string[], system: string): Step | null {
   const lower = text.toLowerCase();
+  const document = /lag.*(?:word|excel|powerpoint|markdown|tekstfil|xlsx|docx|pptx)/.test(lower);
+  if(document){
+    if(!tools.includes("create_document"))return {text:"Lag filer er slått av i denne chatten. Aktiver det med verktøyknappen i meldingsfeltet."};
+    const made=done.find(d=>d.name==="create_document");
+    if(made)return {text:made.isError?`Filen ble ikke laget: ${made.result}`:"Filen er klar for nedlasting i filkortet under verktøysteget. Dette er et eksempel fra demo-modellen."};
+    const input=/excel|xlsx/.test(lower)?{name:"budsjett.xlsx",sheets:[{name:"Budsjett",headers:["Post","Beløp"],rows:[["Utstyr",1200],["Programvare",800],["Totalt",{formula:"SUM(B2:B3)",result:2000}]]}]}:/powerpoint|pptx/.test(lower)?{name:"presentasjon.pptx",slides:[{title:"Analyse i Chat",body:"Et eksempel laget i Agentic Desktop.",bullets:["Nedlastbare dokumenter","Egne Chat-verktøy"]}]}:/word|docx/.test(lower)?{name:"rapport.docx",title:"Rapport",sections:[{heading:"Oppsummering",text:"Dette er et eksempel laget av demo-modellen i Agentic Desktop.",bullets:["Ekte Word-dokument","Klar for nedlasting"]}]}:{name:/markdown/.test(lower)?"notat.md":"notat.txt",text:"Et eksempel fra Agentic Desktop."};
+    return {text:"Jeg lager et eksempeldokument.",call:{name:"create_document",input}};
+  }
+  if(/python-analyse|beregn med python/.test(lower)){
+    if(!tools.includes("run_python"))return {text:"Python-analyse er slått av eller utilgjengelig. Du kan velge det med verktøyknappen i Chat."};
+    const ran=done.find(d=>d.name==="run_python");if(ran)return {text:ran.isError?`Kjøringen feilet: ${ran.result}`:`Beregningen er kjørt i chattens isolerte arbeidsområde.\n\n${ran.result}`};
+    return {call:{name:"run_python",input:{code:'import statistics\nvalues=[12,24,36]\nprint("Gjennomsnitt:",statistics.mean(values))\nwith open("analyse.csv","w") as f: f.write("verdi\\n"+"\\n".join(map(str,values)))'}}};
+  }
   const wantsSearch = /\b(søk|søke|nettsøk|nettet|google)\b/.test(lower);
   const url = URL_IN_TEXT.exec(text)?.[0];
   if (url && tools.includes("web_fetch")) {
@@ -609,7 +622,7 @@ export function introduce(system: string, tools: string[], intent: Intent): stri
     const personal = /^Tone: |The user's own instructions for Chat:|About the user, written by the user:/m.test(system);
     const memories = /^Notes saved in earlier conversations/m.test(system);
     return [
-      `${intent === "greet" ? "Hei! " : ""}Jeg er chat-assistenten i Agentic Desktop. Jeg kan svare på spørsmål, forklare, skrive og se over tekst, og vise kodeeksempler. Her i Chat har jeg ingen verktøy for filer eller kommandoer; vil du at noe skal gjøres i en prosjektmappe, bytter du til Kode.`,
+      `${intent === "greet" ? "Hei! " : ""}Jeg er chat-assistenten i Agentic Desktop. Jeg kan svare på spørsmål, forklare, skrive og se over tekst, og vise kodeeksempler. ${tools.includes("create_document") ? "Jeg kan også lage nedlastbare Word-, Excel-, PowerPoint- og tekstfiler i chatten. " : "Dokumentgeneratoren er slått av. "}${tools.includes("run_python") ? "Python-analyse er på i et isolert arbeidsområde. " : "Python-kjøring er slått av. "}For endringer i eksisterende prosjektfiler og kommandoer på PC-en bytter du til Kode.`,
       "",
       `Fra systemprompten: ${personal ? "personaliseringen din er med" : "ingen personalisering er lagt inn ennå"}, og ${memories ? "jeg har Chat-minner fra før" : "jeg har ingen Chat-minner ennå"}.`,
       "",
@@ -669,7 +682,7 @@ function decide(text: string, done: DoneCall[], tools: string[], system = ""): S
   if (/\bartifacts?\b|html-spill/.test(lower)) return { thinking: "Brukeren vil ha et lite program i én fil. Jeg lager et canvas-spill med poeng.", text: ARTIFACT_REPLY };
   if (/tekstblokk/.test(lower)) return { text: TEXT_REPLY };
   const intent = identityIntent(text);
-  if (intent && !done.length && (hasTools || intent !== "greet")) {
+  if (intent && !done.length && ((!chat && hasTools) || intent !== "greet")) {
     return { thinking: "Brukeren vil vite hvem jeg er. Jeg svarer ut fra systemprompten, uten verktøy.", text: introduce(system, tools, intent) };
   }
   // «husk at …» in Kode: saved with remember, through the normal approvals (SPEC 22.3).
@@ -681,7 +694,7 @@ function decide(text: string, done: DoneCall[], tools: string[], system = ""): S
     }
     return { text: done[0].isError ? `Minnet ble ikke lagret: ${done[0].result}` : "Lagret. Jeg får det med meg i nye tråder i dette prosjektet." };
   }
-  if (!hasTools || chat) return { thinking: "Ingen verktøy her, så jeg svarer med tekst og kodeblokker.", text: CHAT_REPLY };
+  if (!hasTools || chat) return { thinking: "Dette besvares med tekst og kodeblokker.", text: CHAT_REPLY };
   if (!tools.includes("write_file")) return plan(done);
   if (lower.startsWith("[melding fra tråden")) return helper(done);
   if (lower.includes("løkke") || lower.includes("loop")) {

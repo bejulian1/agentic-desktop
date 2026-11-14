@@ -44,7 +44,42 @@ function ensureElectronBinary(): void {
   const fetched = spawnSync(process.execPath, [path.join(ROOT, "node_modules/electron/install.js")], { cwd: path.join(ROOT, "node_modules/electron"), stdio: "inherit" });
   if (fetched.status !== 0 || !existsSync(path.join(ROOT, "node_modules/electron/dist/electron"))) throw new Error("Kunne ikke hente Electron. Sjekk nettet og prøv npm run dist igjen.");
 }
-const SERVER_PACKAGES = ["node-pty", "playwright-core", "ws", "ignore"];
+const SERVER_PACKAGES = ["node-pty", "playwright-core", "ws", "ignore", "docx", "exceljs", "pptxgenjs"];
+
+// Copy the resolved production dependency graph, including nested versions when required.
+// This does not run install scripts or fetch packages while staging the app.
+function copyRuntimePackage(name: string, from: string, modules: string, seen: Set<string>): string {
+  let current = from, source = "";
+  for (;;) {
+    const candidate = path.join(current, "node_modules", name);
+    if (existsSync(path.join(candidate, "package.json"))) { source = candidate; break; }
+    const parent = path.dirname(current);
+    if (parent === current) throw new Error(`Mangler kjøretidsavhengighet: ${name}`);
+    current = parent;
+  }
+  const meta = JSON.parse(readFileSync(path.join(source, "package.json"), "utf8"));
+  const destination = path.join(modules, name);
+  const key = source + "→" + destination;
+  if (seen.has(key)) return meta.version;
+  seen.add(key);
+  if (!existsSync(path.join(destination, "package.json"))) cpSync(source, destination, {recursive:true,dereference:true});
+  for (const dependency of Object.keys({...meta.dependencies,...meta.optionalDependencies})) {
+    let targetModules = modules;
+    const existing = path.join(modules, dependency, "package.json");
+    // Resolve source version before deciding whether the top-level copy can be reused.
+    let base = source, resolved = "";
+    for (;;) {
+      const candidate = path.join(base, "node_modules", dependency, "package.json");
+      if (existsSync(candidate)) { resolved = candidate; break; }
+      const parent = path.dirname(base); if (parent === base) break; base = parent;
+    }
+    if (!resolved && meta.optionalDependencies?.[dependency]) continue;
+    if (!resolved) throw new Error(`Mangler ${dependency}, brukt av ${name}`);
+    if (existsSync(existing) && JSON.parse(readFileSync(existing,"utf8")).version !== JSON.parse(readFileSync(resolved,"utf8")).version) targetModules = path.join(destination,"node_modules");
+    copyRuntimePackage(dependency,source,targetModules,seen);
+  }
+  return meta.version;
+}
 
 function run(command: string, args: string[], cwd: string): void {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
@@ -137,10 +172,8 @@ export async function dist(): Promise<void> {
     const modules = path.join(serverDir, "node_modules");
     mkdirSync(modules, { recursive: true });
     const deps: Record<string, string> = {};
-    for (const name of SERVER_PACKAGES) {
-      cpSync(path.join(ROOT, "node_modules", name), path.join(modules, name), { recursive: true, dereference: true });
-      deps[name] = JSON.parse(readFileSync(path.join(modules, name, "package.json"), "utf8")).version;
-    }
+    const copiedPackages = new Set<string>();
+    for (const name of SERVER_PACKAGES) deps[name] = copyRuntimePackage(name, ROOT, modules, copiedPackages);
     cpSync(path.join(ROOT, "node_modules/node-addon-api"), path.join(modules, "node-addon-api"), { recursive: true }); // only to build
     writeFileSync(path.join(serverDir, "package.json"), `${JSON.stringify({ name: "agentic-desktop-server", private: true, type: "module", dependencies: deps }, null, 2)}\n`);
     rmSync(path.join(modules, "node-pty/build"), { recursive: true, force: true });

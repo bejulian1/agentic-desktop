@@ -7,6 +7,7 @@ import type {
   AnswerModel,
   Attachment,
   ChangedFile,
+  ChatFile,
   QueueSnapshot,
   RunStatus,
   ThreadEvent,
@@ -108,6 +109,7 @@ export interface ToolRow extends RowBase {
   result?: string;
   durationMs?: number;
   screenshotId?: string;
+  files?: ChatFile[];
   sources?: WebSource[]; // round 13: what a web search found, or the page that was read
   onOutput?: () => void;
 }
@@ -434,6 +436,7 @@ class Folder {
         row.durationMs = event.durationMs;
         row.screenshotId = event.screenshotId;
         if (event.sources) row.sources = event.sources;
+        if (event.files) row.files = event.files;
         row.touch();
         this.task(event.callId, { status: event.status });
         return;

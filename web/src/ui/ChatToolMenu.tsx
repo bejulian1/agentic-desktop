@@ -6,7 +6,7 @@ import { createMemo, createResource, createSignal, For, type Accessor, type JSX 
 import { CHAT_TOOL_IDS, chatToolsOf, webSearchRoute, type ChatProject, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
 import { get, patch } from "../lib/api";
 import { app, modelFor, modelName, report, setSettingsOpen } from "../state/app";
-import { IconArtifact, IconBookmark, IconGlobe, IconSliders } from "./icons";
+import { IconArtifact, IconBookmark, IconGlobe, IconSliders, IconFilePlus, IconTerminal } from "./icons";
 import { IconLink } from "./nav-icons";
 import { Popover } from "./Popover";
 
@@ -57,6 +57,8 @@ interface ToolInfo {
 const TOOLS: ToolInfo[] = [
   { id: "web", name: "Nettsøk", icon: IconGlobe },
   { id: "fetch", name: "Les nettsider", icon: IconLink }, // a link: it reads the address you paste (SPEC 28)
+  { id: "documents", name: "Lag filer", icon: IconFilePlus },
+  { id: "python", name: "Python-analyse", icon: IconTerminal },
   { id: "artifacts", name: "Artifacts", icon: IconArtifact },
   { id: "memory", name: "Minne", icon: IconBookmark },
 ];
@@ -71,6 +73,7 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
   const [open, setOpen] = createSignal(false);
   // Read when the menu opens: whether Chat memories are on, and whether new ones are saved.
   const [personal] = createResource(() => open() && !props.chatProject, () => get<ChatPersonalState>("/api/chat-personal").catch(() => null));
+  const [python] = createResource(() => open(), () => get<{available:boolean;reason:string}>("/api/chat-workspace/status").catch(() => ({available:false,reason:"Kunne ikke kontrollere Python."})));
   const memoriesOff = () => personal()?.personal.memories === false;
   const anyOn = () => CHAT_TOOL_IDS.some((id) => props.state.tools()[id]);
   let menu: HTMLDivElement | undefined;
@@ -81,6 +84,8 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
         const route = props.state.route();
         return route ? { text: ROUTE_TEXT[route] } : { text: "", off: `${props.state.model()} har ikke eget nettsøk, og ingen søkeside er satt opp i Innstillinger → Chat` };
       }
+      case "documents": return {text:"Nedlastbare Word-, Excel-, PowerPoint- og tekstfiler"};
+      case "python": return python()?.available ? {text:"Isolert kodekjøring · uten nettverk · standardbiblioteket"} : {text:"",off:python()?.reason??"Kontrollerer isolert Python…"};
       case "fetch":
         return { text: "Leser en adresse du limer inn" };
       case "artifacts":
@@ -114,7 +119,7 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
           class="foot-icon tools-button"
           data-on={anyOn() ? "" : undefined}
           data-testid="chat-tools-button"
-          title="Verktøy for denne chatten: nettsøk, nettsider, artifacts og minne"
+          title="Verktøy for denne chatten: nettsøk, filer, Python, artifacts og minne"
           aria-label="Verktøy"
           aria-haspopup="menu"
           aria-expanded={open()}

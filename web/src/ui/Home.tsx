@@ -1,3 +1,4 @@
+import {useTokenTooltip} from "./TokenTooltip";
 // The start page of an empty pane. Chat: a greeting and example cards. Kode, with or without a
 // project (round 11b, SPEC 25.2), shows one of three starts chosen in Innstillinger → Kode:
 //   Tekst: the mark and the question, in Liten, Middels or Stor, scaled with the pane (SPEC 24.1)
@@ -72,20 +73,20 @@ const dayLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateStri
 // One SVG for half a year: a column per week, a row per weekday. Levels are quartiles of the
 // days that have any use, so one big day does not wash out the rest.
 function HeatMap(props: { heat: HomeStats["heat"] }) {
-  const levels = () => {
+  const tip=useTokenTooltip();
+  const levels = createMemo(() => {
     const used = props.heat.map((d) => d.tokens + d.runs).filter((v) => v > 0).sort((a, b) => a - b);
     const at = (q: number) => used[Math.min(used.length - 1, Math.floor(q * used.length))] ?? 0;
     return [at(0.25), at(0.5), at(0.75)];
-  };
+  });
   const level = (value: number) => {
     if (value <= 0) return 0;
     const [a, b, c] = levels();
     return value <= a ? 1 : value <= b ? 2 : value <= c ? 3 : 4;
   };
   const weeks = () => Math.ceil(props.heat.length / 7);
-  const label = (d: HomeStats["heat"][number]) => `${dayLabel(d.date)}: ${formatTokens(d.tokens)} tokens, ${d.runs} kjøringer`;
   return (
-    <svg
+    <>{tip.tooltip()}<svg
       class="heat-map"
       viewBox={`0 0 ${weeks() * (CELL + GAP) - GAP} ${7 * (CELL + GAP) - GAP}`}
       role="img"
@@ -100,12 +101,10 @@ function HeatMap(props: { heat: HomeStats["heat"] }) {
             height={CELL}
             rx={2.5}
             class={`heat-${level(day.tokens + day.runs)}`}
-          >
-            <title>{label(day)}</title>
-          </rect>
+           {...tip.bind(day.date,day.tokens,false,i()===0)} />
         )}
       </For>
-    </svg>
+    </svg></>
   );
 }
 

@@ -2,6 +2,17 @@
 
 Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **Demo** i appen.
 
+
+## 0.22.0: Chat-filer, isolert Python og rask tokenkalender (14. november 2026, bygg 64)
+
+- **Lag nedlastbare filer i Chat:** egne verktøy lager ekte Word-, Excel- og PowerPoint-filer, samt Markdown, tekst, CSV og JSON. Filkort med størrelse og nedlasting vises etter verktøysteget, også når detaljer er lukket. Excel støtter eksplisitte formler; makroer og aktive eksterne koblinger er ikke støttet.
+- **Valgfri Python-analyse:** separat bryter i Chat-verktøy og Chat-innstillinger. Python kjører i et isolert arbeidsområde uten nettverk, hjemmemappe, API-nøkler eller Kode-prosjekter. Standardbiblioteket er tilgjengelig; ekstra analysepakker er ikke inkludert. Hver kjøring starter med nye variabler, mens støttede arbeidsfiler beholdes i den aktuelle chat-konteksten.
+- **Egne arbeidsfiler per chat:** filene får tilfeldige ID-er og autentiserte nedlastinger. Tidligere versjoner beholdes. Prosjektbytte/kontekstendring gir et nytt arbeidsområde; historiske filkort kan fremdeles lastes ned manuelt. Sletting av chat rydder filene. Midlertidige Chat-filer ryddes også ved avslutning.
+- **Tydeligere harness:** modellen får faktiske verktøy og begrensninger. Chat-dokumenter og Python er adskilt fra PC-/prosjektfilene og verktøyene i sidepanelet. Ingen påstått fil, kjøring eller nedlastingslenke før et faktisk verktøyresultat. Demoen kan vise dokumenteksport og Python uten API-nøkkel.
+- **Umiddelbar tokenkalender:** profilens dag-/ukekalender og aktivitetskartene viser infoboks ved musepekeren uten ventetid. Dag og full dato står øverst, eksakt tokenantall under. Kalenderen støtter også tastatur og Escape. Fargenivåene beregnes én gang per datasett.
+
+Dokumenter og filer: maks 10 MB per fil, 200 filversjoner/50 MB per chat. Python: 30 sekunder, 512 MB, 20 MB resultatfiler per kjøring. Krever Python 3 og bubblewrap på Linux; appen kjører ikke kode uten fungerende isolering. Opplasting/tolkning av eksisterende Office-filer er ikke innført. Se [Filer og Python i Chat](CHAT-FILES.md).
+
 ## 0.21.1: Midtstilte modellbytter og navn i topplinjen (14. november 2026, bygg 63)
 
 - **Roligere samtalevisning:** modellbytte-linjen ligger midtstilt i samtaleområdet i både Chat og Kode. Lange modellnavn brytes innenfor vinduet.

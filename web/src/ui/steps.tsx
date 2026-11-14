@@ -1,3 +1,4 @@
+import {ChatFileCards} from "./ChatFileCards";
 // Round 13 (SPEC 27.1): how a Kode turn reads. Each step is one line with an icon for its kind, a
 // short verb, what it was about and the result in a word or two. Steps of the same kind in a row
 // are one line («Leste 6 filer») that folds out. While the turn runs, one line at the bottom says
@@ -129,6 +130,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
   const kind = createMemo(() => stepKind(info()));
   const error = createMemo(() => errorLine(info()));
   const shot = createMemo(() => (row.rev(), row.screenshotId));
+  const files = createMemo(() => (row.rev(), row.files?.length ? row.files : undefined));
   const sources = createMemo(() => (row.rev(), row.sources?.length ? row.sources : undefined));
   const outputText = document.createTextNode(row.output);
   const waiting = () => status() === "awaiting-approval";
@@ -183,6 +185,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
         <span class="step-chevron" classList={{ open: open() }}><IconChevron size={12} /></span>
       </button>
       <Show when={error() && !open()}><div class="step-note">{error()}</div></Show>
+      <Show when={files()}>{list => <ChatFileCards files={list()} />}</Show>
       <Show when={(props.chat || open()) && sources()}>{(list) => <SourceCards sources={list()} />}</Show>
       <Show when={open()}>
         <div class="tool-body">

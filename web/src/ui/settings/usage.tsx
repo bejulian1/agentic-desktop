@@ -1,7 +1,8 @@
+import { useTokenTooltip} from "../TokenTooltip";
 // Innstillinger → Bruk: your name, the statistics card with the token history (moved here from the
 // Kode start page, SPEC 20), and what it has cost. The profile page has the long view (the year, the
 // tiles, per model); this page links there instead of showing the same numbers a second way.
-import { createEffect, createResource, createSignal, For, Show } from "solid-js";
+import { createMemo, createEffect, createResource, createSignal, For, Show } from "solid-js";
 import type { HomeStats, ProfileStats, StatsRange } from "../../../../shared/protocol";
 import { get } from "../../lib/api";
 import { formatCost, formatTokens } from "../../lib/format";
@@ -52,29 +53,26 @@ const GAP = 3;
 // One SVG for half a year: a column per week, a row per weekday. Levels are quartiles of the days
 // that have any use, so one big day does not wash out the rest.
 function HeatMap(props: { heat: HomeStats["heat"] }) {
-  const levels = () => {
+  const tip=useTokenTooltip();
+  const levels = createMemo(() => {
     const used = props.heat.map((d) => d.tokens + d.runs).filter((v) => v > 0).sort((a, b) => a - b);
     const at = (q: number) => used[Math.min(used.length - 1, Math.floor(q * used.length))] ?? 0;
     return [at(0.25), at(0.5), at(0.75)];
-  };
+  });
   const level = (value: number) => {
     if (value <= 0) return 0;
     const [a, b, c] = levels();
     return value <= a ? 1 : value <= b ? 2 : value <= c ? 3 : 4;
   };
   const weeks = () => Math.ceil(props.heat.length / 7);
-  const label = (d: HomeStats["heat"][number]) =>
-    `${new Date(`${d.date}T12:00:00`).toLocaleDateString("nb-NO", { day: "numeric", month: "short" })}: ${formatTokens(d.tokens)} tokens, ${d.runs} kjøringer`;
   return (
-    <svg class="heat-map" viewBox={`0 0 ${weeks() * (CELL + GAP) - GAP} ${7 * (CELL + GAP) - GAP}`} role="img" aria-label="Aktivitet per dag det siste halve året">
+    <>{tip.tooltip()}<svg class="heat-map" viewBox={`0 0 ${weeks() * (CELL + GAP) - GAP} ${7 * (CELL + GAP) - GAP}`} role="img" aria-label="Aktivitet per dag det siste halve året">
       <For each={props.heat}>
         {(day, i) => (
-          <rect x={Math.floor(i() / 7) * (CELL + GAP)} y={(i() % 7) * (CELL + GAP)} width={CELL} height={CELL} rx={2.5} class={`heat-${level(day.tokens + day.runs)}`}>
-            <title>{label(day)}</title>
-          </rect>
+          <rect x={Math.floor(i() / 7) * (CELL + GAP)} y={(i() % 7) * (CELL + GAP)} width={CELL} height={CELL} rx={2.5} class={`heat-${level(day.tokens + day.runs)}`} {...tip.bind(day.date,day.tokens,false,i()===0)} />
         )}
       </For>
-    </svg>
+    </svg></>
   );
 }
 

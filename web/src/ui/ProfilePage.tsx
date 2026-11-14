@@ -1,3 +1,4 @@
+import {useTokenTooltip} from "./TokenTooltip";
 // The profile page in the middle of the window: initials, name, five key numbers and the token
 // activity for a year, per day, per week or added up. All numbers come from the database through
 // /api/profile, fetched when the page opens and again when a run has finished.
@@ -46,6 +47,7 @@ function monthMarks(year: Day[]): Array<{ week: number; label: string }> {
 }
 
 function Daily(props: { year: Day[] }) {
+  const tip=useTokenTooltip();
   const levels = createMemo(() => {
     const used = props.year.map((d) => d.tokens).filter((v) => v > 0).sort((a, b) => a - b);
     const at = (q: number) => used[Math.min(used.length - 1, Math.floor(q * used.length))] ?? 0;
@@ -60,22 +62,21 @@ function Daily(props: { year: Day[] }) {
   const weeks = () => Math.ceil(props.year.length / 7);
   const width = () => weeks() * (CELL + GAP) - GAP;
   return (
-    <svg class="profile-chart" viewBox={`0 0 ${width()} ${7 * (CELL + GAP) + 14}`} role="img" aria-label="Tokens per dag det siste året" data-testid="profile-daily">
+    <>{tip.tooltip()}<svg class="profile-chart" viewBox={`0 0 ${width()} ${7 * (CELL + GAP) + 14}`} role="img" aria-label="Tokens per dag det siste året" data-testid="profile-daily">
       <For each={props.year}>
         {(day, i) => (
-          <rect x={Math.floor(i() / 7) * (CELL + GAP)} y={(i() % 7) * (CELL + GAP)} width={CELL} height={CELL} rx={2.5} class={`heat-${level(day)}`}>
-            <title>{`${dateLabel(day.date)}: ${formatTokens(day.tokens)} tokens, ${day.runs} kjøringer`}</title>
-          </rect>
+          <rect x={Math.floor(i() / 7) * (CELL + GAP)} y={(i() % 7) * (CELL + GAP)} width={CELL} height={CELL} rx={2.5} class={`heat-${level(day)}`} {...tip.bind(day.date,day.tokens,false,i()===0)} />
         )}
       </For>
       <For each={monthMarks(props.year)}>
         {(m) => <text class="profile-axis" x={m.week * (CELL + GAP)} y={7 * (CELL + GAP) + 11}>{m.label}</text>}
       </For>
-    </svg>
+    </svg></>
   );
 }
 
 function Weekly(props: { year: Day[] }) {
+  const tip=useTokenTooltip();
   const weeks = createMemo(() => {
     const out: Array<{ start: string; tokens: number }> = [];
     for (let i = 0; i < props.year.length; i += 7) {
@@ -87,21 +88,19 @@ function Weekly(props: { year: Day[] }) {
   const max = () => Math.max(1, ...weeks().map((w) => w.tokens));
   const height = 7 * (CELL + GAP);
   return (
-    <svg class="profile-chart" viewBox={`0 0 ${weeks().length * (CELL + GAP) - GAP} ${height + 14}`} role="img" aria-label="Tokens per uke det siste året" data-testid="profile-weekly">
+    <>{tip.tooltip()}<svg class="profile-chart" viewBox={`0 0 ${weeks().length * (CELL + GAP) - GAP} ${height + 14}`} role="img" aria-label="Tokens per uke det siste året" data-testid="profile-weekly">
       <For each={weeks()}>
         {(w, i) => {
           const h = () => (w.tokens ? Math.max(2, (w.tokens / max()) * height) : 1);
           return (
-            <rect x={i() * (CELL + GAP)} y={height - h()} width={CELL} height={h()} rx={2} class={w.tokens ? "heat-3" : "heat-0"}>
-              <title>{`Uken fra ${dateLabel(w.start)}: ${formatTokens(w.tokens)} tokens`}</title>
-            </rect>
+            <rect x={i() * (CELL + GAP)} y={height - h()} width={CELL} height={h()} rx={2} class={w.tokens ? "heat-3" : "heat-0"} {...tip.bind(w.start,w.tokens,true,i()===0)} />
           );
         }}
       </For>
       <For each={monthMarks(props.year)}>
         {(m) => <text class="profile-axis" x={m.week * (CELL + GAP)} y={height + 11}>{m.label}</text>}
       </For>
-    </svg>
+    </svg></>
   );
 }
 
