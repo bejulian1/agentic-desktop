@@ -372,8 +372,8 @@ export class Api {
     return scored.sort((a, b) => a.score - b.score).slice(0, MENTION_LIMIT).map((s) => s.item);
   }
 
-  private commands(project: Project | undefined): CommandInfo[] {
-    const discovered = this.deps.runner.skillsFor(project);
+  private commands(project: Project | undefined, chat = false, chatProject = false): CommandInfo[] {
+    const discovered = chat ? this.deps.runner.chatSkills(chatProject) : this.deps.runner.skillsFor(project, "code");
     const reviewSkill = discovered.some((skill) => skill.name === "review");
     const skills = discovered
       .filter((skill) => skill.name === "review" || !BUILTIN_NAMES.has(skill.name))
@@ -618,7 +618,7 @@ export class Api {
       return store.projectUsage(params.id);
     });
 
-    this.route("GET", "/api/commands", () => this.commands(undefined));
+    this.route("GET", "/api/commands", ({ query }) => this.commands(undefined, query.get("mode") === "chat", query.get("scope") === "project"));
     this.route("GET", "/api/projects/:id/commands", ({ params }) => this.commands(this.project(params.id)));
     this.route("GET", "/api/projects/:id/mentions", ({ params, query }) => this.mentions(this.project(params.id), query.get("q") ?? "", query.get("kind")));
 

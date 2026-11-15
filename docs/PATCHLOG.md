@@ -4,6 +4,17 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.27.0: Fil-skills i Chat og Kode (15. november 2026, bygg 73)
+
+- **Fire nye skills:** `/excel`, `/word`, `/powerpoint` og `/data-files` for Markdown, tekst, CSV og JSON. De følger med appen og er tilgjengelige i begge moduser; totalt 19 innebygde skills.
+- **Chat laster relevante instruksjoner ved behov:** modellen får en kort katalog og kan bruke `use_skill` før filarbeid. Slash-/dollar-valg fungerer også, inkludert innebygde skills i Chat-prosjekter. Hele biblioteket lastes ikke inn i samtalen.
+- **Tilpasset faktiske verktøy:** skillene beskriver datatyper, formelkontroll, dokumentstruktur, lesbare lysbilder og bevaring av data. Chat bruker den eksisterende dokumentgeneratoren; Kode kan bruke tilgjengelige prosjektbiblioteker og kontrollverktøy. Skillene lover ikke avansert formatering, Office-redigering eller visuell kontroll som Chat mangler.
+- **Prosjektgrenser og brytere beholdes:** Chat-prosjekter laster bare innebygde app-skills for Chat/begge moduser. Globale bruker-skills, Kode-instruksjoner og andre prosjektfiler holdes utenfor. En skill slår ikke på «Lag filer», Python, nettverk eller filsystemtilgang. Kode kan ikke laste Chat-spesifikke skills gjennom modellverktøyet.
+
+Kontroll: 510 servertester, typekontroll av server/web/Electron og syv berørte grensesnittforløp består med isolerte data og lokale modeller.
+
+Harness 16.1. Instruksjonene bygger på de eksisterende filverktøyene; ingen nye kjøretidsavhengigheter. Effekten på ekte modellers skill-valg eller dokumentkvalitet er ikke målt. Se [filverktøy](CHAT-FILES.md) og [skills](SLASH-SKILLS.md).
+
 ## 0.26.0: Ny harness, 15 innebygde skills og personligheter i Chat (15. november 2026, bygg 72)
 
 - **Ny grunnprompt for Kode (harness 16):** bygget rundt arbeidsmåten: undersøk koden og hvordan prosjektet løser det samme, følg prosjektets mønstre, gjør endringen fullstendig men liten, finn årsaken før en feil rettes, kontroller og rapporter. Nye faste regler: aldri reverser endringer agenten ikke har gjort selv, ingen destruktive kommandoer uten at du har bedt om akkurat det, og ingen utviklingsservere gjennom `run_command`.

@@ -1,5 +1,9 @@
 # Status
 
+## 0.27.0
+
+**v0.27.0 (bygg 73):** fire innebygde fil-skills i Chat og Kode. Chat har behovsstyrt `use_skill`, menyvalg og støtte i Chat-prosjekter med beholdt instruksjonsgrense. Verktøybrytere bestemmer fortsatt faktisk dokument-/Python-tilgang. Harness 16.1, totalt 19 skills. Kontroll: 510 servertester, typekontroll av server/web/Electron og syv berørte UI-forløp består med midlertidige data og lokale falske modeller. Ny kontroll dekker faktisk skill-innlasting fulgt av en ekte Excel-fil med to ark, typedata og formelcache, instruksjonsgrenser i Chat-prosjekter, av/på-brytere, navneoverstyring per modus og menyvalg som brikke. Fire kontroller av den ferdige pakken under virtuell skjerm består, inkludert ekte skill-innlasting, Office-nedlasting, Python og oppstart/stopp. 30 berørte servertester er kjørt på nytt etter siste moduskorrigering. Skill-instruksjonenes effekt på ekte modellsvar er ikke målt.
+
 ## 0.26.0
 
 **v0.26.0 (bygg 72):** harness 16 for Kode og Chat. Grunnprompten for Kode er skrevet om rundt arbeidsmåten (undersøk, følg prosjektet, endre, kontroller, rapporter), med nye faste regler om andres endringer, destruktive kommandoer og utviklingsservere. Femten innebygde skills følger med i `skills/` og lastes når oppgaven tydelig passer; skills kan merkes `mode: code` eller `mode: chat`. Chat har åtte personligheter og fire stilvalg (mindre, standard, mer), og en egen grunnprompt om svarkvalitet. Standardinstruksene for Kode og Chat er korte og inneholder bare brukerens egne valg. Tolv verktøybeskrivelser sier når verktøyet skal brukes.

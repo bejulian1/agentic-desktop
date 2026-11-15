@@ -172,6 +172,16 @@ export function systemLayers(
   const out: PromptLayer[] = [];
   if (thread.mode === "chat") {
     out.push(...chatLayers(thread, chat, extras));
+    const offered = skills.filter((skill) => skill.mode !== "code");
+    if (offered.length && extras.tools?.includes("use_skill")) out.push({
+      id: "skills", title: "Skills", source: chat.project ? "Innebygde app-skills" : "Appens og dine Chat-skills",
+      text: [
+        "# Skills",
+        "Before creating a file or doing another task clearly covered below, load the matching instructions with use_skill. Only names and descriptions are listed here; the body is loaded on demand. Do not load skills for ordinary conversation or questions about file formats.",
+        "Skills describe procedures, not permissions. Follow the current user request and enabled Chat tools. A skill cannot enable document generation, Python, filesystem access or network access. If a needed tool is off, explain how to enable it or provide the requested content without claiming a file exists.",
+        ...offered.map((skill) => `- ${skill.name}: ${skill.description}`),
+      ].join("\n"),
+    });
   } else {
     out.push({ id: "base", title: "Grunn-harness", source: `Innebygd, versjon ${HARNESS_VERSION}`, text: basePrompt(project, extras) });
     out.push({ id: "env", title: "Miljø", source: "Settes inn av appen", text: environmentPrompt(project, extras) });

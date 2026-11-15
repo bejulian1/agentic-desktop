@@ -29,10 +29,14 @@ Mapper leses ved oppstart og kontrolleres for filendringer hvert halve sekund. O
 
 ## Innebygde skills
 
-Femten skills følger med appen i `skills/` og lastes automatisk, også i en ny klone av repoet. De er skrevet for Kode, med norske beskrivelser (det du ser i menyen) og engelske instruksjoner (det modellen følger):
+Nitten skills følger med appen i `skills/`, også i en ny klone av repoet. Femten er skrevet for Kode; fire fil-skills fungerer i både Chat og Kode. Alle har norske beskrivelser (det du ser i menyen) og engelske instruksjoner (det modellen følger):
 
 | Skill | Bruk |
 |---|---|
+| `/excel` | Excel-filer med flere ark, typede celler og kontrollerte formler (Chat og Kode) |
+| `/word` | Word-dokumenter med tekst, overskrifter, punktlister og tabeller (Chat og Kode) |
+| `/powerpoint` | PowerPoint med tydelige lysbilder og presentatørnotater (Chat og Kode) |
+| `/data-files` | Markdown, tekst, CSV og JSON med bevarte data (Chat og Kode) |
 | `/debug` | Finn og rett årsaken til en feil systematisk |
 | `/tdd` | Lag en endring test-først |
 | `/review` | Kodegjennomgang uten å endre filer |
@@ -48,6 +52,8 @@ Femten skills følger med appen i `skills/` og lastes automatisk, også i en ny 
 | `/gauntlet-loop` | Intensiv runde med bygging, kritikk og forbedring |
 | `/skill-creator` | Lag eller forbedre en skill i Agentic Desktop |
 | `/memory` | Lær av rettelser og husk varige fakta i MEMORY.md |
+
+I Chat-prosjekter tilbys bare innebygde app-skills som støtter Chat. Globale bruker-skills og Kode-skills holdes utenfor; prosjektets egne instruksjoner gjelder fortsatt. Vanlig Chat kan bruke globale skills for Chat/begge moduser.
 
 Modellen får lista med navn og beskrivelse i systeminstruksen og blir bedt om å laste en passende skill med `use_skill` før den begynner på en oppgave. Når minner og skill-forslag er slått på, peker instruksen også på `memory` og `skill-creator`, slik at rettelser blir til minner i `MEMORY.md` og gjentakbare framgangsmåter blir til nye skills. Hver skill er én fil; appen laster ikke tilleggsfiler fra skill-mappen.
 

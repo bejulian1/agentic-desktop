@@ -722,7 +722,7 @@ const taskTools: Tool[] = [
   },
 ];
 
-const useSkillTool: Tool = {
+export const useSkillTool: Tool = {
   kind: "read",
   def: {
     name: "use_skill",

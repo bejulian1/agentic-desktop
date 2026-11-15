@@ -59,7 +59,7 @@ import {
 import type { EventLog } from "./events.ts";
 import { FileState } from "./filestate.ts";
 import { decide, effectiveMode } from "./permissions.ts";
-import { CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
+import { CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
 import { browserWeb, demoWeb, sourcesText, webFetchTool, webSearchTool, type WebAccess, type WebReader } from "./web.ts";
 import { chatToolsOf, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
 import type { Turns } from "./turns.ts";
@@ -487,8 +487,11 @@ export class Runner {
     let shown = text;
     let skillInstruction: string | undefined;
     if (input.skill) {
-      if (thread.mode === "chat" && thread.chatProjectId) throw new HttpError(400, "Chat-prosjekter bruker sine egne instruksjoner, ikke Kode-skills");
-      const skill = this.skillsFor(project).find((s) => s.name === input.skill);
+      const eligible = (thread.mode === "chat" ? this.chatSkills(!!thread.chatProjectId) : this.skillsFor(project, "code")).find((s) => s.name === input.skill);
+      const skill = eligible ?? (thread.mode === "chat" && thread.chatProjectId
+        ? discoverSkills(null, null, this.store.settings().disabledSkills, this.appSkillsDir)
+        : this.skillsFor(project)).find((s) => s.name === input.skill);
+      if (!skill && thread.mode === "chat" && thread.chatProjectId) throw new HttpError(400, "Chat-prosjekter bruker bare innebygde app-skills og prosjektets egne instruksjoner");
       if (!skill) throw new HttpError(404, `Fant ikke skillen ${input.skill}`);
       if (skill.mode && skill.mode !== thread.mode) throw new HttpError(400, `Skillen ${skill.name} er bare for ${skill.mode === "code" ? "Kode" : "Chat"}`);
       shown = `/${skill.name}${rawText ? ` ${rawText}` : ""}`;
@@ -525,8 +528,14 @@ export class Runner {
     };
   }
 
-  skillsFor(project: Project | undefined): Skill[] {
-    return discoverSkills(project?.path ?? null, this.deps.userSkillsDir, this.store.settings().disabledSkills, this.appSkillsDir);
+  skillsFor(project: Project | undefined, mode?: "code" | "chat"): Skill[] {
+    return discoverSkills(project?.path ?? null, this.deps.userSkillsDir, this.store.settings().disabledSkills, this.appSkillsDir, mode);
+  }
+
+  // Chat projects keep global personal instructions out, including user-authored skills.
+  // Built-in procedures are shared app capabilities, not personalisation or Code context.
+  chatSkills(inProject = false): Skill[] {
+    return discoverSkills(null, inProject ? null : this.deps.userSkillsDir, this.store.settings().disabledSkills, this.appSkillsDir, "chat");
   }
 
   private memoriesOn(): boolean {
@@ -544,7 +553,7 @@ export class Runner {
     if (thread.mode !== "code" || !project) return mods.map(t=>t.def);
     const hidden = new Set<string>();
     if (!this.codeWeb(thread)) hidden.add("web_search");
-    if (!skills.length) hidden.add("use_skill");
+    if (!skills.some((skill) => skill.mode !== "chat")) hidden.add("use_skill");
     if (!this.memoriesOn()) hidden.add("remember").add("forget");
     if (this.autoSkills() === "off") hidden.add("propose_skill");
     if (thread.planMode) hidden.add("update_plan"); // plan mode answers with its plan as text
@@ -597,6 +606,7 @@ export class Runner {
     const tools = this.chatTools(thread);
     if (!tools) return [];
     const out: Tool[] = this.modTools(thread);
+    if (this.chatSkills(!!thread.chatProjectId).length) out.push(useSkillTool);
     const route = tools.web ? this.webRoute(thread) : null;
     if (route === "browser" || route === "demo") out.push(webSearchTool);
     if (tools.fetch && this.deps.web) out.push(webFetchTool);
@@ -709,6 +719,7 @@ export class Runner {
 
   // The system prompt as layers, for the preview in Innstillinger (SPEC 22.2) and for the run.
   systemLayers(thread: Thread, project: Project | undefined, skills: Skill[], forRun = false): PromptLayer[] {
+    if (thread.mode === "chat") skills = this.chatSkills(!!thread.chatProjectId);
     const tools = this.toolDefs(thread, project, skills).map((t) => t.name);
     const memories = this.memoryText(thread, project, forRun);
     const state = this.harness.state();
@@ -753,12 +764,12 @@ export class Runner {
       reasoning: null, personality: null, lastStatus: null,
     };
     const scoped = mode === "code" ? project : undefined;
-    return this.systemLayers(thread, scoped, mode === "code" ? this.skillsFor(scoped) : []);
+    return this.systemLayers(thread, scoped, mode === "code" ? this.skillsFor(scoped, "code") : []);
   }
 
   toolNames(mode: "code" | "chat", project: Project | undefined): string[] {
     const thread = { mode, projectId: mode === "code" ? project?.id ?? null : null, planMode: false, modelId: null } as Thread;
-    return this.toolDefs(thread, project, mode === "code" ? this.skillsFor(project) : []).map((t) => t.name);
+    return this.toolDefs(thread, project, mode === "code" ? this.skillsFor(project, "code") : []).map((t) => t.name);
   }
 
   private start(thread: Thread, job: Job): void {
@@ -866,7 +877,7 @@ export class Runner {
         if (active.chatMemoryTexts) active.chatMemoryTexts = [];
       }
       this.assertRunContext(active);
-      if ((active.job.contextKey && active.job.contextKey !== active.contextKey) || (active.job.skillInstruction && this.chatProjectFor(this.store.thread(threadId)!))) throw new HttpError(409, "Meldingens Chat-kontekst er endret. Send meldingen på nytt.");
+      if (active.job.contextKey && active.job.contextKey !== active.contextKey) throw new HttpError(409, "Meldingens Chat-kontekst er endret. Send meldingen på nytt.");
       if (active.promptBlocked) active.abort.signal.throwIfAborted();
       else if (active.job.kind === "message") await this.loop(active, model);
       else if (active.job.kind === "shell") await this.runShell(active);
@@ -1085,7 +1096,7 @@ export class Runner {
     const { maxStepsPerTurn, autoCompact } = agentSettingsOf(this.store.settings());
     const thread = this.store.thread(threadId)!;
     const project = thread.projectId ? this.store.project(thread.projectId) : undefined;
-    const skills = thread.mode === "code" ? this.skillsFor(project) : [];
+    const skills = thread.mode === "code" ? this.skillsFor(project, "code") : [];
     const system = this.systemPrompt(thread, project, skills, true);
     const tools = this.toolDefs(thread, project, skills);
     const offered = new Set(tools.map((t) => t.name));
@@ -1500,7 +1511,7 @@ export class Runner {
     const tool = (thread.mode === "chat" ? this.chatToolDefs(thread) : this.modTools(thread)).find((t) => t.def.name === call.name && offered.has(t.def.name));
     const input = tool && call.input && typeof call.input === "object" && !Array.isArray(call.input) ? coerceArgs(call.input, tool.def.parameters) : call.input;
     const web = call.name === "web_search" ? this.webAccess(this.webRoute(thread)) : this.deps.web ? browserWeb(this.deps.web, undefined) : undefined;
-    const ctx = { thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web, maxResultChars: resultBudget(this.resolveModelSafe(thread)) } as unknown as ToolContext;
+    const ctx = { thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web, skills: () => this.chatSkills(!!thread.chatProjectId), maxResultChars: resultBudget(this.resolveModelSafe(thread)) } as unknown as ToolContext;
     const finish = (status: ToolStatus, result: ToolResult) => {
       this.log.append(threadId, {
         type: "tool.finished", runId, callId: call.id, status, result: result.text, durationMs: Date.now() - startedAt,
@@ -1703,7 +1714,7 @@ export class Runner {
     const thread = this.store.thread(active.threadId)!;
     const project = thread.projectId ? this.store.project(thread.projectId) : undefined;
     this.assertRunContext(active);
-    const system = this.systemPrompt(thread, project, thread.mode === "code" ? this.skillsFor(project) : [], true);
+    const system = this.systemPrompt(thread, project, thread.mode === "code" ? this.skillsFor(project, "code") : [], true);
     await this.maybeCompact(active, model, this.deps.provider(model), system, true);
   }
 

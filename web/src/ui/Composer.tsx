@@ -1008,7 +1008,7 @@ export function Composer(props: {
   onCleanup(() => { commandsAlive = false; commandRequest += 1; });
   const loadCommands = async () => {
     const request = ++commandRequest;
-    const url = props.projectId ? `/api/projects/${props.projectId}/commands` : "/api/commands";
+    const url = props.projectId ? `/api/projects/${props.projectId}/commands` : kode() ? "/api/commands" : `/api/commands?mode=chat${inChatProject() ? "&scope=project" : ""}`;
     try {
       const found = await get<CommandInfo[]>(url);
       if (commandsAlive && request === commandRequest) setCommands(found);
@@ -1055,7 +1055,6 @@ export function Composer(props: {
     if (kind !== "mention" && query.includes("/")) return closeMenu();
     if (kind === "command" && value.slice(0, start).trim()) return closeMenu();
     if (kind === "mention" && !props.projectId) return closeMenu();
-    if (kind === "skill" && inChatProject()) return closeMenu();
     const previous = menu();
     const changed = !previous || previous.kind !== kind || previous.query !== query || previous.start !== start;
     if (changed) setSelected(0);
@@ -1075,7 +1074,7 @@ export function Composer(props: {
     const current = menu();
     if (current?.kind !== "command" && current?.kind !== "skill") return [];
     const query = current.query.toLowerCase();
-    const hidden = (c: CommandInfo) => c.demo || otherMode(c) || (inChatProject() && (c.kind === "skill" || c.name === "personality")) || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
+    const hidden = (c: CommandInfo) => c.demo || otherMode(c) || (inChatProject() && (c.name === "personality" || (c.kind === "skill" && c.source !== "app"))) || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
     return commands()
       .flatMap((c) => {
         const score = hidden(c) ? null : matchScore(c, query);
@@ -1540,7 +1539,6 @@ export function Composer(props: {
     const attachments = startingChips.map(chipRef);
     if (attachments.length > MAX_ATTACHMENTS) return toast(LIMIT_TEXT, "info");
     let usedSkill = skill();
-    if (inChatProject() && usedSkill) return toast("Skills brukes ikke i Chat-prosjekter. Fjern skillen og bruk prosjektets egne instruksjoner.", "info");
     let body: Record<string, unknown>;
 
     if (kode() && !usedSkill && text.startsWith("!")) {
@@ -1570,7 +1568,7 @@ export function Composer(props: {
         return runBuiltin(known.name, args);
       }
       if (known?.kind === "skill") {
-        if (inChatProject()) return toast("Skills brukes ikke i Chat-prosjekter. Bruk prosjektets egne instruksjoner.", "info");
+        if (inChatProject() && known.source !== "app") return toast("Chat-prosjekter bruker bare innebygde app-skills og prosjektets egne instruksjoner.", "info");
         if (otherMode(known)) return toast(`/${known.name} er bare tilgjengelig i ${known.mode === "code" ? "Kode" : "Chat"}.`, "info");
         usedSkill = known.name;
         body = { text: args, skill: known.name, attachments };
@@ -1709,7 +1707,7 @@ export function Composer(props: {
     const mountedDraftKey = draftKey();
     draftOwners.set(mountedDraftKey, draftOwner);
     const parts = draftParts.get(mountedDraftKey);
-    if (parts) { setChips(parts.chips.map((chip) => ({ ...chip }))); setSkill(inChatProject() ? null : parts.skill); }
+    if (parts) { setChips(parts.chips.map((chip) => ({ ...chip }))); setSkill(parts.skill); }
     onCleanup(() => {
       const owner = createdHere ?? mountedDraftKey;
       if (!draftOwners.has(owner) || draftOwners.get(owner) === draftOwner) draftParts.set(owner, { chips: chips().map((chip) => ({ ...chip })), skill: skill() });
@@ -1731,11 +1729,12 @@ export function Composer(props: {
       onInput();
     });
     if (props.autofocus && !matchMedia("(pointer: coarse)").matches) textarea.focus({ preventScroll: true });
-    void loadCommands();
     const subscriptions = [onSocket("skills.changed", () => void loadCommands()), onOpen(() => void loadCommands())];
     onCleanup(() => subscriptions.forEach((stop) => stop()));
     if (props.projectId) loadGitInfo(props.projectId);
   });
+
+  createEffect(on(() => [props.projectId, kode(), inChatProject()], () => { setCommands([]); void loadCommands(); }));
 
   createEffect(() => {
     const key = props.threadId() ?? props.paneKey;
@@ -2217,7 +2216,7 @@ export function Composer(props: {
             <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setHelpOpen(false)}><IconClose size={14} /></button>
           </div>
           <dl>
-            <For each={commands().filter((command) => !otherMode(command) && !(inChatProject() && (command.kind === "skill" || command.name === "personality")) && (command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name)))))}>
+            <For each={commands().filter((command) => !otherMode(command) && !(inChatProject() && (command.name === "personality" || (command.kind === "skill" && command.source !== "app"))) && (command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name)))))}>
               {(c) => (
                 <>
                   <dt>{c.kind === "skill" ? "$" : "/"}{c.name}<Show when={c.demo}> <span class="demo-badge">Demo</span></Show></dt>

@@ -7,6 +7,16 @@ Chat har egne verktøy for nedlastbare filer. De endrer ikke filer i Kode-prosje
 - Python bruker standardbiblioteket, blant annet CSV, JSON, statistikk, matematikk og SQLite. NumPy, pandas og matplotlib er ikke inkludert. Hver kjøring starter en ny prosess: variabler nullstilles, men støttede arbeidsfiler beholdes innenfor chat-konteksten. Bare tekstfiler som faktisk er vedlagt samtalen og tidligere resultatfiler går inn i arbeidsområdet. Opplasting/tolkning av eksisterende Word-/Excel-/PowerPoint-filer er ikke innført.
 - Modellen får verktøynavn og faktiske begrensninger i systemkonteksten. Dokumenteksport krever et vellykket verktøyresultat; en kodeblokk betyr ikke at koden er kjørt eller en fil er lagret.
 
+## Skills for filarbeid
+
+![Fil-skills i Chat](bilder/chat-document-skills.png)
+
+Fire innebygde skills støtter både Chat og Kode: `/excel`, `/word`, `/powerpoint` og `/data-files` (Markdown, tekst, CSV og JSON). Du kan velge dem med `/` eller `$`, eller be om en fil på vanlig språk. Modellen får navn og beskrivelse og bes om å laste relevant `SKILL.md` med `use_skill` før den lager filen. Bare den relevante instruksjonen lastes, ikke alle fire.
+
+Skillene veileder om struktur, datatyper, formler og kontroll. De følger de faktiske verktøyene: Chat bruker dokumentgeneratoren, mens Kode kan bruke tilgjengelige biblioteker i det valgte prosjektet. Chat-prosjekter kan bruke de innebygde skillene uten å få globale bruker-skills eller Kode-instruksjoner. «Lag filer» og «Python-analyse» må fortsatt være aktivert for å bruke de respektive verktøyene.
+
+Chat-generatoren har faste maler. Excel-formler kan ha en oppgitt resultatverdi, men beregnes ikke av en regnearkmotor i appen. Word har enkel formatering, og PowerPoint har en tekstbasert bredformatmal med notater. Eksisterende Office-filer, avanserte maler, bilder/diagrammer og visuell forhåndskontroll krever passende verktøy i Kode. En skill installerer ingen nye biblioteker eller gir nye tillatelser.
+
 ## Isolering og grenser
 
 Python kjører uten nettverk, hjemmemappe, API-nøkler eller Kode-prosjektfiler. Kjøretidsbibliotekene er skrivebeskyttet. Arbeidsfiler overføres som begrensede bytepakker til et midlertidig filsystem; ingen skrivbar vertsmappe monteres i Python. Kjøringen stoppes ved avbrytelse, tidsavbrudd eller for store utdata. Grensene er 30 sekunder, 512 MB prosessminne, 10 MB per fil og 20 MB resultatfiler per kjøring. Arbeidsområdet har 64 MB midlertidig plass. Bare vanlige filer på øverste nivå eksporteres; mapper og symlenker utelates.

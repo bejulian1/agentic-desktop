@@ -93,7 +93,7 @@ function stringField(text: string, key: string): boolean {
   return !/^(?:[\[{]|null$|~$|true$|false$|[-+]?\d+(?:\.\d+)?$)/i.test(value);
 }
 
-function scanDir(dir: string, source: Skill["source"], root: string | null, found: Map<string, Skill>, rootIndex?: number, all?: Skill[], off?: Set<string>): void {
+function scanDir(dir: string, source: Skill["source"], root: string | null, found: Map<string, Skill>, rootIndex?: number, all?: Skill[], off?: Set<string>, mode?: "code" | "chat"): void {
   let names: string[];
   try {
     names = readdirSync(dir);
@@ -124,6 +124,7 @@ function scanDir(dir: string, source: Skill["source"], root: string | null, foun
         continue;
       }
       invalidWarnings.delete(file);
+      if (mode && (meta.mode === "code" || meta.mode === "chat") && meta.mode !== mode) continue;
       const skill: Skill = {
         name: skillName,
         description: meta.description,
@@ -148,14 +149,14 @@ function scanDir(dir: string, source: Skill["source"], root: string | null, foun
 
 // Project folders first, so project skills win a name collision. disabled: skill folders switched
 // off in Innstillinger; the agent does not see them.
-export function discoverSkills(projectPath: string | null, userDir: string, disabled: string[] = [], appDir?: string): Skill[] {
+export function discoverSkills(projectPath: string | null, userDir: string | null, disabled: string[] = [], appDir?: string, mode?: "code" | "chat"): Skill[] {
   const found = new Map<string, Skill>();
   const off = new Set(disabled);
   if (projectPath) {
-    [3, 0, 1, 2].forEach((i) => scanDir(path.join(projectPath, PROJECT_DIRS[i]), "project", projectPath, found, i, undefined, off));
+    [3, 0, 1, 2].forEach((i) => scanDir(path.join(projectPath, PROJECT_DIRS[i]), "project", projectPath, found, i, undefined, off, mode));
   }
-  scanDir(userDir, "user", null, found, undefined, undefined, off);
-  if (appDir) scanDir(appDir, "app", null, found, undefined, undefined, off);
+  if (userDir) scanDir(userDir, "user", null, found, undefined, undefined, off, mode);
+  if (appDir) scanDir(appDir, "app", null, found, undefined, undefined, off, mode);
   return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 

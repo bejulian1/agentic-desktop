@@ -15,7 +15,7 @@ import { looksSecret } from "../memory.ts";
 import { writeAtomic } from "../write-atomic.ts";
 
 // Bumped when the built-in harness text changes, so the preview can say which one is in use.
-export const HARNESS_VERSION = "16.0";
+export const HARNESS_VERSION = "16.1";
 export const HARNESS_FILE = "harness.json";
 export const BACKUP_DIR = "backups";
 const MAX_BACKUPS = 20;
