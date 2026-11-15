@@ -1,4 +1,6 @@
 import type {UiModsState} from "./ui-mods.ts";
+import type { HookEvent, HookOutcome, HooksState } from "./hooks.ts";
+import type { McpState } from "./mcp.ts";
 // Contract between server and web. Change it here first, then on both sides.
 
 export type Mode = "chat" | "code";
@@ -617,7 +619,13 @@ export interface AnswerModel {
 // Stored per thread with an increasing seq. Replaying them rebuilds the conversation.
 export type ThreadEvent =
   // from: set when another thread sent it. attachments: what @ added; contents go to the model only.
-  | { type: "user.message"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[] }
+  // held: waits for UserPromptSubmit hooks (Innstillinger → Hooks). It counts as sent, to the
+  // model and to a history rebuilt from the log (fork.ts), only after a later user.checked.
+  | { type: "user.message"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; held?: boolean }
+  | { type: "user.checked"; messageId: string }
+  // A held message that never reached the model because its check did not finish: stopped by the
+  // user, by a shutdown, or still queued at a restart. A hook that stopped it is a hook.ran instead.
+  | { type: "user.unsent"; messageId: string; reason: "interrupted" | "restart" }
   // Sent while a run is active. A later user.message with the same messageId means it left the queue.
   // steer: goes into the running turn at the next step instead of waiting for the turn to end.
   | { type: "user.queue-removed"; messageId: string }
@@ -641,6 +649,9 @@ export type ThreadEvent =
   | { type: "usage"; runId: string; usage: Usage }
   // The provider said wait (429, 5xx): the run tries again after waitMs. attempt counts from 1.
   | { type: "run.retrying"; runId: string; attempt: number; maxAttempts: number; waitMs: number; reason: string }
+  // A hook (Innstillinger → Hooks) that stopped something, added feedback or context, or failed.
+  // Runs that did nothing noteworthy are only shown in Innstillinger. callId: the tool call it ran for.
+  | { type: "hook.ran"; runId: string; hookId: string; name: string; event: HookEvent; outcome: HookOutcome; exitCode: number | null; durationMs: number; effect: "blocked" | "feedback" | "context" | "error"; message?: string; callId?: string; messageId?: string }
   | { type: "run.finished"; runId: string; status: RunStatus; error?: string };
 
 export type TeamTaskStatus = "todo" | "doing" | "done";
@@ -739,6 +750,7 @@ export interface TurnDiff {
 
 export interface Bootstrap {
   uiMods?: UiModsState;
+  mcp?: McpState; // MCP servers, masked (shared/mcp.ts)
   build: BuildInfo;
   settings: Settings;
   projects: Project[];
@@ -1059,6 +1071,8 @@ export type BrowserInput =
 
 export type ServerMessage =
   | {type:"ui-mods.changed";state:UiModsState}
+  | { type: "mcp.changed"; state: McpState }
+  | { type: "hooks.changed"; state: HooksState }
   | { type: "thread.event"; envelope: ThreadEventEnvelope }
   | { type: "thread.changed"; thread: Thread } // also sent for new threads
   | { type: "thread.deleted"; threadId: string }

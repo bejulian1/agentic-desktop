@@ -13,7 +13,7 @@ import { formatElapsed, useClock } from "../state/clock";
 import { peekPanelActions } from "../state/panel";
 import { revertTurn } from "../state/project-actions";
 import type {
-  AgentsRow, ApprovalRow, ChangesRow, CompactedRow, NoticeRow, RetryState, Row, TextRow, ThinkingRow, UserRow, WorkRow,
+  AgentsRow, ApprovalRow, ChangesRow, CompactedRow, HookRow, NoticeRow, UnsentRow, RetryState, Row, TextRow, ThinkingRow, UserRow, WorkRow,
 } from "../state/thread-model";
 import type { AnswerModel, ApprovalDecision, Attachment, Thread } from "../../../shared/protocol";
 import {
@@ -25,6 +25,7 @@ import { enter, seconds, StepsView, SummaryView, ToolView } from "./steps";
 import { stepSentence } from "./step-words";
 import { FileChangeCounts } from "./FileChangeCounts";
 import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
+import "../styles/hooks.css";
 export { NowLine } from "./steps";
 
 // The conversation's timeline map learns where the user messages are from this. Rows register
@@ -755,6 +756,40 @@ function CompactedView(props: { row: CompactedRow }) {
   );
 }
 
+// A hook that did something worth seeing: one quiet line, like the compaction line, with what it
+// said underneath. The name is the user's own, so the reader knows which script it was.
+const HOOK_EFFECT: Record<HookRow["effect"], string> = {
+  blocked: "stoppet",
+  feedback: "ga tilbakemelding til modellen",
+  context: "la til kontekst for modellen",
+  error: "feilet",
+};
+const HOOK_EVENT_LABEL: Record<HookRow["event"], string> = {
+  PreToolUse: "før verktøykall",
+  PostToolUse: "etter verktøykall",
+  UserPromptSubmit: "ved melding",
+  Stop: "når turen er ferdig",
+};
+
+function HookView(props: { row: HookRow }) {
+  const { row } = props;
+  const what = () => (row.effect === "blocked" ? (row.event === "UserPromptSubmit" ? "stoppet meldingen" : "stoppet verktøykallet") : row.outcome === "timeout" ? "brukte for lang tid" : HOOK_EFFECT[row.effect]);
+  return (
+    <div class="row row-line" data-row="hook" role={row.effect === "blocked" || row.effect === "error" ? "status" : undefined}>
+      <span>Hooken «{row.name}» ({HOOK_EVENT_LABEL[row.event]}) {what()}{row.effect === "error" && row.exitCode !== null ? ` (kode ${row.exitCode})` : ""}</span>
+      <Show when={row.message}><div class="muted hook-message">{row.message}</div></Show>
+    </div>
+  );
+}
+
+function UnsentView(props: { row: UnsentRow }) {
+  return (
+    <div class="row row-line" data-row="unsent" role="status">
+      Meldingen ble ikke sendt: {props.row.reason === "restart" ? "appen stoppet før hookene hadde sjekket den" : "sjekken av hookene ble avbrutt"}. Modellen har ikke sett den. Send den på nytt hvis du vil.
+    </div>
+  );
+}
+
 // Threads this run made, as one card: how many, how many are done, and one row per thread.
 function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
   const { row } = props;
@@ -881,6 +916,10 @@ function RowKind(props: { row: Row; onThread: (id: string) => void }) {
       return <ChangesView row={row} />;
     case "compacted":
       return <CompactedView row={row} />;
+    case "hook":
+      return <HookView row={row} />;
+    case "unsent":
+      return <UnsentView row={row} />;
     case "spawned":
       return null;
     case "notice":

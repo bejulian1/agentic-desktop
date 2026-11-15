@@ -1,6 +1,7 @@
 import {createSignal,Show} from 'solid-js';
 import {post,del} from '../../lib/api';
-import {modPreferences,refreshUiMods,uiMods,wallpaperPreferences} from '../../state/ui-mods';
+import {GLASS_CHOICES,glassChoice,refreshUiMods,setGlassChoice,uiMods,wallpaperPreferences} from '../../state/ui-mods';
+import {Select} from '../Select';
 import {Group,Row} from './parts';
 
 // Decode and resize on this device. These bytes have a separate local endpoint and are never
@@ -34,7 +35,7 @@ export function WallpaperSettings(){
    <Row label="Bildestyrke" text="Demp bildet for roligere paneler og tydelig tekst."><label class="wallpaper-range"><input type="range" aria-label="Bildestyrke" min="0" max="1" step="0.05" value={image().opacity} disabled={busy()} onChange={e=>void run(()=>wallpaperPreferences({opacity:e.currentTarget.valueAsNumber}))}/><output>{Math.round(image().opacity*100)} %</output></label></Row>
    <Row label="Uskarp bakgrunn" text="Myker opp bildet uten å endre originalfilen."><label class="wallpaper-range"><input type="range" aria-label="Uskarp bakgrunn" min="0" max="16" step="1" value={image().blur} disabled={busy()} onChange={e=>void run(()=>wallpaperPreferences({blur:e.currentTarget.valueAsNumber}))}/><output>{image().blur} px</output></label></Row>
   </>}</Show>
-  <Row as="label" label="Uskarp glassbakgrunn" text="Hele bakgrunnen bak samtalen blir uskarp og dempet når et bakgrunnsbilde eller samtaletema vises, så teksten kan stå uten egne flater. Gjelder både Chat og Kode."><input type="checkbox" role="switch" class="switch" checked={uiMods().glass!==false} disabled={busy()} onChange={e=>void run(()=>modPreferences({glass:e.currentTarget.checked}))}/></Row>
+  <Row label="Glass over bakgrunner" text="Hvordan samtalen vises når et bakgrunnsbilde eller samtaletema er aktivt. «Hele bakgrunnen uskarp» legger ett dempet, uskarpt lag bak hele samtalen. «Flater bak svar» beholder bakgrunnen skarp og gir hvert svar sin egen glassflate. «Ingen uskarphet eller flater» viser svarene rett på den skarpe bakgrunnen, uten uskarphet noe sted; bare meldingsfeltet og dine egne meldinger har en flate med omriss. Gjelder både Chat og Kode."><Select label="Glass over bakgrunner" value={glassChoice()} options={GLASS_CHOICES} disabled={busy()} onChange={choice=>void run(()=>setGlassChoice(choice))}/></Row>
   <Show when={error()}><p class="field-error wallpaper-error" role="alert">{error()}</p></Show>
  </Group>;
 }

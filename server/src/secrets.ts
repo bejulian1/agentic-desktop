@@ -44,6 +44,11 @@ export class Secrets {
     return [...this.keys.values()];
   }
 
+  // The ids of the keys held now (never the values), for removing everything an MCP server had.
+  ids(): string[] {
+    return [...this.keys.keys()];
+  }
+
   status(): KeyringStatus {
     return structuredClone(this.state);
   }

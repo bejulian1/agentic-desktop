@@ -75,7 +75,6 @@ const DEMO_TEXT: Record<string, string> = {
   approve: "Når automatisk gjennomgang av verktøykall finnes, lar denne deg godkjenne ett nytt forsøk etter et avslag. Appen har ingen automatisk gjennomgang ennå, så det er ingenting å godkjenne.",
   "ide-context": "Skal dele åpen fil og markering fra VS Code med tråden, så modellen ser hva du ser på. Krever en utvidelse til editoren, som ikke finnes ennå.",
   local: "Skal flytte en tråd fra skyen til det valgte lokale prosjektet. Alle tråder kjører lokalt i denne appen, så det er ingenting å flytte.",
-  mcp: "Skal vise MCP-tjenere som er koblet til, med status og verktøy. MCP er ikke bygget ennå, og ingen tjenere er koblet til.",
   memories: "Minnene er ekte nå: modellen lagrer korte notater med remember og får dem i nye tråder. Se, endre og slett dem i Innstillinger → Personalisering og minner.",
 };
 
@@ -1332,6 +1331,9 @@ export function Composer(props: {
           break;
         case "storage":
           actions.settings("storage");
+          break;
+        case "mcp":
+          actions.settings("mcp");
           break;
         case "memories":
           if (chatProject()) await editChatProject(chatProject()!);

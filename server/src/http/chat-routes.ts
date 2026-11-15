@@ -34,7 +34,7 @@ export function historyBefore(stored: Message[], events: ThreadEventEnvelope[], 
   const compacted = events.some((e) => e.event.type === "context.compacted");
   const starts = stored.flatMap((m, i) => (m.role === "user" && m.content.some((b) => b.type === "text") ? [i] : []));
   if (!compacted && starts.length === users.length) return stored.slice(0, starts[before] ?? stored.length);
-  return historyFrom(events.filter((e) => e.seq < seq));
+  return historyFrom(events.filter((e) => e.seq < seq), undefined, events);
 }
 
 // A temporary chat left open in a tab that went away is deleted after this long without use, and

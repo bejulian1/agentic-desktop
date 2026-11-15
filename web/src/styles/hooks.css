@@ -1,0 +1,25 @@
+/* Innstillinger → Hooks (web/src/ui/settings/hooks.tsx) and the hook line in the conversation
+   (rows.tsx). Built from the skills list and form; only what they lack is here. */
+.hook-form .code-area.hook-command { height: auto; min-height: 84px; padding: 6px 10px; line-height: 1.45; resize: vertical; }
+.hook-form .code-input { font-family: var(--font-mono); }
+.hook-help { margin: calc(-1 * var(--space-1)) 0 0; line-height: 1.45; }
+.hook-timeout { flex: 0 1 180px !important; }
+.hook-modes { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.hook-modes legend { padding: 0; margin-bottom: 6px; font-size: var(--text-xs); }
+.hook-mode { display: inline-flex; align-items: center; gap: 6px; }
+.hook-test { display: flex; flex-direction: column; gap: 4px; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2, var(--surface)); }
+.hook-output { margin: 0; max-height: 160px; overflow: auto; padding: 6px 8px; border-radius: var(--radius-sm, 6px); background: var(--surface); font: var(--text-2xs) var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.hook-tail { max-height: 72px; margin-top: 4px; }
+.hook-command-line { display: block; font: var(--text-2xs) var(--font-mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hook-run { font-size: var(--text-2xs); }
+.hook-row.off .hook-command-line { opacity: 0.6; }
+.hook-up svg { transform: rotate(180deg); }
+/* «Eksempler»: ordinary left-aligned menu rows, a name and a quiet line under it. */
+.popover.hook-examples-popover { width: 360px; max-width: min(380px, 92vw); }
+.hook-example .menu-name { white-space: normal; font-weight: var(--weight-medium); }
+.hook-example .menu-desc { line-height: 1.4; }
+.hook-examples .hook-examples-note { max-width: none; margin-top: var(--space-1); padding: var(--space-2) var(--space-2) 4px; border-top: 1px solid var(--border); line-height: 1.4; }
+/* The line in the conversation: what the hook said, under the sentence. */
+.hook-message { margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono); }
+/* A hook is named in plain words, not like a skill folder. */
+.hook-row .skill-name { font-family: inherit; font-size: inherit; }

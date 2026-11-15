@@ -76,9 +76,31 @@ export function isProtectedPath(rel: string): boolean {
   return next === "hooks" || next === "config";
 }
 
+// The ways a command can name one of the app's own folders: the real path, and, under the home
+// folder, ~/…, $HOME/… and ${HOME}/….
+function folderForms(dir: string, home: string): string[] {
+  const forms = [dir];
+  if (home && dir.startsWith(`${home}/`)) {
+    const rel = dir.slice(home.length + 1);
+    forms.push(`~/${rel}`, `$HOME/${rel}`, `\${HOME}/${rel}`);
+  }
+  return forms;
+}
+
+// The default places, whatever the folders are this time, and the app's own files by name.
+const APP_FOLDER = /(?:\.local\/share|\.config|\$\{?XDG_(?:DATA|CONFIG)_HOME\}?)\/agentic-desktop(?:\/|\s|;|&|\||\)|$)/;
+const APP_FILE = /agentic-desktop\/(?:keys\.json|hooks\.json|harness\.json|agentic-desktop\.db)/;
+
 // Text matching, so a best effort: commands run as the user, and an OS sandbox is out of scope.
-export function isProtectedCommand(command: string, dataDir: string): boolean {
-  return /\.env|\.git\/(hooks|config)/.test(command) || command.includes(dataDir) || command.includes("agentic-desktop/keys.json");
+// It catches the plain ways to name the app's data and config folders (where hooks.json, the
+// database and settings live), so writing there from a model's command always asks. It does not
+// catch a path built at run time (variables, globs, cd and a relative path, a script file).
+export function isProtectedCommand(command: string, dataDir: string, configDir = path.join(process.env.XDG_CONFIG_HOME || path.join(homedir(), ".config"), "agentic-desktop")): boolean {
+  // Quotes and doubled slashes do not change the path the shell sees.
+  const text = command.replace(/["']/g, "").replace(/\/{2,}/g, "/");
+  if (/\.env|\.git\/(hooks|config)/.test(text) || APP_FOLDER.test(text) || APP_FILE.test(text)) return true;
+  const home = homedir().replace(/\/+$/, "");
+  return [dataDir, configDir].some((dir) => folderForms(dir.replace(/\/+$/, ""), home).some((form) => text.includes(form)));
 }
 
 // Denne datamaskinen (round 9, SPEC 21.9): the panel without a project. Its key in place of a

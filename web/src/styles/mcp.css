@@ -1,0 +1,23 @@
+/* Innstillinger → MCP-servere (ui/settings/mcp.tsx). Built from the provider cards; only the
+   status dot, the preset row and the key/value rows are new. */
+.mcp-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcp-presets .btn { display: inline-flex; align-items: center; gap: 4px; }
+.mcp-list { padding: var(--space-3) var(--space-4) 0; }
+.mcp-dot { flex: none; align-self: flex-start; width: 8px; height: 8px; margin: 6px 4px 0 0; border-radius: 50%; background: var(--text-3, var(--border)); }
+.mcp-dot[data-status="connected"] { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+.mcp-dot[data-status="connecting"] { background: var(--warn); }
+.mcp-dot[data-status="error"] { background: var(--danger); }
+.mcp-where code { font-size: var(--text-xs); overflow-wrap: anywhere; }
+.mcp-message { color: var(--text-2); }
+.mcp-details { margin-top: var(--space-2); font-size: var(--text-sm); }
+.mcp-details summary { cursor: pointer; color: var(--text-2); }
+.mcp-details .code-view { margin-top: var(--space-2); }
+.mcp-tool .field-check { flex: 1; min-width: 0; }
+.mcp-tool .field-check-text .muted { overflow-wrap: anywhere; }
+.mcp-pair { align-items: center; flex-wrap: wrap; }
+.mcp-pair > .input, .mcp-pair > .secret-input { flex: 1; min-width: 140px; }
+.mcp-secret { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--text-2); white-space: nowrap; }
+.mcp-cap { color: var(--warn); }
+/* .input has the height of one control; the argument list needs room for about four lines. */
+.mcp-args { height: auto; min-height: calc(4 * 1.45em + 14px); padding: 6px 10px; line-height: 1.45; font-family: var(--font-mono); font-size: var(--text-sm); resize: vertical; }
+.mcp-slug code { font-size: var(--text-xs); }

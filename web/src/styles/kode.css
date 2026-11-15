@@ -568,8 +568,38 @@ button.pinned-item:hover { background: var(--hover); color: var(--text); }
    «Ingen»), and the right edge is the one that stays put, so the popover does not move when you pick. */
 .effort-anchor > .popover { left: auto; right: 0; }
 
-.release-history { display: grid; gap: 12px; }
-.release-entry { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
-.release-entry summary { cursor: pointer; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.release-entry summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-.release-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; margin-top: 14px; font-size: 13px; }
+/* Versjonslogg: the whole history in one scrolling list, newest first. */
+.info-dialog.release-dialog { width: min(720px, calc(100vw - 32px)); max-height: min(820px, calc(100dvh - 32px)); }
+.release-dialog .info-body { padding-top: 0; overflow-x: hidden; scroll-padding-top: 64px; }
+.release-history { display: block; }
+.release-search {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px;
+  margin: 0 0 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text-3);
+  box-shadow: 0 6px 12px -10px rgb(0 0 0 / 0.35);
+}
+.release-search:focus-within { border-color: var(--accent); }
+.release-search-input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; }
+.release-count { font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.release-list { list-style: none; margin: 0; padding: 0; }
+.release-entry { padding: 20px 2px 22px; border-bottom: 1px solid var(--border); }
+.release-entry:last-child { border-bottom: 0; }
+.release-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.release-version {
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+}
+.release-version.round { background: var(--hover); color: var(--text-2); }
+.release-current { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.release-meta { font-size: 12px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.release-name { margin: 10px 0 8px; font-size: 15px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.release-name::first-letter { text-transform: uppercase; }
+.release-body { font-size: 13px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.release-body code { font-size: 12px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.release-sub { margin: 14px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--text-2); }
+.release-item { display: flex; gap: 10px; margin: 6px 0; padding-left: calc(var(--depth, 0) * 18px); }
+.release-dot { flex: none; width: 5px; height: 5px; margin-top: 0.62em; border-radius: 50%; background: color-mix(in srgb, var(--text) 40%, transparent); }
+.release-text { margin: 6px 0; }
+.release-empty { padding: 24px 0; }
+.release-end { margin: 8px 0 4px; font-size: 12px; text-align: center; }
+.about-actions { display: flex; gap: 8px; flex-wrap: wrap; }

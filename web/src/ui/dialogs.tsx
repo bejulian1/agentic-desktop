@@ -3,7 +3,7 @@ import { ApiError, get, post } from "../lib/api";
 import { desktop } from "../lib/desktop";
 import { ProjectCreationDialog } from "./ProjectCreationDialog";
 import type { CommandInfo, FileEntry } from "../../../shared/protocol";
-import { currentProject, dismissToast, folderPickerOpen, mode, setFolderPickerOpen, setSettingsOpen, toasts } from "../state/app";
+import { app, currentProject, dismissToast, folderPickerOpen, mode, setFolderPickerOpen, setSettingsOpen, toasts } from "../state/app";
 import { displayKeys, keysFor, SHORTCUTS } from "../state/shortcuts";
 import { HoverCardHost } from "./HoverCard";
 import { TooltipHost } from "./Tooltip";
@@ -12,7 +12,7 @@ import "../styles/cookies.css";
 import { MotionHost, motionOff } from "./Motion";
 import { chatProjectDialog, chromeImportOpen, cookieDialog, editing, gitWorkspaceDialog } from "./dialog-state";
 import { palette } from "../state/nav";
-import { IconClose, IconFolder, IconChevron, IconBack } from "./icons";
+import { IconClose, IconFolder, IconChevron, IconBack, IconSearch } from "./icons";
 
 interface Confirm {
   title: string;
@@ -39,9 +39,9 @@ function ConfirmHost() {
         let dialog!: HTMLDialogElement;
         onMount(() => dialog.showModal());
         return (
-          <dialog ref={dialog} class="dialog" onCancel={() => close(false)}>
-            <h2>{c().title}</h2>
-            <p>{c().text}</p>
+          <dialog ref={dialog} class="dialog" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-text" onCancel={() => close(false)}>
+            <h2 id="confirm-dialog-title">{c().title}</h2>
+            <p id="confirm-dialog-text">{c().text}</p>
             <div class="dialog-actions">
               <button type="button" class="btn" onClick={() => close(false)}>Avbryt</button>
               <button type="button" class="btn" classList={{ "btn-danger": c().danger, "btn-primary": !c().danger }} onClick={() => close(true)}>{c().confirm}</button>
@@ -192,20 +192,91 @@ export function SkeletonLines(props: { count?: number }) {
   );
 }
 
+interface ReleaseBlock { kind: "heading" | "item" | "text"; depth: number; text: string }
+interface ReleaseEntry { title: string; version: string | null; name: string; date: string | null; build: string | null; body: string; blocks: ReleaseBlock[] }
+
+// **bold** and `code` from the patch log, as text nodes. Nothing in it is ever parsed as HTML.
+function RichText(props: { text: string }) {
+  const parts = () => props.text.split("`");
+  return (
+    <For each={parts()}>
+      {(part, i) => (i() % 2 ? <code>{part}</code> : <For each={part.split("**")}>{(bit, j) => (j() % 2 ? <strong>{bit}</strong> : bit)}</For>)}
+    </For>
+  );
+}
+
+const wholeBold = (text: string) => /^\*\*[^*]+\*\*:?$/.test(text);
+
+function ReleaseBody(props: { blocks: ReleaseBlock[] }) {
+  return (
+    <div class="release-body">
+      <For each={props.blocks}>
+        {(block) =>
+          block.kind === "heading" || (block.kind === "text" && wholeBold(block.text)) ? (
+            <h4 class="release-sub">{block.text.replace(/\*\*/g, "").replace(/:$/, "")}</h4>
+          ) : block.kind === "item" ? (
+            <p class="release-item" style={{ "--depth": block.depth }}><span class="release-dot" aria-hidden="true" /><span><RichText text={block.text} /></span></p>
+          ) : (
+            <p class="release-text"><RichText text={block.text} /></p>
+          )
+        }
+      </For>
+    </div>
+  );
+}
+
+// The whole history in one list to scroll through: newest at the top, the first round at the
+// bottom. Opened from Profil, Innstillinger and Om.
 function ReleaseHistory() {
   const [query, setQuery] = createSignal("");
-  const [history, { refetch }] = createResource(() => get<{ entries: Array<{ title: string; body: string }> }>("/api/releases"));
-  const entries = () => (history()?.entries ?? []).filter(entry => `${entry.title} ${entry.body}`.toLocaleLowerCase().includes(query().toLocaleLowerCase().trim()));
-  return <div class="release-history">
-    <label class="field"><span>Søk i versjoner og endringer</span><input type="search" class="input" value={query()} onInput={e => setQuery(e.currentTarget.value)} placeholder="Versjon eller funksjon…" /></label>
-    <Show when={history.loading}><SkeletonLines /></Show>
-    <Show when={history.error}><p role="alert">Kunne ikke hente versjonsloggen.</p><button type="button" class="btn" onClick={() => void Promise.resolve(refetch()).catch(() => undefined)}>Prøv igjen</button></Show>
-    <Show when={history()}><p class="muted" role="status">{entries().length} av {history()!.entries.length} versjonsoppføringer</p>
-      <For each={entries()} fallback={<p class="muted">Ingen versjoner passer søket.</p>}>{(entry, i) => <details class="release-entry" open={i() === 0}>
-        <summary>{entry.title}</summary><div class="release-body"><Inline text={entry.body} /></div>
-      </details>}</For>
-    </Show>
-  </div>;
+  const [history, { refetch }] = createResource(() => get<{ entries: ReleaseEntry[] }>("/api/releases"));
+  const all = () => history()?.entries ?? [];
+  const entries = () => {
+    const q = query().toLocaleLowerCase().trim();
+    return q ? all().filter((entry) => `${entry.title} ${entry.body}`.toLocaleLowerCase().includes(q)) : all();
+  };
+  const current = () => app.build?.version;
+  const first = () => all().at(-1);
+  return (
+    <div class="release-history">
+      <div class="release-search">
+        <IconSearch size={14} />
+        <input type="search" class="release-search-input" aria-label="Søk i versjonsloggen" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} placeholder="Søk etter versjon eller funksjon" />
+        <Show when={history()}><span class="release-count muted" role="status">{query().trim() ? `${entries().length} av ${all().length}` : `${all().length} versjoner`}</span></Show>
+      </div>
+      <Show when={history.loading}><SkeletonLines count={8} /></Show>
+      <Show when={history.error}>
+        <p role="alert">Kunne ikke hente versjonsloggen.</p>
+        <button type="button" class="btn" onClick={() => void Promise.resolve(refetch()).catch(() => undefined)}>Prøv igjen</button>
+      </Show>
+      <Show when={history()}>
+        <ol class="release-list" aria-label="Versjoner, nyeste først">
+          <For each={entries()} fallback={<li class="muted release-empty">Ingen versjoner passer søket.</li>}>
+            {(entry) => {
+              // A version can have several entries (0.9.0 had bygg 28–30): only the newest is marked.
+              const isCurrent = () => !!entry.version && entry.version === current() && all().find((e) => e.version === entry.version) === entry;
+              return (
+                <li class="release-entry" data-version={entry.version ?? undefined}>
+                  <header class="release-head">
+                    <span class="release-version" classList={{ round: !entry.version }}>{entry.version ?? entry.name.split(":")[0]}</span>
+                    <Show when={isCurrent()}><span class="release-current">Denne versjonen</span></Show>
+                    <span class="release-meta muted">
+                      {[entry.date, entry.build ? `bygg ${entry.build}` : null].filter(Boolean).join(" · ")}
+                    </span>
+                  </header>
+                  <h3 class="release-name">{entry.version ? entry.name : entry.name.replace(/^[^:]+:\s*/, "")}</h3>
+                  <ReleaseBody blocks={entry.blocks} />
+                </li>
+              );
+            }}
+          </For>
+        </ol>
+        <Show when={!query().trim() && first()}>
+          {(f) => <p class="release-end muted">Her begynte det: {f().name.replace(/^[^:]+:\s*/, "")}{f().date ? `, ${f().date}` : ""}.</p>}
+        </Show>
+      </Show>
+    </div>
+  );
 }
 
 function WhatsNew() {
@@ -238,7 +309,7 @@ function InfoHost() {
         onMount(() => dialog.showModal());
         const title = INFO_TITLES[kind];
         return (
-          <dialog ref={dialog} class="dialog info-dialog" aria-label={title} onCancel={() => setInfoDialog(null)} onKeyDown={event => { if (kind === "releases" && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setInfoDialog(null); } }}>
+          <dialog ref={dialog} class="dialog info-dialog" classList={{ "release-dialog": kind === "releases" }} aria-label={title} onCancel={() => setInfoDialog(null)} onKeyDown={event => { if (kind === "releases" && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setInfoDialog(null); } }}>
             <div class="dialog-head">
               <h2>{title}</h2>
               <button type="button" class="icon-button" aria-label="Lukk" onClick={() => setInfoDialog(null)}><IconClose size={15} /></button>

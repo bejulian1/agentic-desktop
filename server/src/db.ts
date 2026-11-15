@@ -860,6 +860,17 @@ export class Store {
       .run(`layout:${key}`, JSON.stringify(layout));
   }
 
+  // A JSON value of the app's own, such as the MCP servers (mcp/manager.ts). Never from the API.
+  metaValue(key: string): unknown {
+    const row = this.q("SELECT value FROM meta WHERE key = ?").get(`app:${key}`) as { value: string } | undefined;
+    return row ? JSON.parse(row.value) : null;
+  }
+
+  setMetaValue(key: string, value: unknown): void {
+    this.q("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(`app:${key}`, JSON.stringify(value));
+  }
+
   usage(threadId: string): Usage {
     const row = this.q("SELECT usage FROM threads WHERE id = ?").get(threadId) as { usage: string | null } | undefined;
     return row?.usage ? JSON.parse(row.usage) : emptyUsage();
@@ -1455,6 +1466,12 @@ export class Store {
 
   allow(projectId: string, kind: "command" | "tool", value: string): void {
     this.q("INSERT OR IGNORE INTO allow_rules (project_id, kind, value) VALUES (?, ?, ?)").run(projectId, kind, value);
+  }
+
+  // Every project's "allow always" tool rules that start with prefix: an MCP server that is
+  // removed or renamed takes its rules with it, so another server never inherits them.
+  removeToolRulesWithPrefix(prefix: string): number {
+    return Number(this.q("DELETE FROM allow_rules WHERE kind = 'tool' AND substr(value, 1, ?) = ?").run(prefix.length, prefix).changes);
   }
 
   // Lagring (Innstillinger). What the storage page needs from the database.

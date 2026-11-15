@@ -671,8 +671,31 @@ function modStep(text:string,done:DoneCall[],tools:string[]):Step|null{
  return {text:'Temaendringen er validert og lastes inn når denne turen er ferdig. Temaet følger hele samtalen. Du kan tilpasse det med palettknappen eller be om en endring her. Jeg har ikke sett resultatet i appen.'};
 }
 
+// «mcp-kall <verktøy> {json}»: calls one MCP tool by its exposed name with the given arguments,
+// then reports the result. So an MCP server can be tried (and tested) without an API key. The name
+// is sent as written, also when it is not offered, the way a confused model might: the app's own
+// checks (plan mode, unknown tools, name forgiveness) are what answer.
+function mcpStep(text: string, done: DoneCall[]): Step | null {
+  const match = /^mcp-kall\s+(\S+)(?:\s+(\{[\s\S]*\}))?\s*$/i.exec(text.trim());
+  if (!match) return null;
+  const name = match[1];
+  if (!done.length) {
+    let input: Record<string, unknown> = {};
+    try {
+      input = match[2] ? JSON.parse(match[2]) : {};
+    } catch {
+      return { text: "Argumentene må være gyldig JSON." };
+    }
+    return { text: `Jeg kaller ${name}.`, call: { name, input } };
+  }
+  const last = done[done.length - 1];
+  return { text: `MCP-svar${last.isError ? " (feil)" : ""}: ${last.result}` };
+}
+
 function decide(text: string, done: DoneCall[], tools: string[], system = ""): Step {
   const lower = text.toLowerCase();
+  const mcp = mcpStep(text, done);
+  if (mcp) return mcp;
   const hasTools = tools.some(t=>t!=="ui_mod");
   const mod=modStep(text,done,tools);if(mod)return mod;
   if (lower.includes("[kodegjennomgang]\n")) return review(text);

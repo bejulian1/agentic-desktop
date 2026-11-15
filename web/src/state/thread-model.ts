@@ -17,6 +17,7 @@ import type {
   Usage,
   WebSource,
 } from "../../../shared/protocol";
+import type { HookEvent, HookOutcome } from "../../../shared/hooks";
 import { get } from "../lib/api";
 import { on, onOpen, send } from "../lib/socket";
 import { app } from "./app";
@@ -140,6 +141,23 @@ export interface CompactedRow extends RowBase {
   afterTokens: number;
 }
 
+// A hook from Innstillinger → Hooks that stopped something, added feedback or context, or failed.
+export interface HookRow extends RowBase {
+  kind: "hook";
+  name: string;
+  event: HookEvent;
+  effect: "blocked" | "feedback" | "context" | "error";
+  outcome: HookOutcome;
+  exitCode: number | null;
+  message?: string;
+}
+
+// A message that waited for UserPromptSubmit hooks and never reached the model (user.unsent).
+export interface UnsentRow extends RowBase {
+  kind: "unsent";
+  reason: "interrupted" | "restart";
+}
+
 export interface SpawnedRow extends RowBase {
   kind: "spawned";
   childThreadId: string;
@@ -167,7 +185,7 @@ export interface SummaryRow extends RowBase {
   turnId: string | null; // the turn with file changes, for Endringer
 }
 
-export type Row = UserRow | TextRow | ThinkingRow | ToolRow | ApprovalRow | ChangesRow | CompactedRow | SpawnedRow | NoticeRow | WorkRow | StepsRow | AgentsRow | SummaryRow | ModelChangeRow;
+export type Row = UserRow | TextRow | ThinkingRow | ToolRow | ApprovalRow | ChangesRow | CompactedRow | SpawnedRow | NoticeRow | WorkRow | StepsRow | AgentsRow | SummaryRow | ModelChangeRow | HookRow | UnsentRow;
 
 // Kode: what the current run has going, for the small box under the conversation. Changed only
 // by events that start or end something, never by tokens.
@@ -287,6 +305,7 @@ class Folder {
   private selectedModel: AnswerModel | null = null;
   private pendingModelChange: ModelChangeRow | null = null;
   private modelChanges = 0;
+  private hookRows = 0;
   private steps: StepsRow | null = null; // the open group of steps
   private agents: AgentsRow | null = null; // threads made in this run
   private runStats = { commands: 0, files: 0, additions: 0, deletions: 0, turnId: null as string | null };
@@ -523,6 +542,15 @@ class Folder {
         }
         return;
       }
+      case "user.unsent":
+        this.add({ ...base(`unsent-${event.messageId}`), kind: "unsent", reason: event.reason });
+        return;
+      case "hook.ran":
+        this.add({
+          ...base(`hook-${++this.hookRows}-${event.hookId}`), kind: "hook", name: event.name, event: event.event, effect: event.effect,
+          outcome: event.outcome, exitCode: event.exitCode, message: event.message, work: this.work ?? undefined,
+        });
+        return;
       case "context.compacted":
         this.add({ ...base(`compact-${event.runId}`), kind: "compacted", beforeTokens: event.beforeTokens, afterTokens: event.afterTokens });
         return;

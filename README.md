@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.24.3](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.25.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -13,6 +13,8 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 *Klikk på et bilde for full størrelse.*
 
 *Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2. Alle bruker demo og midlertidige data.*
+
+**v0.25.0:** MCP-servere (GitHub, Playwright og egne) og hooks i Innstillinger, valg mellom tre glass-stiler over bakgrunner, og versjonsloggen tilgjengelig fra Innstillinger og Om. Skjermbildene over viser ikke de nye sidene ennå. Se [MCP-servere](docs/MCP.md) og [Hooks](docs/HOOKS.md).
 
 **v0.24.3:** prosjektlinjen over meldingsfeltet har samme glasstone som feltet, uten den grå stripen. [Se oppdatert Kode-visning](docs/bilder/promptbar-glass.png).
 
@@ -276,6 +278,6 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
 - **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting.
-- **Anthropic Fable 5.2**, kreditert for bidrag til prosjektets utvikling.
+- **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0, bygget og testet sammen med Claude Opus 5.5-underagenter), kodegjennomgang, bygg og publisering.
 
 Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.

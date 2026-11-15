@@ -23,6 +23,17 @@ html[data-wallpaper]:has(.settings-page) .app{visibility:hidden}
 .pane-inner.ui-mod-glass{position:relative;isolation:isolate}
 .pane-inner.ui-mod-glass>.pane-head,.pane-inner.ui-mod-glass>.pane-body,.pane-inner.ui-mod-glass>.pane-foot{position:relative;z-index:1}
 .pane-inner.ui-mod-glass::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:color-mix(in srgb,var(--bg) 34%,transparent);backdrop-filter:blur(36px) saturate(1.7);-webkit-mask-image:var(--glass-side-mask);mask-image:var(--glass-side-mask)}
+/* Panels: the backdrop stays sharp and each answer gets its own frosted surface, in the same translucent tone as the message field. */
+.pane-inner.ui-mod-panels .row-text,.pane-inner.ui-mod-panels .row-thinking>.fold,.pane-inner.ui-mod-panels .row.step>.fold,.pane-inner.ui-mod-panels .row-thinking>.thinking-text{background:color-mix(in srgb,var(--surface) 62%,transparent);backdrop-filter:blur(20px) saturate(1.5);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 9%,transparent)}
+html[data-theme=dark] .pane-inner.ui-mod-panels .row-text,html[data-theme=dark] .pane-inner.ui-mod-panels .row-thinking>.fold,html[data-theme=dark] .pane-inner.ui-mod-panels .row.step>.fold,html[data-theme=dark] .pane-inner.ui-mod-panels .row-thinking>.thinking-text{background:color-mix(in srgb,#000 42%,transparent)}
+.pane-inner.ui-mod-panels .row-text{padding-top:12px;padding-bottom:12px;border-radius:var(--ui-mod-radius,16px)}
+.pane-inner.ui-mod-panels .msg[data-selected]>.row-text{background:var(--accent-soft)}
+.pane-inner.ui-mod-panels .row-thinking:not(.step){padding-bottom:6px}
+.pane-inner.ui-mod-panels .row.step{padding-top:2px;padding-bottom:2px}
+.pane-inner.ui-mod-panels .row-thinking>.fold,.pane-inner.ui-mod-panels .row.step>.fold{padding:4px 12px 4px 8px;border-radius:999px}
+.pane-inner.ui-mod-panels .row-thinking:not(.step)>.fold{width:fit-content;max-width:100%}
+.pane-inner.ui-mod-panels .row-thinking>.thinking-text{margin-top:6px;padding:8px 12px;border-radius:12px}
+.ui-mod-glass-choice select{width:auto;padding:4px 8px;font-size:13px}
 /* Progressive blur: the conversation and the image dissolve into the footer, strongest at the bottom. Text rows carry no panel of their own. */
 .pane-inner.background-pane .pane-foot{position:relative;z-index:1;background:none}
 .pane-inner.background-pane .pane-foot::before{content:"";position:absolute;inset:-72px 0 0;z-index:-1;pointer-events:none;background:linear-gradient(transparent,color-mix(in srgb,var(--bg) 40%,transparent));backdrop-filter:blur(18px) saturate(1.2);-webkit-mask-image:var(--glass-side-mask),linear-gradient(transparent,#000 72px);-webkit-mask-composite:source-in;mask-image:var(--glass-side-mask),linear-gradient(transparent,#000 72px);mask-composite:intersect}
@@ -34,6 +45,9 @@ html[data-wallpaper]:has(.settings-page) .app{visibility:hidden}
 .pane-inner.background-pane .user-bubble{background:color-mix(in srgb,var(--surface) 62%,transparent);backdrop-filter:blur(14px)}
 html[data-theme=dark] .pane-inner.background-pane .composer-context,html[data-theme=dark] .pane-inner.background-pane .composer,html[data-theme=dark] .pane-inner.background-pane .user-bubble{background:color-mix(in srgb,#000 42%,transparent)}
 .pane-inner.background-pane .row-user:not([data-selected]) .user-bubble{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 18%,transparent)}
+/* Clear: no filter anywhere. Answers stand directly on the sharp backdrop; only the message field and the user's own messages keep an outlined surface. */
+.pane-inner.ui-mod-clear .pane-foot::before{display:none}
+.pane-inner.ui-mod-clear .user-bubble{backdrop-filter:none}
 @supports not (backdrop-filter:blur(1px)){.pane-inner.background-pane .pane-foot::before{background:linear-gradient(transparent,var(--bg) 72px)}.pane-inner.background-pane .composer-context,.pane-inner.background-pane .composer,.pane-inner.background-pane .user-bubble{background:var(--surface)}}
-@supports not (backdrop-filter:blur(1px)){.pane-inner.ui-mod-glass::before{background:color-mix(in srgb,var(--bg) 88%,transparent)}}
+@supports not (backdrop-filter:blur(1px)){.pane-inner.ui-mod-glass::before{background:color-mix(in srgb,var(--bg) 88%,transparent)}.pane-inner.ui-mod-panels .row-text,.pane-inner.ui-mod-panels .row-thinking>.fold,.pane-inner.ui-mod-panels .row.step>.fold,.pane-inner.ui-mod-panels .row-thinking>.thinking-text{background:var(--bg)}}
 @media(max-width:600px){.wallpaper-range input{width:100px}.wallpaper-preview img{width:120px;height:68px}}

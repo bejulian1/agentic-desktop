@@ -32,6 +32,10 @@ import type {
 import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, type ProjectConfig } from "../../../shared/protocol.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
+import { hooksRoutes } from "./hooks-routes.ts";
+import type { Hooks } from "../hooks.ts";
+import { mcpRoutes } from "./mcp-routes.ts";
+import type { McpServers } from "../mcp/manager.ts";
 import { chatRoutes } from "./chat-routes.ts";
 import { chatProjectRoutes } from "./chat-project-routes.ts";
 import { githubRoutes } from "./github-routes.ts";
@@ -100,7 +104,7 @@ export const BUILTIN_COMMANDS: CommandInfo[] = [
   { name: "approve", description: "Godkjenn ett nytt forsøk etter et avslag fra automatisk gjennomgang", kind: "builtin", demo: true },
   { name: "ide-context", description: "Del kontekst fra editoren, som åpen fil og markering", kind: "builtin", demo: true },
   { name: "local", description: "Kjør tråden i det valgte lokale prosjektet", kind: "builtin", demo: true },
-  { name: "mcp", description: "Vis status for MCP-tjenere", kind: "builtin", demo: true },
+  { name: "mcp", description: "Vis MCP-serverne og statusen deres", kind: "builtin" },
   { name: "memories", aliases: ["minner"], description: "Minner på tvers av tråder: se og endre dem i Innstillinger → Personalisering og minner", kind: "builtin" },
   { name: "worktree", aliases: ["arbeidstre"], description: "Velg grener eller opprett et eget arbeidstre for prosjektet", kind: "builtin" },
   { name: "storage", aliases: ["lagring"], description: "Vis hvor mye plass appen bruker, og rydd opp", kind: "builtin" },
@@ -130,6 +134,8 @@ export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
   uiMods?:UiMods;
+  hooks?: Hooks; // Innstillinger → Hooks (hooks-routes.ts)
+  mcp?: McpServers; // Innstillinger → MCP-servere (mcp-routes.ts)
   chatWorkspace?: ChatWorkspace;
   promptCompletion?: PromptCompletions;
   store: Store;
@@ -407,6 +413,8 @@ export class Api {
     this.route("DELETE","/api/ui-mods/library/:id",({params})=>this.deps.uiMods?.remove(params.id));
     this.route("POST","/api/ui-mods/threads/:id/consent",({params,body})=>{if(typeof body.allowed!=="boolean")throw new HttpError(400,"Bruk sann/usann.");this.deps.uiMods?.consent(params.id,body.allowed);return this.deps.uiMods?.snapshot();});
     this.route("PUT","/api/ui-mods/threads/:id",({params,body})=>{if(body.modId!==null&&typeof body.modId!=="string")throw new HttpError(400,"Velg et tema eller standard.");return this.deps.uiMods?.select(params.id,body.modId);});
+    if (this.deps.mcp) mcpRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps.mcp);
+    if (this.deps.hooks) hooksRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps.hooks);
     this.route("GET", "/api/chat-workspace/status", () => this.deps.chatWorkspace?.status() ?? {available:false, reason:"Python er ikke tilgjengelig."});
     this.route("GET", "/api/chat-files/:threadId", ({params}) => ({files:this.deps.chatWorkspace?.list(params.threadId) ?? []}));
     this.route("GET", "/api/chat-files/:threadId/:fileId/download", ({params,res}) => {
@@ -418,6 +426,7 @@ export class Api {
 
     this.route("GET", "/api/bootstrap", (): Bootstrap => ({
       uiMods:this.deps.uiMods?.snapshot(),
+      mcp: this.deps.mcp?.snapshot(),
       build: loadBuildInfo(this.deps.webDist),
       settings: store.settings(),
       projects: store.projects(),

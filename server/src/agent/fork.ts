@@ -42,7 +42,21 @@ export function makeFork(store: Store, source: Thread, how: { messageId?: string
   return store.thread(fork.id)!;
 }
 
-export function historyFrom(events: ThreadEventEnvelope[], restoreAttachments?: (attachments: Attachment[]) => { text: string; images: Block[] }): Message[] {
+// Messages that never reached the model: held for UserPromptSubmit hooks (Innstillinger → Hooks)
+// and not let through by a later user.checked, because a hook stopped them, the check was cut
+// short, or the server stopped first. Read from the whole thread, since the answer comes after
+// the message and a fork or an edit keeps only what is before its cut.
+export function unsentMessages(events: ThreadEventEnvelope[]): Set<string> {
+  const held = new Set<string>();
+  for (const { event } of events) {
+    if (event.type === "user.message" && event.held) held.add(event.messageId);
+    else if (event.type === "user.checked") held.delete(event.messageId);
+  }
+  return held;
+}
+
+// whole: the thread's whole log, when events is only part of it (see unsentMessages).
+export function historyFrom(events: ThreadEventEnvelope[], restoreAttachments?: (attachments: Attachment[]) => { text: string; images: Block[] }, whole: ThreadEventEnvelope[] = events): Message[] {
   const parts: Array<{ role: "user" | "assistant"; text: string; images?: Block[] }> = [];
   const say = (role: "user" | "assistant", text: string, images?: Block[]) => {
     if (!text) return;
@@ -54,7 +68,9 @@ export function historyFrom(events: ThreadEventEnvelope[], restoreAttachments?: 
   };
   const texts = new Map<string, string>();
   const order: Array<{ role: "user" | "assistant"; key?: string; text?: string; images?: Block[] }> = [];
+  const blocked = unsentMessages(whole);
   for (const { event } of events) {
+    if (event.type === "user.message" && blocked.has(event.messageId)) continue;
     if (event.type === "user.message") {
       const from = event.from ? `[Melding fra tråden ${JSON.stringify(event.from.title)}]\n\n` : "";
       const attached = event.attachments?.length ? `\n\n[Vedlegg: ${event.attachments.map((a) => a.label).join(", ")}]` : "";
@@ -87,5 +103,14 @@ export function forkAt(store: Store, source: Thread, messageId: string, title: s
     else if (event.type === "run.finished") open = null;
   }
   const close: ThreadEvent | null = open ? { type: "run.finished", runId: open, status: "done" } : null;
-  return store.forkUpTo(source.id, title, cut, historyFrom(kept), close);
+  const fork = store.forkUpTo(source.id, title, cut, historyFrom(kept, undefined, events), close);
+  // A held message at the cut was let through after it: the fork's own log says so too, so a
+  // history rebuilt later in the fork keeps it. One that was not let through stays out there too.
+  const unsent = unsentMessages(events);
+  for (const { event } of kept) {
+    if (event.type === "user.message" && event.held && !unsent.has(event.messageId) && !kept.some((e) => e.event.type === "user.checked" && e.event.messageId === event.messageId)) {
+      store.appendEvent(fork.id, { type: "user.checked", messageId: event.messageId });
+    }
+  }
+  return fork;
 }

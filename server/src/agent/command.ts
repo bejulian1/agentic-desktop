@@ -8,11 +8,14 @@ export interface CommandOptions {
   timeoutMs: number;
   signal: AbortSignal;
   onOutput: (text: string) => void;
+  input?: string; // written to stdin, which is then closed; without it stdin is /dev/null
 }
 
 export interface CommandResult {
   exitCode: number | null;
-  output: string;
+  output: string; // stdout and stderr as they came
+  stdout: string; // the same, kept apart, for hooks (server/src/hooks.ts)
+  stderr: string;
   timedOut: boolean;
   cancelled: boolean;
 }
@@ -35,22 +38,34 @@ export function runCommand(options: CommandOptions): Promise<CommandResult> {
       cwd: options.cwd,
       env: options.env,
       detached: true, // A new process group, led by the child.
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });
     const pid = child.pid;
+    // Always piped (see stdio above); the conditional stdio only loses the tuple type.
+    const out = child.stdout!;
+    const err = child.stderr!;
+    if (options.input !== undefined && child.stdin) {
+      // A command that never reads stdin closes it early: that is not an error.
+      child.stdin.on("error", () => undefined);
+      child.stdin.end(options.input);
+    }
     let output = "";
+    let stdout = "";
+    let stderr = "";
     let timedOut = false;
     let cancelled = false;
     let settled = false;
     let killTimer: NodeJS.Timeout | undefined;
 
-    const onData = (chunk: Buffer) => {
+    const onData = (chunk: Buffer, which: "stdout" | "stderr") => {
       const text = chunk.toString("utf8");
       output = (output + text).slice(-MAX_KEPT_CHARS);
+      if (which === "stdout") stdout = (stdout + text).slice(-MAX_KEPT_CHARS);
+      else stderr = (stderr + text).slice(-MAX_KEPT_CHARS);
       options.onOutput(text);
     };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
+    out.on("data", (chunk: Buffer) => onData(chunk, "stdout"));
+    err.on("data", (chunk: Buffer) => onData(chunk, "stderr"));
 
     const terminate = () => {
       if (pid === undefined) return;
@@ -76,13 +91,15 @@ export function runCommand(options: CommandOptions): Promise<CommandResult> {
       options.signal.removeEventListener("abort", onAbort);
       // Background jobs die with the command. They would otherwise outlive the app.
       if (pid !== undefined) killGroup(pid, "SIGKILL");
-      child.stdout.destroy();
-      child.stderr.destroy();
-      resolve({ exitCode, output, timedOut, cancelled });
+      child.stdin?.destroy();
+      out.destroy();
+      err.destroy();
+      resolve({ exitCode, output, stdout, stderr, timedOut, cancelled });
     };
 
-    child.on("error", (err) => {
-      output += `Kunne ikke starte kommandoen: ${err.message}\n`;
+    child.on("error", (error) => {
+      output += `Kunne ikke starte kommandoen: ${error.message}\n`;
+      stderr += `Kunne ikke starte kommandoen: ${error.message}\n`;
       finish(null);
     });
     // "close" waits for the pipes, which a background job can hold open forever.

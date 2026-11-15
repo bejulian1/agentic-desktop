@@ -13,13 +13,13 @@ import { app, archiveThread, deleteThread, report, saveSettings, setSettingsOpen
 
 import { archiveScope, restoreMany, setArchiveScope } from "../state/archive";
 import { openThread } from "../state/navigate";
-import { confirmDialog } from "./dialogs";
+import { confirmDialog, setInfoDialog } from "./dialogs";
 import { Popover } from "./Popover";
 import {
   IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconChevronDown, IconClose, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard, IconLaptop, IconMonitor,
-  IconBookmark, IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark,
+  IconBookmark, IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark, IconClock,
 } from "./icons";
-import { DemoNote, Group, Page, Row, SkeletonRows, type Icon } from "./settings/parts";
+import { Group, Page, Row, SkeletonRows, type Icon } from "./settings/parts";
 import { DownloadDirRow } from "./DownloadsList";
 import { imported, importedSummary, loadImported, openChromeImport, removeImported } from "./ChromeImport";
 import { CookieSettings } from "./CookieImport"; // round 12 (SPEC 26.4)
@@ -33,6 +33,7 @@ import { HarnessPage } from "./settings/harness"; // round 9b
 import { Usage } from "./settings/usage";
 import { Select } from "./Select";
 import { Skills } from "./settings/skills";
+import { HooksPage } from "./settings/hooks";
 import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
 import { IconPullRequest } from "./GitHubShared";
@@ -64,6 +65,8 @@ const HOST_SECTIONS: Section[] = [
   { id: "config", label: "Konfigurasjon", icon: IconSliders },
   { id: "personalization", label: "Personalisering og minner", icon: IconSpark },
   { id: "skills", label: "Skills", icon: IconBook },
+  { id: "hooks", label: "Hooks", icon: IconAnchor },
+  { id: "mcp", label: "MCP-servere", icon: IconServer },
   { id: "shortcuts", label: "Hurtigtaster", icon: IconKeyboard },
   { id: "browser", label: "Nettleser", icon: IconGlobe },
   { id: "desktop", label: "Skrivebordsstyring", icon: IconMonitor },
@@ -73,10 +76,7 @@ const HOST_SECTIONS: Section[] = [
 ];
 
 // Pages that only say what is coming: together at the bottom, quieter, under «Kommer senere».
-const LATER_SECTIONS: Section[] = [
-  { id: "mcp", label: "MCP-servere", icon: IconServer, demo: true },
-  { id: "hooks", label: "Hooks", icon: IconAnchor, demo: true },
-];
+const LATER_SECTIONS: Section[] = [];
 
 const ALL_SECTIONS = [...APP_SECTIONS, ...HOST_SECTIONS, ...LATER_SECTIONS];
 const sectionLabel = (id: string) => ALL_SECTIONS.find((s) => s.id === id)?.label ?? id;
@@ -84,21 +84,9 @@ const sectionLabel = (id: string) => ALL_SECTIONS.find((s) => s.id === id)?.labe
 const Git = (props: {}) => <Suspense><GitSettingsPage {...props} /></Suspense>;
 const GitSettingsPage = lazy(() => import("./GitWorkspace").then((m) => ({ default: m.GitSettings })));
 
-function Mcp() {
-  return (
-    <Page title="MCP-servere" demo intro="Skal koble modellen til verktøy fra MCP-servere, med status og verktøyliste per server.">
-      <DemoNote>Ingen MCP-servere er koblet til, og appen starter ingen. /mcp i meldingsfeltet forklarer det samme.</DemoNote>
-    </Page>
-  );
-}
-
-function Hooks() {
-  return (
-    <Page title="Hooks" demo intro="Skal kjøre egne skript før og etter verktøykall, for eksempel en formatering etter hver filendring.">
-      <DemoNote>Ingen hooks kjøres i denne versjonen. .git/hooks i prosjekter er beskyttet og krever alltid godkjenning.</DemoNote>
-    </Page>
-  );
-}
+// Innstillinger → MCP-servere (settings/mcp.tsx), loaded when it is opened.
+const Mcp = (props: {}) => <Suspense><McpSettingsPage {...props} /></Suspense>;
+const McpSettingsPage = lazy(() => import("./settings/mcp").then((m) => ({ default: m.McpPage })));
 
 function Browser() {
   void loadImported(true);
@@ -288,7 +276,10 @@ function About() {
           <dt>Byggnummer</dt><dd data-testid="about-build">{build().build}</dd>
           <dt>Byggdato</dt><dd data-testid="about-date">{formatBuildDate(build().builtAt)}</dd>
         </dl>
-        <button type="button" class="btn btn-small" onClick={copy}>Kopier info</button>
+        <div class="about-actions">
+          <button type="button" class="btn btn-small" data-testid="about-releases" aria-haspopup="dialog" onClick={() => setInfoDialog("releases")}><IconClock size={14} />Versjonslogg</button>
+          <button type="button" class="btn btn-small" onClick={copy}>Kopier info</button>
+        </div>
         <Show when={build().signature}>
           <p class="about-signature"><span class="signature">{build().signature}</span><span class="muted">Navnet på byggeserien denne versjonen hører til.</span></p>
         </Show>
@@ -339,7 +330,7 @@ const VIEWS: Record<string, (props: { target?: string | null }) => JSX.Element> 
   skills: Skills,
   shortcuts: Shortcuts,
   mcp: Mcp,
-  hooks: Hooks,
+  hooks: HooksPage,
   browser: Browser,
   desktop: Desktop,
   permissions: Permissions,
@@ -505,6 +496,10 @@ export default function Settings() {
         <For each={APP_SECTIONS}>{NavItem}</For>
         <Show when={HOST_SECTIONS.some(visible)}><div class="settings-nav-label settings-host"><span>Vert</span><HostPicker /></div></Show>
         <For each={HOST_SECTIONS}>{NavItem}</For>
+        {/* Not a page: opens the whole version history in a window over Innstillinger. */}
+        <Show when={!searching()}>
+          <button type="button" class="nav-item" data-testid="settings-releases" aria-haspopup="dialog" onClick={() => setInfoDialog("releases")}><IconClock size={16} /><span>Versjonslogg</span></button>
+        </Show>
         <Show when={LATER_SECTIONS.some(visible)}><div class="settings-nav-label settings-later">Kommer senere</div></Show>
         <For each={LATER_SECTIONS}>{(item) => <Show when={visible(item)}><button type="button" class="nav-item nav-later" aria-current={!searching() && section() === item.id ? "page" : undefined} title="Bare en beskrivelse i denne versjonen" onClick={() => open(item.id)}><item.icon size={16} /><span>{item.label}</span></button></Show>}</For>
         </div>

@@ -40,6 +40,9 @@ import { ConfigDirs, defaultGlobalConfigDir } from "./config-dirs.ts";
 import { seedGlobalAgents } from "./agent/harness.ts";
 import { Terminals } from "./terminal.ts";
 import { claimDataDir, currentShell, removeInstance, sameKey, writeInstance } from "./instance.ts";
+import { Hooks } from "./hooks.ts";
+import { McpServers } from "./mcp/manager.ts";
+import os from "node:os";
 
 export interface AppOptions extends Partial<Config> {
   userSkillsDir?: string;
@@ -74,6 +77,7 @@ export interface App {
   terminals: Terminals;
   preview: PreviewServer;
   childEnv: () => Record<string, string>;
+  mcp: McpServers; // MCP servers (mcp/manager.ts)
   close: () => Promise<void>;
 }
 
@@ -84,7 +88,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   const store = new Store(config.dataDir);
   // The label is what Passord og nøkler (Seahorse) shows for the item.
   const secrets = new Secrets(config.dataDir, options.keyring ?? defaultKeyring(), (id) =>
-    id === GITHUB_SECRET ? "Agentic Desktop: GitHub-token" : `Agentic Desktop: API-nøkkel for ${store.provider(id)?.name ?? id}`,
+    id === GITHUB_SECRET ? "Agentic Desktop: GitHub-token" : id.startsWith("mcp:") ? `Agentic Desktop: MCP-hemmelighet (${id.split(":").slice(2).join(" ")})` : `Agentic Desktop: API-nøkkel for ${store.provider(id)?.name ?? id}`,
   );
   // Normally a tenth of a second. A locked keyring asks for the password; the start does not wait
   // for that, and the keys come in when it is unlocked (keyring.changed).
@@ -187,8 +191,14 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   let modBusy=(_id:string)=>false;
   const uiMods=new UiMods(store,config.dataDir,()=>publish({type:"ui-mods.changed",state:uiMods.snapshot()}),id=>modBusy(id));
   const chatWorkspace = new ChatWorkspace(store, config.dataDir);
+  // The user's hooks (Innstillinger → Hooks): only from hooks.json in the data folder, never from a project.
+  // MCP servers from Innstillinger → MCP-servere (mcp/manager.ts). Connected in the background below.
+  const mcp: McpServers = new McpServers({ store, secrets, env, cwd: options.homeDir ?? os.homedir(), publish: (state) => publish({ type: "mcp.changed", state }) });
+  const hooks: Hooks = new Hooks({ dataDir: config.dataDir, env, homeDir: options.homeDir, changed: () => publish({ type: "hooks.changed", state: hooks.state() }) });
   const runner = new Runner({
     uiMods,
+    hooks,
+    mcp,
     chatWorkspace,
     store,
     log,
@@ -235,11 +245,14 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   secrets.onChange = (keyring) => {
     publish({ type: "keyring.changed", keyring });
     api.settingsChangedFromKeyring();
+    mcp.keyringChanged();
   };
 
   hub = new Hub({ store, security, terminals, browser, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   api = new Api({
     uiMods,
+    hooks,
+    mcp,
     chatWorkspace,
     promptCompletion: new PromptCompletions(store, (model) => {
       const provider = store.provider(model.providerId);
@@ -319,6 +332,8 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
 
   // After listen, so a second server on a busy port cannot touch the first one's runs.
   runner.recover();
+  // In the background: a slow or broken MCP server never holds up the start.
+  mcp.start();
   security.writeTokenFile();
   writeInstance(config.dataDir, port, stopKey);
   // Half files from a server that stopped in the middle of a download: now, and once more when
@@ -335,7 +350,9 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       security.removeTokenFile();
       removeInstance(config.dataDir);
       servers.close();
+      hooks.close();
       await runner.shutdown();
+      await mcp.close(); // stops every MCP server process group
       uiMods.close();
       chatWorkspace.close();
       await chatWorkspace.ready;
@@ -369,6 +386,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     terminals,
     preview,
     childEnv: env,
+    mcp,
     close,
   };
 }

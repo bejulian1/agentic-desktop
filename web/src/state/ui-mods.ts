@@ -16,6 +16,11 @@ export function effectiveUiMod(threadId:string|null,mode:Mode):UiMod|undefined {
 export async function chooseUiMod(id:string|null,target=modTarget()){if(target.threadId)await put(`/api/ui-mods/threads/${target.threadId}`,{modId:id});else await put('/api/ui-mods/preferences',{defaults:{[target.mode]:id}});await refreshUiMods();}
 export async function saveUiMod(mod:UiMod){await put(`/api/ui-mods/library/${mod.id}`,mod);await refreshUiMods();}
 export async function deleteUiMod(id:string){await del(`/api/ui-mods/library/${id}`);await refreshUiMods();}
-export async function modPreferences(patch:Partial<Pick<UiModsState,'enabled'|'animated'|'defaults'|'glass'>>){await put('/api/ui-mods/preferences',patch);await refreshUiMods();}
+export async function modPreferences(patch:Partial<Pick<UiModsState,'enabled'|'animated'|'defaults'|'glass'|'glassStyle'>>){await put('/api/ui-mods/preferences',patch);await refreshUiMods();}
 
+// The glass choice as one value: off, one frosted layer over the whole backdrop, or panels behind each answer.
+export type GlassChoice='backdrop'|'panels'|'off';
+export const glassChoice=():GlassChoice=>uiMods().glass===false?'off':uiMods().glassStyle==='panels'?'panels':'backdrop';
+export const setGlassChoice=(choice:GlassChoice)=>modPreferences(choice==='off'?{glass:false}:{glass:true,glassStyle:choice});
+export const GLASS_CHOICES:Array<{value:GlassChoice;label:string}>=[{value:'backdrop',label:'Hele bakgrunnen uskarp'},{value:'panels',label:'Flater bak svar'},{value:'off',label:'Ingen uskarphet eller flater'}];
 export async function wallpaperPreferences(patch:{opacity?:number;blur?:number}){await put('/api/ui-mods/preferences',{wallpaper:patch});await refreshUiMods();}

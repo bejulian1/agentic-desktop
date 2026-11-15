@@ -107,14 +107,11 @@ export function navRoutes(route: Route, deps: ApiDeps, h: { project: (id: string
 
   route("GET", "/api/thread-stats", () => store.threadDiffStats());
 
-  // Full, bundled history. Rendered as escaped text; never executes markdown/HTML.
+  // Full, bundled history, newest first as in docs/PATCHLOG.md. Each entry is split into plain
+  // blocks (headings, list items, paragraphs) that the UI renders as text nodes, never as HTML.
   route("GET", "/api/releases", () => {
     try {
-      const text = readFileSync(path.join(REPO_ROOT, "docs/PATCHLOG.md"), "utf8");
-      return { entries: text.split(/^## /m).slice(1).map(section => {
-        const end = section.indexOf("\n");
-        return { title: (end < 0 ? section : section.slice(0, end)).trim(), body: end < 0 ? "" : section.slice(end + 1).trim() };
-      }) };
+      return { entries: parseReleases(readFileSync(path.join(REPO_ROOT, "docs/PATCHLOG.md"), "utf8")) };
     } catch { return { entries: [] }; }
   });
 
@@ -154,4 +151,54 @@ export function navRoutes(route: Route, deps: ApiDeps, h: { project: (id: string
   route("DELETE", "/api/downloads/:id", ({ params, query }) => {
     if (!deps.downloads?.remove(params.id, query.get("file") === "1")) throw new HttpError(404, "Fant ikke nedlastingen, eller den pågår ennå");
   });
+}
+
+export interface ReleaseBlock { kind: "heading" | "item" | "text"; depth: number; text: string }
+export interface ReleaseEntry {
+  title: string; // the whole heading line, for search
+  version: string | null; // "0.24.3", or null for the rounds before version numbers
+  name: string; // what the version is about
+  date: string | null; // "15. november 2026"
+  build: string | null; // "70", "28 og 29"
+  body: string;
+  blocks: ReleaseBlock[];
+}
+
+// "0.24.3: Renere prosjektlinje (15. november 2026, bygg 70)", "0.9.0, bygg 30: appen … (8. november 2026)"
+// and "Runde 4: de store … (3. november 2026)".
+export function parseReleases(text: string): ReleaseEntry[] {
+  return text.split(/^## /m).slice(1).map((section) => {
+    const end = section.indexOf("\n");
+    const title = (end < 0 ? section : section.slice(0, end)).trim();
+    const body = end < 0 ? "" : section.slice(end + 1).trim();
+    const head = /^(\d+\.\d+\.\d+)(?:,\s*bygg\s+([\d ,og]+?))?:\s*(.*)$/.exec(title);
+    let name = head ? head[3] : title;
+    let date: string | null = null;
+    let build: string | null = head?.[2]?.trim() ?? null;
+    const paren = /\s*\(([^()]*)\)\s*$/.exec(name);
+    if (paren) {
+      name = name.slice(0, paren.index).trim();
+      const parts = paren[1].split(",").map((part) => part.trim());
+      for (const part of parts) {
+        const bygg = /^bygg\s+(.+)$/.exec(part);
+        if (bygg) build = bygg[1];
+        else if (/\d{4}$/.test(part)) date = part;
+      }
+    }
+    return { title, version: head?.[1] ?? null, name, date, build, body, blocks: releaseBlocks(body) };
+  });
+}
+
+function releaseBlocks(body: string): ReleaseBlock[] {
+  const blocks: ReleaseBlock[] = [];
+  for (const raw of body.split("\n")) {
+    if (!raw.trim() || /^\s*(\|[-: |]+\||```)/.test(raw)) continue;
+    const heading = /^#{3,6}\s+(.*)$/.exec(raw);
+    const item = /^(\s*)[-*]\s+(.*)$/.exec(raw) ?? /^(\s*)\d+\.\s+(.*)$/.exec(raw);
+    if (heading) blocks.push({ kind: "heading", depth: 0, text: heading[1].trim() });
+    else if (item) blocks.push({ kind: "item", depth: Math.min(3, Math.floor(item[1].length / 2)), text: item[2].trim() });
+    else if (/^\s{2,}\S/.test(raw) && blocks.at(-1)?.kind === "item") blocks.at(-1)!.text += ` ${raw.trim()}`;
+    else blocks.push({ kind: "text", depth: 0, text: raw.trim().replace(/^\|\s*|\s*\|$/g, "").replace(/\s*\|\s*/g, " · ") });
+  }
+  return blocks;
 }

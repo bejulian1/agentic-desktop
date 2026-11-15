@@ -118,7 +118,7 @@ export function Pane(props: {
   });
 
   return (
-    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-scene":scene(),"background-pane":background(),"ui-mod-glass":background()&&uiMods().glass!==false,"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)}>
+    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-scene":scene(),"background-pane":background(),"ui-mod-glass":background()&&uiMods().glass!==false&&uiMods().glassStyle!=="panels","ui-mod-panels":background()&&uiMods().glass!==false&&uiMods().glassStyle==="panels","ui-mod-clear":background()&&uiMods().glass===false,"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)}>
       <Show when={scene()}><Suspense><UiModBackdrop scene={mod()!.scene}/></Suspense></Show>
       <header class="pane-head" onPointerDown={startDrag}>
         <span class="pane-dot" classList={{ running: thread()?.running }} data-state={thread() ? threadState(thread()!) : "idle"} title={thread() ? STATE_LABEL[threadState(thread()!)] || undefined : undefined} />

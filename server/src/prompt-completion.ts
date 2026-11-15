@@ -87,7 +87,7 @@ export class PromptCompletions {
     // Chat suggestions use only a bounded tail of visible user/assistant text. A just-moved
     // conversation may still have an old hidden compaction summary in model storage.
     const visible = thread.mode === "chat"
-      ? historyFrom(this.store.eventsTail(thread.id, 1000).filter(({ event }) => event.type === "user.message" || event.type === "text.delta"))
+      ? historyFrom(this.store.eventsTail(thread.id, 1000).filter(({ event }) => event.type === "user.message" || event.type === "text.delta" || event.type === "user.checked"))
       : this.store.recentMessages(thread.id);
     if (thread) for (const message of visible.reverse()) {
       const text = message.content.filter((block) => block.type === "text").map((block) => block.type === "text" ? block.text : "").join("\n");

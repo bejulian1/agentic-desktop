@@ -4,6 +4,17 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.25.0: MCP-servere, hooks og valg av glass-stil (15. november 2026, bygg 71)
+
+- **MCP-servere:** koble modellen til verktøy fra MCP-servere i **Innstillinger → MCP-servere**. Ferdige utgangspunkt for **GitHub** (adresse og hemmelig token) og **Playwright** (`npx @playwright/mcp`), og egne servere med kommando (stdio) eller adresse (Streamable HTTP). Statusprikk, verktøyliste med av/på per verktøy, ny tilkobling og utdata fra serveren. `/mcp` åpner siden.
+- **Godkjenning og hemmeligheter:** MCP-verktøy spør som kommandoer i Kode, med «Tillat alltid» per verktøy, og før hvert kall i Chat. En server kan settes til automatisk godkjenning. Tokener lagres i systemets nøkkelring, vises aldri igjen i grensesnittet og skjules i svar, feil og logger. Verktøyene tilbys ikke i planmodus, og hver tur får høyst 60 MCP-verktøy.
+- **Hooks:** egne kommandoer som kjøres **før verktøykall**, **etter verktøykall**, **når du sender en melding** og **når en tur er ferdig**, i både Kode og Chat. Samme kontrakt som Claude Code: JSON på stdin, avslutningskode 2 stopper. Filter på verktøynavn (også `mcp__<kortnavn>__*`), tidsgrense, testknapp og tre ferdige eksempler. Hooks som stopper eller legger til noe, vises som en egen linje i samtalen.
+- **Trygghet rundt hooks:** bare du kan lage og endre dem i Innstillinger. De leses aldri fra prosjektmapper, og modellen har ikke noe verktøy for dem. En melding som ikke har kommet gjennom en hook, regnes som ikke sendt og kan sendes på nytt.
+- **Glass over bakgrunner:** velg mellom **Hele bakgrunnen uskarp**, **Flater bak svar** og **Ingen uskarphet eller flater** i Utseende og i modbiblioteket. Flater bak svar gir hvert svar sin egen glassflate og små glasspiller for tenkeutdrag og steg. Ingen uskarphet eller flater viser svarene rett på den skarpe bakgrunnen; bare meldingsfeltet og dine egne meldinger har flate med omriss. Gjelder både Chat og Kode.
+- **Versjonslogg i Innstillinger og Om:** hele versjonsloggen åpnes nå også fra sidefanen i Innstillinger og fra Om-siden, i én liste med versjonsmerke, dato og bygg, og «Denne versjonen» merket.
+
+MCP er prøvd mot den ekte Playwright-serveren. GitHub-serveren er ikke prøvd mot GitHub, siden det krever et token. Protokollen fra 2025-11-25 og eldre støttes; servere som bare snakker 2026-07-28 kan ikke kobles til ennå. Hooks kjører med din fulle tilgang til maskinen, som en kommando i terminalen. Se [MCP-servere](MCP.md), [Hooks](HOOKS.md) og [Tema, bakgrunn og mods](UI-MODS.md).
+
 ## 0.24.3: Renere prosjektlinje over meldingsfeltet (15. november 2026, bygg 70)
 
 - **Jevn glasstone i promptbaren:** prosjektlinjen bruker samme dempede flate som meldingsfeltet over bakgrunner, med en tynn kant.

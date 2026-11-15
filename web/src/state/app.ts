@@ -1,4 +1,5 @@
 import {setUiMods} from "./ui-mods";
+import { setMcpState } from "./mcp";
 // Global state that only changes on real events: never per token, so nothing here re-renders
 // because a model is streaming.
 import { batch, createMemo, createSignal } from "solid-js";
@@ -318,6 +319,7 @@ export function report(err: unknown): void {
 
 export function applyBootstrap(boot: Bootstrap): void {
   if(boot.uiMods)setUiMods(boot.uiMods);
+  if (boot.mcp) setMcpState(boot.mcp);
   setApp({
     build: boot.build,
     settings: boot.settings,

@@ -4,6 +4,8 @@
 
 Brukeren ga 14. november 2026 stående tillatelse til å committe og pushe alle nye, ferdigtestede versjoner til det private repoet `bejulian1/agentic-desktop`, med oppdatert versjons-/byggnummer og en tilhørende GitHub Release. Det trengs ikke en ny bekreftelse for hver versjon. Tillatelsen gjelder publisering til dette eksisterende private repoet, ikke endring av synlighet, omskriving av historikk eller andre repoer.
 
+Brukeren gjentok og utvidet dette 15. november 2026: alle nye versjoner kan committes til repoet med versjonsendring, publiseres som Release, og den installerte appen på brukerens PC kan oppdateres samtidig (`npm run install-local` fra den kontrollerte pakken). Ta sikkerhetskopi av data og innstillinger til `~/.local/share/agentic-desktop-backups/` først, og bytt ikke ut appen mens den kjører.
+
 ## Ved hver ny appversjon
 
 1. Fullfør endringene og relevante lokale kontroller. Hold tester isolert fra ekte brukerdata og API-nøkler. Følg prosjektets regler for headless Chrome/Electron og prosesshåndtering.
@@ -15,10 +17,10 @@ Brukeren ga 14. november 2026 stående tillatelse til å committe og pushe alle 
 7. Opprett `v<versjon>` på den kontrollerte kildecommiten. Publiser en GitHub Release med forståelige versjonsnotater, AppImage, deb, SHA256SUMS, full versjonslogg og RELEASEINFO.json. Metadataene skal inneholde riktig versjon, bygg, plattform og kildecommit. Last gjerne opp som utkast først; verifiser filstørrelser og SHA-256 før publisering.
 8. Bekreft at fjerncommiten, utgivelsen og vedleggene stemmer. Oppsummer versjon, bygg, kontroll og lenke til Release.
 
-Små dokumentasjonsendringer trenger ikke en ny appversjon eller ny binærutgivelse. Ikke lov at kontroller eller publisering er fullført før de faktisk er det. Installer på brukerens PC bare innenfor tidligere gitt installasjonstillatelse og etter sikkerhetskopi og relevante kontroller.
+Små dokumentasjonsendringer trenger ikke en ny appversjon eller ny binærutgivelse. Ikke lov at kontroller eller publisering er fullført før de faktisk er det. Installer på brukerens PC innenfor installasjonstillatelsen over, etter sikkerhetskopi og relevante kontroller.
 
 ## GitHub Packages og kreditering
 
 OCI-jobben i `.github/workflows/publish-package.yml` kan publisere samme installasjonsfiler privat i GHCR etter en Release, når GitHub har gitt nødvendige rettigheter. Manglende rettigheter skal forklares konkret; ikke omgå godkjenning, lagre token i repoet eller hevde at en pakke finnes før publiseringen er verifisert. En manglende Packages-rettighet hindrer ikke vanlig commit/push og Releases.
 
-Behold eksisterende Claude-kreditering og CREDITS.md. Bruk en korrekt Co-authored-by-linje på faktisk Codex-assistert arbeid. GitHubs Contributors-graf bestemmes av GitHub; kreditering skal ikke fabrikeres eller få historikken omskrevet for å påvirke grafen.
+Behold eksisterende Claude-kreditering og CREDITS.md. Bruk en korrekt Co-authored-by-linje på faktisk Codex-assistert arbeid, og tilsvarende `Co-Authored-By: Claude <modell> <noreply@anthropic.com>` på faktisk Claude-assistert arbeid. Hold CREDITS.md og README oppdatert med hva hver modell faktisk har bidratt med. GitHubs Contributors-graf bestemmes av GitHub; kreditering skal ikke fabrikeres eller få historikken omskrevet for å påvirke grafen.

@@ -48,6 +48,12 @@ Inspirasjon: Anthropic dokumenterer [farger og bakgrunner per økt](https://code
 
 Bildet lagres lokalt under `appearance/images/`, adskilt fra meldingsvedlegg. Det sendes ikke til modellen. Originaler opptil 12 MB behandles lokalt, skaleres til høyst 2560 piksler på lengste side og lagres som et bilde på maks 3 MB. Bytte og fjerning rydder den gamle lokale bakgrunnsfilen. SVG og animerte GIF-bakgrunner er ikke støttet.
 
-Når et bilde eller scenetema vises, står modellsvar og tenkeutdrag uten egne flater eller omriss. **Uskarp glassbakgrunn** legger ett uskarpt, dempet lag bak innholdskolonnen, fra topp til bunn, med myk uttoning mot skarpe sidemarger, slik at teksten er lesbar rett på motivet. Bryteren er på som standard, finnes også i modbiblioteket, og kan slås av for å se bakgrunnen skarpt. Samtalen går i tillegg gradvis over i uskarphet ned mot meldingsfeltet, med samme avgrensning mot sidene. Bredden følger vinduet og temaets innholdsbredde. Bare meldingsfeltet og dine egne meldinger har en flate: halvgjennomsiktig og mørk i mørk modus, med et tynt omriss. Meldingsfeltet skifter ikke farge ved fokus. Vanlig visning uten bakgrunn bruker ingen filtre.
+**Glass over bakgrunner** bestemmer hvordan samtalen vises når et bilde eller scenetema er aktivt. Valget finnes i Utseende og i modbiblioteket, og gjelder både Chat og Kode:
+
+- **Hele bakgrunnen uskarp** (standard): ett uskarpt, dempet lag over hele bakgrunnen bak samtalen, fra topp til bunn. Modellsvar og tenkeutdrag står uten egne flater eller omriss.
+- **Flater bak svar:** bakgrunnen er skarp, og hvert svar får sin egen glassflate. Tenkeutdrag og steg i Kode vises som små glasspiller.
+- **Ingen uskarphet eller flater:** bakgrunnen er skarp, svarene står rett på den uten flate eller omriss, og ingenting gjøres uskarpt. Passer for rolige, mørke motiver.
+
+I de to første går samtalen gradvis over i uskarphet ned mot meldingsfeltet. I alle tre har meldingsfeltet og dine egne meldinger en halvgjennomsiktig flate med tynt omriss, mørk i mørk modus, og meldingsfeltet skifter ikke farge ved fokus. Vanlig visning uten bakgrunn bruker ingen filtre.
 
 Prosjektlinjen over meldingsfeltet i Kode bruker samme glasstone som feltet, med en tynn skjøt. Den overlapper ikke lenger som en egen grå flate inne i feltet.
