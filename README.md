@@ -48,6 +48,8 @@ Last opp et eget bakgrunnsbilde i **Utseende**, felles for hele appen. Juster bi
 |---|---|---|
 | [![Global bakgrunn](docs/bilder/bakgrunn-chat.png)](docs/bilder/bakgrunn-chat.png) | [![Bakgrunnsinnstillinger](docs/bilder/bakgrunn-innstillinger.png)](docs/bilder/bakgrunn-innstillinger.png) | [![Nordlys i Chat](docs/bilder/glass-nordlys.png)](docs/bilder/glass-nordlys.png) |
 
+*De to første bildene viser v0.27.0 med globalt bakgrunnsbilde og en tilpasset blågrønn fargepalett, også i sidepanel og innstillinger.*
+
 ## Nytt i v0.23
 
 Tema og visuelle mods følger hver samtale. Be modellen lage en pixelart-bakgrunn, endre farger eller legge til en klokke over meldingsfeltet. Palettknappen åpner bibliotek med Nordlys, Stjernehimmel og Hav, editor og tilbakestilling. Endringer fra modellen lastes inn etter turen, med samtykke per samtale. Se [Tema og mods](docs/UI-MODS.md).
