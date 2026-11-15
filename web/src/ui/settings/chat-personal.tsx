@@ -1,16 +1,17 @@
 // Innstillinger → Chat-personalisering (SPEC 22.4): Chat's own place, apart from Kode. A system
-// instruction, a few lines about you, a tone, and Chat memories with «Oppdater minnet av seg selv».
+// instruction, a few lines about you, a personality with characteristics that can be turned down
+// or up, and Chat memories with «Oppdater minnet av seg selv».
 // Chat never gets the Kode harness, the global AGENTS.md or the Kode memories, and Kode never gets
 // any of this.
 import { createResource, createSignal, For, Show } from "solid-js";
-import type { ChatPersonal, ChatTone, HarnessInfo, MemoryItem, UpgradeProposal } from "../../../../shared/protocol";
-import { countChatWords, MAX_CHAT_FIELD, MAX_CHAT_WORDS } from "../../../../shared/protocol";
+import type { ChatPersonal, ChatTone, ChatTraitId, ChatTraitLevel, HarnessInfo, MemoryItem, UpgradeProposal } from "../../../../shared/protocol";
+import { CHAT_PERSONALITIES, CHAT_TRAITS, countChatWords, MAX_CHAT_FIELD, MAX_CHAT_WORDS } from "../../../../shared/protocol";
 import { ModelContextSettings } from "./model-context";
 import { del, get, post, put } from "../../lib/api";
 import { report, toast } from "../../state/app";
 import { confirmDialog } from "../dialogs";
 import { IconPencil, IconPlus, IconReset, IconTrash } from "../icons";
-import { Group, Row, SkeletonRows, Toggle } from "./parts";
+import { Group, Row, Segmented, SkeletonRows, Toggle } from "./parts";
 import { Select } from "../Select";
 import { UpgradeView } from "./memory-upgrade";
 
@@ -24,13 +25,10 @@ interface ChatState {
 
 const MAX_MEMORY = 300;
 
-const TONES: Array<{ value: ChatTone; label: string; text: string }> = [
-  { value: "standard", label: "Standard", text: "Som modellen svarer selv" },
-  { value: "kort", label: "Kort", text: "Noen setninger eller en kort liste" },
-  { value: "vennlig", label: "Vennlig", text: "Varm, uten fyllord" },
-  { value: "grundig", label: "Grundig", text: "Forklarer og tar med kanttilfeller" },
-  { value: "uformell", label: "Uformell", text: "Som en kunnskapsrik venn" },
-  { value: "formell", label: "Formell", text: "Presis og saklig" },
+const TRAIT_LEVELS: Array<{ value: ChatTraitLevel; label: string }> = [
+  { value: -1, label: "Mindre" },
+  { value: 0, label: "Standard" },
+  { value: 1, label: "Mer" },
 ];
 
 export function ChatPersonalSettings() {
@@ -85,7 +83,7 @@ export function ChatPersonalSettings() {
   const reset = async () => {
     const ok = await confirmDialog({
       title: "Tilbakestille Chat-personaliseringen?",
-      text: "Systeminstruksen gjenopprettes til appens standard, «Om deg» tømmes og tonen blir Standard. Minnevalgene tilbakestilles også. Lagrede Chat-minner blir stående.",
+      text: "Systeminstruksen gjenopprettes til appens standard, «Om deg» tømmes, personligheten blir Standard og stilvalgene settes tilbake. Minnevalgene tilbakestilles også. Lagrede Chat-minner blir stående.",
       confirm: "Tilbakestill",
     });
     if (!ok) return;
@@ -160,9 +158,25 @@ export function ChatPersonalSettings() {
               <textarea class="input chat-area" aria-label="Om deg" aria-invalid={overLimit("about") || undefined} rows={6} maxLength={MAX_CHAT_FIELD} value={value("about")} onInput={(e) => setAbout(e.currentTarget.value)} placeholder="For eksempel: Jeg er lærer i Bergen og lærer meg Python." />
             </label>
           </div>
-          <Row label="Tone" text={TONES.find((t) => t.value === state()!.personal.tone)?.text ?? ""}>
-            <Select<ChatTone> label="Tone" value={state()!.personal.tone} options={TONES.map((t) => ({ value: t.value, label: t.label }))} onChange={(tone) => void setPersonal({ tone })} />
+        </Group>
+
+        <Group title="Personlighet og stil">
+          <Row label="Personlighet" text={`${CHAT_PERSONALITIES.find((p) => p.id === state()!.personal.tone)?.text ?? ""} Gjelder nye og eksisterende chatter som ikke har valgt sin egen med /personality.`}>
+            <Select<ChatTone> label="Personlighet" value={state()!.personal.tone} options={CHAT_PERSONALITIES.map((p) => ({ value: p.id, label: p.label }))} onChange={(tone) => void setPersonal({ tone })} />
           </Row>
+          <For each={CHAT_TRAITS}>
+            {(trait) => (
+              <Row label={trait.label} text={trait.text}>
+                <Segmented<ChatTraitLevel>
+                  label={trait.label}
+                  value={state()!.personal.traits?.[trait.id] ?? 0}
+                  options={TRAIT_LEVELS}
+                  onChange={(level) => void setPersonal({ traits: { [trait.id]: level } as Record<ChatTraitId, ChatTraitLevel> })}
+                />
+              </Row>
+            )}
+          </For>
+          <p class="muted small chat-style-note">Personlighet og stil endrer hvordan Chat skriver, ikke hva som er riktig. De gjelder bare Chat, ikke Kode eller Chat-prosjekter med egne instruksjoner.</p>
         </Group>
 
         <Show when={!textsValid()}><p class="form-error" role="alert">Hvert felt kan ha opptil 10 000 ord. Kort ned feltet som er over grensen før du lagrer.</p></Show>

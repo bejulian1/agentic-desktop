@@ -16,11 +16,3 @@ export function registerChatPersonality(context: ChatPersonalityContext): () => 
   setActiveChatPersonality(context);
   return () => setActiveChatPersonality((current) => current === context ? null : current);
 }
-
-export const PERSONALITY_TEXT: Record<string, string> = {
-  standard: "Vanlige svar, uten egen stil",
-  kort: "Korte svar, med så få ord som oppgaven tillater",
-  grundig: "Forklarer resonnementet og avveiningene",
-  vennlig: "Varm og oppmuntrende, med enkle ord",
-  lærer: "Forklarer hvorfor, og foreslår hva du kan prøve",
-};

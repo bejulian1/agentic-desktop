@@ -29,7 +29,7 @@ import type {
   ThemeSetting,
   Thread,
 } from "../../../shared/protocol.ts";
-import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, type ProjectConfig } from "../../../shared/protocol.ts";
+import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, type ProjectConfig } from "../../../shared/protocol.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
 import { hooksRoutes } from "./hooks-routes.ts";
@@ -377,7 +377,7 @@ export class Api {
     const reviewSkill = discovered.some((skill) => skill.name === "review");
     const skills = discovered
       .filter((skill) => skill.name === "review" || !BUILTIN_NAMES.has(skill.name))
-      .map((skill): CommandInfo => ({ name: skill.name, description: skill.description, kind: "skill", source: skill.source, ...(skill.args !== undefined ? { args: skill.args } : {}) }));
+      .map((skill): CommandInfo => ({ name: skill.name, description: skill.description, kind: "skill", source: skill.source, ...(skill.args !== undefined ? { args: skill.args } : {}), ...(skill.mode ? { mode: skill.mode } : {}) }));
     const builtins = BUILTIN_COMMANDS.map((command) => command.name === "review-changes" && reviewSkill
       ? { ...command, aliases: command.aliases?.filter((alias) => alias !== "review") } : command);
     return [...builtins, ...skills];
@@ -696,7 +696,8 @@ export class Api {
         publish({ type: "chat-project.changed", project: store.chatProject(inChatProject)! });
       }
       if (side?.temporary) store.markTemporary(thread.id);
-      if (!inChatProject && folder.personality && folder.personality !== "standard") store.updateThread(thread.id, { personality: folder.personality });
+      // settings.json names one of Kode's personalities; a chat follows Chat-personalisering.
+      if (mode === "code" && folder.personality && folder.personality !== "standard") store.updateThread(thread.id, { personality: folder.personality });
       // Round 13 (SPEC 27.2): tools chosen on the start page, before the chat existed.
       if (body.chatTools !== undefined && body.chatTools !== null && mode === "chat" && !projectId) {
         store.updateThread(thread.id, { chatTools: chatToolsFromBody(body.chatTools, chatToolsOf(undefined, store.settings())) });
@@ -743,7 +744,7 @@ export class Api {
         if (current.mode !== "chat" || current.projectId) throw new HttpError(400, "Bare chatter har verktøyvalg");
         store.updateThread(params.id, { chatTools: body.chatTools === null ? null : chatToolsFromBody(body.chatTools, chatToolsOf(current, store.settings())) });
       }
-      store.updateThread(params.id, threadPatch(body));
+      store.updateThread(params.id, threadPatch(body, current.mode));
       if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
       return this.thread(params.id);
@@ -1298,7 +1299,7 @@ function validShortcuts(value: unknown): Record<string, string> {
 const MAX_GOAL = 2000;
 const MAX_CHAPTER = 80;
 
-function threadPatch(body: any): ThreadPatch {
+function threadPatch(body: any, mode: Thread["mode"]): ThreadPatch {
   const patch: ThreadPatch = { title: typeof body.title === "string" ? cleanName(body.title) : body.title, archived: body.archived, modelId: body.modelId };
   if (body.goal !== undefined) {
     if (body.goal !== null && typeof body.goal !== "string") throw new HttpError(400, "Ugyldig mål");
@@ -1317,8 +1318,10 @@ function threadPatch(body: any): ThreadPatch {
     patch.reasoning = body.reasoning;
   }
   if (body.personality !== undefined) {
-    if (body.personality !== null && !PERSONALITIES.some((p) => p.id === body.personality)) throw new HttpError(400, "Ukjent personlighet");
-    patch.personality = body.personality === "standard" ? null : body.personality;
+    // A chat chooses among Chat's personalities (older names are mapped); Kode among its own.
+    const id = body.personality === null ? null : mode === "chat" ? chatPersonalityId(body.personality) : PERSONALITIES.some((p) => p.id === body.personality) ? (body.personality as string) : undefined;
+    if (id === undefined || (id === null && body.personality !== null)) throw new HttpError(400, "Ukjent personlighet");
+    patch.personality = id === "standard" ? null : id;
   }
   if (body.pinned !== undefined) patch.pinned = body.pinned === true;
   if (body.snoozedUntil !== undefined) {

@@ -80,7 +80,7 @@ function ConfigurationGroups() {
     <>
       <Group title="Global settings.json">
         <div class="setting setting-block">
-          <span class="muted">Globale innstillinger ligger i <code>{config()?.dir ?? "…"}</code>. <code>model</code>, <code>permissionMode</code> og <code>personality</code> kan redigeres i filen og leses ved neste tråd i Kode.</span>
+          <span class="muted">Valgfri fil for standardvalg i nye Kode-tråder: <code>model</code> (modell), <code>permissionMode</code> (<code>ask</code>, <code>accept-edits</code> eller <code>full</code>) og <code>personality</code> (<code>standard</code>, <code>kort</code>, <code>grundig</code>, <code>vennlig</code> eller <code>lærer</code>). Filen ligger i <code>{config()?.dir ?? "…"}</code> og redigeres i et tekstprogram; appen leser den når en ny tråd starter. Er den tom eller mangler, gjelder valgene du gjør i appen. Et prosjekt kan overstyre med sin egen <code>.agentic/settings.json</code>.</span>
           <pre class="code-view">{json(config()?.settings)}</pre>
           <Show when={config()?.settingsError}><p class="form-error">{config()!.settingsError}</p></Show>
         </div>
@@ -180,7 +180,7 @@ export function HarnessPage() {
   const unchanged = () => !agentsDiff()?.diff.some((l) => l.kind !== "same");
 
   const copyPrompt = () => {
-    const all = preview()?.layers.map((l) => l.text).join("\n\n") ?? "";
+    const all = preview.latest?.layers.map((l) => l.text).join("\n\n") ?? "";
     navigator.clipboard?.writeText(all).then(() => toast("Systemprompten er kopiert.", "info")).catch(() => toast("Kunne ikke kopiere.", "error"));
   };
 
@@ -278,7 +278,7 @@ export function HarnessPage() {
       <Group
         title="Forhåndsvisning"
         action={
-          <button type="button" class="btn btn-small" disabled={!preview()?.layers.length} onClick={copyPrompt}><IconCopy size={13} />Kopier</button>
+          <button type="button" class="btn btn-small" disabled={!preview.latest?.layers.length} onClick={copyPrompt}><IconCopy size={13} />Kopier</button>
         }
       >
         <div class="setting harness-preview-tools">
@@ -296,7 +296,9 @@ export function HarnessPage() {
         <Show when={mode() === "code" && !projectId()}>
           <div class="setting"><span class="muted">Du er i Kode uten et valgt prosjekt. Modellen kan svare på spørsmål, men får ingen fil- eller kommandoverktøy. Velg et prosjekt når oppgaven trenger det.</span></div>
         </Show>
-        <Show when={preview()} fallback={<SkeletonRows label="Bygger systemprompten…" count={4} />}>
+        {/* preview.latest keeps the last prompt on screen while the next one loads. Reading preview()
+            there would suspend the whole settings page, which put the scroll position back at the top. */}
+        <Show when={preview.latest} fallback={<SkeletonRows label="Bygger systemprompten…" count={4} />}>
           {(p) => (
             <>
               <div class="harness-total" data-testid="prompt-total">

@@ -2,6 +2,8 @@
 
 MCP (Model Context Protocol) lar modellen bruke verktøy fra andre programmer, for eksempel GitHub eller en nettleser som styres av Playwright. Du legger dem til i **Innstillinger → MCP-servere**. Skriv **/mcp** i meldingsfeltet for å komme dit.
 
+![MCP-server med verktøyliste i Innstillinger](bilder/mcp-servere.png)
+
 Appen kobler til serverne som er slått på når den starter. Det skjer i bakgrunnen, så en treg eller ødelagt server holder aldri igjen oppstarten. Verktøyene får modellen i **Kode**, og i **Chat** hvis du slår det på for serveren. Hvert verktøy heter `mcp__<server>__<verktøy>` hos modellen, for eksempel `mcp__github__get_me`.
 
 `<server>` er serverens **kortnavn**. Appen lager det av navnet når du legger til serveren, for eksempel `github`, eller `github2` hvis `github` er tatt. Kortnavnet endres bare når du gir serveren nytt navn. Det endres ikke når andre servere legges til, fjernes eller flyttes. Kortnavnet står på serveren i listen. Bruk det i hooks, for eksempel med verktøyfilteret `mcp__github__*`.

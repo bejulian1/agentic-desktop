@@ -20,6 +20,7 @@ export interface Skill {
   description: string;
   source: "project" | "user" | "app";
   args?: string;
+  mode?: "code" | "chat"; // from `mode:` in the frontmatter: where the skill is offered; both when absent
   file: string;
   dir?: string; // the skill folder, as found (not resolved through symlinks)
   folder?: string; // the folder's name
@@ -127,6 +128,7 @@ function scanDir(dir: string, source: Skill["source"], root: string | null, foun
         name: skillName,
         description: meta.description,
         ...(meta.args !== undefined ? { args: meta.args } : {}),
+        ...(meta.mode === "code" || meta.mode === "chat" ? { mode: meta.mode } : {}),
         source,
         file,
         dir: path.join(dir, name),

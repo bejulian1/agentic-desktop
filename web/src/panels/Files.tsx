@@ -133,9 +133,18 @@ function ProjectFilesPanel(props: { projectId: string; threadId: () => string | 
     void openFile(path);
   }
 
+  // The file the thread last worked on opens by itself, but only while it is still there: after
+  // Angre tur (or a delete) the activity still names it, and asking for it would just be a 404.
+  const showIfPresent = async (path: string) => {
+    const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ".";
+    // A fresh listing of its folder: the cached one may be from before the file went away.
+    const entries = await get<FileEntry[]>(`/api/projects/${props.projectId}/tree?path=${encodeURIComponent(parent)}`).catch(() => null);
+    if (!alive || selected() || workingPath() !== path) return;
+    if (entries?.some((entry) => entry.path === path && entry.kind === "file")) show(path);
+  };
   createEffect(() => {
     const path = workingPath();
-    if (path) untrack(() => { if (!selected()) show(path); });
+    if (path) untrack(() => { if (!selected()) void showIfPresent(path); });
   });
 
   onMount(() => {

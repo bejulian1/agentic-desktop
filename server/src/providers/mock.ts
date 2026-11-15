@@ -621,7 +621,7 @@ function line(system: string, label: string): string | null {
 
 export function introduce(system: string, tools: string[], intent: Intent): string {
   if (!/^You are the coding agent/m.test(system)) {
-    const personal = /^Tone: |The user's own instructions for Chat:|About the user, written by the user:/m.test(system);
+    const personal = /^(?:Tone|Personality \([^)]*\)|Style adjustments chosen by the user): |The user's own instructions for Chat:|About the user, written by the user:/m.test(system);
     const memories = /^Notes saved in earlier conversations/m.test(system);
     return [
       `${intent === "greet" ? "Hei! " : ""}Jeg er chat-assistenten i Agentic Desktop. Jeg kan svare på spørsmål, forklare, skrive og se over tekst, og vise kodeeksempler. ${tools.includes("create_document") ? "Jeg kan også lage nedlastbare Word-, Excel-, PowerPoint- og tekstfiler i chatten. " : "Dokumentgeneratoren er slått av. "}${tools.includes("run_python") ? "Python-analyse er på i et isolert arbeidsområde. " : "Python-kjøring er slått av. "}For endringer i eksisterende prosjektfiler og kommandoer på PC-en bytter du til Kode.`,

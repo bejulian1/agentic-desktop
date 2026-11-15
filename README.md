@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.25.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.26.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -12,13 +12,31 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Klikk på et bilde for full størrelse.*
 
-*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2. Alle bruker demo og midlertidige data.*
+*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2/v0.26.0. Alle bruker demo og midlertidige data.*
 
-**v0.25.0:** MCP-servere (GitHub, Playwright og egne) og hooks i Innstillinger, valg mellom tre glass-stiler over bakgrunner, og versjonsloggen tilgjengelig fra Innstillinger og Om. Skjermbildene over viser ikke de nye sidene ennå. Se [MCP-servere](docs/MCP.md) og [Hooks](docs/HOOKS.md).
+**v0.26.0:** ny harness for Kode og Chat, 15 innebygde skills, åtte personligheter med stilvalg i Chat. Se [Slash-skills](docs/SLASH-SKILLS.md) og [Personlighet og stil](docs/CHAT-PERSONALITIES.md).
+
+**v0.25.0:** MCP-servere (GitHub, Playwright og egne) og hooks i Innstillinger, valg mellom tre glass-stiler over bakgrunner, og versjonsloggen tilgjengelig fra Innstillinger og Om. Se [MCP-servere](docs/MCP.md) og [Hooks](docs/HOOKS.md).
 
 **v0.24.3:** prosjektlinjen over meldingsfeltet har samme glasstone som feltet, uten den grå stripen. [Se oppdatert Kode-visning](docs/bilder/promptbar-glass.png).
 
 **v0.24.2:** glassbakgrunnen følger samtalens og meldingsfeltets bredde med myk uttoning mot skarpe sidemarger, i både Chat og Kode.
+
+## Nytt i v0.26
+
+Skriv `/` i Kode for å se de 15 innebygde skillene, som `/debug`, `/explore` og `/review`, med beskrivelser. Chat har åtte personligheter og fire stilvalg som kan skrus ned eller opp. Se [Slash-skills](docs/SLASH-SKILLS.md) og [Personlighet og stil](docs/CHAT-PERSONALITIES.md).
+
+| Skills i Kode | Personlighet og stil |
+|---|---|
+| [![Skills-menyen i Kode](docs/bilder/skills-meny.png)](docs/bilder/skills-meny.png) | [![Personlighet og stil i Chat](docs/bilder/chat-personlighet.png)](docs/bilder/chat-personlighet.png) |
+
+## Nytt i v0.25
+
+MCP-servere og hooks har egne sider i Innstillinger, og du velger selv hvordan glasset over bakgrunner skal se ut. Se [MCP-servere](docs/MCP.md) og [Hooks](docs/HOOKS.md).
+
+| MCP-servere | Hooks | Glass over bakgrunner |
+|---|---|---|
+| [![MCP-server med verktøyliste](docs/bilder/mcp-servere.png)](docs/bilder/mcp-servere.png) | [![Hooks fra eksemplene](docs/bilder/hooks.png)](docs/bilder/hooks.png) | [![Valg av glass-stil](docs/bilder/glass-valg.png)](docs/bilder/glass-valg.png) |
 
 ## Nytt i v0.24
 
@@ -278,6 +296,6 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
 - **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting.
-- **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0, bygget og testet sammen med Claude Opus 5.5-underagenter), kodegjennomgang, bygg og publisering.
+- **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 
 Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.

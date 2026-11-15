@@ -4,6 +4,18 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.26.0: Ny harness, 15 innebygde skills og personligheter i Chat (15. november 2026, bygg 72)
+
+- **Ny grunnprompt for Kode (harness 16):** bygget rundt arbeidsmåten: undersøk koden og hvordan prosjektet løser det samme, følg prosjektets mønstre, gjør endringen fullstendig men liten, finn årsaken før en feil rettes, kontroller og rapporter. Nye faste regler: aldri reverser endringer agenten ikke har gjort selv, ingen destruktive kommandoer uten at du har bedt om akkurat det, og ingen utviklingsservere gjennom `run_command`.
+- **15 innebygde skills for Kode:** `/debug`, `/tdd`, `/review`, `/verify`, `/plan-change`, `/refactor`, `/explore`, `/git`, `/web-qa`, `/security-audit`, `/docs`, `/frontend-design`, `/gauntlet-loop`, `/skill-creator` og `/memory`. Modellen laster en skill når du nevner den eller oppgaven tydelig passer. Skills kan merkes med `mode: code` eller `mode: chat`; Kode-skills vises ikke i Chat.
+- **Minner og nye skills av seg selv:** instruksen peker på `remember` når du retter modellen eller sier en varig preferanse, og på `propose_skill` når en framgangsmåte bør gjenbrukes. Minnene ligger som før i `MEMORY.md`, globalt og per prosjekt.
+- **Åtte personligheter i Chat:** Standard, Profesjonell, Vennlig, Ærlig, Spesiell, Nerdete, Effektiv og Skeptisk, som standard for alle chatter eller per chat med `/personality`. Fire stilvalg kan settes til Mindre, Standard eller Mer: Varm, Entusiastisk, Overskrifter og lister, og Emoji. Tidligere toner og personligheter oversettes automatisk.
+- **Ny grunnprompt for Chat** med konkrete råd om svarkvalitet, og kortere standardinstrukser for både Chat og Kode. Standard-`AGENTS.md` er seks korte punkter uten innledning.
+- **Tydeligere verktøybeskrivelser:** tolv verktøy sier nå når de skal brukes, blant annet nettleserverktøyene og hjelpetråder. Miljølaget teller MCP-verktøy per server i stedet for å liste hvert navn.
+- **Rettinger:** forhåndsvisningen i Konfigurasjon hopper ikke lenger til toppen når du bytter mellom Kode og Chat. Filer-panelet åpner ikke lenger en fil som er slettet eller angret. Tastaturfokus går tilbake til ⋯-knappen når en trådmeny lukkes. `personality` i global `settings.json` gjelder bare Kode-tråder, og teksten i Innstillinger forklarer hva filen gjør.
+
+Din egen lagrede `AGENTS.md` og Chat-instruks byttes ikke ut automatisk: velg **Gjenopprett standard** under Kode-harness og Chat-personalisering for å få de nye, korte tekstene. Effekten på modellenes svar er ikke målt mot ekte modeller. Se [Slash-skills](SLASH-SKILLS.md), [Personlighet og stil i Chat](CHAT-PERSONALITIES.md) og [standardinstruksjonene](system-instructions/README.md).
+
 ## 0.25.0: MCP-servere, hooks og valg av glass-stil (15. november 2026, bygg 71)
 
 - **MCP-servere:** koble modellen til verktøy fra MCP-servere i **Innstillinger → MCP-servere**. Ferdige utgangspunkt for **GitHub** (adresse og hemmelig token) og **Playwright** (`npx @playwright/mcp`), og egne servere med kommando (stdio) eller adresse (Streamable HTTP). Statusprikk, verktøyliste med av/på per verktøy, ny tilkobling og utdata fra serveren. `/mcp` åpner siden.

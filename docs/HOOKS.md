@@ -2,6 +2,8 @@
 
 En hook er en kommando som appen kjører når noe skjer i en samtale: før og etter et verktøykall, når du sender en melding, og når agenten er ferdig med turen. Typiske bruksområder er å formatere en fil etter hver endring, sende et skrivebordsvarsel når en lang oppgave er ferdig, eller stoppe kommandoer du aldri vil at agenten skal kjøre.
 
+![Hooks fra eksemplene i Innstillinger](bilder/hooks.png)
+
 Åpne **Innstillinger → Hooks**. Der lager, endrer, slår av og sletter du hooks, og ser når hver av dem sist kjørte, avslutningskoden, hvor lang tid den brukte og slutten av utdataene. **Eksempler** åpner en ferdig hook i skjemaet, så du kan lese og endre kommandoen før du lagrer. **Test** kjører kommandoen én gang med en eksempelhendelse og viser avslutningskode, stdout, stderr og hva appen ville gjort med svaret.
 
 Hendelsene og JSON-en på stdin følger Claude Codes hooks, så skript skrevet for Claude Code virker stort sett her også. Forskjellene står nederst.

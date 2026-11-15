@@ -176,3 +176,6 @@
   .harness-layer summary { padding: 0 var(--space-3); }
   .upgrade { padding: var(--space-3); }
 }
+
+/* The note under Personlighet og stil lines up with the rows above it. */
+.chat-style-note { margin: 0; padding: 4px var(--space-4) var(--space-3); }

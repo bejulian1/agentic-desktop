@@ -349,7 +349,7 @@ const listDirTool: Tool = {
   kind: "read",
   def: {
     name: "list_dir",
-    description: "List one folder in the project. Folders end with a slash. Skips .git and node_modules. Use glob to find files by name across folders.",
+    description: "List one folder in the project, to see what is in it. Folders end with a slash. Skips .git and node_modules. Use glob to find files by name across folders, and search to find text inside files.",
     parameters: schema({ path: str("Path relative to the project root, . for the root") }, ["path"]),
   },
   path: (input) => input.path,
@@ -387,7 +387,7 @@ const searchTool: Tool = {
   def: {
     name: "search",
     description:
-      "Search file contents in the project with ripgrep (a grep). Honours .gitignore and skips .env files. " +
+      "Search file contents in the project with ripgrep (a grep). Use it to find where a name, a text or an error message occurs before you read or change code. Honours .gitignore and skips .env files. " +
       "output: content (matching lines with line numbers, the default), files (only file names) or count (matches per file).",
     parameters: schema(
       {
@@ -432,7 +432,7 @@ const globTool: Tool = {
   kind: "read",
   def: {
     name: "glob",
-    description: "Find files by name pattern, like **/*.ts or src/components/*.tsx. Newest first. Honours .gitignore and skips .git, node_modules and .env files.",
+    description: "Find files by name pattern, like **/*.ts or src/components/*.tsx. Use it when you know part of a file name or its extension. Newest first. Honours .gitignore and skips .git, node_modules and .env files.",
     parameters: schema(
       {
         pattern: str("Glob pattern. A pattern without a slash matches file names in every folder"),
@@ -557,7 +557,7 @@ const browserTools: Tool[] = [
     kind: "exec",
     def: {
       name: "browser_snapshot",
-      description: "Get the accessibility tree of the current page, with refs for browser_click and browser_type.",
+      description: "Read the current page as an accessibility tree: its text, structure and interactive elements, with refs for browser_click and browser_type. Call it after browser_navigate and again after every action, and act on what it shows, not on what you expect.",
       parameters: schema({}, []),
     },
     summary: () => "Tilgjengelighetstre",
@@ -569,7 +569,7 @@ const browserTools: Tool[] = [
   },
   {
     kind: "exec",
-    def: { name: "browser_click", description: "Click an element.", parameters: schema(target, []) },
+    def: { name: "browser_click", description: "Click a link, button or other element on the current page. Give the ref from the latest browser_snapshot; use text only when the element has no ref. Take a new browser_snapshot afterwards to see what changed.", parameters: schema(target, []) },
     summary: (input) => String(input.ref ?? input.text ?? ""),
     confirm: signedInConfirm("klikke"),
     async run(input, ctx) {
@@ -581,7 +581,7 @@ const browserTools: Tool[] = [
     kind: "exec",
     def: {
       name: "browser_type",
-      description: "Type into a field, replacing its content.",
+      description: "Type into a text field on the current page, replacing its content. Give the ref from the latest browser_snapshot. Set submit to press Enter afterwards, for search fields and simple forms.",
       parameters: schema({ ...target, value: str("The text to type"), submit: bool("Press Enter afterwards") }, ["value"]),
     },
     summary: (input) => String(input.ref ?? input.text ?? ""),
@@ -593,7 +593,7 @@ const browserTools: Tool[] = [
   },
   {
     kind: "exec",
-    def: { name: "browser_screenshot", description: "Take a screenshot of the current page.", parameters: schema({}, []) },
+    def: { name: "browser_screenshot", description: "Take a screenshot of the current page, to judge layout, spacing, colours and other visual problems. To read text or find elements, use browser_snapshot instead.", parameters: schema({}, []) },
     summary: () => "Skjermbilde",
     confirm: signedInConfirm("ta et skjermbilde"),
     async run(_input, ctx) {
@@ -605,7 +605,7 @@ const browserTools: Tool[] = [
   },
   {
     kind: "exec",
-    def: { name: "browser_console", description: "Read recent console messages and page errors.", parameters: schema({}, []) },
+    def: { name: "browser_console", description: "Read recent console messages and page errors from the current page. Check it after a page has loaded and after an action that should have worked; errors here explain most broken pages.", parameters: schema({}, []) },
     summary: () => "Konsoll",
     confirm: signedInConfirm("lese konsollen"),
     async run(_input, ctx) {
@@ -630,7 +630,7 @@ const threadTools: Tool[] = [
     kind: "exec",
     def: {
       name: "thread_create",
-      description: "Start a new visible thread in this project with its own task. It works in parallel; use thread_wait for its answer.",
+      description: "Start a helper thread in this project with its own task. It works in parallel in the same folder and cannot see this conversation, so the task must stand on its own: the goal, the files or area, what done looks like and which files it may change. Use it for an independent part of a large task or for an independent review; do small things yourself. Get its answer with thread_wait.",
       parameters: schema({ title: str("Short title"), task: str("What the thread should do"), model: str("Model id, default the same as this thread") }, ["title", "task"]),
     },
     summary: (input) => String(input.title ?? ""),
@@ -642,7 +642,7 @@ const threadTools: Tool[] = [
     kind: "exec",
     def: {
       name: "thread_send",
-      description: "Send a message to another thread in this project. It is queued if the thread is working.",
+      description: "Send a message to another thread in this project, for a follow-up or a correction to a helper thread. It is queued if the thread is working.",
       parameters: schema({ threadId, text: str("The message") }, ["threadId", "text"]),
     },
     summary: (input) => String(input.text ?? "").slice(0, 80),
@@ -654,7 +654,7 @@ const threadTools: Tool[] = [
     kind: "read",
     def: {
       name: "thread_read",
-      description: "Read the latest messages in another thread, without tool details.",
+      description: "Read the latest messages in another thread, without tool details. Use it to check on a helper thread without waiting for it.",
       parameters: schema({ threadId, limit: int("Number of messages, default 10") }, ["threadId"]),
     },
     summary: (input) => String(input.threadId ?? ""),
@@ -666,7 +666,7 @@ const threadTools: Tool[] = [
     kind: "read",
     def: {
       name: "thread_wait",
-      description: "Wait until another thread has finished and return its final answer.",
+      description: "Wait until another thread has finished and return its final answer. The answer is that thread's report: check it against the files before you rely on it.",
       parameters: schema({ threadId, timeoutSeconds: int("Time limit, default 120, maximum 600") }, ["threadId"]),
     },
     summary: (input) => String(input.threadId ?? ""),

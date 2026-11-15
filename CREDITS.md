@@ -20,6 +20,7 @@ Fra v0.24.1 er Claude Code brukt igjen, med **Claude Fable 5.2** som koordineren
 
 - **v0.24.1:** glassbakgrunnen bak hele samtalen, gradvis uskarphet mot meldingsfeltet og halvgjennomsiktig meldingsfelt og brukermeldinger.
 - **v0.25.0:** MCP-servere og hooks. Fable 5.2 la opp designet og grensene, to **Claude Opus 5.5**-underagenter skrev hver sin del, og to nye Opus 5.5-underagenter sto for uavhengig kodegjennomgang og UI-tester. Fable 5.2 gikk gjennom resultatet, prøvde funksjonene i appen (blant annet mot den ekte Playwright MCP-serveren), laget valget mellom glass-stiler og sto for bygg, utgivelse og installasjon.
+- **v0.26.0:** ny harness for Kode og Chat (grunnprompt, verktøybeskrivelser og standardinstrukser), 15 innebygde skills, og åtte personligheter med stilvalg i Chat, skrevet av Fable 5.2. Tre **Claude Opus 5.5**-underagenter sto for en uavhengig, kritisk gjennomgang av harnessen, opprydding i 25 utdaterte UI-tester med to feilrettinger i appen, og nye skjermbilder.
 
 Commits fra dette arbeidet har en `Co-Authored-By`-linje til Claude.
 

@@ -3,14 +3,14 @@
 // 25.2: Tekst, Token-historikk or Prosjektboks, the same with and without a project), and what
 // shows beside a thread. Chat: the HTML preview and Chat projects.
 import { createSignal, createUniqueId, For, Show, type JSX } from "solid-js";
-import { PERSONALITIES, chatToolsOf, type ChatToolId, type CodeStart, type CodeStartSize } from "../../../../shared/protocol";
+import { CHAT_PERSONALITIES, chatToolsOf, type ChatToolId, type CodeStart, type CodeStartSize } from "../../../../shared/protocol";
 import { patch } from "../../lib/api";
 import { app, pinnedSummary, setApp, setPinnedSummary, sortedChatProjects } from "../../state/app";
 import { IconMark, IconPlus } from "../icons";
 import { Group, Page, Row, save, Segmented, Toggle } from "./parts";
 import { CodeAppearance } from "./code-appearance";
 import { newChatProject } from "../chat-projects";
-import { activeChatPersonality, PERSONALITY_TEXT, type ChatPersonalityContext } from "../../state/chat-personality";
+import { activeChatPersonality, type ChatPersonalityContext } from "../../state/chat-personality";
 
 interface StartOption<T extends string> {
   value: T;
@@ -215,9 +215,9 @@ function ChatPersonalitySettings() {
         </div>
       </div>
       <div class="chat-personality-options" role="radiogroup" aria-label="Personlighet for aktiv chat" aria-describedby={`${name}-scope`} aria-busy={saving() ? "true" : undefined} aria-disabled={!activeChatPersonality() || saving() ? "true" : undefined}>
-        <For each={PERSONALITIES}>
+        <For each={CHAT_PERSONALITIES}>
           {(personality) => (
-            <Row as="label" label={personality.label} text={<span id={`${name}-${personality.id}`}>{PERSONALITY_TEXT[personality.id]}</span>}>
+            <Row as="label" label={personality.label} text={<span id={`${name}-${personality.id}`}>{personality.id === "standard" ? "Følger standardvalget i Chat-personalisering" : personality.text}</span>}>
               <input
                 type="radio"
                 name={name}

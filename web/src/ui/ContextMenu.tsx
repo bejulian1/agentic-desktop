@@ -176,8 +176,12 @@ export function ContextMenu(props: { anchor: MenuAnchor; entries: MenuEntry[]; l
   // Whether focus was in the menu is read before it closes: closing takes it out of the page.
   const close = () => {
     const inside = layer.contains(document.activeElement);
+    const back = props.returnFocus !== false && inside && !!returnFocus?.isConnected && returnFocus !== document.body;
+    // Focus goes back before the menu closes: some buttons are only shown while their menu is open
+    // (the ⋯ on a thread row), and once hidden they cannot take focus.
+    if (back) returnFocus!.focus({ preventScroll: true });
     props.onClose();
-    if (props.returnFocus !== false && inside && returnFocus?.isConnected && returnFocus !== document.body) returnFocus.focus({ preventScroll: true });
+    if (back && returnFocus!.isConnected && document.activeElement !== returnFocus) returnFocus!.focus({ preventScroll: true });
   };
   const onDown = (event: PointerEvent) => {
     const target = event.target as Node;

@@ -5,7 +5,7 @@ import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
 import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, MentionItem, ModelConfig, ReasoningEffort, Thread } from "../../../shared/protocol";
-import { effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
+import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
 import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
@@ -798,6 +798,11 @@ export function Composer(props: {
   });
   const running = createMemo(() => thread()?.running ?? false);
   const kode = () => !!(props.projectId || props.code);
+  // A skill written for the other mode: Kode skills name tools a chat does not have.
+  // A Kode skill also needs a project: without one the thread has no file or command tools.
+  const otherMode = (c: CommandInfo) => c.kind === "skill" && !!c.mode && (c.mode !== (kode() ? "code" : "chat") || (c.mode === "code" && !props.projectId));
+  // Kode threads choose a working style; a chat chooses among Chat's own personalities.
+  const personalities = (): Array<{ id: string; label: string; prompt: string; text?: string }> => (kode() ? PERSONALITIES : CHAT_PERSONALITIES);
   const chatProject = createMemo(() => {
     const id = thread()?.chatProjectId ?? props.chatProjectId;
     return !kode() && id ? app.chatProjects[id] : undefined;
@@ -876,7 +881,9 @@ export function Composer(props: {
   };
   const personality = () => {
     const current = thread();
-    return (current ? current.personality : draftPersonality()) ?? "standard";
+    const raw = (current ? current.personality : draftPersonality()) ?? "standard";
+    // A chat saved with a name from before version 16 shows the personality the model now gets.
+    return kode() ? raw : chatPersonalityId(raw) ?? "standard";
   };
   const setPersonality = async (value: string): Promise<void> => {
     const current = props.threadId();
@@ -1068,7 +1075,7 @@ export function Composer(props: {
     const current = menu();
     if (current?.kind !== "command" && current?.kind !== "skill") return [];
     const query = current.query.toLowerCase();
-    const hidden = (c: CommandInfo) => c.demo || (inChatProject() && (c.kind === "skill" || c.name === "personality")) || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
+    const hidden = (c: CommandInfo) => c.demo || otherMode(c) || (inChatProject() && (c.kind === "skill" || c.name === "personality")) || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
     return commands()
       .flatMap((c) => {
         const score = hidden(c) ? null : matchScore(c, query);
@@ -1192,7 +1199,7 @@ export function Composer(props: {
         ["Tokens", usage ? `${formatTokens(usage.inputTokens)} inn, ${formatTokens(usage.outputTokens)} ut` : "Ingen ennå"],
         ["Kostnad", usage?.costUsd != null ? formatCost(usage.costUsd) : "Ingen pris satt"],
         ["Tenkning", EFFORTS.find((e) => e.id === current?.reasoning)?.label ?? "Modellens standard"],
-        [inChatProject() ? "Instruksjoner" : "Personlighet", inChatProject() ? "Prosjektets egne instruksjoner" : PERSONALITIES.find((p) => p.id === (current?.personality ?? "standard"))?.label ?? "Standard"],
+        [inChatProject() ? "Instruksjoner" : "Personlighet", inChatProject() ? "Prosjektets egne instruksjoner" : personalities().find((p) => p.id === personality())?.label ?? "Standard"],
         ["Planmodus", current?.planMode ? "På" : "Av"],
         ["Grenser", provider?.kind === "mock" ? "Demo-modellen har ingen grenser" : "Leverandøren rapporterer ikke grenser til appen ennå"],
       ],
@@ -1300,16 +1307,16 @@ export function Composer(props: {
           await openSide();
           break;
         case "personality": {
-          const found = PERSONALITIES.find((p) => p.id === arg.toLowerCase() || p.label.toLowerCase() === arg.toLowerCase());
+          const found = personalities().find((p) => p.id === arg.toLowerCase() || p.label.toLowerCase() === arg.toLowerCase());
           const apply = async (value: string) => {
             await patchThread({ personality: value });
-            toast(`Personlighet: ${PERSONALITIES.find((p) => p.id === value)!.label}.`, "info");
+            toast(`Personlighet: ${personalities().find((p) => p.id === value)!.label}.`, "info");
           };
           if (found) await apply(found.id);
           else {
             setPicker({
               title: "Personlighet",
-              items: PERSONALITIES.map((p) => ({ id: p.id, label: p.label, detail: p.prompt || "Ingen ekstra stil", selected: (thread()?.personality ?? "standard") === p.id })),
+              items: personalities().map((p) => ({ id: p.id, label: p.label, detail: !kode() && p.id === "standard" ? "Følger standardvalget i Chat-personalisering" : p.text ?? (p.prompt || "Ingen ekstra stil"), selected: personality() === p.id })),
               pick: (value) => void apply(value).catch(report),
             });
           }
@@ -1564,6 +1571,7 @@ export function Composer(props: {
       }
       if (known?.kind === "skill") {
         if (inChatProject()) return toast("Skills brukes ikke i Chat-prosjekter. Bruk prosjektets egne instruksjoner.", "info");
+        if (otherMode(known)) return toast(`/${known.name} er bare tilgjengelig i ${known.mode === "code" ? "Kode" : "Chat"}.`, "info");
         usedSkill = known.name;
         body = { text: args, skill: known.name, attachments };
       } else body = { text, attachments };
@@ -2209,7 +2217,7 @@ export function Composer(props: {
             <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setHelpOpen(false)}><IconClose size={14} /></button>
           </div>
           <dl>
-            <For each={commands().filter((command) => !(inChatProject() && (command.kind === "skill" || command.name === "personality")) && (command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name)))))}>
+            <For each={commands().filter((command) => !otherMode(command) && !(inChatProject() && (command.kind === "skill" || command.name === "personality")) && (command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name)))))}>
               {(c) => (
                 <>
                   <dt>{c.kind === "skill" ? "$" : "/"}{c.name}<Show when={c.demo}> <span class="demo-badge">Demo</span></Show></dt>

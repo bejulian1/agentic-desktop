@@ -178,7 +178,7 @@ export interface Thread {
   planMode: boolean; // read-only tools, and the model is asked for a plan
   plan: string | null; // the last answer given in plan mode
   reasoning: ReasoningEffort | null; // overrides the model's effort
-  personality: string | null; // id from PERSONALITIES
+  personality: string | null; // id from PERSONALITIES in Kode, from CHAT_PERSONALITIES in Chat; null follows the default
   lastStatus: RunStatus | null; // how the last run ended, for the sidebar
   pinned?: boolean; // shown under Festet in the sidebar
   snoozedUntil?: number | null; // Utsatt in the smart sidebar until this time
@@ -700,6 +700,7 @@ export interface CommandInfo {
   source?: "project" | "user" | "app"; // skills only
   aliases?: string[]; // other names, e.g. the Norwegian ones from before
   args?: string; // hint shown after the name, e.g. "<mål>"
+  mode?: "code" | "chat"; // skills only: the mode it is written for; both when absent
   demo?: boolean; // a placeholder: it explains what it will do, and does nothing
 }
 
@@ -1207,12 +1208,97 @@ export interface DiffLineInfo {
   text: string;
 }
 
-export type ChatTone = "standard" | "kort" | "vennlig" | "grundig" | "uformell" | "formell";
+// Chat's personality: how answers are written, never what is true. One is the default for new
+// chats (ChatPersonal.tone, the name is kept from when it was only a tone), and a chat can choose
+// its own with /personality. Kode threads keep PERSONALITIES above.
+export type ChatTone = "standard" | "profesjonell" | "vennlig" | "aerlig" | "spesiell" | "nerdete" | "effektiv" | "skeptisk";
+
+export const CHAT_PERSONALITIES: Array<{ id: ChatTone; label: string; text: string; prompt: string }> = [
+  { id: "standard", label: "Standard", text: "Nøytral, balansert og pålitelig. For generelle oppgaver.", prompt: "" },
+  {
+    id: "profesjonell", label: "Profesjonell", text: "Nøktern, formell og presis. For jobbrelaterte tekster og formell kommunikasjon.",
+    prompt: "Write in a professional, measured register: precise wording, complete sentences, no slang, jokes or emoji. Structure longer answers so they could go straight into a work document or an email.",
+  },
+  {
+    id: "vennlig", label: "Vennlig", text: "Varm, imøtekommende og kollegial. For prat, idémyldring og veiledning.",
+    prompt: "Be warm and personable, like a helpful colleague: recognise what the user is trying to do, encourage, and explain in plain words. Stay substantive; warmth is not filler or flattery.",
+  },
+  {
+    id: "aerlig", label: "Ærlig", text: "Direkte og ærlig, uten småprat. Sier fra når noe er feil eller svakt.",
+    prompt: "Be direct and candid. Lead with the answer, skip greetings, preambles and reassurance, and say plainly when something is wrong, weak or a bad idea, with the reason.",
+  },
+  {
+    id: "spesiell", label: "Spesiell", text: "Kreativ, litt uforutsigbar og med lekne vinklinger. For historier, kreativ skriving og lek.",
+    prompt: "Be playful and imaginative: use unexpected angles, vivid comparisons and some humour, and let creative tasks be genuinely surprising. Facts, code and instructions stay correct and clear underneath. Keep it straight when the user is upset, the topic is serious or they need exact steps.",
+  },
+  {
+    id: "nerdete", label: "Nerdete", text: "Går i dybden med ekstra detaljer og teknisk snert. For faglige dypdykk og tekniske forklaringer.",
+    prompt: "Go deep. Give the precise technical explanation: the mechanism behind it, the relevant details, edge cases and proper terminology, with visible enthusiasm for the subject. When the answer is long, open with a short plain summary.",
+  },
+  {
+    id: "effektiv", label: "Effektiv", text: "Ekstra korte og rette svar uten omveier. For raske instruksjoner og lister.",
+    prompt: "Be as brief as the task allows: the answer first, in a sentence or a short list, with no introduction, recap or offer of more help. Expand only when asked.",
+  },
+  {
+    id: "skeptisk", label: "Skeptisk", text: "Realistisk, og utfordrer tankegangen og argumentene dine. For kritisk sjekk av ideer.",
+    prompt: "Be a constructive sceptic about claims, plans and arguments: give your verdict first, then test the assumptions, point out weak evidence and risks, and give the strongest counter-argument. For plain facts and simple tasks, just answer. Be realistic rather than agreeable; challenge ideas, never the person, and stay polite.",
+  },
+];
+
+// The tones and per-chat personalities from before version 16, so saved choices keep working.
+const LEGACY_CHAT_PERSONALITY: Record<string, ChatTone> = { kort: "effektiv", grundig: "nerdete", uformell: "vennlig", formell: "profesjonell", "lærer": "nerdete" };
+
+// The id as it is now: unchanged, mapped from an older name, or null when it is not a personality.
+export function chatPersonalityId(id: unknown): ChatTone | null {
+  if (typeof id !== "string") return null;
+  const wanted = LEGACY_CHAT_PERSONALITY[id] ?? id;
+  return CHAT_PERSONALITIES.some((p) => p.id === wanted) ? (wanted as ChatTone) : null;
+}
+
+export function chatPersonality(id: string | null | undefined): (typeof CHAT_PERSONALITIES)[number] {
+  const wanted = id ? LEGACY_CHAT_PERSONALITY[id] ?? id : "standard";
+  return CHAT_PERSONALITIES.find((p) => p.id === wanted) ?? CHAT_PERSONALITIES[0];
+}
+
+// Single characteristics the user can turn down or up on top of the personality.
+export type ChatTraitId = "warm" | "enthusiastic" | "structure" | "emoji";
+export type ChatTraitLevel = -1 | 0 | 1; // less, as the personality has it, more
+export type ChatTraits = Record<ChatTraitId, ChatTraitLevel>;
+export const DEFAULT_CHAT_TRAITS: ChatTraits = { warm: 0, enthusiastic: 0, structure: 0, emoji: 0 };
+
+export const CHAT_TRAITS: Array<{ id: ChatTraitId; label: string; text: string; less: string; more: string }> = [
+  {
+    id: "warm", label: "Varm", text: "Hvor personlig og oppmuntrende svarene er.",
+    less: "Keep the tone neutral and matter-of-fact, without encouragement or personal remarks.",
+    more: "Be noticeably warmer and more encouraging than you otherwise would.",
+  },
+  {
+    id: "enthusiastic", label: "Entusiastisk", text: "Hvor mye energi og begeistring svarene har.",
+    less: "Stay calm and understated; avoid exclamation marks and superlatives.",
+    more: "Show more energy and enthusiasm for the subject and for the user's ideas.",
+  },
+  {
+    id: "structure", label: "Overskrifter og lister", text: "Hvor ofte svarene deles opp med overskrifter, punktlister og tabeller.",
+    less: "Write in flowing paragraphs; avoid headings, bullet lists and tables unless the user asks for them.",
+    more: "Structure answers readily with headings, bullet lists and tables.",
+  },
+  {
+    id: "emoji", label: "Emoji", text: "Hvor mye emoji svarene bruker.",
+    less: "Do not use emoji.",
+    more: "Use emoji freely where they fit.",
+  },
+];
+
+// The lines the model gets for the adjusted characteristics; empty when all are at the middle.
+export function chatTraitLines(traits: Partial<ChatTraits> | undefined): string[] {
+  return CHAT_TRAITS.flatMap((trait) => (traits?.[trait.id] === 1 ? [trait.more] : traits?.[trait.id] === -1 ? [trait.less] : []));
+}
 
 export interface ChatPersonal {
   instructions: string;
   about: string;
-  tone: ChatTone;
+  tone: ChatTone; // the default personality for new chats, an id from CHAT_PERSONALITIES
+  traits: ChatTraits;
   autoMemory: boolean; // «Oppdater minnet av seg selv»
   memories: boolean; // Chat memories reach the model
 }

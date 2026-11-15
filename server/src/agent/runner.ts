@@ -490,6 +490,7 @@ export class Runner {
       if (thread.mode === "chat" && thread.chatProjectId) throw new HttpError(400, "Chat-prosjekter bruker sine egne instruksjoner, ikke Kode-skills");
       const skill = this.skillsFor(project).find((s) => s.name === input.skill);
       if (!skill) throw new HttpError(404, `Fant ikke skillen ${input.skill}`);
+      if (skill.mode && skill.mode !== thread.mode) throw new HttpError(400, `Skillen ${skill.name} er bare for ${skill.mode === "code" ? "Kode" : "Chat"}`);
       shown = `/${skill.name}${rawText ? ` ${rawText}` : ""}`;
       skillInstruction = renderSkill(skill, rawText);
     } else if (!text) {

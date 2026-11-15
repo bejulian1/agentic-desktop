@@ -77,7 +77,7 @@ export const ENTRIES: Entry[] = [
   { page: "privacy", label: "API-nøkler og GitHub-token", words: "nøkler nøkkelring keyring keys.json kryptert passord" },
   { page: "privacy", label: "Arkiverte tråder", words: "slett data historikk" },
   { page: "config", label: "Global settings.json", words: "settings.json konfigurasjon" },
-  { page: "chat", label: "Personlighet", words: "svar tone personality standard kort grundig vennlig lærer aktiv chat utkast" },
+  { page: "chat", label: "Personlighet", words: "svar tone personality personlighet stil standard profesjonell vennlig ærlig spesiell nerdete effektiv skeptisk varm entusiastisk overskrifter lister emoji mer mindre aktiv chat utkast" },
   { page: "personalization", label: "Minner på tvers av tråder", words: "minne memory husk remember av på" },
   { page: "personalization", label: "Lagrede minner", words: "minne memory søk endre slett alle legg til memory.md" },
   // Round 9b (SPEC 22): the harness, Chat's own personalisation, the memory upgrade and skill import.

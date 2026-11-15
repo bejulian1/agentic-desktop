@@ -1,5 +1,13 @@
 # Status
 
+## 0.26.0
+
+**v0.26.0 (bygg 72):** harness 16 for Kode og Chat. Grunnprompten for Kode er skrevet om rundt arbeidsmåten (undersøk, følg prosjektet, endre, kontroller, rapporter), med nye faste regler om andres endringer, destruktive kommandoer og utviklingsservere. Femten innebygde skills følger med i `skills/` og lastes når oppgaven tydelig passer; skills kan merkes `mode: code` eller `mode: chat`. Chat har åtte personligheter og fire stilvalg (mindre, standard, mer), og en egen grunnprompt om svarkvalitet. Standardinstruksene for Kode og Chat er korte og inneholder bare brukerens egne valg. Tolv verktøybeskrivelser sier når verktøyet skal brukes.
+
+Kontroll: typekontroll av server/web/Electron og 505 servertester består. Hele UI-suiten gir 300 av 304 under full belastning; de fire som feilet, består når de kjøres alene (tre uten endring, én etter at en utdatert forventning ble oppdatert). De 25 UI-forløpene som feilet mot v0.24.3 er gjennomgått: 23 var utdaterte etter tidligere redesign og er oppdatert, to viste ekte feil som er rettet (Filer-panelet åpnet en slettet fil, og tastaturfokus forsvant når en trådmeny ble lukket). En uavhengig gjennomgang av harnessen, skillene og personlighetene er fulgt opp. Personlighetsvalget er prøvd i en isolert instans og bekreftet i forhåndsvisningen av systemprompten.
+
+Kjente mangler: effekten av den nye harnessen er ikke målt mot ekte modeller. Lagrede kopier av `AGENTS.md` og Chat-instruksen byttes ikke automatisk; brukeren må velge Gjenopprett standard. Den felles oppgaveblokken i Chat inneholder fortsatt noen Kode-begreper. Skills i Chat (for eksempel for dokumenter) finnes ikke ennå.
+
 ## 0.25.0
 
 **v0.25.0 (bygg 71):** MCP-servere og hooks er ekte funksjoner i Innstillinger, ikke lenger Demo. MCP har egen klient uten nye avhengigheter (stdio og Streamable HTTP, protokoll 2025-11-25 og eldre), utgangspunkt for GitHub og Playwright, hemmeligheter i nøkkelringen, godkjenning som for kommandoer, stabile kortnavn per server og høyst 60 MCP-verktøy per tur. Hooks kjører egne kommandoer før og etter verktøykall, når en melding sendes og når en tur er ferdig, med samme kontrakt som Claude Code; en melding som ikke har kommet gjennom en hook, regnes som ikke sendt. «Glass over bakgrunner» har tre valg: hele bakgrunnen uskarp, flater bak svar, eller ingen uskarphet eller flater. Versjonsloggen åpnes også fra Innstillinger og Om.
