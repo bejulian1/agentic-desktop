@@ -68,6 +68,8 @@ import type { PreviewServer } from "../preview.ts";
 import { findImage, saveImage } from "../images.ts";
 import { saveTextUpload } from "../uploads.ts";
 import { makeFork } from "../agent/fork.ts";
+import { startBackgroundSession } from "../background-session.ts";
+import type { SideQuestions } from "../side-questions.ts";
 import type { ImportedCookies } from "../browser-cookies.ts";
 
 const MAX_BODY = 5 * 1024 * 1024;
@@ -96,6 +98,10 @@ export const BUILTIN_COMMANDS: CommandInfo[] = [
   { name: "project", aliases: ["prosjekt"], description: "Velg prosjekt for nye tråder", kind: "builtin" },
   { name: "task", aliases: ["oppgave"], description: "Start en chat uten prosjekt", kind: "builtin" },
   { name: "side", description: "Start en sidesamtale i en ny rute, uten å avbryte denne", kind: "builtin" },
+  { name: "btw", args: "<spørsmål>", description: "Et raskt sidespørsmål uten verktøy eller lagring i samtalen", kind: "builtin" },
+  { name: "background", aliases: ["bakgrunn"], args: "<oppgave>", description: "Start en egen bakgrunnsøkt med samtalens kontekst", kind: "builtin" },
+  { name: "queue", aliases: ["kø"], args: "<instruksjon>", description: "Kjør meldingen etter at den aktive turen er ferdig", kind: "builtin" },
+  { name: "steer", aliases: ["styr"], args: "<korrigering>", description: "Send korrigeringen inn ved neste steg i den aktive turen", kind: "builtin" },
   { name: "personality", aliases: ["personlighet"], args: "[navn]", description: "Velg personlighet for svarene", kind: "builtin" },
   { name: "undo", aliases: ["angre"], description: "Angre siste tur", kind: "builtin" },
   { name: "playtest", description: "Start playtest", kind: "builtin" },
@@ -138,6 +144,7 @@ export interface ApiDeps {
   mcp?: McpServers; // Innstillinger → MCP-servere (mcp-routes.ts)
   chatWorkspace?: ChatWorkspace;
   promptCompletion?: PromptCompletions;
+  sideQuestions?: SideQuestions;
   store: Store;
   modelContextLookup?: ModelContextLookup;
   runner: Runner;
@@ -218,6 +225,7 @@ export class Api {
     this.folderPicker.close();
     await this.gitWorkspaces.close();
     this.deps.promptCompletion?.close();
+    this.deps.sideQuestions?.close();
   }
 
   private route(method: string, spec: string, handler: Handler): void {
@@ -836,6 +844,30 @@ export class Api {
         review: body.review === true,
         steer: typeof body.steer === "boolean" ? body.steer : undefined,
       });
+    });
+
+    this.route("POST", "/api/threads/:id/background", ({ params, body }) => {
+      this.assertFolder(params.id);
+      return startBackgroundSession(store, runner, params.id, body, threadChanged);
+    });
+
+    this.route("POST", "/api/threads/:id/btw", async ({ params, body, req, res }) => {
+      this.thread(params.id);
+      if (!this.deps.sideQuestions) throw new HttpError(503, "Sidespørsmål er ikke tilgjengelig");
+      const disconnected = new AbortController();
+      const abort = () => { if (!res.writableEnded) disconnected.abort(); };
+      req.once("aborted", abort); res.once("close", abort);
+      let started = false;
+      try {
+        await this.deps.sideQuestions.answer(params.id, body, disconnected.signal, (event) => {
+          if (disconnected.signal.aborted || res.destroyed) return;
+          if (!started) { res.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" }); started = true; }
+          res.write(JSON.stringify(event) + "\n");
+        });
+        if (!started && !res.destroyed) res.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" });
+        res.end();
+        return HANDLED;
+      } finally { req.off("aborted", abort); res.off("close", abort); }
     });
 
     this.route("POST", "/api/threads/:id/stop", ({ params }) => {

@@ -30,6 +30,8 @@ Videreutviklingen fra v0.11.0 til v0.24.0, samt v0.24.2 og v0.24.3, er gjort med
 
 **v0.27.0:** Codex koblet skills til Chat og bevarte prosjektgrenser og verktøyvalg. En GPT 6.1 Sol-agent utformet fire fil-skills for Excel, Word, PowerPoint og tekst/data og gjennomgikk integrasjonen. Lokale falske modeller brukes i kontrollene; skillenes effekt på ekte modellsvar er ikke målt.
 
+**v0.28.0:** Codex implementerte midlertidige sidespørsmål, parallelle bakgrunnsøkter og eksplisitt kø/styring. Separate agenter bidro med grensesnitt, isolerte ende-til-ende-tester og uavhengig gjennomgang av kontekstgrenser, historikk og tillatelser.
+
 ## Om GitHubs Contributors-graf
 
 README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Eksisterende historikk er ikke omskrevet for å endre statistikken. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.

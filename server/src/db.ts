@@ -678,9 +678,9 @@ export class Store {
 
   // A branch up to a message: the events up to seq with their times, and a history for the model
   // rebuilt from them. close ends a run the cut leaves open.
-  forkUpTo(sourceId: string, title: string, seq: number, messages: Message[], close: ThreadEvent | null): Thread {
+  forkUpTo(sourceId: string, title: string, seq: number, messages: Message[], close: ThreadEvent | null, options: { parentThreadId?: string; permissionCap?: PermissionMode; origin?: "user" | "agent" } = {}): Thread {
     const source = this.thread(sourceId)!;
-    const copy = this.createThread(source.projectId, source.mode, source.modelId, { title });
+    const copy = this.createThread(source.projectId, source.mode, source.modelId, { title, ...options });
     if (source.chatProjectId) this.setThreadChatProject(copy.id, source.chatProjectId); // a copy stays in the Chat project
     if (source.temporary) this.markTemporary(copy.id);
     if (source.sectionId) this.setThreadSection(copy.id, source.sectionId); // and in its section

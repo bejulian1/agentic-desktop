@@ -2,6 +2,7 @@ import {UiMods} from "./ui-mods.ts";
 import {ChatWorkspace} from './chat-workspace.ts';
 // Wires everything together. startApp() is what index.ts and the tests call.
 import { PromptCompletions } from "./prompt-completion.ts";
+import { SideQuestions } from "./side-questions.ts";
 import type { ModelContextLookup } from "./model-context.ts";
 import { randomBytes } from "node:crypto";
 import http from "node:http";
@@ -107,7 +108,11 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
 
   let hub: Hub;
   let api: Api;
-  const publish = (message: ServerMessage) => hub.broadcast(message);
+  let sideQuestions: SideQuestions | undefined;
+  const publish = (message: ServerMessage) => {
+    if (message.type === "thread.reset" || message.type === "thread.deleted") sideQuestions?.invalidateThread(message.threadId);
+    hub.broadcast(message);
+  };
   const threadChanged = (threadId: string) => {
     const thread = store.thread(threadId);
     if (thread) publish({ type: "thread.changed", thread });
@@ -261,6 +266,11 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       if (!provider) throw new HttpError(400, "Fant ikke leverandøren");
       return createProvider(provider, { secrets, mockDelayMs: config.mockDelayMs, stallMs: options.stallMs });
     }, config.dataDir, (id) => runner.isRunning(id)),
+    sideQuestions: sideQuestions = new SideQuestions(store, (model) => {
+      const provider = store.provider(model.providerId);
+      if (!provider) throw new HttpError(400, "Fant ikke leverandøren");
+      return createProvider(provider, { secrets, mockDelayMs: config.mockDelayMs, stallMs: options.stallMs });
+    }),
     store,
     runner,
     turns,

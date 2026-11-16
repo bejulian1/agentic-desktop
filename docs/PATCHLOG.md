@@ -4,6 +4,16 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.28.0: Sidespørsmål og bakgrunnsøkter (16. november 2026, bygg 77)
+
+- **/btw <spørsmål>:** få et kort sidesvar med et avgrenset øyeblikksbilde av samtalen, mens hovedoppgaven fortsetter. Svaret vises i en egen flate med dempet grønn kant. Ingen verktøy eller endringer; spørsmål og svar legges ikke i samtalehistorikken, minner eller kjøringsloggen. Panelet forkastes ved bytte av kontekst, tilbakestilling eller brutt tilkobling.
+- **/background <oppgave>:** start en egen bakgrunnssamtale uten å bytte fokus eller avbryte den aktive turen. Den arver valgt modell, prosjekt, planmodus og gjeldende tillatelsesgrense. Et kort åpner samtalen når du vil følge den. Bakgrunnssamtalen lagres og bruker vanlige verktøy og godkjenninger.
+- **/queue <melding> og /steer <korrigering>:** velg levering for én melding. Kø venter til den aktive turen er ferdig; styring tas inn ved neste steg uten å stoppe et verktøy som allerede kjører. Uten aktiv tur sendes meldingen som vanlig. Aliasene /bakgrunn, /kø og /styr støttes.
+
+Alle fire finnes i Chat og Kode. /btw og /background trenger en eksisterende samtale og tar ikke nye vedlegg. Sidespørsmål bruker den valgte leverandørens API og kan koste tokens, selv om de ikke oppretter en hovedtur. Konteksten er et begrenset tekstutdrag, ikke full fil-/bildetilgang. Se [Sidespørsmål og bakgrunnsøkter](SIDE-QUESTIONS.md).
+
+Kontrollert med 525 servertester, typekontroll av server/web/Electron, 24 berørte UI-forløp og en uavhengig kodegjennomgang. Testene bruker isolerte data og lokale falske modeller; ekte leverandørmodeller og full ytelsesparitet mot forrige produksjon er ikke målt.
+
 ## 0.27.2: Rediger systemprompten lag for lag i Forhåndsvisning (16. november 2026, bygg 76)
 
 - **Rediger de innebygde lagene:** under **Innstillinger → Konfigurasjon → Forhåndsvisning** kan du åpne et lag, trykke **Rediger**, skrive din egen tekst og lagre. Gjelder Grunn-harness, Chat-grunn, Skills, Tema og mods og MCP-verktøy. Modellen får teksten din fra neste tur.

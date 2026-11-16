@@ -38,6 +38,8 @@ import { closeProjectPicker, useProjectPicker } from "../state/project-picker";
 import { openGitWorkspace } from "./dialog-state";
 import { ProjectEnvironmentPicker } from "./ProjectEnvironmentPicker";
 import { editChatProject } from "./chat-projects";
+import { BtwPanel, createBtwController } from "./BtwPanel";
+import { STATE_LABEL, threadState } from "../state/thread-status";
 import "../styles/project-picker.css";
 export { deliverToComposer, type ComposerDelivery } from "../state/composer-delivery";
 export { openProjectPicker } from "../state/project-picker";
@@ -80,10 +82,12 @@ const DEMO_TEXT: Record<string, string> = {
 
 const CODE_ONLY = new Set(["undo", "playtest", "vscode", "init", "review", "review-changes", "worktree"]);
 const CODE_MODE_ONLY = new Set(["goal", "plan"]);
+const SIDE_COMMANDS = new Set(["btw", "background", "queue", "steer"]);
 
 // An icon per command, by what it is about: the thread, the model, the project or the agent.
 const COMMAND_ICONS: Record<string, (p: { size?: number }) => any> = {
   new: IconNewThread, fork: IconBranch, side: IconSplitRight, task: IconChat, compact: IconArchive, undo: IconUndo, review: IconEye,
+  btw: IconChat, background: IconBranch, queue: IconList, steer: IconSend,
   model: IconBolt, reasoning: IconBrain, personality: IconSliders, status: IconInfo,
   project: IconFolder, init: IconFile, playtest: IconPlay, vscode: IconCode,
   goal: IconTarget, plan: IconList, memories: IconBook, storage: IconArchive, help: IconHelp, mode: IconChat,
@@ -819,6 +823,20 @@ export function Composer(props: {
     if (before && !now) requestAnimationFrame(() => textarea?.focus({ preventScroll: true }));
   }));
   const modelId = createMemo(() => thread()?.modelId ?? draftModel());
+  const sideScope = createMemo(() => JSON.stringify([
+    props.threadId(), mode(), props.projectId, project()?.path, thread()?.mode,
+    thread()?.chatProjectId, thread()?.temporary, thread()?.archived,
+    modelId() ?? app.settings.defaultModelId,
+    chatProject()?.instructions, chatProject()?.memoryMode,
+  ]));
+  const btw = createBtwController(sideScope);
+  const [backgrounds, setBackgrounds] = createSignal<Thread[]>([]);
+  const visibleBackgrounds = createMemo(() => backgrounds().filter((item) => !!app.threads[item.id]));
+  const [backgroundStarting, setBackgroundStarting] = createSignal(false);
+  let backgroundRequest = 0;
+  let sideAlive = true;
+  onCleanup(() => { sideAlive = false; backgroundRequest++; });
+  createEffect(on(sideScope, () => { backgroundRequest++; setBackgrounds([]); setBackgroundStarting(false); }));
   // Round 13 (SPEC 27.2): the tools of this chat, or the ones chosen before it exists.
   const chatTools = useChatTools(props.threadId, modelId);
   const draftKey = () => props.threadId() ?? (props.chatProjectId ? `${props.paneKey}:chat-project:${props.chatProjectId}` : props.paneKey);
@@ -1499,6 +1517,43 @@ export function Composer(props: {
     setMenu(null);
   };
 
+  const runSideCommand = async (name: "btw" | "background", args: string, raw: string, sourceChips: Chip[]) => {
+    const id = props.threadId();
+    if (!args.trim()) return toast(`Skriv ${name === "btw" ? "spørsmålet" : "oppgaven"} etter /${name}. Utkastet er beholdt.`, "info");
+    if (!id) return toast(`/${name} bruker konteksten fra en samtale. Start samtalen først. Utkastet er beholdt.`, "info");
+    if (sourceChips.length) return toast(`/${name} bruker samtalekonteksten. Fjern nye vedlegg før du sender denne kommandoen.`, "info");
+    const source = sideScope();
+    const sourceDraftKey = draftKey();
+    let acceptedRevision: number | undefined;
+    const accepted = () => {
+      // Text written while the request was starting belongs to the main conversation.
+      if (sideAlive && sideScope() === source && textarea.value === raw && chips() === sourceChips && !skill()) { reset(); acceptedRevision = draftRevision; }
+      else if ((!sideAlive || sideScope() !== source) && draftOwners.get(sourceDraftKey) === draftOwner && drafts.get(sourceDraftKey) === raw) {
+        drafts.delete(sourceDraftKey); draftParts.delete(sourceDraftKey);
+      }
+    };
+    const failed = () => {
+      if (sideAlive && sideScope() === source && acceptedRevision !== undefined && draftRevision === acceptedRevision && !textarea.value && !chips().length && !skill()) {
+        textarea.value = raw; onInput();
+      }
+    };
+    closeMenu();
+    if (name === "btw") return btw.ask(id, args.trim(), accepted, failed);
+    if (backgroundStarting()) return;
+    const request = ++backgroundRequest;
+    setBackgroundStarting(true);
+    try {
+      const result = await post<{ thread: Thread }>(`/api/threads/${id}/background`, { text: args });
+      if (!result?.thread?.id) throw new Error("Serveren returnerte ingen bakgrunnsøkt.");
+      const created = result.thread;
+      if (!app.threads[created.id]) setApp("threads", created.id, created);
+      accepted();
+      if (sideAlive && sideScope() === source) setBackgrounds((list) => [created, ...list.filter((item) => item.id !== created.id)].slice(0, 8));
+      toast("Bakgrunnsøkten er startet. Du kan fortsette her.", "info", { label: "Åpne", run: () => void openThread(app.threads[created.id] ?? created) });
+    } catch (err) { report(err); }
+    finally { if (backgroundRequest === request) setBackgroundStarting(false); }
+  };
+
   // One thread per pane, also when a second message is sent before the first one has made it:
   // the second waits for the same promise instead of making a thread of its own.
   let creating: Promise<string> | null = null;
@@ -1540,6 +1595,7 @@ export function Composer(props: {
     if (attachments.length > MAX_ATTACHMENTS) return toast(LIMIT_TEXT, "info");
     let usedSkill = skill();
     let body: Record<string, unknown>;
+    let deliveryOverride: boolean | undefined;
 
     if (kode() && !usedSkill && text.startsWith("!")) {
       const shell = text.slice(1).trim();
@@ -1563,11 +1619,19 @@ export function Composer(props: {
         available = found;
       }
       const known = findCommand(word, available);
-      if (known?.kind === "builtin") {
-        reset();
-        return runBuiltin(known.name, args);
+      if (known?.kind === "builtin" || SIDE_COMMANDS.has(word)) {
+        const name = known?.kind === "builtin" ? known.name : word;
+        if (name === "btw" || name === "background") return runSideCommand(name, args, raw, startingChips);
+        if (name === "queue" || name === "steer") {
+          if (!args.trim()) return toast(`Skriv meldingen etter /${name}. Utkastet er beholdt.`, "info");
+          body = { text: args, attachments };
+          deliveryOverride = name === "steer";
+        } else {
+          reset();
+          return runBuiltin(name, args);
+        }
       }
-      if (known?.kind === "skill") {
+      else if (known?.kind === "skill") {
         if (inChatProject() && known.source !== "app") return toast("Chat-prosjekter bruker bare innebygde app-skills og prosjektets egne instruksjoner.", "info");
         if (otherMode(known)) return toast(`/${known.name} er bare tilgjengelig i ${known.mode === "code" ? "Kode" : "Chat"}.`, "info");
         usedSkill = known.name;
@@ -1580,7 +1644,8 @@ export function Composer(props: {
     }
 
     // While the agent works, the setting decides whether the message waits or goes in at once.
-    if (running() && !("shell" in body)) body.steer = busyMode() === "steer";
+    if (deliveryOverride !== undefined) body.steer = deliveryOverride;
+    else if (running() && !("shell" in body)) body.steer = busyMode() === "steer";
     const restoreChips = chips();
     const restoreSkill = usedSkill;
     reset();
@@ -1796,6 +1861,12 @@ export function Composer(props: {
 
   return (
     <div class="composer-wrap">
+      <BtwPanel controller={btw}/>
+      <Show when={backgroundStarting()}><div class="background-starting" role="status">Starter bakgrunnsøkt…</div></Show>
+      <Show when={visibleBackgrounds().length}><div class="background-sessions" aria-label="Bakgrunnsøkter" data-testid="background-sessions"><For each={visibleBackgrounds()}>{(snapshot) => {
+        const child = () => app.threads[snapshot.id] ?? snapshot;
+        return <button type="button" class="background-session" aria-label={`Åpne bakgrunnsøkt: ${child().title}`} onClick={() => void openThread(child())}><IconBranch size={14}/><span>{child().title}</span><small>{STATE_LABEL[threadState(child())] || "Ferdig"}</small></button>;
+      }}</For></div></Show>
       <Show when={queued().length || running() || queueEdit()}>
         <div class="queue" data-testid="queue">
           <div class="queue-header">

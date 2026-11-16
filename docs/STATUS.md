@@ -1,5 +1,11 @@
 # Status
 
+## 0.28.0
+
+**v0.28.0 (bygg 77):** /btw kjører et avgrenset, verktøyfritt provider-kall uten Runner-tur eller historikkskriving. Panelet lever bare i det monterte meldingsfeltet og forkastes ved kontekstbytte, tilbakestilling og brutt tilkobling. /background oppretter en egen samtale med kontekst, modell, verktøyvalg og effektiv tillatelsesgrense fra kilden; fokus og aktiv kildekjøring beholdes. /queue og /steer gjenbruker køens levering med en engangsoverstyring. Se [bruk og grenser](SIDE-QUESTIONS.md).
+
+Kontroll: typekontroll av server/web/Electron, alle 525 servertester og 24 berørte UI-forløp består. Ti nye serverforløp dekker samtidig hovedkjøring, ingen historikk-/minneskriving, avvist verktøykall, grenser, tilbakestilling og arvede rettigheter; syv nye UI-forløp dekker også utkast, feil og reconnect. Tre kontroller av ferdigpakket Electron-app og sammenligning av AppImage/deb med testet runtime består. Uavhengig kodegjennomgang er fulgt opp. Ingen ekte API-nøkler eller betalte modellkall er brukt. Ekte leverandørmodeller og full ytelsesparitet mot forrige produksjon er ikke målt.
+
 ## 0.27.2
 
 **v0.27.2 (bygg 76):** de innebygde lagene i systemprompten (Grunn-harness, Chat-grunn, Skills, Tema og mods, MCP-verktøy) kan erstattes med brukerens egen tekst i Forhåndsvisning under Konfigurasjon, per modus og variant (Kode med prosjekt, Kode uten prosjekt, Chat). Levende deler er plassholdere som fylles inn for hver tråd. Hvert lag og hele modusen kan tilbakestilles. Tekstene lagres i `harness.json` og brukes av både forhåndsvisningen og ekte turer. 515 servertester, et nytt UI-forløp og typekontroll består.

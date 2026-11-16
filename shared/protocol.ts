@@ -197,7 +197,15 @@ export interface ForkOrigin {
   title: string;
   messageId: string | null;
   from: "message" | "last" | "whole";
+  background?: boolean; // explicit user-started parallel work; the source thread keeps running
 }
+
+// POST /api/threads/:id/btw streams these JSON lines. Nothing here enters thread storage.
+export type BtwMessage =
+  | { type: "start"; requestId: string; model: AnswerModel }
+  | { type: "text"; text: string }
+  | { type: "done" }
+  | { type: "error"; code?: "scope_changed" | "cancelled" | "tool_unavailable" | "failed"; message: string };
 
 // A message given a name, so it can be found again. messageId is the row's key in the thread.
 export interface Chapter {
