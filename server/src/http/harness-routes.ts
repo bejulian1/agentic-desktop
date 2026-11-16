@@ -4,6 +4,7 @@
 // Round 9b (SPEC 22): the standard harness, its preview and «Gjenopprett standard», Chat's own
 // personalisation and memories, the memory upgrade, and import of many skills.
 import { rmSync } from "node:fs";
+import { EDITABLE_LAYERS, overrideKey, overridePrefix } from "../agent/prompt-overrides.ts";
 import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { HarnessInfo, MemoryList, MemoryScope, Project, PromptLayerInfo, Thread, UpgradeOp, UpgradeProposal } from "../../../shared/protocol.ts";
@@ -151,6 +152,29 @@ export function harnessRoutes(route: Route, deps: ApiDeps, h: { project: (id: st
     const layers: PromptLayerInfo[] = runner.previewLayers(mode, project).map((l) => ({ ...l, tokens: tokens(l.text) }));
     const tools = runner.toolNames(mode, project);
     return { mode, projectId: project?.id ?? null, layers, tokens: tokens(layers.map((l) => l.text).join("\n\n")), tools };
+  });
+
+  // The user's own text for one built-in layer, for the mode and variant that is previewed (Kode
+  // with a project, Kode without one, or Chat). The model gets it from the next turn.
+  const overrideTarget = (source: { mode?: unknown; projectId?: unknown; layer?: unknown }) => {
+    const mode = source.mode === "chat" ? "chat" : "code";
+    const project = mode === "code" && typeof source.projectId === "string" && source.projectId ? h.project(source.projectId) : undefined;
+    const layer = typeof source.layer === "string" ? source.layer : "";
+    return { mode, project, layer } as const;
+  };
+  route("PUT", "/api/harness/overrides", ({ body }) => {
+    const { mode, project, layer } = overrideTarget(body);
+    if (!EDITABLE_LAYERS.includes(layer)) throw new HttpError(400, "Dette laget kan ikke redigeres her.");
+    if (!runner.previewLayers(mode, project).some((l) => l.id === layer)) throw new HttpError(404, "Laget finnes ikke i denne forhåndsvisningen.");
+    if (typeof body.text !== "string") throw new HttpError(400, "Teksten mangler.");
+    harness.setOverride(overrideKey(mode, !!project, layer), body.text);
+    return { ok: true };
+  });
+  route("DELETE", "/api/harness/overrides", ({ query }) => {
+    const { mode, project, layer } = overrideTarget({ mode: query.get("mode"), projectId: query.get("projectId"), layer: query.get("layer") });
+    if (layer) harness.setOverride(overrideKey(mode, !!project, layer), null);
+    else harness.clearOverrides(overridePrefix(mode, !!project));
+    return { ok: true };
   });
 
   // What «Gjenopprett standard» would do to the global AGENTS.md, before anything is written.

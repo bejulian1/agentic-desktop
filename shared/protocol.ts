@@ -1185,6 +1185,10 @@ export interface PromptLayerInfo {
   source: string;
   text: string;
   tokens: number; // estimated, about four characters per token
+  editable?: boolean; // a built-in layer the user may replace with their own text
+  overridden?: boolean; // the user's own text is in use
+  template?: string; // what the editor starts from: the saved text, or the built-in one with {{placeholders}}
+  placeholders?: string[]; // the live parts that may be used in this layer, by name
 }
 
 export interface HarnessInfo {

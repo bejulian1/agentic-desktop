@@ -1,5 +1,9 @@
 # Status
 
+## 0.27.2
+
+**v0.27.2 (bygg 76):** de innebygde lagene i systemprompten (Grunn-harness, Chat-grunn, Skills, Tema og mods, MCP-verktøy) kan erstattes med brukerens egen tekst i Forhåndsvisning under Konfigurasjon, per modus og variant (Kode med prosjekt, Kode uten prosjekt, Chat). Levende deler er plassholdere som fylles inn for hver tråd. Hvert lag og hele modusen kan tilbakestilles. Tekstene lagres i `harness.json` og brukes av både forhåndsvisningen og ekte turer. 515 servertester, et nytt UI-forløp og typekontroll består.
+
 ## 0.27.1
 
 **v0.27.1 (bygg 75):** harness 16.2. Hvert verktøy har et påkrevd felt (`Tool.can`) med hva det lar agenten gjøre, og agentens selvbilde bygges ved kjøring fra verktøyene tråden faktisk tilbys. Grunnprompten for Kode og Chat har en kort del om appen og agenten, slik at modellen kan presentere seg og sine muligheter i vanlige ord, også i Kode uten prosjekt (der den tidligere bare nevnte `ui_mod`). En lagret global `AGENTS.md` eller Chat-instruks som er bytelik en tidligere levert standard, følger nå appen til den nye standarden ved oppstart, med sikkerhetskopi; egne tekster beholdes. 513 servertester og typekontroll består. Ikke prøvd mot ekte modeller.

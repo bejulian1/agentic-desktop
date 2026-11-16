@@ -4,6 +4,15 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.27.2: Rediger systemprompten lag for lag i Forhåndsvisning (16. november 2026, bygg 76)
+
+- **Rediger de innebygde lagene:** under **Innstillinger → Konfigurasjon → Forhåndsvisning** kan du åpne et lag, trykke **Rediger**, skrive din egen tekst og lagre. Gjelder Grunn-harness, Chat-grunn, Skills, Tema og mods og MCP-verktøy. Modellen får teksten din fra neste tur.
+- **Plassholdere holder det levende:** redigeringen starter fra den innebygde teksten, der det som endrer seg per tråd står som plassholdere, for eksempel `{{project}}`, `{{project_path}}`, `{{abilities}}`, `{{skills}}` og `{{environment}}`. Appen fyller dem inn for hver tråd, så en egen tekst ikke fryser prosjekt, verktøy eller dato.
+- **Tilbakestill:** hvert endret lag har **Tilbakestill**, og **Tilbakestill alle** fjerner alle egne tekster for modusen du ser på. Endrede lag er merket «Endret».
+- **Per modus:** en egen tekst gjelder det du forhåndsviser: Kode med prosjekt, Kode uten prosjekt eller Chat. De andre beholder sin innebygde tekst.
+
+Miljø-laget kan ikke redigeres, fordi det bare er levende tilstand. Global `AGENTS.md` og Chat-personalisering redigeres som før på sine egne steder. Et lag med egen tekst følger ikke appens senere forbedringer av det laget, og når grunnen er din egen tekst, gjelder ikke bryterne for delene i Grunn-harness. Godkjenninger og tillatelser håndheves av appen uansett. Kontrollert med 515 servertester, et nytt UI-forløp og typekontroll.
+
 ## 0.27.1: Agenten presenterer seg bedre, og gamle standardinstrukser følger med (16. november 2026, bygg 75)
 
 - **Bedre svar på «hvem er du og hva kan du?»:** grunnprompten har fått en kort del om appen og agenten (harness 16.2). Modellen forklarer hva Agentic Desktop er, hva den kan gjøre akkurat nå, og én ærlig begrensning, i vanlige ord i stedet for verktøynavn. Gjelder både Kode og Chat.

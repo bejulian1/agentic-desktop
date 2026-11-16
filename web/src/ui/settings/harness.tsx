@@ -6,9 +6,10 @@ import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import type { DiffLineInfo, GlobalConfig, HarnessInfo, HarnessPartInfo, ProjectConfig, PromptLayerInfo } from "../../../../shared/protocol";
 import { modelContextOf } from "../../../../shared/protocol";
 import { ModelContextSettings } from "./model-context";
-import { get, patch, post, put } from "../../lib/api";
+import { del, get, patch, post, put } from "../../lib/api";
+import { confirmDialog } from "../dialogs";
 import { app, currentProject, report, sortedProjects, toast } from "../../state/app";
-import { IconChevronDown, IconCopy, IconReset } from "../icons";
+import { IconChevronDown, IconCopy, IconPencil, IconReset } from "../icons";
 import { Select } from "../Select";
 import { openProjectSettings } from "../ProjectSettings";
 import { Group, Page, Row, Segmented, SkeletonRows } from "./parts";
@@ -120,6 +121,36 @@ export function HarnessPage() {
     () => ({ mode: mode(), projectId: projectId(), key: previewKey(), context: JSON.stringify(modelContextOf(app.settings, mode())) }),
     ({ mode, projectId }) => get<Preview>(`/api/harness/preview?mode=${mode}${mode === "code" && projectId ? `&projectId=${encodeURIComponent(projectId)}` : ""}`),
   );
+  // Editing a built-in layer of the previewed prompt: your own text, with {{placeholders}} for the
+  // parts that are live. It belongs to what is previewed: Kode with a project, Kode without, or Chat.
+  const [editing, setEditing] = createSignal<{ id: string; text: string } | null>(null);
+  const [openLayers, setOpenLayers] = createSignal<Set<string>>(new Set());
+  const variant = () => (mode() === "chat" ? "Chat" : projectId() ? "Kode med prosjekt" : "Kode uten prosjekt");
+  const overrideQuery = (layer?: string) => `mode=${mode()}${mode() === "code" && projectId() ? `&projectId=${encodeURIComponent(projectId())}` : ""}${layer ? `&layer=${encodeURIComponent(layer)}` : ""}`;
+  const saveLayer = (layer: PromptLayerInfo) => {
+    const draft = editing();
+    if (!draft || draft.id !== layer.id) return;
+    void run(async () => {
+      await put("/api/harness/overrides", { mode: mode(), projectId: mode() === "code" && projectId() ? projectId() : null, layer: layer.id, text: draft.text });
+      setEditing(null);
+      toast(`Lagret. ${variant()} bruker teksten din fra neste tur.`, "info");
+    });
+  };
+  const resetLayer = async (layer: PromptLayerInfo) => {
+    if (!(await confirmDialog({ title: `Tilbakestille «${layer.title}»?`, text: `Din egen tekst for ${variant()} fjernes, og appens innebygde tekst brukes igjen.`, confirm: "Tilbakestill", danger: true }))) return;
+    await run(async () => {
+      await del(`/api/harness/overrides?${overrideQuery(layer.id)}`);
+      if (editing()?.id === layer.id) setEditing(null);
+    });
+  };
+  const resetAllLayers = async () => {
+    if (!(await confirmDialog({ title: "Tilbakestille alle lagene?", text: `Alle egne tekster for ${variant()} fjernes, og appens innebygde systemprompt brukes igjen. Global AGENTS.md og Chat-personalisering røres ikke.`, confirm: "Tilbakestill alle", danger: true }))) return;
+    await run(async () => {
+      await del(`/api/harness/overrides?${overrideQuery()}`);
+      setEditing(null);
+    });
+  };
+  const anyOverridden = () => !!preview.latest?.layers.some((l) => l.overridden);
   const agentsText = () => text() ?? info()?.agents.text ?? "";
   const dirty = () => text() !== null && text() !== (info()?.agents.text ?? "");
 
@@ -278,13 +309,16 @@ export function HarnessPage() {
       <Group
         title="Forhåndsvisning"
         action={
-          <button type="button" class="btn btn-small" disabled={!preview.latest?.layers.length} onClick={copyPrompt}><IconCopy size={13} />Kopier</button>
+          <>
+            <Show when={anyOverridden()}><button type="button" class="btn btn-small" disabled={busy()} onClick={() => void resetAllLayers()}><IconReset size={13} />Tilbakestill alle</button></Show>
+            <button type="button" class="btn btn-small" disabled={!preview.latest?.layers.length} onClick={copyPrompt}><IconCopy size={13} />Kopier</button>
+          </>
         }
       >
         <div class="setting harness-preview-tools">
           <div class="setting-text">
             <strong>Systemprompten slik modellen får den</strong>
-            <span class="muted">For en ny tråd nå. Tokens er anslått til omtrent fire tegn hver.</span>
+            <span class="muted">For en ny tråd nå. Tokens er anslått til omtrent fire tegn hver. Åpne et lag for å lese det, redigere det eller tilbakestille det.</span>
           </div>
           <div class="setting-control">
             <Segmented<"code" | "chat"> label="Forhåndsvis modus" value={mode()} options={[{ value: "code", label: "Kode" }, { value: "chat", label: "Chat" }]} onChange={setMode} />
@@ -311,16 +345,56 @@ export function HarnessPage() {
               <ol class="harness-layers" aria-label="Lag i systemprompten">
                 <For each={p().layers}>
                   {(layer) => (
-                    <li class="harness-layer" data-layer={layer.id}>
-                      <details>
+                    <li class="harness-layer" data-layer={layer.id} data-overridden={layer.overridden ? "" : undefined}>
+                      <details
+                        open={openLayers().has(layer.id)}
+                        onToggle={(e) => { const next = new Set(openLayers()); if (e.currentTarget.open) next.add(layer.id); else next.delete(layer.id); setOpenLayers(next); }}
+                      >
                         <summary>
                           <span class={`layer-dot layer-${layer.id}`} aria-hidden="true" />
                           <span class="layer-title">{layer.title}</span>
+                          <Show when={layer.overridden}><span class="layer-own">Endret</span></Show>
                           <span class="muted layer-source" title={layer.source}>{layer.source}</span>
                           <span class="layer-tokens">{formatTokens(layer.tokens)}</span>
                           <IconChevronDown size={13} />
                         </summary>
-                        <pre class="code-view harness-layer-text">{layer.text}</pre>
+                        <Show
+                          when={editing()?.id === layer.id}
+                          fallback={
+                            <>
+                              <pre class="code-view harness-layer-text">{layer.text}</pre>
+                              <Show when={layer.editable} fallback={<p class="muted small harness-layer-note">{layer.id === "env" ? "Miljøet er levende tilstand og settes inn av appen for hver tur. Det kan ikke redigeres." : "Dette laget redigeres der det hører hjemme: global AGENTS.md over, eller Chat-personalisering."}</p>}>
+                                <div class="harness-layer-actions">
+                                  <button type="button" class="btn btn-small" disabled={busy()} onClick={() => setEditing({ id: layer.id, text: layer.template ?? layer.text })}><IconPencil size={13} />Rediger</button>
+                                  <Show when={layer.overridden}><button type="button" class="btn btn-small btn-quiet" disabled={busy()} onClick={() => void resetLayer(layer)}><IconReset size={13} />Tilbakestill</button></Show>
+                                  <span class="muted small">{layer.overridden ? `Din egen tekst er i bruk for ${variant()}. Den følger ikke appens senere forbedringer av dette laget.` : `Innebygd tekst. Rediger for å prøve din egen for ${variant()}.`}</span>
+                                </div>
+                              </Show>
+                            </>
+                          }
+                        >
+                          <div class="harness-layer-editor">
+                            <textarea
+                              class="input code-area"
+                              aria-label={`Egen tekst for ${layer.title}`}
+                              rows={18}
+                              spellcheck={false}
+                              value={editing()!.text}
+                              onInput={(e) => setEditing({ id: layer.id, text: e.currentTarget.value })}
+                            />
+                            <Show when={layer.placeholders?.length}>
+                              <p class="muted small">Plassholdere fylles inn for hver tråd: <For each={layer.placeholders}>{(name) => <code>{`{{${name}}}`}</code>}</For>. Fjerner du en, mister modellen den opplysningen.</p>
+                            </Show>
+                            <Show when={layer.id === "base" || layer.id === "chat-base"}>
+                              <p class="muted small">Når grunnen er din egen tekst, gjelder ikke bryterne for delene over, og sikkerhetsreglene i teksten er dine. Godkjenninger og tillatelser håndheves av appen uansett.</p>
+                            </Show>
+                            <div class="harness-layer-actions">
+                              <button type="button" class="btn btn-small btn-primary" disabled={busy() || !editing()!.text.trim()} onClick={() => saveLayer(layer)}>Lagre for {variant()}</button>
+                              <button type="button" class="btn btn-small" disabled={busy()} onClick={() => setEditing(null)}>Avbryt</button>
+                              <Show when={layer.overridden}><button type="button" class="btn btn-small btn-quiet" disabled={busy()} onClick={() => void resetLayer(layer)}><IconReset size={13} />Tilbakestill</button></Show>
+                            </div>
+                          </div>
+                        </Show>
                       </details>
                     </li>
                   )}
@@ -332,7 +406,7 @@ export function HarnessPage() {
       </Group>
       </section>
       <p class="muted small memory-files">
-        Grunn-harnessen er versjon {info()?.version ?? "…"} og ligger i appen{app.build ? ` (v${app.build.version})` : ""}. Den kan slås av i deler, men ikke skrives om. Valgene lagres i datamappen.
+        Grunn-harnessen er versjon {info()?.version ?? "…"} og ligger i appen{app.build ? ` (v${app.build.version})` : ""}. Den kan slås av i deler, og hvert innebygde lag kan erstattes med din egen tekst i forhåndsvisningen over. Valgene lagres i datamappen.
       </p>
     </Page>
   );

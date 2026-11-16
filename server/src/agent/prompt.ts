@@ -84,7 +84,7 @@ export function overview(root: string): string {
 
 // Everything Kode can do with a project, from the tool registry itself: a tool that is added
 // there shows up here, and in "Here you can", without anyone editing this file.
-const KODE_ABILITIES = abilities(CODE_TOOLS);
+export const KODE_ABILITIES = abilities(CODE_TOOLS);
 
 // What the agent can do here, in words, from the tools it is actually offered.
 export function capabilities(tools: string[]): string[] {

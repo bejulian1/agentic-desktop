@@ -13,6 +13,7 @@ import { HttpError } from "../errors.ts";
 import { REPO_ROOT } from "../config.ts";
 import { looksSecret } from "../memory.ts";
 import { writeAtomic } from "../write-atomic.ts";
+import { MAX_OVERRIDE_CHARS } from "./prompt-overrides.ts";
 
 // Bumped when the built-in harness text changes, so the preview can say which one is in use.
 export const HARNESS_VERSION = "16.2";
@@ -96,6 +97,7 @@ export interface HarnessState {
   pending: UpgradeProposal[]; // proposals made by themselves, waiting to be seen
   chat: ChatPersonal;
   chatInstructionsCustomized: boolean; // distinguishes deliberate empty text from the legacy empty default
+  overrides: Record<string, string>; // the user's own text for a built-in prompt layer, by overrideKey (prompt-overrides.ts)
 }
 
 const DEFAULT_STATE = (): HarnessState => ({
@@ -107,6 +109,7 @@ const DEFAULT_STATE = (): HarnessState => ({
   pending: [],
   chat: { ...DEFAULT_CHAT },
   chatInstructionsCustomized: false,
+  overrides: {},
 });
 
 function cleanText(value: unknown, label: string): string {
@@ -157,8 +160,15 @@ export class HarnessStore {
         if (typeof raw.chat.autoMemory === "boolean") chat.autoMemory = raw.chat.autoMemory;
         if (typeof raw.chat.memories === "boolean") chat.memories = raw.chat.memories;
       }
+      const overrides: Record<string, string> = {};
+      if (raw.overrides && typeof raw.overrides === "object" && !Array.isArray(raw.overrides)) {
+        for (const [key, text] of Object.entries(raw.overrides)) {
+          if (/^(?:code\/(?:project|none)|chat\/chat)\/[a-z-]+$/.test(key) && typeof text === "string" && text.trim() && text.length <= MAX_OVERRIDE_CHARS) overrides[key] = text;
+        }
+      }
       this.cache = {
         version: 1,
+        overrides,
         parts,
         seeded: raw.seeded === true,
         autoUpgrade: raw.autoUpgrade !== false,
@@ -177,6 +187,29 @@ export class HarnessStore {
     writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`, this.dataDir, 0o600);
     this.cache = next;
     return next;
+  }
+
+  // The user's own text for one built-in layer; null goes back to the built-in text.
+  setOverride(key: string, text: string | null): void {
+    const overrides = { ...this.state().overrides };
+    if (text === null) delete overrides[key];
+    else {
+      const clean = text.replace(/\r\n/g, "\n");
+      if (!clean.trim()) throw new HttpError(400, "Teksten er tom. Bruk Tilbakestill for å gå tilbake til den innebygde.");
+      if (clean.length > MAX_OVERRIDE_CHARS) throw new HttpError(400, `Teksten er for lang: ${clean.length} tegn, maks ${MAX_OVERRIDE_CHARS}.`);
+      if (looksSecret(clean)) throw new HttpError(400, "Teksten ser ut til å inneholde en nøkkel, et token eller et passord, og blir ikke lagret.");
+      overrides[key] = clean;
+    }
+    this.save({ ...this.state(), overrides });
+  }
+
+  // Every saved text for one mode and variant ("code/project", "code/none", "chat/chat").
+  clearOverrides(prefix: string): number {
+    const overrides = { ...this.state().overrides };
+    const keys = Object.keys(overrides).filter((key) => key.startsWith(`${prefix}/`));
+    for (const key of keys) delete overrides[key];
+    if (keys.length) this.save({ ...this.state(), overrides });
+    return keys.length;
   }
 
   setParts(patch: unknown): HarnessState {
