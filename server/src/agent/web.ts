@@ -103,7 +103,7 @@ function web(ctx: ToolContext): WebAccess {
 
 export const webSearchTool: Tool = {
   kind: "read",
-  def: {
+  can: "search the web for current facts and documentation", def: {
     name: "web_search",
     description:
       "Search the web. Returns the top results with title, address and a snippet. Use it for current facts, documentation and anything you are unsure of; " +
@@ -121,7 +121,7 @@ export const webSearchTool: Tool = {
 
 export const webFetchTool: Tool = {
   kind: "read",
-  def: {
+  can: "read web pages the user links to", def: {
     name: "web_fetch",
     description: "Read a web page the user gave you, or one from web_search, as plain text. Only http and https addresses.",
     parameters: { type: "object", properties: { url: { type: "string", description: "The full address, starting with http:// or https://" } }, required: ["url"], additionalProperties: false },

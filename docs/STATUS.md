@@ -1,5 +1,9 @@
 # Status
 
+## 0.27.1
+
+**v0.27.1 (bygg 75):** harness 16.2. Hvert verktøy har et påkrevd felt (`Tool.can`) med hva det lar agenten gjøre, og agentens selvbilde bygges ved kjøring fra verktøyene tråden faktisk tilbys. Grunnprompten for Kode og Chat har en kort del om appen og agenten, slik at modellen kan presentere seg og sine muligheter i vanlige ord, også i Kode uten prosjekt (der den tidligere bare nevnte `ui_mod`). En lagret global `AGENTS.md` eller Chat-instruks som er bytelik en tidligere levert standard, følger nå appen til den nye standarden ved oppstart, med sikkerhetskopi; egne tekster beholdes. 513 servertester og typekontroll består. Ikke prøvd mot ekte modeller.
+
 ## 0.27.0
 
 **v0.27.0 (bygg 73):** fire innebygde fil-skills i Chat og Kode. Chat har behovsstyrt `use_skill`, menyvalg og støtte i Chat-prosjekter med beholdt instruksjonsgrense. Verktøybrytere bestemmer fortsatt faktisk dokument-/Python-tilgang. Harness 16.1, totalt 19 skills. Kontroll: 510 servertester, typekontroll av server/web/Electron og syv berørte UI-forløp består med midlertidige data og lokale falske modeller. Ny kontroll dekker faktisk skill-innlasting fulgt av en ekte Excel-fil med to ark, typedata og formelcache, instruksjonsgrenser i Chat-prosjekter, av/på-brytere, navneoverstyring per modus og menyvalg som brikke. Fire kontroller av den ferdige pakken under virtuell skjerm består, inkludert ekte skill-innlasting, Office-nedlasting, Python og oppstart/stopp. 30 berørte servertester er kjørt på nytt etter siste moduskorrigering. Skill-instruksjonenes effekt på ekte modellsvar er ikke målt.

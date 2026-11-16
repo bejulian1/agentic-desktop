@@ -2,8 +2,10 @@ import type {Tool} from './tools.ts';
 import type {ChatWorkspace} from '../chat-workspace.ts';
 const str={type:'string'};
 const rows={type:'array',items:{type:'array',items:{anyOf:[str,{type:'number'},{type:'boolean'},{type:'null'},{type:'object',properties:{formula:str,result:{type:'number'}},required:['formula']}]}}};
+// What each tool lets Chat do, in plain words (Tool.can): the assistant's picture of itself is built from these.
+const CAN:Record<string,string>={create_document:'create Word, Excel, PowerPoint and text files to download',list_chat_files:'see the files made in this chat',read_chat_file:'see the files made in this chat',run_python:'run Python for calculations and analysis in an isolated workspace'};
 export function chatFileTools(workspace:ChatWorkspace,documents:boolean,python:boolean):Tool[]{
- const make=(name:string,description:string,properties:Record<string,unknown>,required:string[],run:Tool['run']):Tool=>({def:{name,description,parameters:{type:'object',properties,required,additionalProperties:false}},kind:'read',summary:input=>name==='run_python'?'Kjører Python i isolert Chat-arbeidsområde':input.name??'Ser på filer i chatten',run});
+ const make=(name:string,description:string,properties:Record<string,unknown>,required:string[],run:Tool['run']):Tool=>({can:CAN[name]??'',def:{name,description,parameters:{type:'object',properties,required,additionalProperties:false}},kind:'read',summary:input=>name==='run_python'?'Kjører Python i isolert Chat-arbeidsområde':input.name??'Ser på filer i chatten',run});
  const out:Tool[]=[];
  if(documents)out.push(make('create_document','Create a real downloadable file in this Chat only: md/txt/csv/json, Word docx, Excel xlsx, PowerPoint pptx. Use bounded structured data, never code or host paths. Returns download links. Excel formulas are explicit {formula:"SUM(A2:A4)",result:12} objects; strings stay text. No external links/macros. Max 10 MB per file.',{
   name:{...str,description:'Filename with extension, without folders.'},title:str,text:{...str,description:'Content for text files, or paragraphs for Word.'},

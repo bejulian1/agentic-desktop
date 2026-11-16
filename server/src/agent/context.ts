@@ -126,7 +126,9 @@ function chatLayers(thread: Thread, chat: ChatExtras, extras: PromptExtras): Pro
       "You have no tools to save, edit or delete memories. Do not claim that you saved or forgot something yourself; the app's memory settings control what it supplies and records.",
       ...(thread.temporary ? ["This is a temporary Chat. Saved Chat memories are not used or updated in this conversation."] : [`Saved Chat memories are ${chat.personal?.memories !== false && chat.tools?.memory !== false ? "enabled as context" : "off for this conversation"}.`]),
       environmentPrompt(undefined, { ...extras, runtime: { ...extras.runtime, mode: "chat", planMode: false, permissionMode: undefined } }),
-      "If the user only greets you, or asks who you are or what you can do, answer in two or three sentences: say that you are the chat assistant in Agentic Desktop, what you can help with, and ask what they have in mind.",
+      // From the tools this chat is actually offered (Tool.can), so a new Chat tool describes itself.
+      ...(extras.abilities?.length ? [`With the tools switched on in this chat you can ${extras.abilities.join(", ")}.`] : []),
+      "When the user greets you, or asks who you are, what you can do or what you are running in, answer in a few friendly sentences or a short list, in plain words rather than tool names: you are the chat assistant in Agentic Desktop, a desktop app with Chat (this mode) for conversation, writing, ideas, analysis and code examples, and Kode for work in project folders with file and command tools; what you can do in this chat, including what the lines above say is switched on (files, web, Python, artifacts); that you only know what the conversation and tool results show; and a question about what they have in mind. You may say which model and provider the Environment section names.",
     ].join("\n"),
   }];
   if (chat.project) {

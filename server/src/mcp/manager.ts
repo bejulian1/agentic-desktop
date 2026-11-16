@@ -469,6 +469,7 @@ export class McpServers {
     const tool = offered.tool;
     return {
       def: { name: offered.exposed, description: describe(server.name, tool.title, tool.description), parameters: toolSchema(tool.inputSchema) },
+      can: `use tools from the MCP server ${cleanServerName(server.name)}`,
       // "read" is what makes decide() never ask; only the user's own "auto" choice gives that.
       kind: server.approval === "auto" ? "read" : "exec",
       summary: () => `${server.name}: ${String(tool.title ?? tool.name).slice(0, 80)}`,
@@ -793,4 +794,10 @@ function brokenView(broken: Broken): McpServerView {
     stderr: "",
     tools: [],
   };
+}
+
+// A server name is written by the user, but it ends up in the model's instructions: keep it to a
+// short single line.
+function cleanServerName(name: string): string {
+  return name.replace(/[\x00-\x1f\x7f]+/g, " ").trim().slice(0, 40) || "MCP";
 }

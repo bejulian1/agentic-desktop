@@ -15,7 +15,7 @@ import { looksSecret } from "../memory.ts";
 import { writeAtomic } from "../write-atomic.ts";
 
 // Bumped when the built-in harness text changes, so the preview can say which one is in use.
-export const HARNESS_VERSION = "16.1";
+export const HARNESS_VERSION = "16.2";
 export const HARNESS_FILE = "harness.json";
 export const BACKUP_DIR = "backups";
 const MAX_BACKUPS = 20;
@@ -74,6 +74,16 @@ function shippedInstruction(name: "code" | "chat"): string {
 export const DEFAULT_AGENTS_MD = shippedInstruction("code");
 export const DEFAULT_CHAT_SYSTEM_INSTRUCTIONS = shippedInstruction("chat").trim();
 if (DEFAULT_CHAT_SYSTEM_INSTRUCTIONS.length > MAX_CHAT_FIELD) throw new Error(`Chat-standardinstruksen er for lang: maks ${MAX_CHAT_FIELD} tegn.`);
+
+// Shipped defaults from earlier versions, by SHA-256. A saved text that is still exactly one of
+// these was never edited by the user, so it follows the default to the current text instead of
+// staying on an old one for ever. Anything the user has changed, even by one character, is kept.
+const SUPERSEDED_AGENTS_MD = new Set(["e26b35ac7d4ff7f900a7c61827cc82b54fbcacfae97a3815aac9a5aed83ba836"]); // v0.20–v0.25
+const SUPERSEDED_CHAT_INSTRUCTIONS = new Set([
+  "bcc102e74b6054d185f2fc72700614a53d02e39961d320ad6f35747d170b8c48", // v0.20–v0.21
+  "7fb862f90608d4236ea8f93b2a03d7ad5225539d2258987e424c0366485b2567", // v0.22–v0.25
+]);
+const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
 export const DEFAULT_CHAT: ChatPersonal = { instructions: DEFAULT_CHAT_SYSTEM_INSTRUCTIONS, about: "", tone: "standard", traits: { ...DEFAULT_CHAT_TRAITS }, autoMemory: false, memories: true };
 
@@ -139,6 +149,7 @@ export class HarnessStore {
       const chat = { ...DEFAULT_CHAT };
       if (raw.chat && typeof raw.chat === "object") {
         if (typeof raw.chat.instructions === "string" && (raw.chat.instructions.trim() || raw.chatInstructionsCustomized === true)) chat.instructions = truncateChatField(raw.chat.instructions);
+        if (SUPERSEDED_CHAT_INSTRUCTIONS.has(sha256(chat.instructions.replace(/\r\n/g, "\n").trim()))) chat.instructions = DEFAULT_CHAT_SYSTEM_INSTRUCTIONS;
         if (typeof raw.chat.about === "string") chat.about = truncateChatField(raw.chat.about);
         // A tone saved before version 16 becomes the personality closest to it.
         if (typeof raw.chat.tone === "string") chat.tone = chatPersonality(raw.chat.tone).id;
@@ -247,6 +258,22 @@ export function seedGlobalAgents(globalDir: string, store: HarnessStore): "writt
   }
   store.markSeeded();
   return result;
+}
+
+// A global AGENTS.md that is still an earlier shipped default, byte for byte, is replaced by the
+// current one. The old text goes to the backups first, as with «Gjenopprett standard».
+export function upgradeGlobalAgents(globalDir: string): "upgraded" | "kept" {
+  const file = path.join(globalDir, "AGENTS.md");
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return "kept";
+  }
+  if (!SUPERSEDED_AGENTS_MD.has(sha256(text))) return "kept";
+  backupGlobalAgents(globalDir, text);
+  writeAtomic(file, DEFAULT_AGENTS_MD, globalDir, 0o644);
+  return "upgraded";
 }
 
 export interface DiffLine {

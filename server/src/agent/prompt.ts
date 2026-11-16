@@ -12,6 +12,7 @@ import { DEFAULT_MODEL_CONTEXT } from "../../../shared/protocol.ts";
 import { cleanContextText } from "../model-context.ts";
 import { readGitHead } from "../git-head.ts";
 import { defaultParts } from "./harness.ts";
+import { abilities, CODE_TOOLS, TOOLS_BY_NAME } from "./tools.ts";
 
 const MAX_OVERVIEW_ENTRIES = 60;
 
@@ -23,6 +24,7 @@ export interface PromptExtras {
   skillTools?: boolean; // propose_skill is offered
   parts?: Record<string, boolean>; // the harness parts that are on, default as in harness.ts
   tools?: string[]; // the names of the tools offered in this thread
+  abilities?: string[]; // what those tools let the agent do, from the tools themselves (Tool.can)
 }
 
 function readJson(file: string): any {
@@ -80,18 +82,17 @@ export function overview(root: string): string {
 }
 
 
+// Everything Kode can do with a project, from the tool registry itself: a tool that is added
+// there shows up here, and in "Here you can", without anyone editing this file.
+const KODE_ABILITIES = abilities(CODE_TOOLS);
+
 // What the agent can do here, in words, from the tools it is actually offered.
 export function capabilities(tools: string[]): string[] {
-  const has = (...names: string[]) => names.some((n) => tools.includes(n));
-  const out: string[] = [];
-  if (has("read_file", "search", "glob", "list_dir")) out.push("read, search and explain the code");
-  if (has("edit_file", "write_file")) out.push("write and change code, fix bugs and refactor");
-  if (has("run_command")) out.push("run commands, tests and builds");
-  if (has("browser_navigate")) out.push("open pages in the app browser");
-  if (has("browser_screenshot")) out.push("take screenshots of the current browser page");
-  if (has("thread_create")) out.push("start helper threads that work in parallel");
-  if (has("remember")) out.push("remember lasting facts between threads");
-  if (has("use_skill")) out.push("follow saved skills");
+  // By name, for callers that only have the names: the registry answers for the built-in tools,
+  // and the two kinds that are made at run time are recognised by their names.
+  const out = abilities(tools.flatMap((name) => TOOLS_BY_NAME.get(name) ?? []));
+  if (tools.some((name) => name.startsWith("mcp__"))) out.push("use tools from the MCP servers the user has connected");
+  if (tools.includes("ui_mod")) out.push("change the app's theme and visual mods");
   return out;
 }
 
@@ -111,14 +112,20 @@ export const USER_TASK_PROMPT = [
 // prohibitions: an API model with no harness of its own needs to be told how good work is done here.
 export function basePrompt(project: Project | undefined, extras: PromptExtras): string {
   const tools = extras.tools ?? [];
-  const can = capabilities(tools);
+  const can = extras.abilities ?? capabilities(tools);
   const parts = [
     `You are the coding agent in Agentic Desktop, an app for building software together with AI models, ${project ? `working in the project folder ${project.path}` : "in Kode with no project selected"}.`,
-    `The app runs on the user's machine; you act only through the tools offered for this turn.${can.length ? ` Here you can ${can.join(", ")}.` : " In this thread you have no tools, so you answer with text."}`,
+    `The app runs on the user's machine; you act only through the tools offered for this turn.${!tools.length ? " In this thread you have no tools, so you answer with text." : project && can.length ? ` Here you can ${can.join(", ")}.` : ""}`,
     "Answer in the language the user writes in, usually Norwegian or English. Use Markdown.",
-    `If the user only greets you, or asks who you are or what you can do, answer in two to four sentences without calling any tools: say that you are the coding agent in Agentic Desktop, name what you can do here, ${project ? `say that you are working in the project ${project.name}, and ` : ""}ask what they want to work on.`,
+    "",
+    "# About you and this app",
+    "- Agentic Desktop is a desktop app where the user builds software together with AI models. It has two modes: Kode (this one), for work in a project folder with tools, and Chat, for conversation, writing and documents. Beside the conversation the user has panels for files, changes, a terminal and a browser, approves risky actions and can undo a turn.",
+    `- With a project selected, Kode can ${KODE_ABILITIES.join(", ")}, and use tools from MCP servers the user has connected. ${project ? `Right now you are working in the project ${project.name}.` : `Right now no project is selected, so the file, command and browser tools are not offered yet: you can explain and discuss code, plan work${tools.includes("ui_mod") ? ", write examples and change the app's theme" : " and write examples"}.`}`,
+    "- You only know what the conversation and tool results show: not the user's screen, and nothing on the machine you have not been given.",
+    `- When the user greets you, or asks who you are, what you can do or what you are running in, answer without calling tools, in a few friendly sentences or a short list, in plain words rather than tool names: who you are, what this app is, what you can do here${project ? "" : " now and what a project adds"}, the limit above in one line, and a question about what they want to work on. You may say which model and provider the Environment section names.`,
+    `- When asked which tools you have, describe the ones offered now by what they do${project ? "" : ", and say which ones a project adds"}.`,
   ];
-  if (!project) parts.push("No project is selected. You can discuss code and answer questions here. Ask the user to select a project only when their task requires reading or changing local files or running project commands; they are already in Kode.");
+  if (!project) parts.push("No project is selected. You can discuss code and answer questions here. The user selects a project folder with the project picker above the message field. Ask the user to select a project only when their task requires reading or changing local files or running project commands; they are already in Kode.");
   parts.push("", USER_TASK_PROMPT);
   const has = (name: string) => tools.includes(name);
   const work: string[] = [];

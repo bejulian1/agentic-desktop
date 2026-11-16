@@ -4,6 +4,15 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.27.1: Agenten presenterer seg bedre, og gamle standardinstrukser følger med (16. november 2026, bygg 75)
+
+- **Bedre svar på «hvem er du og hva kan du?»:** grunnprompten har fått en kort del om appen og agenten (harness 16.2). Modellen forklarer hva Agentic Desktop er, hva den kan gjøre akkurat nå, og én ærlig begrensning, i vanlige ord i stedet for verktøynavn. Gjelder både Kode og Chat.
+- **Kode uten prosjekt:** agenten sier ikke lenger at den bare kan endre temaer. Den forklarer hva Kode kan med et prosjekt valgt, hva den kan hjelpe med uten, og hvordan du velger et prosjekt.
+- **Selvbildet kommer fra verktøyregisteret:** hvert verktøy har nå sin egen korte tekst om hva det lar agenten gjøre, også MCP-verktøy, tema-verktøyet og Chat-verktøyene. Beskrivelsen av hva agenten kan akkurat nå, og av hva Kode kan med et prosjekt, bygges ved kjøring fra verktøyene tråden faktisk har. Et nytt verktøy dukker opp der av seg selv, og en test stopper et verktøy uten slik tekst.
+- **Standardinstrukser følger appen:** en lagret global `AGENTS.md` eller Chat-instruks som fortsatt er helt lik en tidligere standard, byttes automatisk til den nye, korte standarden ved oppstart. Den gamle `AGENTS.md` legges i sikkerhetskopiene først. Tekster du har endret selv, røres ikke.
+
+Kontrollert med 513 servertester og typekontroll. Svarene er ikke prøvd mot ekte modeller.
+
 ## 0.27.0: Fil-skills i Chat og Kode (15. november 2026, bygg 73)
 
 - **Fire nye skills:** `/excel`, `/word`, `/powerpoint` og `/data-files` for Markdown, tekst, CSV og JSON. De følger med appen og er tilgjengelige i begge moduser; totalt 19 innebygde skills.

@@ -59,7 +59,7 @@ import {
 import type { EventLog } from "./events.ts";
 import { FileState } from "./filestate.ts";
 import { decide, effectiveMode } from "./permissions.ts";
-import { CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
+import { abilities, CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
 import { browserWeb, demoWeb, sourcesText, webFetchTool, webSearchTool, type WebAccess, type WebReader } from "./web.ts";
 import { chatToolsOf, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
 import type { Turns } from "./turns.ts";
@@ -548,16 +548,22 @@ export class Runner {
 
   // What the model is offered in this thread. The context ring counts the same list.
   toolDefs(thread: Thread, project: Project | undefined, skills: Skill[]): ToolDef[] {
-    if (this.isChat(thread, project)) return this.chatToolDefs(thread).map((t) => t.def);
+    return this.offeredTools(thread, project, skills).map((t) => t.def);
+  }
+
+  // The tools themselves, with what each lets the agent do (Tool.can): the system prompt's
+  // description of the agent is built from this same list.
+  private offeredTools(thread: Thread, project: Project | undefined, skills: Skill[]): Tool[] {
+    if (this.isChat(thread, project)) return this.chatToolDefs(thread);
     const mods=this.modTools(thread);
-    if (thread.mode !== "code" || !project) return mods.map(t=>t.def);
+    if (thread.mode !== "code" || !project) return mods;
     const hidden = new Set<string>();
     if (!this.codeWeb(thread)) hidden.add("web_search");
     if (!skills.some((skill) => skill.mode !== "chat")) hidden.add("use_skill");
     if (!this.memoriesOn()) hidden.add("remember").add("forget");
     if (this.autoSkills() === "off") hidden.add("propose_skill");
     if (thread.planMode) hidden.add("update_plan"); // plan mode answers with its plan as text
-    return [...CODE_TOOLS.filter((t) => !hidden.has(t.def.name) && (!thread.planMode || READ_ONLY_TOOLS.has(t.def.name))),...mods, ...this.mcpTools(thread)].map((t) => t.def);
+    return [...CODE_TOOLS.filter((t) => !hidden.has(t.def.name) && (!thread.planMode || READ_ONLY_TOOLS.has(t.def.name))),...mods, ...this.mcpTools(thread)];
   }
 
   // keep: taken when a run starts. Others, like the context ring, look without keeping.
@@ -720,7 +726,8 @@ export class Runner {
   // The system prompt as layers, for the preview in Innstillinger (SPEC 22.2) and for the run.
   systemLayers(thread: Thread, project: Project | undefined, skills: Skill[], forRun = false): PromptLayer[] {
     if (thread.mode === "chat") skills = this.chatSkills(!!thread.chatProjectId);
-    const tools = this.toolDefs(thread, project, skills).map((t) => t.name);
+    const offered = this.offeredTools(thread, project, skills);
+    const tools = offered.map((t) => t.def.name);
     const memories = this.memoryText(thread, project, forRun);
     const state = this.harness.state();
     const model = this.resolveModelSafe(thread);
@@ -733,7 +740,7 @@ export class Runner {
       skills,
       this.deps.dataDir,
       thread.mode === "chat" ? {} : this.layers(project),
-      { modelContext: chatProject ? { ...modelContext, location: false, locationText: "" } : modelContext, runtime: { mode: thread.mode, planMode: thread.planMode, permissionMode: project ? effectiveMode(project, thread) : undefined, providerWebSearch: this.chatPromptTools(thread, project)?.web === "provider", model, provider }, memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools },
+      { modelContext: chatProject ? { ...modelContext, location: false, locationText: "" } : modelContext, runtime: { mode: thread.mode, planMode: thread.planMode, permissionMode: project ? effectiveMode(project, thread) : undefined, providerWebSearch: this.chatPromptTools(thread, project)?.web === "provider", model, provider }, memories, memoryTools: tools.includes("remember"), skillTools: tools.includes("propose_skill"), parts: state.parts, tools, abilities: abilities(offered) },
       { personal: chatProject ? undefined : state.chat, project: chatProject, memories, tools: this.chatPromptTools(thread, project) },
     );
     layers.push({id:"ui-mods",title:"Tema og mods",source:"Appens faktiske verktøy",text:tools.includes("ui_mod") ? "Visual UI mods are available through ui_mod in this conversation. Only create/change/apply/reset them when the user asks. They are validated visual data (colors, layouts, pixel scenes and information widgets), never executable code, permissions, prompts or tool hooks. inspect lists built-ins and the current full definition; save creates or replaces a custom definition. Successful changes appear after the current turn finishes; you cannot claim to have seen the resulting UI. Use a new id to customize a read-only built-in. reset restores this conversation's normal app appearance. No project folder is needed for this visual tool, but it grants no other filesystem/command access." : "UI mods are disabled or unavailable. Do not claim to have modified the app's appearance."});

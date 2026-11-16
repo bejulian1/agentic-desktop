@@ -37,7 +37,7 @@ import { Secrets } from "./secrets.ts";
 import { defaultKeyring, type Keyring } from "./keyring.ts";
 import { GITHUB_SECRET } from "./github.ts";
 import { ConfigDirs, defaultGlobalConfigDir } from "./config-dirs.ts";
-import { seedGlobalAgents } from "./agent/harness.ts";
+import { seedGlobalAgents, upgradeGlobalAgents } from "./agent/harness.ts";
 import { Terminals } from "./terminal.ts";
 import { claimDataDir, currentShell, removeInstance, sameKey, writeInstance } from "./instance.ts";
 import { Hooks } from "./hooks.ts";
@@ -237,6 +237,8 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   if (options.seedDefaults !== false) {
     try {
       seedGlobalAgents(configDirs.globalDir, runner.harness);
+      // An untouched default from an earlier version follows the app to the current default.
+      if (upgradeGlobalAgents(configDirs.globalDir) === "upgraded") console.log("Standard AGENTS.md er oppdatert til den nye standarden. Den gamle ligger i backups.");
     } catch (err) {
       console.error("Kunne ikke lage standard AGENTS.md:", (err as Error).message);
     }
