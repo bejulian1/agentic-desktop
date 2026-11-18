@@ -9,7 +9,7 @@ Disse kommandoene finnes i både Chat og Kode. Skriv kommandoen og teksten i det
 | `/queue Kontroller resultatet etterpå` | Meldingen venter til den aktive turen er ferdig. |
 | `/steer Bruk den eksisterende komponenten` | Korrigeringen tas inn ved neste steg i den aktive turen. |
 
-`/bakgrunn`, `/kø` og `/styr` er norske aliaser. Kø og styring overstyrer bare leveringsvalget for den ene meldingen. Uten aktiv tur sendes teksten som en vanlig melding. Et verktøy som allerede kjører, stoppes ikke av `/steer`.
+`/bakgrunn`, `/kø` og `/styr` er norske aliaser. Kø og styring overstyrer bare leveringsvalget for den ene meldingen. Uten aktiv tur sendes teksten som en vanlig melding. Et verktøy som allerede kjører, stoppes ikke av `/steer`. En allerede startet parallell lesegruppe får fullføre. Andre ustartede verktøykall fra samme modellsvar kjøres ikke videre; modellen leser korrigeringen og vurderer behovet på nytt.
 
 ## Et midlertidig sidesvar
 

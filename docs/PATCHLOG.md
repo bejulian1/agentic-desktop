@@ -4,7 +4,11 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
-## 0.29.0: Agenten jobber på Denne datamaskinen uten at du velger prosjekt (18. november 2026, bygg 78)
+## 0.29.1: Denne datamaskinen, lesestatus og bedre agentsamarbeid (18. november 2026, bygg 79)
+
+Første utgivelse i 0.29-serien. Den samler arbeidet på Denne datamaskinen og endringene fra «Lesestatus og robust agentsamarbeid» (PR #2), som ble tatt inn i `main` samtidig.
+
+**Denne datamaskinen**
 
 - **Kode uten prosjekt har ekte verktøy:** agenten jobber med hjemmemappen din som arbeidsmappe. Den kan lese, søke i og skrive filer, kjøre kommandoer og se hva som er installert, slik andre kodeagenter gjør i en terminal. Tidligere svarte den bare med tekst og ba deg velge et prosjekt.
 - **De vanlige godkjenningene:** lesing skjer uten spørsmål, mens skriving og kommandoer følger tillatelsesvalget ditt (Be om godkjenning, Godta redigeringer eller Full tilgang), med «Tillat alltid» for det du stoler på. Endringer vises og kan angres som i et prosjekt.
@@ -12,7 +16,18 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 - **Det som fortsatt krever et prosjekt:** hjelpetråder, den delte oppgavelisten og appens nettleser. Prosjekt-skills og `AGENTS.md` leses ikke fra hjemmemappen, siden `~/.claude/skills` og lignende tilhører andre verktøy.
 - **Ærligere tekster:** «Lokal» er ikke lenger merket demo, og forhåndsvisningen forklarer hva Kode uten prosjekt gjør.
 
-Kontrollert med 542 servertester, typekontroll og en gjennomkjøring i en isolert instans med midlertidig hjemmemappe: agenten listet mappen, opprettet en fil etter godkjenning og ba om lov før en kommando. Ikke prøvd mot ekte modeller i denne økten. Beskyttelsen av kommandoer er en tekstsjekk, ikke en sandkasse: en kommando kan nå alt du selv kan nå, så godkjenn bare det du forstår.
+**Lesestatus og agentsamarbeid**
+
+- **Lesestatus i Kode:** et øyeikon under meldingen vises først når modellen begynner å svare med meldingen i konteksten. Kø, nettverksstart og blokkerte hooks gir ingen falsk lesebekreftelse. Historikken bevarer kvitteringen.
+- **Toveis samarbeid:** barn kan sende til en aktiv forelder selv når fire hjelpere jobber. Pågående venting slipper fram meldingen, og avsender-ID/foreldre-ID gjør riktig mottaker synlig. Tenkeinnsatsen arves ved samme modellvalg.
+- **Robust kø og stopp:** et sent svar etter feil beholdes til det er ledig agentkapasitet. Stopp, Stopp alle og arkivering hindrer uventet gjenstart av ventende arbeid.
+- **Foreldrekjeden beholdes:** forkortede lister viser hovedinstans og mellomledd til aktive, kjørende og ventende barn med forbindelsesstrek.
+- **Styring etter neste verktøykall:** ustartede kall fra samme modellsvar kjøres ikke videre etter en ny korrigering. Allerede startet parallell lesing fullføres; modellen får sannferdige resultater og vurderer resten på nytt.
+- **Fire snarveier:** `/agents`, `/diff`, `/context` og `/stop`, med norske aliaser, åpner faktiske funksjoner uten en ny modelltur.
+
+Kontrollert med 542 servertester, hele UI-suiten på 317 forløp og typekontroll av server/web/Electron, og med en gjennomkjøring av Denne datamaskinen i en isolert instans med midlertidig hjemmemappe. Ikke prøvd mot ekte modeller. Beskyttelsen av kommandoer er en tekstsjekk, ikke en sandkasse: en kommando kan nå alt du selv kan nå, så godkjenn bare det du forstår. Se [instanser, lesestatus og kommandovalg](AGENT-COLLABORATION.md).
+
+Taggen `v0.29.0` peker på den samme koden uten denne samlede beskrivelsen og ble ikke gitt ut.
 
 ## 0.28.0: Sidespørsmål og bakgrunnsøkter (16. november 2026, bygg 77)
 

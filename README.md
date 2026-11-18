@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-[Last ned v0.29.0](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+[Last ned v0.29.1](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
 |---|---|---|
@@ -12,7 +12,11 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Klikk på et bilde for full størrelse.*
 
+![Lesestatus i Kode](docs/bilder/lesestatus.png)
+
 *Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2/v0.26.0/v0.28.0. Alle bruker demo og midlertidige data.*
+
+**v0.29:** uten valgt prosjekt jobber agenten på «Denne datamaskinen», med hjemmemappen som arbeidsmappe og de vanlige godkjenningene. Kode-meldinger får lesestatus, underagenter kommuniserer bedre begge veier, foreldrekjeden beholdes i sidefanen, og `/agents`, `/diff`, `/context` og `/stop` er nye snarveier. Se [instanser og lesestatus](docs/AGENT-COLLABORATION.md).
 
 **v0.28.0:** `/btw` gir et midlertidig sidesvar uten verktøy eller historikk; `/background` starter en egen bakgrunnsøkt mens hovedsamtalen fortsetter. `/queue` og `/steer` velger levering for én melding. Se [kommandoene](docs/SIDE-QUESTIONS.md).
 
@@ -309,7 +313,7 @@ Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.
 Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
 - **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
-- **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting.
+- **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 
 Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.

@@ -1,8 +1,8 @@
 # Status
 
-## 0.29.0
+## 0.29.1
 
-**v0.29.0 (bygg 78):** Kode uten prosjekt («Denne datamaskinen») gir nå agenten fil-, søke- og kommandoverktøy med brukerens hjemmemappe som arbeidsmappe, med de vanlige godkjenningene, «Tillat alltid» lagret i appen og angring av turer. Stedene der nøkler, innlogginger og nettleserprofiler ligger under hjemmemappen spør alltid og utelates fra søk; appens datamappe er utilgjengelig for filverktøyene. Hjelpetråder, oppgavelisten og appens nettleser krever fortsatt et prosjekt, og hjemmemappens egne skills og instruksfiler leses ikke. 542 servertester og typekontroll består, og flyten er kjørt i en isolert instans med midlertidig hjemmemappe. Ikke prøvd mot ekte modeller. Kjent: kommandosperren er en tekstsjekk, ikke en sandkasse.
+**v0.29.1 (bygg 79):** første utgivelse i 0.29-serien. Kode uten prosjekt («Denne datamaskinen») gir agenten fil-, søke- og kommandoverktøy med hjemmemappen som arbeidsmappe, med de vanlige godkjenningene, «Tillat alltid» lagret i appen og angring av turer. Stedene der nøkler, innlogginger og nettleserprofiler ligger under hjemmemappen spør alltid og utelates fra søk. Samme utgivelse inneholder koden fra PR #2: lesestatus under Kode-meldinger, toveis kommunikasjon med underagenter, bevart foreldrekjede, styring før ustartede verktøykall og snarveiene `/agents`, `/diff`, `/context` og `/stop`. PR-koden lå ucommittet i arbeidsmappen og kom inn i `main` sammen med Denne datamaskinen (commit `a1d2bf3`, tagget `v0.29.0`, ikke gitt ut). 542 servertester, 317 UI-forløp og typekontroll består. Ikke prøvd mot ekte modeller. Kjent: kommandosperren er en tekstsjekk, ikke en sandkasse; hjelpetråder, oppgavelisten og appens nettleser krever et prosjekt.
 
 ## 0.28.0
 
