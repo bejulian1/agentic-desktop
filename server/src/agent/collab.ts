@@ -20,7 +20,8 @@ export interface CollabHost {
   runningAgentThreads(projectId: string): number;
   hasAgentSlot(threadId: string): boolean;
   isBusy(threadId: string): boolean;
-  waitIdle(threadId: string, timeoutMs: number, signal: AbortSignal): Promise<boolean>;
+  waitIdle(threadId: string, timeoutMs: number, signal: AbortSignal, requestingThreadId?: string): Promise<boolean>;
+  hasIncomingMessage?(threadId: string): boolean;
   threadChanged(threadId: string): void;
 }
 
@@ -69,12 +70,26 @@ export class Collab implements CollabTools {
     return other;
   }
 
+  private hasAncestor(thread: Thread, ancestorId: string): boolean {
+    const visited = new Set<string>([thread.id]);
+    let parentId = thread.parentThreadId;
+    while (parentId && !visited.has(parentId)) {
+      const parent = this.store.thread(parentId);
+      if (!parent || parent.projectId !== thread.projectId) return false;
+      if (parent.id === ancestorId) return true;
+      visited.add(parent.id);
+      parentId = parent.parentThreadId;
+    }
+    return false;
+  }
+
   list(thread: Thread): string {
     const threads = this.store.projectThreads(thread.projectId!).filter((t) => !t.archived);
     return threads
       .map((t) => {
         const status = t.pendingApprovals ? "venter på godkjenning" : t.running ? "kjører" : "ledig";
-        const marks = [t.id === thread.id ? "denne tråden" : "", t.origin === "agent" ? "laget av agent" : ""].filter(Boolean).join(", ");
+        const marks = [t.id === thread.id ? "denne tråden" : "", t.origin === "agent" ? "laget av agent" : "",
+          t.parentThreadId ? `overordnet: ${t.parentThreadId}` : "ingen overordnet"].filter(Boolean).join(", ");
         return `${t.id}  ${status}  ${JSON.stringify(t.title)}${marks ? `  (${marks})` : ""}`;
       })
       .join("\n");
@@ -89,7 +104,8 @@ export class Collab implements CollabTools {
     const title = String(input.title ?? "").trim().slice(0, 120);
     const task = String(input.task ?? "").trim();
     if (!title || !task) return fail("title og task må fylles ut");
-    const modelId = input.model ?? thread.modelId;
+    const parentModelId = thread.modelId ?? this.store.settings().defaultModelId;
+    const modelId = input.model ?? parentModelId ?? null;
     if (input.model && !this.store.model(input.model)) return fail(`Fant ingen modell med id ${input.model}`);
 
     const child = this.store.createThread(project.id, "code", modelId, {
@@ -97,6 +113,9 @@ export class Collab implements CollabTools {
       parentThreadId: thread.id,
       permissionCap: effectiveMode(project, thread), // Never above the thread that made it.
     });
+    // The parent's per-thread effort overrides its model default. A helper on the same model
+    // should keep that choice; an explicitly different model keeps its own effort setting.
+    if (modelId === parentModelId && thread.reasoning) this.store.updateThread(child.id, { reasoning: thread.reasoning });
     const chainId = this.host.chainOf(thread.id);
     this.count(chainId);
     this.log.append(thread.id, { type: "thread.spawned", runId, childThreadId: child.id, title });
@@ -112,15 +131,18 @@ export class Collab implements CollabTools {
     const text = String(input.text ?? "").trim();
     if (!text) return fail("text må fylles ut");
     const busy = this.host.isBusy(other.id);
+    // A reply to a running ancestor joins that ancestor's current run. It does not launch
+    // another helper or reserve a queued run, even when all helper slots are occupied.
+    const ancestorReply = busy && this.hasAncestor(thread, other.id);
     // A busy user-started thread also needs a slot: this message will start an agent run
     // when its current work ends. An already reserved recipient may keep receiving messages.
-    if (!this.host.hasAgentSlot(other.id) && this.host.runningAgentThreads(thread.projectId!) >= MAX_AGENT_THREADS) {
+    if (!ancestorReply && !this.host.hasAgentSlot(other.id) && this.host.runningAgentThreads(thread.projectId!) >= MAX_AGENT_THREADS) {
       return fail(`Grensen er nådd: ${MAX_AGENT_THREADS} tråder har agentarbeid som kjører eller venter i kø i prosjektet. Vent på en av dem.`);
     }
     const chainId = this.host.chainOf(thread.id);
     this.count(chainId);
     this.host.sendFromThread(other.id, text, { threadId: thread.id, title: thread.title }, chainId);
-    return { text: busy ? "Tråden jobber, så meldingen ligger i kø." : "Meldingen er sendt." };
+    return { text: ancestorReply ? "Meldingen er sendt inn i den overordnede trådens pågående arbeid." : busy ? "Tråden jobber, så meldingen ligger i kø." : "Meldingen er sendt." };
   }
 
   read(thread: Thread, input: { threadId: string; limit?: number }): ToolResult {
@@ -144,7 +166,10 @@ export class Collab implements CollabTools {
     const other = this.peer(thread, input.threadId);
     if ("text" in other) return other;
     const seconds = Math.min(Math.max(Number(input.timeoutSeconds ?? DEFAULT_WAIT_S), 1), MAX_WAIT_S);
-    const idle = await this.host.waitIdle(other.id, seconds * 1000, signal);
+    const idle = await this.host.waitIdle(other.id, seconds * 1000, signal, thread.id);
+    if (!idle && this.host.hasIncomingMessage?.(thread.id)) {
+      return { text: "Ventingen ble avbrutt fordi denne tråden har fått en ny melding. Den andre tråden er ikke ferdig; behandle meldingen før du eventuelt venter igjen." };
+    }
     if (!idle) return fail(`Tidsavbrudd: tråden var ikke ferdig etter ${seconds} s`);
     const run = this.store.lastRun(other.id);
     const answer = clip(this.finalAnswer(other.id)) || "(tråden svarte ikke med tekst)";

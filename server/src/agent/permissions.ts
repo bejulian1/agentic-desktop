@@ -20,7 +20,13 @@ export interface Decision {
   reason?: string;
 }
 
-export function decide(tool: Tool, input: any, project: Project, thread: Thread, store: Store, dataDir: string): Decision {
+// rules: where "allow always" is kept. A project keeps its rules in the store; Denne datamaskinen
+// is not a row there, so the runner passes its own.
+export interface AllowRules {
+  isAllowed(kind: "command" | "tool", value: string): boolean;
+}
+
+export function decide(tool: Tool, input: any, project: Project, thread: Thread, store: Store, dataDir: string, rules?: AllowRules): Decision {
   const name = tool.def.name;
 
   // Protected paths ask in every mode, and "allow always" never applies to them.
@@ -44,6 +50,6 @@ export function decide(tool: Tool, input: any, project: Project, thread: Thread,
   if (allowedByMode) return { ask: false, canAllowAlways: false };
 
   const rule: Decision["rule"] = name === "run_command" ? { kind: "command", value: String(input.command) } : { kind: "tool", value: name };
-  if (store.isAllowed(project.id, rule.kind, rule.value)) return { ask: false, canAllowAlways: false };
+  if (rules ? rules.isAllowed(rule.kind, rule.value) : store.isAllowed(project.id, rule.kind, rule.value)) return { ask: false, canAllowAlways: false };
   return { ask: true, canAllowAlways: true, rule };
 }

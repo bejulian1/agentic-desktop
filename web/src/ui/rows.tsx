@@ -18,7 +18,7 @@ import type {
 import type { AnswerModel, ApprovalDecision, Attachment, Thread } from "../../../shared/protocol";
 import {
   IconAgent, IconAt, IconBranch, IconChevron, IconChevronDown, IconClose, IconDiff, IconFile, IconFolder,
-  IconImage, IconPencil, IconThought, IconUndo, IconWarn, IconCopy, IconBookmark, IconReload, IconCheck, IconCpu,
+  IconEye, IconSend, IconImage, IconPencil, IconThought, IconUndo, IconWarn, IconCopy, IconBookmark, IconReload, IconCheck, IconCpu,
 } from "./icons";
 import { ChatTools, UserEdit } from "./ChatTools";
 import { enter, seconds, StepsView, SummaryView, ToolView } from "./steps";
@@ -208,6 +208,9 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
   const forkStart = useContext(ForkStart);
   const editing = () => chat?.isEditing(row.key) ?? false;
   const actions = useActions();
+  const receipt = createMemo(() => (row.rev(), row.receipt));
+  const code = useContext(RowThread);
+  const receiptLabel = () => receipt() === "received" ? "Lest av modellen" : receipt() === "blocked" ? "Stoppet av hook" : receipt() === "unsent" ? "Ikke sendt til modellen" : "Ikke bekreftet lest";
   return (
     <div class="row row-user" data-row="user" data-key={row.key} data-enter={enter(row.at)} data-selected={chat?.isSelected(row.key) ? "" : undefined} ref={element} onPointerOver={() => actions.build()} onFocusIn={actions.build}>
       <Show when={forkStart(row.key)}><ForkDivider /></Show>
@@ -240,6 +243,12 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
           </Show>
           <div class="user-text">{row.text}</div>
         </div>
+        <Show when={code()?.mode === "code" && receipt()}>
+          <span class="message-receipt" data-testid="message-receipt" data-status={receipt()} role="status" aria-label={receiptLabel()} title={receipt() === "received" ? `Modellen har begynt å svare med meldingen i konteksten. ${row.receivedAt ? fullTime(row.receivedAt) : ""}` : receiptLabel()}>
+            <Show when={receipt() === "received"} fallback={<IconSend size={12}/>}><IconEye size={12}/></Show>
+            <span>{receiptLabel()}</span>
+          </span>
+        </Show>
         <MessageActions rowKey={row.key} at={row.at} kind="user" built={actions.built} />
       </Show>
     </div>

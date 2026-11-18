@@ -1,5 +1,9 @@
 # Status
 
+## 0.29.0
+
+**v0.29.0 (bygg 78):** Kode uten prosjekt («Denne datamaskinen») gir nå agenten fil-, søke- og kommandoverktøy med brukerens hjemmemappe som arbeidsmappe, med de vanlige godkjenningene, «Tillat alltid» lagret i appen og angring av turer. Stedene der nøkler, innlogginger og nettleserprofiler ligger under hjemmemappen spør alltid og utelates fra søk; appens datamappe er utilgjengelig for filverktøyene. Hjelpetråder, oppgavelisten og appens nettleser krever fortsatt et prosjekt, og hjemmemappens egne skills og instruksfiler leses ikke. 542 servertester og typekontroll består, og flyten er kjørt i en isolert instans med midlertidig hjemmemappe. Ikke prøvd mot ekte modeller. Kjent: kommandosperren er en tekstsjekk, ikke en sandkasse.
+
 ## 0.28.0
 
 **v0.28.0 (bygg 77):** /btw kjører et avgrenset, verktøyfritt provider-kall uten Runner-tur eller historikkskriving. Panelet lever bare i det monterte meldingsfeltet og forkastes ved kontekstbytte, tilbakestilling og brutt tilkobling. /background oppretter en egen samtale med kontekst, modell, verktøyvalg og effektiv tillatelsesgrense fra kilden; fokus og aktiv kildekjøring beholdes. /queue og /steer gjenbruker køens levering med en engangsoverstyring. Se [bruk og grenser](SIDE-QUESTIONS.md).

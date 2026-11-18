@@ -51,6 +51,7 @@ export interface AppOptions extends Partial<Config> {
   configDir?: string; // the global config folder, default $XDG_CONFIG_HOME/agentic-desktop
   retryBaseMs?: number;
   homeDir?: string; // round 9: where a terminal without a project starts; tests set a temporary one
+  localWorkspace?: boolean; // Kode without a project gets tools in the home folder; default true, tests turn it on with a temporary homeDir
   stallMs?: number;
   seedDefaults?: boolean; // round 9b: write the default global AGENTS.md the first time (SPEC 22.2), default true
   // ONLY FOR TESTS (see WebTesting in web-guard.ts): lets web search and web reading reach loopback
@@ -230,6 +231,8 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       publish({ type: "project.files-changed", projectId, paths });
     },
     usageChanged: (projectId) => publish({ type: "project.usage", projectId, usage: store.projectUsage(projectId) }),
+    // Kode without a project works in the home folder, never inside the app's own data folder.
+    ...(options.localWorkspace === false ? {} : { localFolder: () => localFolder(config.dataDir, options.homeDir) }),
     projectTouched: (projectId) => {
       const project = store.project(projectId);
       if (project) publish({ type: "project.changed", project });

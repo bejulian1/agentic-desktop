@@ -66,8 +66,24 @@ export function guardProjectRoot(input: string, dataDir: string): string {
   return abs;
 }
 
+// Where keys, tokens, logins and browser profiles live under a home folder. Kode without a project
+// works in the home folder (Denne datamaskinen), so these always ask before a file tool touches
+// them, and search and glob leave them out. The same names inside a project are treated alike.
+export const SENSITIVE_HOME_PATHS = [
+  ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker/config.json", ".netrc", ".npmrc", ".pypirc", ".git-credentials",
+  ".password-store", ".local/share/keyrings", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/BraveSoftware",
+  ".config/gh", ".config/op", ".config/agentic-desktop", ".local/share/agentic-desktop", ".claude/.credentials.json", ".claude.json",
+  ".codex/auth.json", ".bash_history", ".zsh_history",
+];
+
+export function isSensitiveHomePath(rel: string): boolean {
+  const normal = rel.split(path.sep).join("/");
+  return SENSITIVE_HOME_PATHS.some((entry) => normal === entry || normal.startsWith(`${entry}/`));
+}
+
 // Paths that always need approval, in every permission mode.
 export function isProtectedPath(rel: string): boolean {
+  if (isSensitiveHomePath(rel)) return true;
   const parts = rel.split(path.sep);
   if (parts.some((part) => part.startsWith(".env"))) return true;
   const gitAt = parts.lastIndexOf(".git");
@@ -99,12 +115,15 @@ export function isProtectedCommand(command: string, dataDir: string, configDir =
   // Quotes and doubled slashes do not change the path the shell sees.
   const text = command.replace(/["']/g, "").replace(/\/{2,}/g, "/");
   if (/\.env|\.git\/(hooks|config)/.test(text) || APP_FOLDER.test(text) || APP_FILE.test(text)) return true;
+  // Keys, tokens and browser profiles under the home folder: a command that names one always asks.
+  if (SENSITIVE_HOME_PATHS.some((entry) => text.includes(entry))) return true;
   const home = homedir().replace(/\/+$/, "");
   return [dataDir, configDir].some((dir) => folderForms(dir.replace(/\/+$/, ""), home).some((form) => text.includes(form)));
 }
 
 // Denne datamaskinen (round 9, SPEC 21.9): the panel without a project. Its key in place of a
-// project id, for the terminal and the Browser panel only; no agent tool ever takes it.
+// project id, for the terminal and the Browser panel, and for the agent in Kode without a project,
+// which then works in the home folder (Runner.localProject).
 export const LOCAL_PANEL = "local";
 
 // The folder a terminal without a project starts in: the home folder, as its real path, an existing

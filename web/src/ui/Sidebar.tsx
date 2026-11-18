@@ -260,7 +260,8 @@ function StatusDot(props: { thread: Thread }) {
 }
 
 // Instances made by another instance hang under it, so the link to the main one shows. Long
-// lists stop at a few threads, but never hide one that is open, running or waiting.
+// lists stop at a few threads, but never hide one that is open, running or waiting, or its
+// ancestors in this list. Parents placed in Festet or another section keep their own place.
 function ThreadTree(props: { threads: Thread[]; activeIds: ReadonlySet<string>; limit?: number }) {
   const [all, setAll] = createSignal(false);
   const tree = createMemo(() => {
@@ -285,7 +286,18 @@ function ThreadTree(props: { threads: Thread[]; activeIds: ReadonlySet<string>; 
   const shown = createMemo(() => {
     const limit = props.limit;
     if (!limit || all() || tree().length <= limit + 2) return tree();
-    return tree().filter((entry, i) => i < limit || props.activeIds.has(entry.thread.id) || entry.thread.running || entry.thread.pendingApprovals > 0);
+    const entries = tree();
+    const byId = new Map(entries.map(({ thread }) => [thread.id, thread]));
+    const retained = new Set<string>();
+    for (const [i, { thread }] of entries.entries()) {
+      if (i >= limit && !props.activeIds.has(thread.id) && !thread.running && thread.pendingApprovals <= 0) continue;
+      let ancestor: Thread | undefined = thread;
+      while (ancestor && !retained.has(ancestor.id)) {
+        retained.add(ancestor.id);
+        ancestor = ancestor.parentThreadId ? byId.get(ancestor.parentThreadId) : undefined;
+      }
+    }
+    return entries.filter(({ thread }) => retained.has(thread.id));
   });
   return (
     <>

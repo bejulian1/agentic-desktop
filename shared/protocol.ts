@@ -629,7 +629,9 @@ export type ThreadEvent =
   // from: set when another thread sent it. attachments: what @ added; contents go to the model only.
   // held: waits for UserPromptSubmit hooks (Innstillinger → Hooks). It counts as sent, to the
   // model and to a history rebuilt from the log (fork.ts), only after a later user.checked.
-  | { type: "user.message"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; held?: boolean }
+  | { type: "user.message"; messageId: string; text: string; from?: ThreadRef; attachments?: Attachment[]; held?: boolean; receiptTracked?: boolean }
+  // A model has begun responding to a request containing this message, not merely queued it.
+  | { type: "user.received"; messageId: string; runId: string }
   | { type: "user.checked"; messageId: string }
   // A held message that never reached the model because its check did not finish: stopped by the
   // user, by a shutdown, or still queued at a restart. A hook that stopped it is a hook.ran instead.

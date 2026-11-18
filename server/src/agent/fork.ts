@@ -72,7 +72,7 @@ export function historyFrom(events: ThreadEventEnvelope[], restoreAttachments?: 
   for (const { event } of events) {
     if (event.type === "user.message" && blocked.has(event.messageId)) continue;
     if (event.type === "user.message") {
-      const from = event.from ? `[Melding fra tråden ${JSON.stringify(event.from.title)}]\n\n` : "";
+      const from = event.from ? `[Melding fra tråden ${JSON.stringify(event.from.title)} (tråd-id: ${event.from.threadId})]\n\n` : "";
       const attached = event.attachments?.length ? `\n\n[Vedlegg: ${event.attachments.map((a) => a.label).join(", ")}]` : "";
       const restored = event.attachments?.length ? restoreAttachments?.(event.attachments) : undefined;
       order.push({ role: "user", text: `${from}${event.text}${attached}${restored?.text ? `\n\n${restored.text}` : ""}`, ...(restored?.images.length ? { images: restored.images } : {}) });

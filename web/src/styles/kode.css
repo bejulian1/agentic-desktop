@@ -603,3 +603,8 @@ button.pinned-item:hover { background: var(--hover); color: var(--text); }
 .release-empty { padding: 24px 0; }
 .release-end { margin: 8px 0 4px; font-size: 12px; text-align: center; }
 .about-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Receipt is always visible; message action buttons still appear on hover/focus. */
+.message-receipt { display: flex; align-items: center; gap: 5px; align-self: flex-end; margin-top: 4px; color: var(--text-3); font-size: var(--text-xs); }
+.message-receipt[data-status="received"] { color: var(--accent-text); }
+.message-receipt[data-status="blocked"], .message-receipt[data-status="unsent"] { color: var(--warn); }

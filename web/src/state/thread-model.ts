@@ -37,6 +37,8 @@ interface RowBase {
 
 export interface UserRow extends RowBase {
   kind: "user";
+  receipt?: "pending" | "received" | "blocked" | "unsent";
+  receivedAt?: number;
   at: number; // when it was sent
   text: string;
   from?: ThreadRef;
@@ -295,6 +297,7 @@ class Folder {
   rows: Row[] = [];
   queued: QueuedMessage[] = [];
   usage: Usage | null = null;
+  private users = new Map<string, UserRow>();
   private texts = new Map<string, TextRow>();
   private thinking = new Map<string, ThinkingRow>();
   private tools = new Map<string, ToolRow>();
@@ -361,10 +364,18 @@ class Folder {
       case "run.retrying":
         this.retry = { attempt: event.attempt, maxAttempts: event.maxAttempts, until: at + event.waitMs, reason: event.reason };
         return;
-      case "user.message":
+      case "user.message": {
         this.queued = this.queued.filter((q) => q.messageId !== event.messageId);
-        this.add({ ...base(event.messageId), kind: "user", at, text: event.text, from: event.from, attachments: event.attachments });
+        const row: UserRow = { ...base(event.messageId), kind: "user", at, text: event.text, from: event.from, attachments: event.attachments, ...(event.receiptTracked ? { receipt: "pending" as const } : {}) };
+        this.users.set(event.messageId, row);
+        this.add(row);
         return;
+      }
+      case "user.received": {
+        const row = this.users.get(event.messageId);
+        if (row) { row.receipt = "received"; row.receivedAt = at; row.touch(); }
+        return;
+      }
       case "user.queue-removed":
         this.queued = this.queued.filter((q) => q.messageId !== event.messageId);
         return;
@@ -542,10 +553,17 @@ class Folder {
         }
         return;
       }
-      case "user.unsent":
+      case "user.unsent": {
+        const row = this.users.get(event.messageId);
+        if (row?.receipt) { row.receipt = "unsent"; row.touch(); }
         this.add({ ...base(`unsent-${event.messageId}`), kind: "unsent", reason: event.reason });
         return;
+      }
       case "hook.ran":
+        if (event.effect === "blocked" && event.messageId) {
+          const row = this.users.get(event.messageId);
+          if (row?.receipt) { row.receipt = "blocked"; row.touch(); }
+        }
         this.add({
           ...base(`hook-${++this.hookRows}-${event.hookId}`), kind: "hook", name: event.name, event: event.event, effect: event.effect,
           outcome: event.outcome, exitCode: event.exitCode, message: event.message, work: this.work ?? undefined,

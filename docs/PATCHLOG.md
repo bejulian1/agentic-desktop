@@ -4,6 +4,16 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 0.29.0: Agenten jobber på Denne datamaskinen uten at du velger prosjekt (18. november 2026, bygg 78)
+
+- **Kode uten prosjekt har ekte verktøy:** agenten jobber med hjemmemappen din som arbeidsmappe. Den kan lese, søke i og skrive filer, kjøre kommandoer og se hva som er installert, slik andre kodeagenter gjør i en terminal. Tidligere svarte den bare med tekst og ba deg velge et prosjekt.
+- **De vanlige godkjenningene:** lesing skjer uten spørsmål, mens skriving og kommandoer følger tillatelsesvalget ditt (Be om godkjenning, Godta redigeringer eller Full tilgang), med «Tillat alltid» for det du stoler på. Endringer vises og kan angres som i et prosjekt.
+- **Nøkler og innlogginger er beskyttet:** mapper og filer som `.ssh`, `.gnupg`, `.aws`, `.config/gh`, nettleserprofiler, passordlagre og appens egne data spør alltid først, uansett modus, og søk tar dem ikke med. Appens datamappe er utenfor rekkevidde for filverktøyene.
+- **Det som fortsatt krever et prosjekt:** hjelpetråder, den delte oppgavelisten og appens nettleser. Prosjekt-skills og `AGENTS.md` leses ikke fra hjemmemappen, siden `~/.claude/skills` og lignende tilhører andre verktøy.
+- **Ærligere tekster:** «Lokal» er ikke lenger merket demo, og forhåndsvisningen forklarer hva Kode uten prosjekt gjør.
+
+Kontrollert med 542 servertester, typekontroll og en gjennomkjøring i en isolert instans med midlertidig hjemmemappe: agenten listet mappen, opprettet en fil etter godkjenning og ba om lov før en kommando. Ikke prøvd mot ekte modeller i denne økten. Beskyttelsen av kommandoer er en tekstsjekk, ikke en sandkasse: en kommando kan nå alt du selv kan nå, så godkjenn bare det du forstår.
+
 ## 0.28.0: Sidespørsmål og bakgrunnsøkter (16. november 2026, bygg 77)
 
 - **/btw <spørsmål>:** få et kort sidesvar med et avgrenset øyeblikksbilde av samtalen, mens hovedoppgaven fortsetter. Svaret vises i en egen flate med dempet grønn kant. Ingen verktøy eller endringer; spørsmål og svar legges ikke i samtalehistorikken, minner eller kjøringsloggen. Panelet forkastes ved bytte av kontekst, tilbakestilling eller brutt tilkobling.

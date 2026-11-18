@@ -328,7 +328,7 @@ export function HarnessPage() {
           </div>
         </div>
         <Show when={mode() === "code" && !projectId()}>
-          <div class="setting"><span class="muted">Du er i Kode uten et valgt prosjekt. Modellen kan svare på spørsmål, men får ingen fil- eller kommandoverktøy. Velg et prosjekt når oppgaven trenger det.</span></div>
+          <div class="setting"><span class="muted">Du er i Kode uten et valgt prosjekt. Agenten jobber da på Denne datamaskinen, med hjemmemappen din som arbeidsmappe: den kan lese og skrive filer og kjøre kommandoer med de vanlige godkjenningene. Hjelpetråder, oppgavelisten og appens nettleser krever et prosjekt.</span></div>
         </Show>
         {/* preview.latest keeps the last prompt on screen while the next one loads. Reading preview()
             there would suspend the whole settings page, which put the scroll position back at the top. */}

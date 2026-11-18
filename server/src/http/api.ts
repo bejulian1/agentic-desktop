@@ -89,6 +89,10 @@ export const BUILTIN_COMMANDS: CommandInfo[] = [
   { name: "mode", aliases: ["modus"], description: "Bytt mellom Chat og Kode", kind: "builtin" },
   { name: "model", aliases: ["modell"], args: "[navn]", description: "Velg modell for tråden", kind: "builtin" },
   { name: "reasoning", aliases: ["tenkning"], args: "[none|low|medium|high|xhigh|max]", description: "Velg hvor mye modellen skal tenke", kind: "builtin" },
+  { name: "agents", aliases: ["agenter"], description: "Åpne prosjektets instanser, underagenter og meldinger", kind: "builtin" },
+  { name: "diff", aliases: ["endringer"], description: "Vis prosjektets filendringer", kind: "builtin" },
+  { name: "context", aliases: ["kontekst"], description: "Vis hva som fyller modellens kontekstvindu", kind: "builtin" },
+  { name: "stop", aliases: ["stopp"], description: "Stopp bare kjøringen i denne samtalen", kind: "builtin" },
   { name: "status", description: "Vis tråd-ID, kontekstbruk og grenser", kind: "builtin" },
   { name: "compact", aliases: ["komprimer"], description: "Komprimer konteksten nå", kind: "builtin" },
   { name: "fork", aliases: ["gaffel", "kopier"], description: "Lag en gaffel: en ny tråd med hele historikken", kind: "builtin" },
@@ -680,7 +684,7 @@ export class Api {
       const mode = body.mode ?? (projectId ? "code" : "chat");
       if (mode !== "chat" && mode !== "code") throw new HttpError(400, "Ugyldig modus");
       if (projectId) this.project(projectId);
-      // Kode without a project is Denne datamaskinen (round 9): it gets no tools, see Runner.toolDefs.
+      // Kode without a project is Denne datamaskinen: the agent works in the home folder (Runner.localProject).
       if (body.chatProjectId !== undefined && body.chatProjectId !== null && (typeof body.chatProjectId !== "string" || !body.chatProjectId)) throw new HttpError(400, "Ugyldig Chat-prosjekt");
       if (body.sideOf !== undefined && body.sideOf !== null && (typeof body.sideOf !== "string" || !body.sideOf)) throw new HttpError(400, "Ugyldig sidechat");
       const chatProjectId: string | null = body.chatProjectId ?? null;
@@ -752,7 +756,9 @@ export class Api {
         if (current.mode !== "chat" || current.projectId) throw new HttpError(400, "Bare chatter har verktøyvalg");
         store.updateThread(params.id, { chatTools: body.chatTools === null ? null : chatToolsFromBody(body.chatTools, chatToolsOf(current, store.settings())) });
       }
-      store.updateThread(params.id, threadPatch(body, current.mode));
+      const changes = threadPatch(body, current.mode);
+      if (changes.archived === true && !current.running) runner.stop(current.id);
+      store.updateThread(params.id, changes);
       if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
       return this.thread(params.id);
@@ -788,6 +794,7 @@ export class Api {
       const running = archived ? candidates.filter((t) => t.running) : [];
       const changed = candidates.filter((t) => !(archived && t.running));
       for (const thread of changed) {
+        if (archived) runner.stop(thread.id);
         store.updateThread(thread.id, { archived });
         threadChanged(thread.id);
       }
@@ -796,6 +803,7 @@ export class Api {
 
     this.route("DELETE", "/api/threads/:id", ({ params }) => {
       if (this.thread(params.id).running) throw new HttpError(409, "Tråden kjører");
+      runner.stop(params.id); // also release waiters for an idle queue before deleting it
       store.deleteThread(params.id);
       this.deps.chatWorkspace?.remove(params.id);
       this.deps.uiMods?.forgetThread(params.id);

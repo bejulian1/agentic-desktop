@@ -12,7 +12,7 @@ import path from "node:path";
 import type { AutoSkills, ChatFile, Project, Thread, WebSource } from "../../../shared/protocol.ts";
 import { listDir, looksBinary } from "../files.ts";
 import { cleanMemory, type Memories } from "../memory.ts";
-import { guardPath, PathError } from "../paths.ts";
+import { guardPath, PathError, SENSITIVE_HOME_PATHS } from "../paths.ts";
 import type { ImageData, ToolDef } from "../providers/types.ts";
 import type { Skill, SkillStore } from "../skills.ts";
 import { checkSkillInput, renderSkill, renderSkillFile } from "../skills.ts";
@@ -381,7 +381,7 @@ function ripgrep(args: string[], ctx: ToolContext): Promise<{ code: number | nul
   });
 }
 
-const HIDDEN_GLOBS = ["--glob", "!.git", "--glob", "!node_modules", "--glob", "!.env*"];
+const HIDDEN_GLOBS = ["--glob", "!.git", "--glob", "!node_modules", "--glob", "!.env*", ...SENSITIVE_HOME_PATHS.flatMap((entry) => ["--glob", `!${entry}`]), "--glob", "!.cache", "--glob", "!.local/share/Trash"];
 // rg says this, with exit code 2, when every file was filtered out. That is no hits, not an error.
 const NOTHING_SEARCHED = /No files were searched/;
 const dropDotSlash = (line: string) => line.replace(/^\.\//, "");
@@ -646,7 +646,7 @@ const threadTools: Tool[] = [
     kind: "exec",
     can: "start and follow helper threads that work in parallel", def: {
       name: "thread_send",
-      description: "Send a message to another thread in this project, for a follow-up or a correction to a helper thread. It is queued if the thread is working.",
+      description: "Send a message to another thread in this project, for a follow-up or a correction to a helper thread. It is queued if the thread is working. Replies from a child to its active ancestor enter at the next step and release an ongoing thread_wait so the ancestor can read the message. Use thread_list to find parent IDs.",
       parameters: schema({ threadId, text: str("The message") }, ["threadId", "text"]),
     },
     summary: (input) => String(input.text ?? "").slice(0, 80),

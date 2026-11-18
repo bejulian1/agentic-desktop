@@ -4,13 +4,14 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
-import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, MentionItem, ModelConfig, ReasoningEffort, Thread } from "../../../shared/protocol";
+import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, MentionItem, ModelConfig, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
 import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
 import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
+import { showPanel } from "../state/panel";
 import { revertLastTurn, startPlaytest, openVscode } from "../state/project-actions";
 import { formatCost, formatTokens } from "../lib/format";
 import {
@@ -80,7 +81,7 @@ const DEMO_TEXT: Record<string, string> = {
   memories: "Minnene er ekte nå: modellen lagrer korte notater med remember og får dem i nye tråder. Se, endre og slett dem i Innstillinger → Personalisering og minner.",
 };
 
-const CODE_ONLY = new Set(["undo", "playtest", "vscode", "init", "review", "review-changes", "worktree"]);
+const CODE_ONLY = new Set(["undo", "playtest", "vscode", "init", "review", "review-changes", "worktree", "agents", "diff"]);
 const CODE_MODE_ONLY = new Set(["goal", "plan"]);
 const SIDE_COMMANDS = new Set(["btw", "background", "queue", "steer"]);
 
@@ -88,6 +89,7 @@ const SIDE_COMMANDS = new Set(["btw", "background", "queue", "steer"]);
 const COMMAND_ICONS: Record<string, (p: { size?: number }) => any> = {
   new: IconNewThread, fork: IconBranch, side: IconSplitRight, task: IconChat, compact: IconArchive, undo: IconUndo, review: IconEye,
   btw: IconChat, background: IconBranch, queue: IconList, steer: IconSend,
+  agents: IconUsers, diff: IconCode, context: IconBrain, stop: IconStop,
   model: IconBolt, reasoning: IconBrain, personality: IconSliders, status: IconInfo,
   project: IconFolder, init: IconFile, playtest: IconPlay, vscode: IconCode,
   goal: IconTarget, plan: IconList, memories: IconBook, storage: IconArchive, help: IconHelp, mode: IconChat,
@@ -142,7 +144,7 @@ function readBase64(file: File): Promise<string> {
   });
 }
 
-const LOCAL_TEXT = "Appen og verktøyene kjører på denne maskinen, i prosjektmappen når du har valgt en. Modellforespørsler går til den valgte leverandøren eller endepunktet. Du kan ikke velge en annen vert over SSH eller i skyen ennå.";
+const LOCAL_TEXT = "Appen og verktøyene kjører på denne maskinen: i prosjektmappen når du har valgt en, ellers i hjemmemappen din, der agenten kan lese filer og kjøre kommandoer med de vanlige godkjenningene. Modellforespørsler går til den valgte leverandøren eller endepunktet. Du kan ikke velge en annen vert over SSH eller i skyen ennå.";
 const MIC_TEXT = "Skal la deg snakke inn meldingen. Ingen lyd tas opp i denne versjonen, og mikrofonen brukes ikke.";
 
 // The picker opened from somewhere without a field of its own (Vis alle prosjekter on the start page).
@@ -803,8 +805,7 @@ export function Composer(props: {
   const running = createMemo(() => thread()?.running ?? false);
   const kode = () => !!(props.projectId || props.code);
   // A skill written for the other mode: Kode skills name tools a chat does not have.
-  // A Kode skill also needs a project: without one the thread has no file or command tools.
-  const otherMode = (c: CommandInfo) => c.kind === "skill" && !!c.mode && (c.mode !== (kode() ? "code" : "chat") || (c.mode === "code" && !props.projectId));
+  const otherMode = (c: CommandInfo) => c.kind === "skill" && !!c.mode && c.mode !== (kode() ? "code" : "chat");
   // Kode threads choose a working style; a chat chooses among Chat's own personalities.
   const personalities = (): Array<{ id: string; label: string; prompt: string; text?: string }> => (kode() ? PERSONALITIES : CHAT_PERSONALITIES);
   const chatProject = createMemo(() => {
@@ -1274,6 +1275,30 @@ export function Composer(props: {
               pick: (value) => void apply((value || null) as ReasoningEffort | null).catch(report),
             });
           }
+          break;
+        }
+        case "agents":
+          showPanel("team");
+          break;
+        case "diff":
+          showPanel("changes");
+          break;
+        case "stop":
+          if (id) await post(`/api/threads/${id}/stop`);
+          else toast("Ingen aktiv samtale å stoppe.", "info");
+          break;
+        case "context": {
+          if (!id) return toast("Start en samtale for å se kontekstfordelingen.", "info");
+          const usage = await get<ContextUsage>(`/api/threads/${id}/context`);
+          if (props.threadId() !== id) return;
+          setInfo({ title: "Kontekst", rows: [
+            ["Brukt", `${formatTokens(usage.usedTokens)} av ${formatTokens(usage.contextWindow)} tokens${usage.measured ? " (leverandørmåling)" : " (anslag)"}`],
+            ["Samtale", `${formatTokens(usage.parts.messages)} tokens`],
+            ["Systeminstruksjoner", `${formatTokens(usage.parts.system)} tokens`],
+            ["Verktøydefinisjoner", `${formatTokens(usage.parts.tools)} tokens · ${usage.tools} verktøy`],
+            ["Komprimeringsreserve", `${formatTokens(usage.parts.compactBuffer)} tokens`],
+            ["Ledig", `${formatTokens(usage.parts.free)} tokens`],
+          ] });
           break;
         }
         case "status":
@@ -1908,7 +1933,7 @@ export function Composer(props: {
           <ProjectPicker current={props.projectId} paneKey={props.paneKey} onDone={projectPicker.close} onCancel={() => { projectPicker.close(); projectChip?.focus({ preventScroll: true }); }} />
         </Popover>
         <Show when={project()}>{(current) => <ProjectEnvironmentPicker project={current()} paneKey={props.paneKey} />}</Show>
-        <button type="button" class="context-chip" title="Kjører på denne maskinen" onClick={() => setInfo({ title: "Lokal", demo: true, text: LOCAL_TEXT })}>
+        <button type="button" class="context-chip" title="Kjører på denne maskinen" onClick={() => setInfo({ title: "Lokal", text: LOCAL_TEXT })}>
           <IconLaptop size={15} /><span>Lokal</span>
         </button>
         <Show when={project() && branch()}>
