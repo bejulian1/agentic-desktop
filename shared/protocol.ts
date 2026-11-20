@@ -797,6 +797,7 @@ export interface PlaytestState {
 
 export interface BrowserState {
   url: string;
+  pendingUrl?: string;
   title: string;
   canGoBack: boolean;
   canGoForward: boolean;

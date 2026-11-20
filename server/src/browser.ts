@@ -73,6 +73,7 @@ interface Session {
   screencasting: boolean;
   unackedFrame?: number;
   loading: boolean;
+  navigation?: { from: string; url: string };
   pushing: boolean;
   pushAgain: boolean;
   width: number;
@@ -400,8 +401,11 @@ export class BrowserManager implements BrowserTools {
   private async state(session: Session): Promise<BrowserState> {
     const { page, cdp } = session;
     const history = await cdp.send("Page.getNavigationHistory").catch(() => ({ currentIndex: 0, entries: [{}] }));
+    const url = page.url();
+    const pendingUrl = session.navigation?.from === url ? session.navigation.url : undefined;
     return {
-      url: page.url(),
+      url,
+      pendingUrl,
       title: await page.title().catch(() => ""),
       canGoBack: history.currentIndex > 0,
       canGoForward: history.currentIndex < history.entries.length - 1,
@@ -702,9 +706,20 @@ export class BrowserManager implements BrowserTools {
   async navigate(projectId: string, raw: string, tabId?: string): Promise<string> {
     if (tabId === undefined) this.agentAt = Date.now(); // the agent; the panel always names its tab
     const url = this.checkUrl(await this.options.resolveUrl(projectId, raw));
-    return this.use(projectId, async ({ page }) => {
-      await page.goto(url);
-      return `Åpnet ${page.url()}, tittel: ${await page.title()}`;
+    return this.use(projectId, async (session) => {
+      const { page } = session;
+      const navigation = { from: page.url(), url };
+      session.navigation = navigation;
+      void this.pushState(session);
+      try {
+        await page.goto(url);
+        return `Åpnet ${page.url()}, tittel: ${await page.title()}`;
+      } finally {
+        if (session.navigation === navigation) {
+          session.navigation = undefined;
+          void this.pushState(session);
+        }
+      }
     }, tabId);
   }
 

@@ -18,6 +18,7 @@ export const IconPencil = (p: P) => <Svg {...p}><path d="M10.75 2.75l2.5 2.5L5.5
 export const IconCalendarClock = (p: P) => <Svg {...p}><path d="M13.5 7V4.5h-11v9h4.5M2.5 7h11M5.5 2.75v2.5M10.5 2.75v2.5" /><circle cx="11.5" cy="11.5" r="2.5" /><path d="M11.5 10.5v1l.75.5" /></Svg>;
 export const IconShare = (p: P) => <Svg {...p}><path d="M8 10V2.75M5 5.5l3-3 3 3M3 9v3.75a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75V9" /></Svg>;
 export const IconWindow = (p: P) => <Svg {...p}><rect x="2" y="3" width="12" height="10" rx="1.75" /><path d="M2 6h12M8.5 9.25h3M10 7.75v3" /></Svg>;
+export const IconExternal = (p: P) => <Svg {...p}><path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12.5 9.25v2.75a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5V5A1.5 1.5 0 0 1 4 3.5h2.75" /></Svg>;
 export const IconFilter = (p: P) => <Svg {...p}><path d="M2.5 4h11M4.5 8h7M6.5 12h3" /></Svg>;
 export const IconFolderPlus = (p: P) => <Svg {...p}><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6l1.5 1.5h4.9A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" /><path d="M8 7v4M6 9h4" /></Svg>;
 export const IconChart = (p: P) => <Svg {...p}><path d="M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5" /></Svg>;

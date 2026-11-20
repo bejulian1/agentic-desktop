@@ -29,7 +29,7 @@ import { artifacts } from "../state/artifacts";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "../ui/ContextMenu";
 import { confirmDialog } from "../ui/dialogs";
 import { IconArtifact, IconBack, IconBookmark, IconChevron, IconClose, IconDiff, IconDots, IconDownload, IconFile, IconForward, IconGamepad, IconGlobe, IconPlus, IconPlusCircle, IconReload, IconSearch, IconTerminal, IconTrash } from "../ui/icons";
-import { IconExitFullView, IconFullView, IconHistory, IconImage } from "../ui/nav-icons";
+import { IconExitFullView, IconExternal, IconFullView, IconHistory, IconImage } from "../ui/nav-icons";
 import { ProjectGlyph } from "../ui/ProjectGlyph";
 import { DownloadsList } from "../ui/DownloadsList";
 import { activeDownloads, loadDownloads } from "../state/downloads";
@@ -86,6 +86,16 @@ function originOf(url: string): string {
     return new URL(url).origin;
   } catch {
     return "";
+  }
+}
+function httpUrlOf(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === location.protocol && parsed.port === location.port && ["localhost", "127.0.0.1"].includes(parsed.hostname)) return null;
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
+  } catch {
+    return null;
   }
 }
 
@@ -720,9 +730,24 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
               : []),
           ]
         : [{ label: "Ingen historikk ennå", disabled: true }];
+  const externalUrl = () => {
+    const current = state();
+    if (current) return httpUrlOf(current.pendingUrl ?? current.url);
+    const tabId = active();
+    return httpUrlOf(tabId === null ? undefined : tabs().find((tab) => tab.id === tabId)?.url);
+  };
+  const openInSystemBrowser = () => {
+    const url = externalUrl();
+    if (!url) return;
+    // In Electron, main.ts intercepts window.open for external HTTP(S) URLs and hands them to
+    // shell.openExternal(); in localhost mode, the browser opens a normal tab.
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const menuEntries = (): MenuEntry[] => [
     { label: "Ny nettleserfane", icon: IconPlus, keys: "browser.newTab", run: () => newTab(false), disabled: tabs().length >= MAX_TABS },
     { label: panelFull() ? "Avslutt fullvisning" : "Fullvisning", icon: panelFull() ? IconExitFullView : IconFullView, run: () => setPanelFull(!panelFull()) },
+    { label: "Åpne i standardnettleseren", icon: IconExternal, run: openInSystemBrowser, disabled: !externalUrl() },
     "sep",
     { label: "Finn på siden", icon: IconSearch, run: openFind, disabled: !hasPage() || blank() },
     {
