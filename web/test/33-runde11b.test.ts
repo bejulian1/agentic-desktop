@@ -210,12 +210,12 @@ flow("Kode-startsiden: Tekst, Token-historikk og Prosjektboks, uten og med prosj
   await expect("projects", true);
   const box = start.getByTestId("project-home");
   await box.getByRole("button", { name: /Lag en side/ }).waitFor();
-  await box.getByTestId("env-picker").waitFor();
+  await box.getByTestId("local-environment").waitFor();
   await box.getByTestId("home-github").getByText("Koble til GitHub").waitFor();
-  // The order inside the box: rows, then Velg miljø, then GitHub at the bottom.
+  // The order inside the box: rows, then Lokalt miljø, then GitHub at the bottom.
   const y = async (sel: string) => (await box.locator(sel).first().boundingBox())!.y;
-  assert.ok((await y(".home-box-rows")) < (await y('[data-testid="env-picker"]')), "Velg miljø under radene");
-  assert.ok((await y('[data-testid="env-picker"]')) < (await y('[data-testid="home-github"]')), "GitHub nederst");
+  assert.ok((await y(".home-box-rows")) < (await y('[data-testid="local-environment"]')), "Lokalt miljø under radene");
+  assert.ok((await y('[data-testid="local-environment"]')) < (await y('[data-testid="home-github"]')), "GitHub nederst");
   await h.api("PATCH", "/api/settings", { codeStart: "tokens" });
   await expect("tokens", true);
   await h.api("PATCH", "/api/settings", { codeStart: "text" });

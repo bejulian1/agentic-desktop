@@ -531,12 +531,6 @@ button.pinned-item:hover { background: var(--hover); color: var(--text); }
   display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--text-3); font-size: var(--text-sm);
   transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.home-env:hover, .home-env[aria-expanded="true"] { background: var(--hover); color: var(--text); }
-.home-env > .icon { transition: transform var(--dur-2) var(--ease-out); }
-.home-env[aria-expanded="true"] > .icon { transform: rotate(180deg); }
-.popover:has(.env-menu) { width: 300px; }
-.env-menu .menu-item { align-items: flex-start; padding-block: 6px; }
-.env-menu .menu-item > .icon { margin-top: 2px; }
 .home-github { flex-direction: row; height: 40px; padding: 0 12px; }
 .home-github .home-card-detail { text-align: left; }
 @container (max-width: 420px) { .home-card-detail { display: none; } }

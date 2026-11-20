@@ -155,6 +155,7 @@ export interface ProjectConfig {
 }
 
 export interface Thread {
+  scheduleNotice?: boolean;
   promptHistoryReady?: boolean; // at least two earlier answered user turns; server-computed
   id: string;
   projectId: string | null;
@@ -257,6 +258,7 @@ export function modelAllowsTools(model?: Pick<ModelConfig, "supportsTools">, loc
 }
 
 export interface Settings {
+  dictation?: { providerId: string; model: string } | null;
   promptAutocompleteModelId?: string | null; // null follows the conversation model
   promptAutocomplete?: boolean; // opt-in model-backed prompt suggestions, default off
   theme: ThemeSetting;

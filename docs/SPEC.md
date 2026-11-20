@@ -260,8 +260,6 @@ Bygg i runder, enkleste først. Hver runde skal ende med grønne tester og en op
 
 - **Filer og endringer med kodegjennomgang:** En **Gjennomgå**-knapp i Endringer og `/review`. Demo-modellen kan svare med en gjennomgang av diffen.
 - **Parallelle instanser:** Bakgrunnsinstanser med tydelig status i sidefanen, `/worktree` som plassholder (ingen git-kommandoer i denne runden), og **Agent Teams**: en teamleder-tråd og en delt oppgaveliste som vises i et panel. Demo-modellen viser flyten ved ordet `team`.
-- **Spilltesting headless:** Et kort i Nettleser-panelet eller Playtest-menyen som forklarer headless testing av spill og applikasjoner, for eksempel en headless Minecraft med Sodium. Bare plassholder.
-- **Styring av Linux-skrivebordet i bakgrunnen** med et verktøy som `cua-driver`, uten å ta over musepekeren: Bare et innstillingskort med forklaring og status *Ikke installert*. Ingenting lastes ned, installeres eller kjøres.
 - **Tilpasning:** Bredden på sidefanen og høyre panel kan dras, og huskes. Dette finnes delvis, så sjekk og fullfør.
 
 ### 13.3 Grenser for denne runden
@@ -336,7 +334,7 @@ Dette er en redesign av utseendet og plasseringen, ikke en fjerning av funksjone
 Fra toppen:
 
 1. Appnavnet **Agentic Desktop** med en liten pil som åpner en meny (Om, Innstillinger, hurtigtaster), og til høyre ikonene **søk** og **varsler**. Varsler viser godkjenninger som venter og tråder som er ferdige.
-2. Navigasjon: **Ny tråd** (med en liten +-knapp til høyre for ny tråd i et nytt prosjekt), **Artifacts**, **Skills** (liste over skills som finnes) og **Planlagt** (Demo).
+2. Navigasjon: **Ny tråd** (med en liten +-knapp til høyre for ny tråd i et nytt prosjekt), **Artifacts**, **Skills** (liste over skills som finnes) og **Planlagt** (se `planlagte-oppgaver.md`).
 3. **Festet**: festede prosjekter.
 4. **Prosjekter**: med mappeikon, tråder under, **Ingen tråder** når det er tomt, og **Vis flere** når lista er lang.
 5. **Chatter**: tråder uten prosjekt.
@@ -358,7 +356,7 @@ Slankt, som i Codex, sentrert med maks bredde rundt 760 px.
 - **Selve feltet:** plassholder «Gjør hva som helst» (Kode) eller «Spør om hva som helst» (Chat).
 - **Raden nederst i feltet:**
   - Til venstre: **+** (legg ved fil eller `@`-kontekst) og tillatelsesmodus som brikke: «Spør», «Godta redigeringer» eller «Godkjenn for meg» (Full tilgang).
-  - Til høyre: modell og tenkeinnsats som én dropdown («Demo-modell · Middels»), kontekstringen, mikrofon (Demo) og en rund send-knapp, som blir Stopp mens modellen jobber.
+  - Til høyre: modell og tenkeinnsats som én dropdown («Demo-modell · Middels»), kontekstringen, mikrofon (se `diktering.md`) og en rund send-knapp, som blir Stopp mens modellen jobber.
 - `/`, `@`, `$` og `!` virker som før.
 
 ### 15.6 Innstillinger som fullside
@@ -366,7 +364,7 @@ Slankt, som i Codex, sentrert med maks bredde rundt 760 px.
 Innstillinger erstatter hele vinduet, ikke en dialog. Til venstre ligger en meny med **Tilbake til appen** øverst, og to grupper:
 
 - **App:** Generelt, Utseende, Modeller, Git (Demo), Bruk (dagens Profil med statistikk).
-- **Vert** med en «Lokal»-velger (Demo): Konfigurasjon (global og prosjektets `AGENTS.md` og `settings.json`), Personalisering og minner, Hurtigtaster, MCP-servere (Demo), Hooks (Demo), Nettleser, Skrivebordsstyring, Tillatelser, Worktrees (Demo), Arkiverte tråder (ekte, med Gjenopprett) og Om.
+- **Vert** på denne maskinen: Konfigurasjon (global og prosjektets `AGENTS.md` og `settings.json`), Personalisering og minner, Hurtigtaster, MCP-servere (Demo), Hooks (Demo), Nettleser, Tillatelser, Worktrees (Demo), Arkiverte tråder (ekte, med Gjenopprett) og Om.
 
 Innholdet er sentrert med maks bredde rundt 720 px, med overskrift, eventuelle faner og kort med rader. Hver rad har tittel, forklaring og en kontroll til høyre: bryter, knapp eller nedtrekksliste. Esc og Tilbake fører tilbake dit du var.
 
@@ -406,7 +404,7 @@ Endringer fra bygg 18–22 som erstatter deler av del 15:
 
 - **Trådnavnet øverst** ved siden av Chat/Kode: svak grå bakgrunn ved hover, klikk gir Gi nytt navn, og en ›-knapp folder ut info og innstillinger for chatten.
 - **Kommandopalett** (Ctrl+K) med fanene Alle, Handlinger, Chatter, Filer og Tekst: hurtighandlinger med hurtigtaster, nylige samtaler med prosjekt, og nylig åpnede filer (bilde 14).
-- **Trådmeny** på høyreklikk og ⋯: Gi nytt navn, Fest, Ny sidechat, Forgrening ›, Legg til planlagt oppgave (Demo), Utsett ›, Kopier › (tekst, Markdown, ID), Åpne i nytt vindu og Arkiver, med hurtigtaster (bilde 15).
+- **Trådmeny** på høyreklikk og ⋯: Gi nytt navn, Fest, Ny sidechat, Forgrening ›, Utsett ›, Kopier › (tekst, Markdown, ID), Åpne i nytt vindu og Arkiver, med hurtigtaster (bilde 15).
 - **Hover-kort** for tråder og prosjekter i sidefanen: tittel, prosjekt, alder, antall chatter, sti og **Rediger prosjekt** (bilde 05 og 06).
 - **Rediger prosjekt** som dialog med navn, kildemapper og **Fjern lokalt prosjekt**, og en **ikonvelger** med emoji, ikoner og farger for prosjektet (bilde 07 og 08).
 - **Profilmeny** nederst i sidefanen (navn, Innstillinger, Hjelp ›, Hurtigtaster) og en **profilside** med avatar, nøkkeltall og tokenaktivitet per dag, uke og akkumulert (bilde 16 og 17). Ikke invitasjoner, utlogging, abonnement eller offentlig profil.
@@ -528,7 +526,7 @@ Referansebilder ligger i `docs/design-ref/runde9/` (01 til 09). Brukerens røde 
 - **Med prosjekt:** samme ikon, og «Hva skal vi jobbe med i *prosjektnavn*?». Navnet har en prikket understrek, og et klikk åpner prosjektvelgeren (bilde 03).
 - Under hilsenen, når det er et prosjekt, står et lite kort med det som hører til prosjektet (bilde 02):
   - de siste trådene eller miljøene i prosjektet, som rader med ikon
-  - «Velg miljø ⌄», med Lokal og eventuelle andre miljøer (worktrees er Demo)
+  - Informasjon om lokalt miljø
   - et eget kort under: «Koble til GitHub», eller, når GitHub er koblet til, siste åpne issue eller pull request. Klikk åpner GitHub-fanen.
 - **Valg i Innstillinger** (Generelt eller Utseende), med forhåndsvisning:
   - Kode uten prosjekt: «Enkel hilsen» (standard, bilde 04) eller «Prosjektkort» (del 20)
@@ -842,7 +840,7 @@ Referansebildene ligger i `docs/design-ref/runde11/` (01 til 06). Brukerens rød
   - **Token-historikk:** kalenderen og grafen for token-bruk midt på skjermen, i en rolig og kompakt form. Gjenbruk `HeatMap` og dataene fra Innstillinger → Bruk
   - **Prosjektboks:** én boks midt på skjermen
     - øverst prosjektene du har jobbet i nylig, som rader. Et klikk velger prosjektet
-    - under dem knappen **Velg miljø**
+    - under dem teksten **Lokalt miljø**
     - nederst i boksen en rad for å koble til GitHub, med GitHub-ikonet, og status når den er koblet
 - Valget gjelder både med og uten prosjekt. Med et prosjekt valgt viser Prosjektboks trådene i prosjektet øverst i stedet for nylige prosjekter, slik «Hilsen med prosjektkort» gjør i dag.
 - **Gamle innstillinger går over til de nye:** greeting blir Tekst (Middels), og cards blir Prosjektboks.

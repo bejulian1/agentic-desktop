@@ -50,7 +50,7 @@ const START_OPTIONS: Array<StartOption<CodeStart>> = [
   {
     value: "projects",
     label: "Prosjektboks",
-    text: "Én boks med nylige prosjekter, eller trådene i prosjektet, Velg miljø og GitHub.",
+    text: "Én boks med nylige prosjekter, eller trådene i prosjektet, lokalt miljø og GitHub.",
     sketch: () => (
       <Greeting small>
         <span class="start-sketch-card start-sketch-box"><i /><i /><i /><span class="start-sketch-rule" /><i class="start-sketch-env" /><span class="start-sketch-rule" /><i class="start-sketch-git" /></span>

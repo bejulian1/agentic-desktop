@@ -5,20 +5,19 @@ import {useTokenTooltip} from "./TokenTooltip";
 //   Tekst: the mark and the question, in Liten, Middels or Stor, scaled with the pane (SPEC 24.1)
 //   Token-historikk: the question, and the token calendar and graph from Innstillinger → Bruk
 //   Prosjektboks: the question, and one box with recent projects (or the project's threads),
-//                 Velg miljø, and a row for GitHub at the bottom
+//                 the local environment, and a row for GitHub at the bottom
 // The project name in the question opens the project picker. The statistics only fetch when shown.
-import { createEffect, createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createEffect, createMemo, createResource, For, Match, Show, Switch } from "solid-js";
 import type { GitHubProject, GitHubStatus, HomeStats, Project, Thread } from "../../../shared/protocol";
 import { get } from "../lib/api";
 import { showPanel } from "../state/panel";
-import { Popover } from "./Popover";
 import { formatTokens } from "../lib/format";
 import { app, modelFor, setFolderPickerOpen, setSettingsOpen, sortedProjects } from "../state/app";
 import { homeStats, loadHomeStats, runsFinished } from "../state/home";
 import { chatProjectFor, openThread } from "../state/navigate";
 import { startTemporaryChat, trackTemporary } from "./ChatTools";
 import { chooseProject, openProjectPicker, shortPath } from "./Composer";
-import { IconPalette, IconBranch, IconChat, IconCode, IconCheck, IconChevron, IconChevronDown, IconClock, IconLaptop, IconMark, IconSpark } from "./icons";
+import { IconPalette, IconChat, IconCode, IconChevron, IconClock, IconLaptop, IconMark, IconSpark } from "./icons";
 import { IconFolderPlus } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { shortTime } from "./rows";
@@ -312,7 +311,7 @@ function IconGitHubMark(props: { size?: number }) {
 
 // Prosjektboks: one box in the middle. Without a project, the projects used last as rows (a click
 // picks one, and what is typed in the field goes with it); in a project, its latest threads, or ways
-// to start while it has none. Then Velg miljø, and at the bottom a row for GitHub with its status.
+// to start while it has none. Then the local environment, and at the bottom a row for GitHub with its status.
 function ProjectBox(props: { project?: Project; paneKey: string; onPick: (text: string) => void }) {
   const recent = createMemo(() => sortedProjects().slice(0, BOX_PROJECTS));
   const total = () => sortedProjects().length;
@@ -382,37 +381,10 @@ function ProjectBox(props: { project?: Project; paneKey: string; onPick: (text: 
         </Show>
       </div>
       <div class="home-card-foot">
-        <EnvPicker />
+        <span class="home-env" data-testid="local-environment"><IconLaptop size={14} /> Lokalt miljø</span>
       </div>
       <GitHubRow project={props.project} />
     </section>
-  );
-}
-
-// Velg miljø: Lokal, and worktrees as Demo.
-function EnvPicker() {
-  const [open, setOpen] = createSignal(false);
-  return (
-    <Popover
-      open={open()}
-      onClose={() => setOpen(false)}
-      trigger={
-        <button type="button" class="home-env" aria-haspopup="menu" aria-expanded={open()} data-testid="env-picker" title="Hvor tråden kjører" onClick={() => setOpen(!open())}>
-          Velg miljø<IconChevronDown size={12} />
-        </button>
-      }
-    >
-      <div class="menu-list env-menu" role="menu" aria-label="Miljø">
-        <button type="button" role="menuitemradio" aria-checked="true" class="menu-item" onClick={() => setOpen(false)}>
-          <IconLaptop size={14} /><span class="menu-stack"><span class="menu-name">Lokal</span><span class="menu-desc">I prosjektmappen på denne maskinen</span></span>
-          <span class="menu-check"><IconCheck size={14} /></span>
-        </button>
-        <button type="button" role="menuitemradio" aria-checked="false" class="menu-item" disabled title="Kommer senere: hver tråd i et eget Git-worktree">
-          <IconBranch size={14} /><span class="menu-stack"><span class="menu-name">Worktree</span><span class="menu-desc">En egen kopi per tråd, så de ikke går i beina på hverandre</span></span>
-          <span class="demo-badge">Demo</span>
-        </button>
-      </div>
-    </Popover>
   );
 }
 

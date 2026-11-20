@@ -89,7 +89,7 @@ flow("Kode-startsiden: Prosjektboks med de fire sist brukte prosjektene, og teks
     assert.match((await rows.nth(1).locator(".home-box-path").textContent()) ?? "", /delta$/);
     assert.match((await rows.nth(1).locator(".home-card-detail").textContent()) ?? "", /^\d{2}:\d{2}$/);
     await start.getByRole("button", { name: "Vis alle (5)" }).waitFor();
-    await start.getByTestId("env-picker").waitFor();
+    await start.getByTestId("local-environment").waitFor();
 
     // Text typed before a project is chosen follows into it.
     await page.locator(".pane-inner.focused").getByLabel("Melding").fill("forklar koden");

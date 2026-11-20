@@ -3,6 +3,7 @@
 // to the server once and are never sent back, so no field here ever shows one. Round 14 (SPEC
 // 30.1): the server keeps them in the system keyring; KeyringNote says so when it cannot.
 import { createEffect, createMemo, createResource, createSignal, createUniqueId, For, onCleanup, onMount, Show, Suspense } from "solid-js";
+import { DictationSettings } from '../Dictation';
 import { del, get, patch, post } from "../../lib/api";
 import { formatTokens } from "../../lib/format";
 import type { DetectedLocalProvider, ListedModel, ModelConfig, ProviderConfig, ProviderPreset } from "../../../../shared/protocol";
@@ -656,6 +657,7 @@ export function Providers(props: { active?: boolean } = {}) {
       <div hidden={!!connecting()}>
         <Page title="Modeller og leverandører" intro="Velg standardmodell, administrer modellene dine og koble til leverandører på samme sted. Demo-modellen er alltid tilgjengelig uten nettverk.">
           <KeyringNote />
+          <DictationSettings />
           <Row label="Nøkkellagring" text={app.keyring?.legacy ? "En nøkkelfil fra en eldre versjon finnes fortsatt. Se statusmeldingen under for flytting til nøkkelringen." : app.keyring?.store === "keyring" && !app.keyring.legacy ? "Nøklene oppbevares i operativsystemets nøkkelring. Appen lagrer ingen egen klartekstkopi." : app.keyring?.store === "session" ? "Nye nøkler beholdes bare i minnet til appen avsluttes. Se statusmeldingen for nøkkelringen." : "Kontrollerer nøkkelring og eventuell eldre nøkkellagring."}><span data-testid="key-storage-status">{app.keyring?.legacy ? "Eldre nøkkelfil finnes" : app.keyring?.store === "keyring" && !app.keyring.legacy ? "Systemnøkkelring" : app.keyring?.store === "session" ? "Kun denne økten" : "Venter på nøkkelringen"}</span></Row>
           <p class="provider-key-note">Nye nøkler lagres ikke i en klartekstfil av appen, og sendes aldri tilbake til grensesnittet.</p>
           <ModelDefaults active={props.active !== false && !connecting()} />

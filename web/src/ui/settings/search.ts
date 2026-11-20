@@ -110,7 +110,7 @@ export const ENTRIES: Entry[] = [
   { page: "browser", label: "Importer fra Chrome", words: "bokmerker historikk import chromium" },
   { page: "browser", label: "Informasjonskapsler", words: "cookies innlogget logg inn importer firefox chromium glem" }, // round 12
   { page: "browser", label: "Spør før agenter bruker innloggede nettsteder", words: "agent godkjenning cookies innlogget" }, // round 12
-  { page: "desktop", label: "Styr Linux-skrivebordet i bakgrunnen", words: "skrivebord computer use cua" },
+  { page: "providers", label: "Diktering", words: "mikrofon lyd tale til tekst transkripsjon whisper" },
   { page: "permissions", label: DEFAULT_PERMISSION_TITLE, words: "tillatelser spør godta redigeringer full tilgang godkjenning hjemmemappen" },
   { page: "permissions", label: "Prosjekter", words: "tillatelser per prosjekt" },
   { page: "archived", label: "Arkiverte tråder", words: "gjenopprett arkiv" },

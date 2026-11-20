@@ -40,7 +40,7 @@ flow("leverandør fra listen: nøkkel, hent modeller fra /models og kryss av", a
   }
 });
 
-flow("profil, global AGENTS.md, hurtigtaster og skrivebordskortet", async (h) => {
+flow("profil, global AGENTS.md og hurtigtaster uten skrivebordsplassholder", async (h) => {
   const { page } = h;
   await send(page, "hjelp");
   await page.locator(".pane-dot.running").waitFor({ state: "detached" }).catch(() => undefined);
@@ -69,8 +69,7 @@ flow("profil, global AGENTS.md, hurtigtaster og skrivebordskortet", async (h) =>
   await row.locator("kbd", { hasText: "Ctrl+Shift+Y" }).waitFor();
   assert.equal((await h.api("GET", "/api/bootstrap")).settings.shortcuts["thread.search"], "Mod+Shift+Y");
 
-  await page.getByRole("button", { name: "Skrivebordsstyring" }).click();
-  assert.equal(await page.getByTestId("cua-status").textContent(), "Ikke installert");
+  assert.equal(await page.getByRole("button", { name: "Skrivebordsstyring" }).count(), 0);
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
 
   await page.keyboard.press("Control+Shift+Y");

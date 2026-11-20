@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { approveUntil, flow, openProject, send, waitFor, openTool } from "./harness.ts";
 
-flow("Gjennomgå i Endringer, Agent Teams i Team-panelet, og spilltestkortet", async (h) => {
+flow("Gjennomgå i Endringer, Agent Teams i Team-panelet og nettlesermenyen", async (h) => {
   const { page } = h;
   const project = await openProject(h);
   await send(page, "lag en side");
@@ -29,8 +29,9 @@ flow("Gjennomgå i Endringer, Agent Teams i Team-panelet, og spilltestkortet", a
 
   await openTool(page, "Nettleser");
   await page.getByRole("button", { name: "Mer for nettleseren" }).click();
-  await page.locator(".browser-menu").getByRole("menuitem", { name: /Spilltesting headless/ }).click();
-  await page.getByRole("note", { name: "Spilltesting headless" }).locator(".demo-badge").waitFor();
+  await page.locator(".browser-menu").waitFor();
+  assert.equal(await page.getByRole("menuitem", { name: /Spilltesting headless/ }).count(), 0);
+  await page.keyboard.press("Escape");
 
   // Double-click on the edge gives the panel its standard width back.
   await page.locator(".panel-resize").dblclick();

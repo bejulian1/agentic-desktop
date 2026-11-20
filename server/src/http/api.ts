@@ -1,4 +1,6 @@
 import { BUILTIN_COMMANDS } from "../../../shared/slash-commands.ts";
+import { transcribe } from '../dictation.ts';
+import { Schedules } from '../schedules.ts';
 import type {UiMods} from "../ui-mods.ts";
 import type {ChatWorkspace} from '../chat-workspace.ts';
 // REST, as described in shared/protocol.ts.
@@ -184,9 +186,20 @@ export class Api {
   private artifacts: Artifacts;
   private folderPicker: NativeFolderPicker;
   private gitWorkspaces: GitWorkspace;
+  readonly schedules: Schedules;
 
   constructor(deps: ApiDeps) {
     this.deps = deps;
+    this.schedules = new Schedules(deps.store, item => {
+      const project = item.projectId ? this.project(item.projectId) : undefined;
+      if (project?.folderMissing) throw new HttpError(409, 'Prosjektmappen mangler.');
+      const thread = deps.store.createThread(item.projectId, project ? 'code' : 'chat', item.modelId, { title: item.name });
+      try {
+        deps.store.setScheduleNotice(thread.id, true);
+        deps.runner.send(thread.id, { text: item.prompt });
+      } catch (error) { deps.store.deleteThread(thread.id); throw error; }
+      deps.threadChanged(thread.id);
+    });
     this.gitWorkspaces = new GitWorkspace({ dataDir: deps.dataDir, env: deps.env, activeProjects: () => deps.store.projects().filter((project) => deps.store.projectThreads(project.id).some((thread) => thread.running)) });
     this.folderPicker = new NativeFolderPicker({ env: deps.env });
     this.artifacts = new Artifacts(deps.store, deps.preview, deps.publish);
@@ -194,6 +207,7 @@ export class Api {
   }
 
   async close(): Promise<void> {
+    this.schedules.close();
     this.folderPicker.close();
     await this.gitWorkspaces.close();
     this.deps.promptCompletion?.close();
@@ -381,6 +395,20 @@ export class Api {
 
   private registerRoutes(): void {
     const { store, runner, turns, terminals, playtest, secrets, security, dataDir, publish, threadChanged } = this.deps;
+    this.route('GET', '/api/schedules', () => this.schedules.list());
+    this.route('POST', '/api/schedules', ({ body }) => this.schedules.save(body));
+    this.route('PUT', '/api/schedules/:id', ({ body, params }) => this.schedules.save(body, params.id));
+    this.route('PATCH', '/api/schedules/:id', ({ body, params }) => this.schedules.pause(params.id, body.paused));
+    this.route('POST', '/api/schedules/:id/run', ({ params }) => this.schedules.run(params.id));
+    this.route('DELETE', '/api/schedules/:id', ({ params }) => this.schedules.remove(params.id));
+    this.route('POST', '/api/threads/:id/schedule-seen', ({ params }) => { const thread = this.thread(params.id); if (thread.scheduleNotice && !thread.running && thread.lastStatus) { store.setScheduleNotice(thread.id, false); threadChanged(thread.id); } });
+    this.route('POST', '/api/dictation', async ({ body, res }) => {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      res.once('close', abort);
+      try { return await transcribe(store, secrets, body, controller.signal); }
+      finally { res.off('close', abort); }
+    });
 
     this.route("POST", "/api/auth/exchange", ({ res, body }) => {
       if (!security.exchange(res, body.token)) throw new HttpError(401, "Ugyldig token");
@@ -926,6 +954,11 @@ export class Api {
 
     this.route("PATCH", "/api/settings", ({ body }) => {
       const patch: Partial<Settings> = {};
+      if (body.dictation !== undefined) {
+        const choice = body.dictation;
+        if (choice !== null && (typeof choice?.providerId !== 'string' || store.provider(choice.providerId)?.kind !== 'openai-compatible' || typeof choice.model !== 'string' || !choice.model.trim() || choice.model.length > 200)) throw new HttpError(400, 'Velg en kompatibel leverandør og en talemodell.');
+        patch.dictation = choice && { providerId: choice.providerId, model: choice.model.trim() };
+      }
       if (body.autoCompact !== undefined) {
         if (typeof body.autoCompact !== "boolean") throw new HttpError(400, "Komprimering må være av eller på");
         patch.autoCompact = body.autoCompact;

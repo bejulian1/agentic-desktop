@@ -37,12 +37,7 @@ flow("Kode-startsiden: hilsen uten prosjekt, prosjektkortet med miljø og GitHub
   const thread = await h.api("POST", "/api/threads", { projectId: project.id, mode: "code" });
   await h.api("PATCH", `/api/threads/${thread.id}`, { title: "Rydd i lagringen" });
   await card.getByRole("button", { name: /Rydd i lagringen/ }).waitFor();
-  // Velg miljø: Lokal, and worktrees as Demo.
-  await card.getByTestId("env-picker").click();
-  const env = page.getByRole("menu", { name: "Miljø" });
-  await env.getByRole("menuitemradio", { name: /Lokal/, checked: true }).waitFor();
-  await env.getByRole("menuitemradio", { name: /Worktree/ }).locator(".demo-badge").waitFor();
-  await page.keyboard.press("Escape");
+  await card.getByTestId("local-environment").waitFor();
   // GitHub: not connected, and a click opens the GitHub tab.
   await page.getByTestId("home-github").getByText("Koble til GitHub").click();
   await toolShown(page, "GitHub");

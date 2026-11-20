@@ -1,6 +1,4 @@
 // Innstillinger as a full page that replaces the window, like a desktop app's preferences. A menu
-// on the left with a search field and two groups (App, and Vert with a host picker that is a
-// placeholder), and the content in the middle: a title, and cards with one setting per row.
 // Generelt, Utseende, Personvern, Modeller and Leverandører live in ./settings/.
 import { createEffect, createMemo, createResource, createSignal, lazy, For, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
@@ -14,9 +12,8 @@ import { app, archiveThread, deleteThread, report, saveSettings, setSettingsOpen
 import { archiveScope, restoreMany, setArchiveScope } from "../state/archive";
 import { openThread } from "../state/navigate";
 import { confirmDialog, setInfoDialog } from "./dialogs";
-import { Popover } from "./Popover";
 import {
-  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconChevronDown, IconClose, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard, IconLaptop, IconMonitor,
+  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconClose, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard,
   IconBookmark, IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark, IconClock,
 } from "./icons";
 import { Group, Page, Row, SkeletonRows, type Icon } from "./settings/parts";
@@ -46,7 +43,7 @@ const PERMISSIONS: Array<{ id: PermissionMode; label: string; text: string; icon
   { id: "full", label: "Full tilgang", text: "Filendringer og kommandoer godkjennes automatisk. Beskyttede filer krever fortsatt godkjenning.", icon: IconShieldCheck },
 ];
 
-interface Section { id: string; label: string; icon: Icon; demo?: boolean; beta?: boolean }
+interface Section { id: string; label: string; icon: Icon; beta?: boolean }
 
 // Generelt is a gear and Utseende a palette: at 16 px a gear and a sun were two ray circles.
 const APP_SECTIONS: Section[] = [
@@ -70,16 +67,12 @@ const HOST_SECTIONS: Section[] = [
   { id: "mcp", label: "MCP-servere", icon: IconServer },
   { id: "shortcuts", label: "Hurtigtaster", icon: IconKeyboard },
   { id: "browser", label: "Nettleser", icon: IconGlobe },
-  { id: "desktop", label: "Skrivebordsstyring", icon: IconMonitor },
   { id: "permissions", label: "Tillatelser", icon: IconShield },
   { id: "archived", label: "Arkiverte tråder", icon: IconArchive },
   { id: "about", label: "Om", icon: IconInfo },
 ];
 
-// Pages that only say what is coming: together at the bottom, quieter, under «Kommer senere».
-const LATER_SECTIONS: Section[] = [];
-
-const ALL_SECTIONS = [...APP_SECTIONS, ...HOST_SECTIONS, ...LATER_SECTIONS];
+const ALL_SECTIONS = [...APP_SECTIONS, ...HOST_SECTIONS];
 const sectionLabel = (id: string) => ALL_SECTIONS.find((s) => s.id === id)?.label ?? id;
 
 const Git = (props: {}) => <Suspense><GitSettingsPage {...props} /></Suspense>;
@@ -111,32 +104,6 @@ function Browser() {
           <button type="button" class="btn btn-small" onClick={openChromeImport}>Importer…</button>
         </Row>
       </Group>
-      <Group title="Spilltesting headless">
-        <Row label="Spill og større programmer" demo text="Skal kunne teste spill uten vindu, for eksempel en headless Minecraft med Sodium. Ingenting lastes ned eller startes." />
-      </Group>
-    </Page>
-  );
-}
-
-// SPEC 13.2, round 4: a card only. Nothing is downloaded, installed or run.
-function Desktop() {
-  return (
-    <Page title="Skrivebordsstyring">
-      <div class="settings-card demo-card">
-        <div class="setting">
-          <IconMonitor size={16} />
-          <div class="setting-text"><strong>Styr Linux-skrivebordet i bakgrunnen <span class="demo-badge">Demo</span></strong>
-            <span class="muted">Med et verktøy som <code>cua-driver</code> kan modellen bruke programmer på skrivebordet uten å ta over musepekeren din, så du kan jobbe videre mens den gjør oppgaver.</span>
-          </div>
-          <div class="setting-control"><span class="pill" data-testid="cua-status">Ikke installert</span></div>
-        </div>
-        <ul class="demo-list">
-          <li>Skal kjøre i en egen, usynlig skjermøkt, ikke på skjermen du bruker.</li>
-          <li>Hver handling går gjennom de vanlige tillatelsene.</li>
-          <li>Ingenting lastes ned, installeres eller kjøres i denne versjonen.</li>
-        </ul>
-        <div class="demo-actions"><button type="button" class="btn btn-small" disabled title="Kommer senere">Installer</button></div>
-      </div>
     </Page>
   );
 }
@@ -334,34 +301,11 @@ const VIEWS: Record<string, (props: { target?: string | null }) => JSX.Element> 
   mcp: Mcp,
   hooks: HooksPage,
   browser: Browser,
-  desktop: Desktop,
   permissions: Permissions,
   worktrees: Git,
   archived: Archived,
   about: About,
 };
-
-function HostPicker() {
-  const [open, setOpen] = createSignal(false);
-  return (
-    <Popover
-      open={open()}
-      onClose={() => setOpen(false)}
-      align="right"
-      below
-      trigger={
-        <button type="button" class="host-picker" aria-label="Vert: Lokal" title="Hvilken maskin innstillingene under gjelder" onClick={() => setOpen(!open())}>
-          <IconLaptop size={14} /><span>Lokal</span><IconChevronDown size={12} />
-        </button>
-      }
-    >
-      <div class="menu-list">
-        <button type="button" class="menu-item" onClick={() => setOpen(false)}><IconLaptop size={14} /><span class="menu-name">Lokal (denne maskinen)</span><IconCheck size={13} /></button>
-        <button type="button" class="menu-item" disabled title="Kommer senere"><IconServer size={14} /><span class="menu-name">Legg til vert…</span><span class="demo-badge">Demo</span></button>
-      </div>
-    </Popover>
-  );
-}
 
 function SearchResults(props: { query: string; open: (page: string, label: string) => void }) {
   const hits = createMemo(() => search(props.query, sectionLabel));
@@ -496,14 +440,12 @@ export default function Settings() {
         <div class="settings-nav-pages">
         <Show when={APP_SECTIONS.some(visible)}><div class="settings-nav-label">App</div></Show>
         <For each={APP_SECTIONS}>{NavItem}</For>
-        <Show when={HOST_SECTIONS.some(visible)}><div class="settings-nav-label settings-host"><span>Vert</span><HostPicker /></div></Show>
+        <Show when={HOST_SECTIONS.some(visible)}><div class="settings-nav-label settings-host"><span>Vert · Lokal</span></div></Show>
         <For each={HOST_SECTIONS}>{NavItem}</For>
         {/* Not a page: opens the whole version history in a window over Innstillinger. */}
         <Show when={!searching()}>
           <button type="button" class="nav-item" data-testid="settings-releases" aria-haspopup="dialog" onClick={() => setInfoDialog("releases")}><IconClock size={16} /><span>Versjonslogg</span></button>
         </Show>
-        <Show when={LATER_SECTIONS.some(visible)}><div class="settings-nav-label settings-later">Kommer senere</div></Show>
-        <For each={LATER_SECTIONS}>{(item) => <Show when={visible(item)}><button type="button" class="nav-item nav-later" aria-current={!searching() && section() === item.id ? "page" : undefined} title="Bare en beskrivelse i denne versjonen" onClick={() => open(item.id)}><item.icon size={16} /><span>{item.label}</span></button></Show>}</For>
         </div>
         {/* The version lives here and in Om, not in the sidebar (SPEC 21.6). */}
         <Show when={app.build}>

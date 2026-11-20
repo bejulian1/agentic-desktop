@@ -1,6 +1,7 @@
 // SQLite storage. Everything sync and in one place, so a read and a subscribe can happen in the
 // same tick. `events` is what the UI replays; `messages` is what the model sees and can be
 // rewritten by compaction.
+import type { Schedule } from '../../shared/schedules.ts';
 import { randomUUID } from "node:crypto";
 import { chmodSync, statSync } from "node:fs";
 import path from "node:path";
@@ -258,6 +259,7 @@ export class Store {
 
   // Columns added after the first release. ADD COLUMN is cheap and keeps old databases working.
   private migrate(): void {
+    this.db.exec(`CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id) ON DELETE CASCADE, model_id TEXT NOT NULL REFERENCES models(id) ON DELETE CASCADE, data TEXT NOT NULL)`);
     const columns = (table: string) => new Set((this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name));
     const add = (table: string, column: string, type: string) => {
       if (!columns(table).has(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
@@ -265,6 +267,7 @@ export class Store {
     add("turn_files", "after_captured", "INTEGER NOT NULL DEFAULT 0");
     add("turn_files", "interleaved", "INTEGER NOT NULL DEFAULT 0");
     add("threads", "goal", "TEXT");
+    add('threads', 'schedule_notice', 'INTEGER NOT NULL DEFAULT 0');
     add("threads", "goal_set_at", "INTEGER");
     add("threads", "goal_resumed_at", "INTEGER");
     add("threads", "goal_paused_at", "INTEGER");
@@ -327,6 +330,16 @@ export class Store {
   }
 
   // Settings
+  schedules(): Schedule[] {
+    return this.q('SELECT data FROM schedules ORDER BY rowid').all().map(row => JSON.parse(String(row.data)));
+  }
+
+  saveSchedule(item: Schedule) {
+    this.q('INSERT INTO schedules (id, project_id, model_id, data) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id, model_id=excluded.model_id, data=excluded.data').run(item.id, item.projectId, item.modelId, JSON.stringify(item));
+  }
+
+  deleteSchedule(id: string) { this.q('DELETE FROM schedules WHERE id=?').run(id); }
+  setScheduleNotice(id: string, unread: boolean) { this.q('UPDATE threads SET schedule_notice=? WHERE id=?').run(Number(unread), id); }
 
   private storedSettings(): Settings {
     const row = this.q("SELECT value FROM meta WHERE key = 'settings'").get() as { value: string } | undefined;
@@ -581,6 +594,7 @@ export class Store {
   // Threads
 
   private toThread = (row: any): Thread => ({
+    ...(row.schedule_notice ? { scheduleNotice: true } : {}),
     id: row.id,
     projectId: row.project_id,
     mode: row.mode,

@@ -27,6 +27,8 @@ Commits fra dette arbeidet har en `Co-Authored-By`-linje til Claude.
 
 ## Codex – OpenAI
 
+GPT 6.2 Astra implementerte diktering med valgt taleleverandør og planlagte Chat- og Kode-tråder, og fjernet uvirksomme betjeningselementer.
+
 Videreutviklingen fra v0.11.0 til v0.24.0, samt v0.24.2 og v0.24.3, er gjort med Codex, blant annet med GPT 6.1 Sol og underagenter: Chat-/Kode-flyt, harness og kontekst, skills, meldingsfelt, sidepanel, annotering, Git-grener/arbeidstrær, gjennomgang og feilrettinger. Codex har også hjulpet med dokumentasjon, skjermbilder, bygg og publisering til GitHub.
 
 Codex med GPT 6.2 Sol samlet slash-kommandoene i en søkbar guide og integrerte dem i Chat og Kode. GPT 6.2 Astra-underagenter implementerte samtale- og prosjektkommandoer og gjennomgikk tastaturbruk, rutevalg og samtidige endringer.

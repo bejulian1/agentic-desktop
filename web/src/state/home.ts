@@ -3,7 +3,7 @@
 // opened, never on a timer, so the app does no work while it is idle.
 import { createMemo, createSignal, untrack } from "solid-js";
 import type { GitInfo, HomeStats, StatsRange, Thread } from "../../../shared/protocol";
-import { get } from "../lib/api";
+import { get, post } from "../lib/api";
 import { on } from "../lib/socket";
 import { app } from "./app";
 
@@ -72,7 +72,9 @@ function loadUnread(): string[] {
 }
 const [manualUnread, setManualUnread] = createSignal<string[]>(loadUnread());
 const [completed, setCompleted] = createSignal<string[]>([]);
-export const finished = createMemo(() => [...new Set([...manualUnread(), ...completed()])]);
+const [notificationsReady, setNotificationsReady] = createSignal(false);
+const scheduled = createMemo(() => notificationsReady() ? Object.values(app.threads).filter(thread => thread?.scheduleNotice && !thread.running && thread.lastStatus).map(thread => thread!.id) : []);
+export const finished = createMemo(() => [...new Set([...manualUnread(), ...completed(), ...scheduled()])]);
 function saveUnread(ids: string[]): void {
   setManualUnread(ids);
   try { localStorage.setItem(UNREAD_KEY, JSON.stringify(ids)); } catch { /* The current window still works if browser storage is unavailable. */ }
@@ -90,6 +92,7 @@ export function setVisibleCheck(check: (id: string) => boolean): void {
 
 export function markSeen(threadId: string | null, explicit = false): void {
   if (!threadId) return;
+  if (untrack(scheduled).includes(threadId)) void post(`/api/threads/${threadId}/schedule-seen`).catch(() => undefined);
   const automatic = untrack(completed);
   if (automatic.includes(threadId)) setCompleted(automatic.filter((id) => id !== threadId));
   // App's automatic visibility effect must not erase a deliberate mark on the active thread.
@@ -98,11 +101,13 @@ export function markSeen(threadId: string | null, explicit = false): void {
 }
 
 export function clearFinished(): void {
+  for (const id of scheduled()) markSeen(id);
   setCompleted([]);
   saveUnread([]);
 }
 
 export function wireNotifications(): void {
+  setNotificationsReady(true);
   on("git.changed", ({ projectId }) => loadGitInfo(projectId, true));
   for (const thread of Object.values(app.threads)) if (thread) wasRunning.set(thread.id, thread.running);
   on("thread.changed", ({ thread }: { thread: Thread }) => {

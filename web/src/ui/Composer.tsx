@@ -1,5 +1,6 @@
 // The message field. The textarea is uncontrolled, so typing costs what typing costs in a plain
 // textarea: nothing reactive runs on a keystroke unless the word under the caret starts with / or @.
+import { Dictation } from './Dictation';
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
@@ -17,7 +18,7 @@ import { revertLastTurn, startPlaytest, stopPlaytest, openVscode } from "../stat
 import { formatCost, formatTokens } from "../lib/format";
 import {
   IconFile, IconFolder, IconBranch, IconSend, IconStop, IconCode, IconSpark, IconClose, IconTerminal, IconChevronDown, IconCheck, IconList, IconPlus,
-  IconLaptop, IconMic, IconBolt, IconSearch, IconImage, IconReset, IconBack, IconSliders,
+  IconLaptop, IconBolt, IconSearch, IconImage, IconReset, IconBack, IconSliders,
   IconNewThread, IconBrain, IconInfo, IconTarget, IconBook, IconArchive, IconHelp, IconChat, IconPlay, IconUndo, IconEye, IconUsers, IconSplitRight,
   IconMonitor, IconChevron, IconWarn, IconDots, IconPencil, IconTrash,
 } from "./icons";
@@ -68,7 +69,6 @@ interface Picker {
 
 interface InfoCard {
   title: string;
-  demo?: boolean;
   link?: { url: string; label: string };
   rows?: Array<[string, string]>;
   text?: string;
@@ -169,7 +169,6 @@ function readBase64(file: File): Promise<string> {
 }
 
 const LOCAL_TEXT = "Appen og verktøyene kjører på denne maskinen: i prosjektmappen når du har valgt en, ellers i hjemmemappen din, der agenten kan lese filer og kjøre kommandoer med de vanlige godkjenningene. Modellforespørsler går til den valgte leverandøren eller endepunktet. Du kan ikke velge en annen vert over SSH eller i skyen ennå.";
-const MIC_TEXT = "Skal la deg snakke inn meldingen. Ingen lyd tas opp i denne versjonen, og mikrofonen brukes ikke.";
 
 // The picker opened from somewhere without a field of its own (Vis alle prosjekter on the start page).
 export const NO_PROJECT_KEY = "no-project";
@@ -2465,7 +2464,7 @@ export function Composer(props: {
             />
           </Popover>
           <ContextRing threadId={props.threadId} modelId={modelId} projectId={props.projectId} />
-          <button type="button" class="foot-icon hide-tight" title="Diktering: snakk inn meldingen (Demo)" aria-label="Diktering" onClick={() => setInfo({ title: "Diktering", demo: true, text: MIC_TEXT })}><IconMic size={16} /></button>
+          <Dictation draft={draftKey()} disabled={locked()} error={text => setInfo({ title: 'Diktering', text })} insert={text => { textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end'); onInput(); textarea.focus(); }} />
           <Show when={running()}>
             <button type="button" class="send-button stop" title="Stopp kjøringen" aria-label="Stopp" onClick={stop}><IconStop size={14} /></button>
           </Show>
@@ -2512,7 +2511,7 @@ export function Composer(props: {
         {(card) => (
           <div class="help-card info-card" role="dialog" aria-label={card.title} data-testid="info-card">
             <div class="help-head">
-              <strong>{card.title}<Show when={card.demo}> <span class="demo-badge">Demo</span></Show></strong>
+              <strong>{card.title}</strong>
               <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setInfo(null)}><IconClose size={14} /></button>
             </div>
             <Show when={card.link}>{link => (

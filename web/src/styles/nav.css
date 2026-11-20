@@ -11,7 +11,6 @@
 .context-menu .menu-item > .icon:first-child { flex: none; color: var(--text-2); }
 .context-menu .menu-item.danger > .icon:first-child { color: var(--danger); }
 .context-menu .menu-keys { margin-left: auto; }
-.context-menu .demo-badge { margin-left: auto; }
 .context-chevron { display: inline-flex; margin-left: auto; color: var(--text-3); }
 .context-heading { padding: 6px var(--space-2) 4px; }
 .profile-menu-head { display: flex; align-items: center; gap: 10px; min-width: 0; }

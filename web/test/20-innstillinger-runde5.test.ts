@@ -27,7 +27,7 @@ flow("søk i innstillinger filtrerer sider og rader, og bryterne for samtalen la
   const search = page.getByLabel("Søk i innstillinger");
 
   // Every page from before is still there, and has a title.
-  for (const label of ["Generelt", "Utseende", "Modeller og leverandører", "Git", "Bruk", "Lagring", "Personvern og data", "Konfigurasjon", "Personalisering og minner", "Hurtigtaster", "MCP-servere", "Hooks", "Nettleser", "Skrivebordsstyring", "Tillatelser", "Arkiverte tråder", "Om"]) {
+  for (const label of ["Generelt", "Utseende", "Modeller og leverandører", "Git", "Bruk", "Lagring", "Personvern og data", "Konfigurasjon", "Personalisering og minner", "Hurtigtaster", "MCP-servere", "Hooks", "Nettleser", "Tillatelser", "Arkiverte tråder", "Om"]) {
     await nav.getByRole("button", { name: label, exact: true }).click();
     await page.locator(".settings-title:visible", { hasText: label }).waitFor();
   }

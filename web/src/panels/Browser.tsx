@@ -28,7 +28,7 @@ import { servers } from "../state/servers";
 import { artifacts } from "../state/artifacts";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "../ui/ContextMenu";
 import { confirmDialog } from "../ui/dialogs";
-import { IconArtifact, IconBack, IconBookmark, IconChevron, IconClose, IconDiff, IconDots, IconDownload, IconFile, IconForward, IconGamepad, IconGlobe, IconPlus, IconPlusCircle, IconReload, IconSearch, IconTerminal, IconTrash } from "../ui/icons";
+import { IconArtifact, IconBack, IconBookmark, IconChevron, IconClose, IconDiff, IconDots, IconDownload, IconFile, IconForward, IconGlobe, IconPlus, IconPlusCircle, IconReload, IconSearch, IconTerminal, IconTrash } from "../ui/icons";
 import { IconExitFullView, IconExternal, IconFullView, IconHistory, IconImage } from "../ui/nav-icons";
 import { ProjectGlyph } from "../ui/ProjectGlyph";
 import { DownloadsList } from "../ui/DownloadsList";
@@ -634,7 +634,6 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     if (playtest?.status === "running" && closed()) open();
   });
 
-  const [gameCard, setGameCard] = createSignal(false);
 
   const go = (url: string) => {
     setEditing(false);
@@ -761,7 +760,6 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       ),
     },
     { label: "Ta et skjermbilde", icon: IconImage, run: screenshot, disabled: !hasPage() || blank() },
-    { label: "Spilltesting headless", icon: IconGamepad, demo: true, run: () => setGameCard(!gameCard()), title: "Hva spilltesting uten vindu skal bli" },
     "sep",
     { label: "Historikk", icon: IconHistory, children: historyEntries() },
     {
@@ -1049,20 +1047,6 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           <button type="button" class="icon-button" aria-label="Neste treff" onClick={() => find(false)}><span class="rot-down"><IconChevron size={13} /></span></button>
           <button type="button" class="icon-button" aria-label="Lukk søket på siden" onClick={() => setFinding(false)}><IconClose size={13} /></button>
         </form>
-      </Show>
-      <Show when={gameCard()}>
-        <div class="game-card" role="note" aria-label="Spilltesting headless">
-          <div class="card-head">
-            <strong>Spilltesting headless <span class="demo-badge">Demo</span></strong>
-            <button type="button" class="icon-button" aria-label="Lukk kortet" onClick={() => setGameCard(false)}><IconClose size={13} /></button>
-          </div>
-          <p class="muted">Nettleserpanelet tester nettsider og webapper. Det samme skal kunne gjøres med spill og skrivebordsprogrammer uten vindu, for eksempel en headless Minecraft-klient med Sodium, der modellen styrer spillet, leser skjermbildet og ser i loggen.</p>
-          <ul class="demo-list">
-            <li>Kjøres i en egen, usynlig skjerm, aldri på skrivebordet ditt.</li>
-            <li>Skjermbilder og logg vises her, som for nettsider.</li>
-            <li>Ingenting lastes ned eller startes i denne versjonen.</li>
-          </ul>
-        </div>
       </Show>
       <div class="browser-stage" ref={stage}>
         <Show when={showDownloads()}><DownloadsList onClose={() => setShowDownloads(false)} /></Show>

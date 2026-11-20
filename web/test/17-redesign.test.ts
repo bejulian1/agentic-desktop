@@ -92,12 +92,20 @@ flow("Skills og Planlagt i sidefanen, og Innstillinger som fullside med arkivert
   await skills.locator(".skills-library-item", { hasText: "hils" }).click();
   await waitFor(async () => (await skills.getByLabel("Skill-instruksjoner").inputValue()).includes("Si hei."), "prosjektets skill åpnes i arbeidsområdet");
   await skills.getByRole("button", { name: "Tilbake fra Skills" }).click();
-  // Planlagt is not in the sidebar until it works (round 8); the palette still has it.
   assert.equal(await page.locator(".sidebar-nav").getByRole("button", { name: /Planlagt/ }).count(), 0);
   await page.keyboard.press("Control+K");
   await page.keyboard.type("planlagte");
   await page.getByRole("dialog", { name: "Kommandopalett" }).getByRole("option", { name: /Planlagte oppgaver/ }).click();
-  await page.getByRole("dialog", { name: "Planlagt" }).locator(".demo-badge").waitFor();
+  const scheduled = page.getByRole("dialog", { name: "Planlagt" });
+  await scheduled.getByRole("button", { name: "Ny oppgave" }).click();
+  await scheduled.getByLabel("Navn").fill("Ukentlig oppsummering");
+  await scheduled.getByLabel("Melding").fill("Oppsummer uken");
+  await scheduled.getByLabel("Gjenta").selectOption("weekly");
+  await scheduled.getByLabel("fredag").check();
+  await scheduled.getByRole("button", { name: "Lagre oppgave" }).click();
+  await scheduled.getByText(/mandag, fredag kl/).waitFor();
+  await scheduled.getByRole("button", { name: "Pause" }).click();
+  await scheduled.getByText(/Neste: pauset/).waitFor();
   await page.keyboard.press("Escape");
 
   // Settings cover the whole window, with both groups, and Esc goes back.
@@ -106,7 +114,7 @@ flow("Skills og Planlagt i sidefanen, og Innstillinger som fullside med arkivert
   const box = (await settings.boundingBox())!;
   const viewport = page.viewportSize()!;
   assert.deepEqual([box.x, box.y, box.width, box.height], [0, 0, viewport.width, viewport.height], "hele vinduet");
-  for (const name of ["Generelt", "Utseende", "Modeller og leverandører", "Git", "Bruk", "Konfigurasjon", "Personalisering og minner", "Hurtigtaster", "MCP-servere", "Hooks", "Nettleser", "Skrivebordsstyring", "Tillatelser", "Arkiverte tråder", "Om"]) {
+  for (const name of ["Generelt", "Utseende", "Modeller og leverandører", "Git", "Bruk", "Konfigurasjon", "Personalisering og minner", "Hurtigtaster", "MCP-servere", "Hooks", "Nettleser", "Tillatelser", "Arkiverte tråder", "Om"]) {
     await settings.getByRole("button", { name, exact: true }).click();
     await settings.locator(".settings-title", { hasText: name }).waitFor();
   }

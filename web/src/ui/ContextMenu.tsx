@@ -19,7 +19,6 @@ export type MenuEntry =
       checked?: boolean; // one of a set, like a filter: a menuitemradio with a check
       chosen?: boolean; // the current choice in a submenu (menuitemradio), shown with a check too
       toggle?: boolean; // on or off (menuitemcheckbox), with a check at the end when on
-      demo?: boolean;
       title?: string;
       children?: MenuEntry[];
     }
@@ -138,7 +137,6 @@ function Level(props: { entries: MenuEntry[]; anchor: MenuAnchor; label: string;
                 <Show when={entry.icon} fallback={<Show when={entry.checked !== undefined}><span class="menu-check">{entry.checked ? <IconCheck size={14} /> : null}</span></Show>}>{(Icon) => Icon()({ size: 15 })}</Show>
                 <span class="menu-name">{entry.label}</span>
                 <Show when={entry.chosen || entry.toggle}><span class="menu-check menu-check-end"><IconCheck size={14} /></span></Show>
-                <Show when={entry.demo}><span class="demo-badge">Demo</span></Show>
                 <Show when={keys()}><kbd class="menu-keys">{keys()}</kbd></Show>
                 <Show when={entry.children}><span class="context-chevron"><IconChevron size={12} /></span></Show>
               </button>

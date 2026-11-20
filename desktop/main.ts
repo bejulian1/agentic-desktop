@@ -632,8 +632,15 @@ const PERMISSIONS = new Set(["clipboard-sanitized-write", "clipboard-read", "not
 
 function lockDownSession(): void {
   const ses = session.defaultSession;
-  ses.setPermissionRequestHandler((_contents, permission, callback, details) => callback(PERMISSIONS.has(permission) && isUi(details.requestingUrl)));
-  ses.setPermissionCheckHandler((_contents, permission, origin) => PERMISSIONS.has(permission) && isUi(origin));
+  ses.setPermissionRequestHandler((contents, permission, callback, details) => {
+    const microphone = permission === "media" && details.isMainFrame && isUi(contents.getURL()) &&
+      "mediaTypes" in details && details.mediaTypes?.length === 1 && details.mediaTypes[0] === "audio";
+    callback(isUi(details.requestingUrl) && (PERMISSIONS.has(permission) || microphone));
+  });
+  ses.setPermissionCheckHandler((contents, permission, origin, details) => {
+    const microphone = permission === "media" && details.isMainFrame && !!contents && isUi(contents.getURL()) && details.mediaType === "audio";
+    return isUi(origin) && (PERMISSIONS.has(permission) || microphone);
+  });
   ses.setDevicePermissionHandler(() => false);
   ses.setDisplayMediaRequestHandler((_request, callback) => callback({}));
 

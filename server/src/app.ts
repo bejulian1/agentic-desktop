@@ -391,6 +391,7 @@ async function startAppWithClaim(
 
   // After listen, so a second server on a busy port cannot touch the first one's runs.
   runner.recover();
+  api.schedules.tick();
   // In the background: a slow or broken MCP server never holds up the start.
   mcp.start();
   security.writeTokenFile();

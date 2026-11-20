@@ -227,7 +227,7 @@ button.setting.search-result:hover { background: var(--hover); }
   .memory-row, .skill-row { flex-wrap: wrap; }
 }
 
-/* Round 8 (UI fixes): the app's own select, choice rows, «Kommer senere», Bruk, and small things */
+/* Round 8 (UI fixes): the app's own select, choice rows, Bruk, and small things */
 
 /* Select: a button with the value and a chevron (ui/Select.tsx). */
 .select-button { justify-content: space-between; gap: 8px; min-width: 120px; max-width: 280px; font-weight: var(--weight-regular); }
@@ -247,9 +247,6 @@ button.setting.search-result:hover { background: var(--hover); }
 .choice-row[aria-checked="true"] .choice-icon { color: var(--accent-text); }
 
 /* Pages that only describe what is coming: quieter, together at the bottom of the menu. */
-.settings-nav .nav-later { color: var(--text-3); }
-.settings-nav .nav-later .icon { opacity: 0.7; }
-.settings-nav .nav-later[aria-current="page"] { color: var(--text-2); }
 
 /* Generelt: Prøv is a small button of its own, apart from the switch. */
 .try-sound { gap: 4px; padding: 0 8px; }
@@ -292,7 +289,6 @@ button.setting.search-result:hover { background: var(--hover); }
   .settings-page .settings-nav-pages .nav-item { flex: none; width: auto; height: 30px; padding: 0 10px; }
   .settings-page .settings-nav-label { flex: none; width: auto; margin: 0 2px 0 10px; height: 30px; padding: 0 4px; font-size: var(--text-xs); }
   .settings-page .settings-nav-pages > .settings-nav-label:first-child { margin-left: 2px; }
-  .settings-page .settings-host .host-picker { display: none; }
 }
 
 /* Round 9 */

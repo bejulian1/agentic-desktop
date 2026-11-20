@@ -1,3 +1,4 @@
+import { Scheduled } from './Scheduled';
 import { createResource, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { ApiError, get, post } from "../lib/api";
 import { desktop } from "../lib/desktop";
@@ -169,14 +170,6 @@ function SkillList() {
   );
 }
 
-function Scheduled() {
-  return (
-    <div class="info-lead">
-      <p><span class="demo-badge">Demo</span> Planlagte oppgaver skal starte en tråd til faste tider, for eksempel en daglig gjennomgang av endringene i et prosjekt eller en ukentlig opprydding.</p>
-      <p class="muted">Ingenting er planlagt, og appen starter ingenting av seg selv i denne versjonen. Den gjør ikke noe arbeid når den står i ro.</p>
-    </div>
-  );
-}
 
 // Hva er nytt: the newest entries of the patch log, as plain text with `code` kept.
 function Inline(props: { text: string }) {

@@ -30,10 +30,8 @@
 .toasts { top: calc(var(--topbar-h) + var(--space-2) + var(--toasts-down, 0px)); }
 
 /* D3. The message field's bottom row: Innsats keeps its whole word, and the model's name gives way
-   first. Dictation (a demo) goes before anything is cut, and in a narrow pane «Velg innsats» is
-   «Innsats». */
+   first. */
 .composer-foot .popover-anchor.effort-anchor { flex: none; }
-@container (max-width: 680px) { .composer-foot .hide-tight { display: none; } }
 @container (max-width: 520px) {
   .effort-chip-verb { display: none; }
   .effort-chip-noun { text-transform: capitalize; }

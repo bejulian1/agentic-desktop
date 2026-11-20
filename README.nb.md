@@ -310,6 +310,8 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
 GPT 6.2 Sol og GPT 6.2 Astra bidro også med leverandørkatalogen, API-kompatibilitet, oppsett og anbefalinger for lokale modellservere.
 
+GPT 6.2 Astra implementerte [diktering](docs/diktering.md) og [planlagte oppgaver](docs/planlagte-oppgaver.md) og fjernet uvirksomme betjeningselementer.
+
 Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic, OpenAI eller Google.
 
 Agentic Desktop er lisensiert under [MIT-lisensen](LICENSE).

@@ -26,10 +26,10 @@ export function SkeletonRows(props: { label: string; count?: number }) {
   );
 }
 
-export function Page(props: { title: string; demo?: boolean; intro?: JSX.Element; children: JSX.Element; class?: string }) {
+export function Page(props: { title: string; intro?: JSX.Element; children: JSX.Element; class?: string }) {
   return (
     <section class={`settings-section ${props.class ?? ""}`}>
-      <h1 class="settings-title">{props.title}<Show when={props.demo}> <span class="demo-badge">Demo</span></Show></h1>
+      <h1 class="settings-title">{props.title}</h1>
       <Show when={props.intro}><p class="settings-intro">{props.intro}</p></Show>
       {props.children}
     </section>
@@ -47,12 +47,12 @@ export function Group(props: { title?: string; action?: JSX.Element; children: J
   );
 }
 
-export function Row(props: { label: JSX.Element; text?: JSX.Element; icon?: Icon; demo?: boolean; badge?: JSX.Element; children?: JSX.Element; as?: "label"; class?: string }) {
+export function Row(props: { label: JSX.Element; text?: JSX.Element; icon?: Icon; badge?: JSX.Element; children?: JSX.Element; as?: "label"; class?: string }) {
   const body = (
     <>
       <Show when={props.icon}>{props.icon!({ size: 16 })}</Show>
       <div class="setting-text">
-        <strong>{props.label}<Show when={props.demo}> <span class="demo-badge">Demo</span></Show>{props.badge}</strong>
+        <strong>{props.label}{props.badge}</strong>
         <Show when={props.text}><span class="muted">{props.text}</span></Show>
       </div>
       <div class="setting-control">{props.children}</div>
@@ -61,16 +61,12 @@ export function Row(props: { label: JSX.Element; text?: JSX.Element; icon?: Icon
   return props.as === "label" ? <label class={`setting ${props.class ?? ""}`}>{body}</label> : <div class={`setting ${props.class ?? ""}`}>{body}</div>;
 }
 
-export function Toggle(props: { label: string; text: string; checked: boolean; onChange: (value: boolean) => void; demo?: boolean; icon?: Icon }) {
+export function Toggle(props: { label: string; text: string; checked: boolean; onChange: (value: boolean) => void; icon?: Icon }) {
   return (
-    <Row as="label" label={props.label} text={props.text} demo={props.demo} icon={props.icon}>
+    <Row as="label" label={props.label} text={props.text} icon={props.icon}>
       <input type="checkbox" role="switch" class="switch" checked={props.checked} onChange={(e) => props.onChange(e.currentTarget.checked)} />
     </Row>
   );
-}
-
-export function DemoNote(props: { children: JSX.Element }) {
-  return <div class="settings-card demo-card"><p class="demo-text">{props.children}</p></div>;
 }
 
 export function BetaBadge(props: { title?: string }) {
