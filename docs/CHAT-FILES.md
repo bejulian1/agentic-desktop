@@ -11,7 +11,7 @@ Chat har egne verktøy for nedlastbare filer. De endrer ikke filer i Kode-prosje
 
 ![Fil-skills i Chat](bilder/chat-document-skills.png)
 
-Fire innebygde skills støtter både Chat og Kode: `/excel`, `/word`, `/powerpoint` og `/data-files` (Markdown, tekst, CSV og JSON). Du kan velge dem med `/` eller `$`, eller be om en fil på vanlig språk. Modellen får navn og beskrivelse og bes om å laste relevant `SKILL.md` med `use_skill` før den lager filen. Bare den relevante instruksjonen lastes, ikke alle fire.
+Fire innebygde fil-skills støtter både Chat og Kode: `/excel`, `/word`, `/powerpoint` og `/data-files` (Markdown, tekst, CSV og JSON). Du kan velge dem med `/` eller `$`, eller be om en fil på vanlig språk. Modellen får navn og beskrivelse og bes om å laste relevant `SKILL.md` med `use_skill` før den lager filen. Bare den relevante instruksjonen lastes, ikke alle fire.
 
 Skillene veileder om struktur, datatyper, formler og kontroll. De følger de faktiske verktøyene: Chat bruker dokumentgeneratoren, mens Kode kan bruke tilgjengelige biblioteker i det valgte prosjektet. Chat-prosjekter kan bruke de innebygde skillene uten å få globale bruker-skills eller Kode-instruksjoner. «Lag filer» og «Python-analyse» må fortsatt være aktivert for å bruke de respektive verktøyene.
 

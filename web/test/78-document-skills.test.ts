@@ -1,19 +1,33 @@
 import assert from "node:assert/strict";
 import { flow, openProject, waitFor } from "./harness.ts";
 
-flow("Fil-skills vises i Chat og Kode, med bare Chat-vennlige skills i Chat", async (h) => {
+flow("Innebygde skills vises for riktig modus og CI-skillen kan sendes fra Kode", async (h) => {
   const { page } = h;
   const field = page.getByLabel("Melding", { exact: true });
   await field.fill("$");
   const menu = page.getByTestId("composer-menu");
-  for (const name of ["excel", "word", "powerpoint", "data-files"]) await menu.getByText(`$${name}`, { exact: true }).waitFor();
-  assert.equal(await menu.getByText("$debug", { exact: true }).count(), 0);
+  for (const name of ["excel", "word", "powerpoint", "data-files", "action-items", "analyze-data", "source-brief"]) {
+    await menu.getByText(`$${name}`, { exact: true }).waitFor();
+  }
+  for (const name of ["debug", "benchmark", "ci-triage"]) {
+    assert.equal(await menu.getByText(`$${name}`, { exact: true }).count(), 0);
+  }
   if (process.env.AD_DOCUMENT_SKILLS_SCREENSHOT) await page.screenshot({ path: process.env.AD_DOCUMENT_SKILLS_SCREENSHOT });
   await page.keyboard.press("Escape");
   await field.fill("");
   await openProject(h, "Dokumentprosjekt");
-  await page.getByLabel("Melding", { exact: true }).fill("$excel");
+  const code = page.getByLabel("Melding", { exact: true });
+  await code.fill("$excel");
   await menu.getByText("$excel", { exact: true }).waitFor();
+  await code.fill("$benchmark");
+  await menu.getByText("$benchmark", { exact: true }).waitFor();
+  await code.fill("$ci-triage");
+  await menu.getByText("$ci-triage", { exact: true }).click();
+  await page.locator(".chip-skill", { hasText: "/ci-triage" }).waitFor();
+  const sent = page.waitForRequest((request) => request.method() === "POST" && /\/api\/threads\/[^/]+\/messages$/.test(request.url()));
+  await code.fill("Undersøk loggen for testjobben.");
+  await code.press("Enter");
+  assert.equal((await sent).postDataJSON().skill, "ci-triage");
 });
 
 flow("Chat-prosjekt kan velge innebygd fil-skill som brikke og sende den", async (h) => {

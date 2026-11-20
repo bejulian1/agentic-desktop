@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import { documentedSkills, sharedSkills } from "./bundled-skill-catalog.ts";
 import { copyAppSkills } from "../../scripts/skill-assets.ts";
 import { discoverSkills, loadSkillBody, SkillChanges } from "../src/skills.ts";
-import { httpError, openaiText, sse, startFakeLlm } from "./fake-llm.ts";
+import { httpError, openaiText, openaiToolCall, sse, startFakeLlm } from "./fake-llm.ts";
 import { ofType, startHarness, tempDir, until } from "./helpers.ts";
 
 function skill(root: string, name: string, body: string, extra = ""): string {
@@ -171,13 +171,41 @@ test("required frontmatter strings and optional args are validated without crash
 test("every shipped skill parses, has the intended modes and one args placeholder", (t) => {
   const root = path.resolve(import.meta.dirname, "../../skills");
   const shipped = discoverSkills(null, tempDir(t), [], root);
+  assert.equal(shipped.length, 24);
+  assert.equal(sharedSkills.length, 7);
   assert.deepEqual(shipped.map((item) => item.name), documentedSkills);
   for (const item of shipped) {
     assert.equal(item.mode, sharedSkills.includes(item.name) ? undefined : "code", `${item.name}: intended mode`);
     assert.ok(item.description.length <= 200, `${item.name}: the description is always in the prompt, keep it short`);
-    const body = readFileSync(item.file, "utf8");
+    const body = loadSkillBody(item);
     assert.equal(body.split("{{args}}").length - 1, 1, `${item.name}: exactly one args placeholder`);
   }
+});
+
+test("the new bundled skills load in their intended modes, without granting other tools", async (t) => {
+  const appSkillsDir = path.resolve(import.meta.dirname, "../../skills");
+  const h = await startHarness(t, { appSkillsDir, userSkillsDir: tempDir(t) });
+  const llm = await startFakeLlm(t);
+  const provider = await h.api("POST", "/api/providers", { kind: "openai-compatible", name: "Local", baseUrl: llm.url });
+  const model = await h.api("POST", "/api/models", { providerId: provider.id, name: "Local", model: "test", contextWindow: 64_000 });
+  const chat = await h.api("POST", "/api/threads", { mode: "chat", modelId: model.id, chatTools: { python: false, documents: false } });
+  await assert.rejects(h.api("POST", `/api/threads/${chat.id}/messages`, { text: "Undersøk loggen.", skill: "ci-triage" }), /400/);
+  const notes = "Lise: Tester på fredag.\nEndring: Fristen er mandag. $&";
+  llm.reply(sse(openaiText("Oppgavene er oppsummert.")));
+  await h.api("POST", `/api/threads/${chat.id}/messages`, { text: notes, skill: "action-items" });
+  await h.finished(chat.id);
+  const chatRequest = llm.requests[0].body;
+  assert.ok(chatRequest.messages[0].content.includes(`# Extract decisions and commitments\n\n${notes}`));
+  assert.ok(!chatRequest.tools.some((tool: { function: { name: string } }) => ["run_python", "create_document", "run_command"].includes(tool.function.name)));
+
+  const project = await h.project();
+  const code = await h.thread(project.id, "code", model.id);
+  llm.reply(sse(openaiToolCall("use_skill", { name: "ci-triage" }, "load-ci")));
+  llm.reply(sse(openaiText("CI-feilen er oppsummert.")));
+  await h.api("POST", `/api/threads/${code.id}/messages`, { text: "Hva forklarer den røde CI-jobben?" });
+  const loaded = ofType(await h.finished(code.id), "tool.finished").find((event) => event.callId === "load-ci");
+  assert.equal(loaded?.status, "done");
+  assert.match(loaded?.result ?? "", /# Diagnose a failing CI job/);
 });
 
 test("a skill with a mode is listed with it and refused in the other mode", async (t) => {

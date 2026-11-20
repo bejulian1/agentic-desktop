@@ -40,7 +40,7 @@ Still et sidespørsmål mens agenten jobber, eller start en parallell oppgave ut
 
 ## Nytt i v0.26
 
-Skriv `/` i Kode for å se de 15 innebygde skillene, som `/debug`, `/explore` og `/review`, med beskrivelser. Chat har åtte personligheter og fire stilvalg som kan skrus ned eller opp. Se [Slash-skills](docs/SLASH-SKILLS.md) og [Personlighet og stil](docs/CHAT-PERSONALITIES.md).
+I v0.26 fikk Kode 15 innebygde skills, blant annet `/debug`, `/explore` og `/review`. Chat har åtte personligheter og fire stilvalg som kan skrus ned eller opp. Se [Slash-skills](docs/SLASH-SKILLS.md) og [Personlighet og stil](docs/CHAT-PERSONALITIES.md).
 
 | Skills i Kode | Personlighet og stil |
 |---|---|
@@ -263,7 +263,7 @@ Velg så modellen i meldingsfeltet.
 - **Standardinstrukser:** Chat-personalisering kommer med en redigerbar systeminstruks og egen **Gjenopprett standard**. Kode-standarden kan gjenopprettes under Konfigurasjon med diff og sikkerhetskopi. Kildene ligger i [`docs/system-instructions/`](docs/system-instructions/README.md).
 - **Agentvalg:** Under **Innstillinger → Modeller og leverandører** kan du slå automatisk komprimering av eller på og velge 1–1000 steg per tur. Standard er på og 50 steg. `/compact` komprimerer manuelt også når automatikk er av.
 - **Ruter:** dra en tråd inn i en rute, eller ut av vinduet for å få den i et eget vindu.
-- **Skills** er mapper med en `SKILL.md`, i `.agentic/skills/` i prosjektet eller i `~/.config/agentic-desktop/skills/`. Hver skill blir sin egen `/kommando`.
+- **Skills** er mapper med en `SKILL.md`, i `.agentic/skills/` i prosjektet eller i `~/.config/agentic-desktop/skills/`. Skriv `/` for å se skillene i modusen du bruker. Sju er tilgjengelige i Chat, blant annet `/source-brief`, `/action-items` og `/analyze-data`. Kode har alle 24, inkludert `/benchmark` og `/ci-triage`. [Se hele katalogen.](docs/SLASH-SKILLS.md#innebygde-skills)
 - **Grener og arbeidstrær:** velg et Kode-prosjekt og åpne tannhjulet ved meldingsfeltet. `/worktree` åpner samme dialog. Repoet må ha en første commit. Appen gjør ingen automatisk stash, commit eller push.
 - **Oppstart og historikk:** appen starter med en tom samtale i valgt/sist brukte modus. Velg gjenopptaking under Generelt om du vil fortsette der du slapp. Profilmenyen har **Versjonslogg** med hele historikken.
 - **Oppsett:** `~/.config/agentic-desktop/` gjelder alle prosjekter, og `.agentic/` gjelder bare prosjektet. Begge kan ha `AGENTS.md`, `settings.json` og `skills/`.
@@ -313,6 +313,7 @@ Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.
 
 Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
+- **OpenAI GPT 6.2 Sol og GPT 6.2 Astra** vurderte hull i skill-katalogen og prøvde de nye instruksjonene på eksempeloppgaver.
 - **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.

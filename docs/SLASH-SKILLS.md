@@ -29,10 +29,15 @@ Mapper leses ved oppstart og kontrolleres for filendringer hvert halve sekund. O
 
 ## Innebygde skills
 
-Nitten skills følger med appen i `skills/`, også i en ny klone av repoet. Femten er skrevet for Kode; fire fil-skills fungerer i både Chat og Kode. Alle har norske beskrivelser (det du ser i menyen) og engelske instruksjoner (det modellen følger):
+Appen har 24 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 17 er laget for Kode. Beskrivelsen i menyen er på norsk, og instruksjonene til modellen er på engelsk.
 
 | Skill | Bruk |
 |---|---|
+| `/source-brief` | Sammenlign kilder og knytt hver konklusjon til en lenke eller passasje (Chat og Kode) |
+| `/action-items` | Hent beslutninger, avtalte oppgaver, ansvar og frister fra notater (Chat og Kode) |
+| `/analyze-data` | Forklar tall i en tabell med kontrollerbare beregninger (Chat og Kode) |
+| `/benchmark` | Mål en operasjon flere ganger under like forhold og oppgi variasjonen |
+| `/ci-triage` | Spor en rød CI-jobb til riktig kjøring, forsøk og feilmelding |
 | `/excel` | Excel-filer med flere ark, typede celler og kontrollerte formler (Chat og Kode) |
 | `/word` | Word-dokumenter med tekst, overskrifter, punktlister og tabeller (Chat og Kode) |
 | `/powerpoint` | PowerPoint med tydelige lysbilder og presentatørnotater (Chat og Kode) |
@@ -52,6 +57,12 @@ Nitten skills følger med appen i `skills/`, også i en ny klone av repoet. Femt
 | `/gauntlet-loop` | Intensiv runde med bygging, kritikk og forbedring |
 | `/skill-creator` | Lag eller forbedre en skill i Agentic Desktop |
 | `/memory` | Lær av rettelser og husk varige fakta i MEMORY.md |
+
+Skriv `$` i meldingsfeltet for å vise bare skills.
+
+![De sju innebygde skillene i Chat-menyen](bilder/skill-katalog-chat.png)
+
+Du kan for eksempel skrive `/action-items Hvem påtok seg hva i referatet over?` eller `/analyze-data Hva forklarer endringen fra september til oktober i vedlagte salg.csv?`. Nettverktøy og Python kan brukes når de er tilgjengelige i samtalen. Med nett slått av kan `/source-brief` sammenligne tekster du limer inn. I Kode kan `/ci-triage` også bruke et loggutdrag du har gitt den.
 
 I Chat-prosjekter tilbys bare innebygde app-skills som støtter Chat. Globale bruker-skills og Kode-skills holdes utenfor; prosjektets egne instruksjoner gjelder fortsatt. Vanlig Chat kan bruke globale skills for Chat/begge moduser.
 
