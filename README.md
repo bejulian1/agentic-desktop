@@ -1,201 +1,87 @@
 # Agentic Desktop
 
-En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøkler**. Du snakker med en modell i Chat, eller gir den et prosjekt i Kode. Der kan den lese og endre filer, kjøre kommandoer i en terminal og teste det den lager i en innebygd nettleser.
+[Norsk versjon (README.nb.md)](README.nb.md) · [Download latest release](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Changelog](CHANGELOG.md) · [Credits](CREDITS.md)
 
-Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
+> The application UI is in Norwegian Bokmål.
 
-[Last ned v0.29.1](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
+Agentic Desktop is a local-first Linux desktop application (Electron + Node.js + SolidJS) for chatting and coding with large language models using **your own API keys** or local models. Talk to models in **Chat**, or hand them a folder in **Code** (`Kode`) where the agent can read and edit files, run terminal commands, and inspect what it builds in an integrated browser. Conversations, projects, and settings are stored locally in SQLite—no Agentic Desktop account, no telemetry, and a built-in demo model lets you explore the interface and tools without an API key.
 
-| Kode og endringer | Chat-prosjekt | React-artifacts |
-|---|---|---|
-| [![Kode og diff](docs/bilder/kode.png)](docs/bilder/kode.png) | [![Chat-prosjekt](docs/bilder/chat-prosjekt.png)](docs/bilder/chat-prosjekt.png) | [![React-forhåndsvisning](docs/bilder/artifact-react.png)](docs/bilder/artifact-react.png) |
+| Code & changes | Chat project | React artifacts |
+| --- | --- | --- |
+| [![Code and diff](docs/bilder/kode.png)](docs/bilder/kode.png) | [![Chat project](docs/bilder/chat-prosjekt.png)](docs/bilder/chat-prosjekt.png) | [![React preview](docs/bilder/artifact-react.png)](docs/bilder/artifact-react.png) |
 
-*Klikk på et bilde for full størrelse.*
+*Click any screenshot for full size.*
 
-![Lesestatus i Kode](docs/bilder/lesestatus.png)
+![Read receipts in Code](docs/bilder/lesestatus.png)
 
-*Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2/v0.26.0/v0.28.0. Alle bruker demo og midlertidige data.*
+*Main screenshots show v0.21.0; feature screenshots below show v0.21.1–v0.29.x. All screenshots use the demo/test models and temporary data.*
 
-**v0.29:** uten valgt prosjekt jobber agenten på «Denne datamaskinen», med hjemmemappen som arbeidsmappe og de vanlige godkjenningene. Kode-meldinger får lesestatus, underagenter kommuniserer bedre begge veier, foreldrekjeden beholdes i sidefanen, og `/agents`, `/diff`, `/context` og `/stop` er nye snarveier. Se [instanser og lesestatus](docs/AGENT-COLLABORATION.md).
+## Features
 
-**v0.28.0:** `/btw` gir et midlertidig sidesvar uten verktøy eller historikk; `/background` starter en egen bakgrunnsøkt mens hovedsamtalen fortsetter. `/queue` og `/steer` velger levering for én melding. Se [kommandoene](docs/SIDE-QUESTIONS.md).
+- **Chat:** Streaming Markdown with code blocks, tables, and math; 8 personalities and 4 style controls ([Chat personalities](docs/CHAT-PERSONALITIES.md)); Chat projects with custom instructions and isolated or shared memories ([Chat projects](docs/CHAT-PROJECTS.md)); HTML and React (JSX/TSX) artifacts rendered in an isolated local sandbox with version history; downloadable documents (`.docx`, `.xlsx`, `.pptx`, Markdown, text, CSV, JSON) and optional sandboxed Python analysis via `bubblewrap` ([Files & Python in Chat](docs/CHAT-FILES.md)); plus `/btw` side questions, `/background` parallel sessions, and `/queue` / `/steer` delivery overrides ([Side questions & background sessions](docs/SIDE-QUESTIONS.md)).
+- **Code agent (`Kode`) with tools and approvals:** Works inside a project folder with tools for reading, editing, creating, and deleting files, searching (`ripgrep`), running shell commands, web search/fetch, and browser automation. Includes three permission modes (**Ask**, **Accept edits**, **Full access**), read-only **Plan mode** (`/plan`), turn-level undo, local Git branch and worktree management (`/worktree`, [Git & tools](docs/GIT-AND-TOOLS.md)), bidirectional sub-agent instances with read receipts, and shortcuts `/agents`, `/diff`, `/context`, and `/stop` ([Instances & read receipts](docs/AGENT-COLLABORATION.md)).
+- **This machine (`Denne datamaskinen`):** Work in Code without selecting a project—the agent uses your home directory as its workspace with standard approvals, per-rule "Allow always", and turn undo, while sensitive paths under your home directory always prompt and are excluded from search.
+- **Side panels:** A shared tab bar for **Files** (with a mini-editor in projects and read-only browsing without a project), **Changes** (line diffs with undo), **Terminal**, **Browser**, **Session**, **Team**, and **GitHub**. The Browser supports element annotations and can open the active page in the system browser ([Side panel workspace](docs/SIDEPANEL-WORKSPACE.md)).
+- **MCP servers:** Built-in Model Context Protocol client supporting **stdio** and **Streamable HTTP** (`2025-11-25` and earlier), presets for GitHub and Playwright, secrets stored in the system keyring, per-tool approval, and up to 60 MCP tools per turn ([MCP servers](docs/MCP.md)).
+- **Hooks:** Run your own shell commands on `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, and `Stop` using a Claude Code-compatible JSON stdin/stdout contract, managed globally in Settings ([Hooks](docs/HOOKS.md)).
+- **Commands and skills:** Type `/` for the active mode's commands and skills, `$` for skills only, or `/help` (alias `/commands`) for a searchable guide. Chat and Code share commands such as `/new`, `/sessions`, `/find`, and `/fork`; Code also has `/worktree` and project panel commands. There are 24 built-in skills for Code, seven of which also work in Chat: `/excel`, `/word`, `/powerpoint`, `/data-files`, `/source-brief`, `/action-items`, and `/analyze-data`. Code-only examples include `/debug`, `/benchmark`, and `/ci-triage`. Add custom skills in a Code project's `.agentic/skills/` or in `~/.config/agentic-desktop/skills/` for Code and ordinary Chat ([Command and skill guide](docs/SLASH-SKILLS.md)).
+- **Inline charts:** Request a bar or line chart in Chat or Code. Charts render locally and do not require enabling Python or Artifacts ([example](docs/bilder/diagram-i-chat.png)).
+- **Providers including local models:** Built-in presets for **OpenRouter**, **abliteration.ai**, **Anthropic**, **OpenAI**, and any **OpenAI-compatible** endpoint—including local models via **Ollama** and **LM Studio** without an API key—plus the built-in **Demo model** (no network or API key required).
+- **Themes & visual mods:** Light and dark modes, custom global wallpaper with opacity/blur and three glass styles, and per-conversation declarative visual mods (built-in Aurora, Starry Sky, and Ocean presets, or model-authored pixel-art and color themes with per-conversation consent and WCAG contrast validation) ([Themes & visual mods](docs/UI-MODS.md)).
 
-**v0.27.0:** fire nye fil-skills i både Chat og Kode: `/excel`, `/word`, `/powerpoint` og `/data-files`. Modellen laster relevant SKILL.md ved behov; Chat lager nedlastbare filer med verktøyet «Lag filer». Se [Filer og Python i Chat](docs/CHAT-FILES.md) og [skill-biblioteket](https://github.com/bejulian1/agentic-skills-library).
+### Feature Previews
 
-**v0.26.0:** ny harness for Kode og Chat, 15 innebygde skills, åtte personligheter med stilvalg i Chat. Se [Slash-skills](docs/SLASH-SKILLS.md) og [Personlighet og stil](docs/CHAT-PERSONALITIES.md).
+| Side questions (`/btw`, `/background`) | Slash-skills in Code | Chat personality & style |
+| --- | --- | --- |
+| [![Side questions](docs/bilder/sidesporsmal.png)](docs/bilder/sidesporsmal.png) | [![Skills menu](docs/bilder/skills-meny.png)](docs/bilder/skills-meny.png) | [![Chat personality](docs/bilder/chat-personlighet.png)](docs/bilder/chat-personlighet.png) |
 
-**v0.25.0:** MCP-servere (GitHub, Playwright og egne) og hooks i Innstillinger, valg mellom tre glass-stiler over bakgrunner, og versjonsloggen tilgjengelig fra Innstillinger og Om. Se [MCP-servere](docs/MCP.md) og [Hooks](docs/HOOKS.md).
+| MCP servers | Hooks | Glass styles over backgrounds |
+| --- | --- | --- |
+| [![MCP servers](docs/bilder/mcp-servere.png)](docs/bilder/mcp-servere.png) | [![Hooks](docs/bilder/hooks.png)](docs/bilder/hooks.png) | [![Glass styles](docs/bilder/glass-valg.png)](docs/bilder/glass-valg.png) |
 
-**v0.24.3:** prosjektlinjen over meldingsfeltet har samme glasstone som feltet, uten den grå stripen. [Se oppdatert Kode-visning](docs/bilder/promptbar-glass.png).
+| Global wallpaper | Appearance settings | Glass & Aurora theme |
+| --- | --- | --- |
+| [![Global wallpaper](docs/bilder/bakgrunn-chat.png)](docs/bilder/bakgrunn-chat.png) | [![Background settings](docs/bilder/bakgrunn-innstillinger.png)](docs/bilder/bakgrunn-innstillinger.png) | [![Aurora in Chat](docs/bilder/glass-nordlys.png)](docs/bilder/glass-nordlys.png) |
 
-**v0.24.2:** glassbakgrunnen følger samtalens og meldingsfeltets bredde med myk uttoning mot skarpe sidemarger, i både Chat og Kode.
+| Aurora mod in Code | Mod library | Per-conversation consent |
+| --- | --- | --- |
+| [![Aurora and clock mod](docs/bilder/mods-nordlys.png)](docs/bilder/mods-nordlys.png) | [![Theme and mod library](docs/bilder/mods-bibliotek.png)](docs/bilder/mods-bibliotek.png) | [![Enable mods consent](docs/bilder/mods-samtykke.png)](docs/bilder/mods-samtykke.png) |
 
-## Nytt i v0.28
-
-Still et sidespørsmål mens agenten jobber, eller start en parallell oppgave uten å forlate samtalen.
-
-![Sidespørsmål mens hovedsamtalen fortsetter](docs/bilder/sidesporsmal.png)
-
-*Isolert demonstrasjon med lokale testmodeller, v0.28.0.*
-
-## Nytt i v0.26
-
-I v0.26 fikk Kode 15 innebygde skills, blant annet `/debug`, `/explore` og `/review`. Chat har åtte personligheter og fire stilvalg som kan skrus ned eller opp. Se [Slash-skills](docs/SLASH-SKILLS.md) og [Personlighet og stil](docs/CHAT-PERSONALITIES.md).
-
-| Skills i Kode | Personlighet og stil |
-|---|---|
-| [![Skills-menyen i Kode](docs/bilder/skills-meny.png)](docs/bilder/skills-meny.png) | [![Personlighet og stil i Chat](docs/bilder/chat-personlighet.png)](docs/bilder/chat-personlighet.png) |
-
-## Nytt i v0.25
-
-MCP-servere og hooks har egne sider i Innstillinger, og du velger selv hvordan glasset over bakgrunner skal se ut. Se [MCP-servere](docs/MCP.md) og [Hooks](docs/HOOKS.md).
-
-| MCP-servere | Hooks | Glass over bakgrunner |
-|---|---|---|
-| [![MCP-server med verktøyliste](docs/bilder/mcp-servere.png)](docs/bilder/mcp-servere.png) | [![Hooks fra eksemplene](docs/bilder/hooks.png)](docs/bilder/hooks.png) | [![Valg av glass-stil](docs/bilder/glass-valg.png)](docs/bilder/glass-valg.png) |
-
-## Nytt i v0.24
-
-Last opp et eget bakgrunnsbilde i **Utseende**, felles for hele appen. Juster bildestyrke og uskarphet, og bruk valgfrie glassflater bak svar og tenkeutdrag. Bildet lagres lokalt og sendes ikke til modellen. Chat har egne snarveier til temaer, og samtaletemaer beholder sitt eget motiv. Se [Tema og bakgrunn](docs/UI-MODS.md).
-
-| Global bakgrunn i Chat | Utseende | Glassflater og Nordlys |
-|---|---|---|
-| [![Global bakgrunn](docs/bilder/bakgrunn-chat.png)](docs/bilder/bakgrunn-chat.png) | [![Bakgrunnsinnstillinger](docs/bilder/bakgrunn-innstillinger.png)](docs/bilder/bakgrunn-innstillinger.png) | [![Nordlys i Chat](docs/bilder/glass-nordlys.png)](docs/bilder/glass-nordlys.png) |
-
-*De to første bildene viser v0.27.0 med globalt bakgrunnsbilde og en tilpasset blågrønn fargepalett, også i sidepanel og innstillinger.*
-
-## Nytt i v0.23
-
-Tema og visuelle mods følger hver samtale. Be modellen lage en pixelart-bakgrunn, endre farger eller legge til en klokke over meldingsfeltet. Palettknappen åpner bibliotek med Nordlys, Stjernehimmel og Hav, editor og tilbakestilling. Endringer fra modellen lastes inn etter turen, med samtykke per samtale. Se [Tema og mods](docs/UI-MODS.md).
-
-| Nordlys i Kode | Modbibliotek | Samtykke per samtale |
-|---|---|---|
-| [![Nordlys og klokke](docs/bilder/mods-nordlys.png)](docs/bilder/mods-nordlys.png) | [![Tema og mods](docs/bilder/mods-bibliotek.png)](docs/bilder/mods-bibliotek.png) | [![Slå på mods](docs/bilder/mods-samtykke.png)](docs/bilder/mods-samtykke.png) |
-
-## Nytt i v0.22
-
-Chat kan lage nedlastbare Word-, Excel-, PowerPoint-, Markdown- og tekstfiler, med egne filkort. Valgfri Python-analyse bruker et isolert arbeidsområde uten nettverk eller PC-/prosjektfiler. Python har standardbiblioteket; arbeidsfiler beholdes, variabler nullstilles. Profilens tokenkalender viser dag, dato og tokens straks ved pekeren. Se [Filer og Python i Chat](docs/CHAT-FILES.md).
-
-| Chat-filer | Chat-verktøy | Tokenkalender |
-|---|---|---|
-| [![Nedlastbar Excel-fil](docs/bilder/chat-filer.png)](docs/bilder/chat-filer.png) | [![Verktøy i Chat](docs/bilder/chat-verktoy.png)](docs/bilder/chat-verktoy.png) | [![Profilens tokenkalender](docs/bilder/tokenkalender.png)](docs/bilder/tokenkalender.png) |
-
-## Nytt i v0.21.1
-
-Modellbytter er midtstilt i samtalen. «Fortsett der du slapp» viser riktig modusikon, og samtalenavnet kan redigeres direkte i topplinjen med en egen pil for detaljer.
-
-## Nytt i v0.21
-
-Chat-prosjekter har nå egen startside med meldingsfelt over chatlisten, 15 fargede ikoner, egne instruksjoner og valgbare egne eller delte Chat-minner. Global personalisering holdes utenfor prosjektet. Se [Chat-prosjekter](docs/CHAT-PROJECTS.md). Samtaletittel og navnefelt er løftet litt, og tenkesammendrag bruker en tankeboble. Et ikon under hvert svar viser faktisk modell og leverandør, og modellbytter får en diskret linje i samtalen.
-
-## Nytt siden v0.11
-
-- **Ryddigere Chat og Kode:** egne instrukser og minner, kontekstinnstillinger og samlet modell-/leverandørvalg.
-- **Kodearbeid som er synlig:** filendringer med grønne/røde differanser, arbeidssteg, underagenter og sammendrag ved samtalen.
-- **Bedre sidepanel:** felles fanerad for nettleser, terminal og verktøy, flere startfaner og manuell bruk uten prosjektmappe. Nettsider kan annoteres med elementvalg og kommentarer.
-- **Grener og arbeidstrær:** opprett eller bytt lokal gren fra prosjektets tannhjul, og åpne arbeidstrær som egne prosjekter.
-- **Bedre meldingsfelt:** redigerbar kø eller send straks, horisontal rulling av vedlegg og valgfri kontekstbasert TAB-fullføring med eget modellvalg.
-- **Mer tilpassing:** Skills-arbeidsområde, Kode-innstillinger med egne lyse/mørke kodefarger og skrifter, og søkbar versjonslogg fra profilmenyen.
-
-## Versjonslogg og utgivelser
-
-- [Full versjonslogg](docs/PATCHLOG.md): alle dokumenterte versjoner og endringer, nyeste først.
-- [GitHub Releases](https://github.com/bejulian1/agentic-desktop/releases): installasjonsfiler, kontrollsummer og versjonsnotater per utgivelse.
-- [CHANGELOG.md](CHANGELOG.md): fast inngang til historikken fra roten av repoet.
-
-Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
-
-## Hva den kan
-
-- **Chat og Kode.** I Chat svarer modellen med Markdown, kodeblokker, tabeller og matte. I Kode jobber den i en mappe med verktøy for filer, kommandoer, søk og nettleser.
-- **Diagrammer i svaret.** I både Chat og Kode kan du be om «Sammenlign 9,12 og 5,33 sekunder med stolper» eller «Vis temperaturene 4, 7 og 5 grader fra mandag til onsdag som en linje». Diagrammet vises mellom avsnittene. I et linjediagram åpner «Vis verdiene» hele tallrekken. Diagrammene tegnes lokalt og fungerer også med Python og Artifacts slått av. Hvis modellen sender ugyldige diagramdata, vises de som en kopierbar kodeblokk. [Se et eksempel fra chatten.](docs/bilder/diagram-i-chat.png)
-- **Artifacts.** En hel app i én fil, i HTML eller React (JSX/TSX), blir en boks i chatten.
-  - Boksen åpner et panel med **Forhåndsvisning** og **Kode**, og du kan bla mellom versjonene.
-  - React kjører lokalt og uten nett, i en isolert sandkasse som ikke når appen eller filene dine.
-- **Verktøy ved siden av samtalen:** terminal, filer, endringer (diff) med angre, mini-editor, økt, team og en nettleser som agenten kan styre med Playwright. Åpne verktøy får egne lukkbare faner; pluss lager en ny verktøystartside eller nettleserfane, etter eget valg. Nettleser, terminal og lokal fillesing fungerer også uten prosjektmappe. Se [`docs/SIDEPANEL-WORKSPACE.md`](docs/SIDEPANEL-WORKSPACE.md).
-- **Tråder som samarbeider.** Hjelpetråder, team med oppgaveliste, flere ruter side om side og tråder i egne vinduer.
-- **Gafler og arkiv.**
-  - Du kan lage en gaffel fra hvilken som helst melding, og gaffelen viser hvor den kom fra.
-  - Du kan arkivere én tråd eller et helt prosjekt, med angre.
-- **Prosjektmenyer og kø.** Høyreklikk, informasjonskort, merk som ulest og lokal eksport. Kømeldinger kan redigeres, fjernes eller flyttes til et usendt sideutkast. Se [`docs/SIDEBAR-AND-QUEUE.md`](docs/SIDEBAR-AND-QUEUE.md).
-- **Tillatelser.** Velg Be om godkjenning, Godkjenn for meg eller Full tilgang direkte fra meldingsfeltet i Kode. Godkjenningskort kommer rett over meldingsfeltet.
-- **Nøklene ligger i GNOME-nøkkelringen.** Nye nøkler lagres der når nøkkelringen kan brukes, ellers bare i øktminnet. Grensesnittet viser lagringsstatus og eventuell eldre nøkkelfil som venter på flytting; nøklene sendes aldri tilbake til grensesnittet.
-- **Skills, AGENTS.md og minner,** både globalt og per prosjekt. Skills har eget søkbart arbeidsområde med filtre, redigering, import og egne varianter av appens skills.
-- **Samlede modellinnstillinger.** Modeller og leverandører på én side, prosjektvelger ved topplinjen og lokal miljømeny med faktisk gren og mappe. Se [`docs/WORKSPACE-POLISH.md`](docs/WORKSPACE-POLISH.md).
-- **Tilpassing og sammendrag.** To samlede innstillingssider, egne Chat/Kode-valg, Chat-felt på 10 000 ord og Kode-sammendrag øverst til høyre. Se [`docs/SETTINGS-AND-SUMMARY.md`](docs/SETTINGS-AND-SUMMARY.md).
-- **Lokale grener og arbeidstrær.** Prosjektets tannhjul og `/worktree` åpner reelle Git-handlinger. Profilmenyen har søkbar versjonslogg. Se [`docs/GIT-AND-TOOLS.md`](docs/GIT-AND-TOOLS.md).
-- **Statusfelt og appikon.** Appen kan jobbe videre med vinduet lukket. Du velger ikon i Innstillinger.
+| Chat files | Chat tools | Token calendar |
+| --- | --- | --- |
+| [![Downloadable Excel file](docs/bilder/chat-filer.png)](docs/bilder/chat-filer.png) | [![Chat tools](docs/bilder/chat-verktoy.png)](docs/bilder/chat-verktoy.png) | [![Token calendar](docs/bilder/tokenkalender.png)](docs/bilder/tokenkalender.png) |
 
 <details>
-<summary>Flere skjermbilder: Chat, artifacts, sidepanel og innstillinger</summary>
+<summary>More screenshots: Chat, artifacts, side panel, and settings</summary>
 
-**Nytt i v0.21.1: navn direkte i topplinjen**
-
-![Navneendring i topplinjen](docs/bilder/navn-topplinje.png)
-
-**Midtstilt modellbytte**
-
-![Modellbytte i samtalen](docs/bilder/modellbytte.png)
-
-**Fortsett med riktig modusikon**
-
-![Siste samtaler med Chat- og Kode-ikon](docs/bilder/fortsett.png)
-
-**Chat**
-
-![Chat-modus med kodeeksempel](docs/bilder/chat.png)
-
-**Chat-prosjekt med egne instruksjoner og minner**
-
-![Prosjektside i Chat](docs/bilder/chat-prosjekt.png)
-
-![Prosjektinnstillinger i Chat](docs/bilder/chat-prosjekt-innstillinger.png)
-
-**React-artifact med forhåndsvisning**
-
-![Artifact med React: forhåndsvisning](docs/bilder/artifact-react.png)
-
-**Koden bak artifacten**
-
-![Artifact med kildekode](docs/bilder/artifact-kode.png)
-
-**Sidepanel med flere startfaner**
-
-![Sidepanelets felles topprad og verktøystartside](docs/bilder/sidepanel.png)
-
-**Kodeutseende og tilpassing**
-
-![Kodeinnstillinger med lys og mørk forhåndsvisning](docs/bilder/innstillinger-kode.png)
+- ![Inline title editing](docs/bilder/navn-topplinje.png)
+- ![Centered model switch indicator](docs/bilder/modellbytte.png)
+- ![Resume conversations with mode icons](docs/bilder/fortsett.png)
+- ![Chat mode with code example](docs/bilder/chat.png)
+- ![Chat project settings](docs/bilder/chat-prosjekt-innstillinger.png)
+- ![Artifact source code](docs/bilder/artifact-kode.png)
+- ![Side panel tab bar and tool start page](docs/bilder/sidepanel.png)
+- ![Code appearance settings](docs/bilder/innstillinger-kode.png)
+- ![Glass prompt bar](docs/bilder/promptbar-glass.png)
 
 </details>
 
-## Det du trenger
+## Install
 
-- Linux med GNOME. Laget og testet på Ubuntu 26.04.
-- **Node 26** eller nyere, med npm.
-- `g++`, `make` og `python3`, fordi `node-pty` bygges under installasjonen: `sudo apt install build-essential python3`
-- Anbefalt:
-  - `ripgrep` (`rg`), for raskt søk og `@`-menyen.
-  - Google Chrome, til nettsøk og til nettleserpanelet når Chromium-sandkassen er av (se under).
+### AppImage and `.deb` (Linux x86_64)
 
-## Last ned en ferdig utgave
+Download prebuilt packages from [GitHub Releases](https://github.com/bejulian1/agentic-desktop/releases). The [latest release](https://github.com/bejulian1/agentic-desktop/releases/latest) includes an **AppImage**, a **`.deb`**, `SHA256SUMS`, release metadata (`RELEASEINFO.json`), and the full changelog. Builds are tested on Ubuntu 26.04. The repository is private; cloning and downloading require access on GitHub.
 
-[Releases](https://github.com/bejulian1/agentic-desktop/releases) har AppImage og `.deb` for Linux x86_64, med SHA-256-kontrollsummer, bygginformasjon og full versjonslogg. Utgavene er bygget og testet på Ubuntu 26.04. Privat repo krever GitHub-tilgang også for nedlasting.
+### Build and Install from Source
 
-En privat OCI-publisering til GitHub Packages er klargjort. Første publisering venter på GitHub-rettigheten som tillater at publiseringsjobben legges til i repoet. Bruk Releases inntil pakken vises i [GitHub Packages](https://github.com/bejulian1/agentic-desktop/pkgs/container/agentic-desktop).
-
-Når pakken er publisert, kan den hentes med [ORAS](https://oras.land/docs/installation/) og lesetilgang til pakken:
-
-```bash
-oras login ghcr.io --username bejulian1
-oras pull ghcr.io/bejulian1/agentic-desktop:v0.20.0 --output agentic-desktop-0.20.0
-cd agentic-desktop-0.20.0
-sha256sum --check SHA256SUMS
-```
-
-Oppgi et eget GitHub-token med `read:packages` i ORAS' passorddialog. Tokenet skal ikke skrives i repoet. Vanlig nedlasting fra Releases trenger ikke ORAS.
-
-## Bygg og installer fra kildekode
+Requirements:
+- Linux with GNOME (developed and tested on Ubuntu 26.04 on Wayland)
+- **Node.js 26+** and npm
+- Native build tools for `node-pty`: `sudo apt install build-essential python3`
+- Recommended:
+  - `ripgrep` (`rg`) for fast search and `@` file mentions
+  - Google Chrome for web search and the browser panel when the Chromium sandbox is disabled
+  - `bubblewrap` (`bwrap`) for optional isolated Python analysis in Chat
 
 ```bash
 git clone https://github.com/bejulian1/agentic-desktop.git
@@ -203,120 +89,110 @@ cd agentic-desktop
 ./install.sh
 ```
 
-Skriptet gjør dette:
-1. Sjekker at verktøyene over finnes.
-2. Henter avhengighetene, bygger grensesnittet og pakker Electron-appen.
-3. Legger appen i `~/.local/opt/agentic-desktop`, med oppføring og ikon i appbiblioteket.
+`install.sh` checks prerequisites, runs `npm ci`, builds the frontend, packages the Electron app, and installs it for your user in `~/.local/opt/agentic-desktop` with a desktop entry and icon (no `sudo` required).
 
-Det trenger ikke sudo. Etterpå finner du **Agentic Desktop** i «Vis apper».
+- **Update:** `git pull && ./install.sh` (your threads and settings in `~/.local/share/agentic-desktop` and `~/.config/agentic-desktop` are preserved).
+- **Uninstall:** `./install.sh --uninstall` (user data is kept).
 
-- **Oppdatere:** `git pull`, og kjør `./install.sh` igjen. Trådene og innstillingene dine blir med videre.
-- **Fjerne:** `./install.sh --uninstall`. Dataene i `~/.local/share/agentic-desktop` og `~/.config/agentic-desktop` blir liggende.
+#### Optional: Chromium Sandbox Profile (Ubuntu 24.04+)
 
-### Chromium-sandkassen (valgfritt)
-
-Ubuntu 24.04 og nyere stopper apper uten egen AppArmor-profil fra å bruke Chromium-sandkassen. Appen starter likevel, uten sandkassen. Nettsider åpnes da i Chrome på maskinen, som har sin egen sandkasse.
-
-Vil du ha sandkassen i appen også, legger du inn profilen én gang:
+On Ubuntu systems that restrict unprivileged user namespaces, the launcher can fall back to starting Electron without its Chromium sandbox. In that mode the Browser panel uses separately sandboxed Google Chrome instead of an embedded Electron view. For a source install, you can load the bundled AppArmor profile to allow the Electron sandbox:
 
 ```bash
 sudo install -m 644 ~/.local/opt/agentic-desktop/resources/apparmor/agentic-desktop /etc/apparmor.d/agentic-desktop
 sudo apparmor_parser -r /etc/apparmor.d/agentic-desktop
 ```
 
-Den samme kommandoen står i **Innstillinger → Om**.
+## Quick Start
 
-## Kom i gang
+### Try Without an API Key (Demo Model)
 
-### Uten nøkkel: demo-modellen
+The built-in **Demo-modell (uten API)** is selected by default. It does not call a model provider and exercises the real tools, diffs, approvals, and browser panel. Pick an empty folder in **Kode** and try prompts such as:
 
-Demo-modellen er forhåndsvalgt og merket **Demo-modell (uten API)**. Den bruker ikke nettet, men går gjennom de ekte verktøyene og tillatelsene. Velg en tom mappe i **Kode**, og skriv for eksempel:
+- `lag en side` — creates `index.html`, runs a command, opens it in the browser panel, and takes a screenshot
+- `rediger` — edits `index.html` and shows a diff in Changes
+- `godkjenning` — attempts to write `.env.demo` (always prompts for approval)
+- `samarbeid` / `team` — demonstrates sub-agent threads and the team task list
+- `/plan` then `lag en side` — runs in read-only Plan mode
+- `react-artifact` / `html-spill` — creates interactive sandboxed artifacts
+- `hjelp` — lists all demo prompts
 
-| Skriv | Hva som skjer |
-|---|---|
-| `lag en side` | Skriver `index.html`, kjører en kommando, åpner siden i nettleseren og tar et skjermbilde |
-| `rediger` | Endrer `index.html`, så du får en diff i Endringer |
-| `godkjenning` | Skriver til `.env.demo`, som alltid krever godkjenning |
-| `samarbeid` / `team` | Hjelpetråder og et team med oppgaveliste |
-| `/plan`, så `lag en side` | Planmodus: en plan uten å endre filer |
-| `react-artifact` | En React-app i en artifact-boks. `ny versjon av react-appen` gir versjon 2. |
-| `html-spill` | Et lite canvas-spill i én HTML-fil |
-| `tekstblokk` | En tekstblokk med Kopier-knapp |
-| `hjelp` | Hele listen |
+### Connect a Real Provider or Local Model
 
-### Med en ekte modell
+1. Open **Innstillinger → Modeller og leverandører** (Settings → Models & Providers).
+2. Add **OpenRouter**, **abliteration.ai**, **Anthropic**, **OpenAI**, or a **Custom** OpenAI-compatible provider (such as **Ollama** or **LM Studio**, which work without an API key).
+3. Enter a key if the provider needs one. The app uses the system keyring when available. Use **Test tilkobling** (Test connection), then select your model in the composer.
 
-**Innstillinger → Modeller og leverandører:** velg OpenRouter, OpenAI, Anthropic eller en annen, og lim inn nøkkelen.
-- Feltet viser prikker. Nøkkelen lagres i GNOME-nøkkelringen.
-- Lokale modeller via **Ollama** og **LM Studio** virker uten nøkkel.
+## Development
 
-Velg så modellen i meldingsfeltet.
+### Requirements
 
-> OpenRouter og abliteration.ai er bekreftet av brukeren med ekte tilkobling. Leverandørene har ingen Beta-merker. OpenAI og Anthropic er kontrollert mot lokale prøveservere; test din egen konto med **Test tilkobling** under leverandøren.
+- Linux, **Node.js 26+** (`engines.node: >=26`), npm
+- `build-essential` (`g++`, `make`) and `python3`
+- Server and UI integration tests require `ripgrep`, working `bubblewrap` user namespaces, and Google Chrome. The Electron test runner also needs `xvfb-run` and `xauth`. See [the contributing guide](CONTRIBUTING.md#running-checks-and-tests) for build and test setup.
 
-## Bruk
+### Commands
 
-- **`/`** i meldingsfeltet gir kommandoer og skills, **`@`** legger ved filer, mapper og tråder, og **`!kommando`** kjører en kommando direkte i Kode.
-- **TAB-forslag:** slå på **Generelt → Samtale → Autofullfør meldinger med TAB**, og velg eventuelt en egen modell. Fra tredje brukermelding vises grå forslag etter to tidligere besvarte turer. TAB godtar uten å sende; Escape avviser. Se [`docs/PROMPT-COMPLETION.md`](docs/PROMPT-COMPLETION.md).
-- **Nytt prosjekt i Kode:** velg **Nytt prosjekt**, gi prosjektet et navn og legg til en mappe med Ubuntus mappevelger. Bekreft at du stoler på mappen før prosjektet opprettes. I localhost-versjonen brukes `zenity`; hvis den ikke er tilgjengelig, får du appens mappevelger.
-- **Chat:** Prosjekter står over Chatter i sidefanen. Knappen med innstillingsikon ved plussknappen samler Chat-funksjonene, og personlighet velges under **Innstillinger → Chat** for den aktive chatten eller utkastet.
-- **Standardinstrukser:** Chat-personalisering kommer med en redigerbar systeminstruks og egen **Gjenopprett standard**. Kode-standarden kan gjenopprettes under Konfigurasjon med diff og sikkerhetskopi. Kildene ligger i [`docs/system-instructions/`](docs/system-instructions/README.md).
-- **Agentvalg:** Under **Innstillinger → Modeller og leverandører** kan du slå automatisk komprimering av eller på og velge 1–1000 steg per tur. Standard er på og 50 steg. `/compact` komprimerer manuelt også når automatikk er av.
-- **Ruter:** dra en tråd inn i en rute, eller ut av vinduet for å få den i et eget vindu.
-- **Skills** er mapper med en `SKILL.md`, i `.agentic/skills/` i prosjektet eller i `~/.config/agentic-desktop/skills/`. Skriv `/` for å se skillene i modusen du bruker. Sju er tilgjengelige i Chat, blant annet `/source-brief`, `/action-items` og `/analyze-data`. Kode har alle 24, inkludert `/benchmark` og `/ci-triage`. [Se hele katalogen.](docs/SLASH-SKILLS.md#innebygde-skills)
-- **Grener og arbeidstrær:** velg et Kode-prosjekt og åpne tannhjulet ved meldingsfeltet. `/worktree` åpner samme dialog. Repoet må ha en første commit. Appen gjør ingen automatisk stash, commit eller push.
-- **Oppstart og historikk:** appen starter med en tom samtale i valgt/sist brukte modus. Velg gjenopptaking under Generelt om du vil fortsette der du slapp. Profilmenyen har **Versjonslogg** med hele historikken.
-- **Oppsett:** `~/.config/agentic-desktop/` gjelder alle prosjekter, og `.agentic/` gjelder bare prosjektet. Begge kan ha `AGENTS.md`, `settings.json` og `skills/`.
-- **Snarveier** står i **Hjelp → Hurtigtaster** og kan endres. For eksempel gir Ctrl+J ny tråd, Ctrl+B skjuler sidefanen, og Alt+← og Alt+→ går tilbake og frem.
-- **Lukker du vinduet**, legger appen seg i statusfeltet. Ctrl+Q avslutter.
+| Command | Description |
+| --- | --- |
+| `npm ci` | Install dependencies |
+| `npm start` | Build the UI if needed, then start the local server on port `4317` by default |
+| `npm run typecheck` | Type-check `server/`, `web/`, and `desktop/` |
+| `npm run test:server` | Run server unit and integration tests (`server/test/*.test.ts`) |
+| `npm run test:ui` | Run UI end-to-end tests (`web/test/*.test.ts`) |
+| `npm run test:desktop` | Run Electron desktop tests (`desktop/test/*.test.ts`) |
+| `npm run build` | Build the web frontend and bump the build number in `version.json` |
+| `npm run dist` | Package the Electron app to `dist-desktop/` (unpacked, `.deb`, AppImage) |
+| `npm run install-local` | After `npm run dist`, install the package to `~/.local/opt/agentic-desktop` |
 
-## Versjoner og publisering
+The server reserves its data directory until shutdown. Follow the [isolated development example](CONTRIBUTING.md#setup-and-run) to run alongside the installed app without sharing its data, configuration, keyring, or port.
 
-Nye ferdigtestede appversjoner får oppdatert versjons- og byggnummer, commit på GitHub og en tilhørende [Release](https://github.com/bejulian1/agentic-desktop/releases) med versjonslogg, installasjonsfiler og kontrollsummer. Publiseringsrutinen står i [AGENTS.md](AGENTS.md).
+### Tech Stack
 
-## For utviklere
+- **Desktop:** Electron 45
+- **Server:** Node.js 26+ running TypeScript directly (`node:sqlite`, `node-pty`, `playwright-core`, `ws`)
+- **Frontend:** SolidJS + Vite, CodeMirror 6, xterm.js, React 19 (isolated artifact sandbox)
 
-GitHub-repoet inneholder appkoden, nødvendige byggeskript og brukerdokumentasjon. Automatiserte testpakker, lokale målerapporter, brukerdata og ferdigbygde installasjonspakker inngår ikke. `npm run typecheck` kontrollerer kildekoden som følger med.
+## Project Layout
 
-| Kommando | Hva den gjør |
-|---|---|
-| `npm ci` | Henter avhengighetene |
-| `npm start` | Kjører appen i nettleseren på `http://127.0.0.1:4317` (localhost-versjonen) |
-| `npm run build` | Bygger grensesnittet og øker byggnummeret i `version.json` |
-| `npm run dist` | Pakker Electron-appen til `dist-desktop/` (mappe, .deb og AppImage) |
-| `npm run install-local` | Installerer den pakkede appen i appbiblioteket |
+```text
+server/   Local Node.js server (HTTP/WebSocket API, SQLite store, agent runner, tools, providers, MCP, hooks)
+web/      SolidJS + Vite frontend (Chat, Code, side panels, settings, artifact sandbox)
+shared/   Shared TypeScript protocol and schema definitions (protocol, MCP, hooks, UI mods)
+desktop/  Electron main/preload processes, native browser views, tray icon, AppArmor profile
+skills/   Built-in slash-skills (skills/<name>/SKILL.md)
+docs/     Architecture specs, feature guides, changelog (PATCHLOG.md), status notes, and screenshots
+scripts/  Start, build, packaging (dist), local install, and test runner scripts
+```
 
-Localhost-versjonen og appen kan ikke bruke den samme datamappen samtidig. Bruk `AD_DATA_DIR=/en/mappe npm start` hvis du vil kjøre begge.
+## Privacy and Security Model
 
-**Teknikk:**
-- Electron 45, TypeScript og Solid med Vite.
-- En lokal Node-server som eneste kjøringsgrense, med `node:sqlite` for trådene.
-- CodeMirror 6, xterm.js og node-pty, og playwright-core mot nettleseren.
+- **Local storage, no telemetry:** Threads, projects, settings, and wallpapers stay on your machine (`~/.local/share/agentic-desktop` and `~/.config/agentic-desktop`). There is no Agentic Desktop account and no telemetry.
+- **Network use:** The selected provider receives the prompt and any conversation context, attachments, and tool results needed for its response. Web tools, GitHub, and remote MCP servers make their own requests when used. Wallpapers are not sent to model providers.
+- **Keys in the system keyring:** API keys, GitHub tokens, and secret MCP headers/environment variables are stored in the Linux Secret Service (GNOME Keyring via `libsecret`) when available, or in session memory only. Keys are never returned to the frontend UI, excluded from spawned shell/hook/browser environments, and redacted if echoed by an MCP server.
+- **Approvals and protected paths:** Agent file modifications, commands, and MCP tool calls follow your chosen permission mode (**Ask**, **Accept edits**, or **Full access**). Protected paths—`.env*`, `.git/hooks`, `.git/config`, the app's own data/config directories, and sensitive home locations (`.ssh`, `.gnupg`, `.aws`, `.kube`, browser profiles, keyrings, shell history, etc.)—always require explicit approval and cannot be permanently auto-approved.
+- **Important limitation:** Shell commands run by the coding agent execute as your Linux user. Command-line checks for protected paths are a best-effort text check, **not an OS sandbox**. Review requests carefully in untrusted repositories. Optional Chat Python uses `bubblewrap` without network or home directory access and with system libraries read-only.
 
-**Dokumentasjon:**
-- [`docs/SPEC.md`](docs/SPEC.md): hva appen skal være, runde for runde
-- [`docs/STATUS.md`](docs/STATUS.md): hva som virker, og kjente svakheter
-- [`docs/PATCHLOG.md`](docs/PATCHLOG.md): endringer per versjon
-- [`docs/SERVER.md`](docs/SERVER.md): serverens API
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and full details.
 
-## Status
+## Contributing
 
-Versjon **0.20.0**. Laget og testet på Ubuntu 26.04 med GNOME på Wayland. Det som gjenstår, står i [`docs/STATUS.md`](docs/STATUS.md).
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, coding conventions, how to write skills, and the pull request workflow, and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Skriv `/` for kommandoer og `/help` for en søkbar guide til Chat, Kode og skills. [Se kommandoveiledningen.](docs/SLASH-SKILLS.md)
+## Credits
 
-Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.md).
+**[bejulian1](https://github.com/bejulian1)** is the project owner and maintainer, responsible for product direction, design references, testing, and releases.
 
-## Bidragsytere
+The project owner credits the following AI models for development assistance (see [CREDITS.md](CREDITS.md) for version-by-version details):
 
-**[bejulian1](https://github.com/bejulian1)** er prosjekteier og står for produktvalg, referanser og testing.
+- **Anthropic Claude Opus 5.5** — used with Claude Code for the initial implementation through v0.11.0, as well as sub-agent implementation, independent code reviews, and UI test maintenance.
+- **OpenAI GPT 6.1 Sol** — used with Codex and sub-agents for ongoing feature development, reviews, and fixes (including v0.11.0–v0.24.0, v0.27.0–v0.29.0, agent communication, and parent chains).
+- **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff.
+- **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
+- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action.
 
-Prosjekteieren krediterer følgende modeller for AI-assistanse:
+Crediting AI models describes development assistance only and implies no official endorsement or affiliation with Anthropic, OpenAI, or Google.
 
-- **OpenAI GPT 6.2 Sol og GPT 6.2 Astra** vurderte hull i skill-katalogen og prøvde de nye instruksjonene på eksempeloppgaver.
-- **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
-- **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
-- **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til å implementere og gjennomgå kommandoer for samtaler og prosjektpaneler i Chat og Kode.
-- **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
+## License
 
-Codex har også bidratt med visning av diagrammer direkte i samtalen. Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.
+Agentic Desktop is licensed under the [MIT License](LICENSE).

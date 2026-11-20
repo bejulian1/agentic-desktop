@@ -1,12 +1,12 @@
-# Versjonslogg
+# Changelog
 
-[Les hele versjonsloggen](docs/PATCHLOG.md) for alle dokumenterte versjoner, fra de første utgavene til siste versjon. Nyeste endringer står øverst.
+Read the [full changelog](docs/PATCHLOG.md) (currently in Norwegian) for all documented versions from the earliest releases to the latest version, newest first.
 
-## Utgivelser på GitHub
+## GitHub Releases
 
-- [Nyeste utgivelse](https://github.com/bejulian1/agentic-desktop/releases/latest)
-- [Alle utgivelser](https://github.com/bejulian1/agentic-desktop/releases)
+- [Latest release](https://github.com/bejulian1/agentic-desktop/releases/latest)
+- [All releases](https://github.com/bejulian1/agentic-desktop/releases)
 
-Hver utgivelse har egne versjonsnotater, AppImage, Debian/Ubuntu-pakke, SHA256SUMS, hele VERSJONSLOGG.md og RELEASEINFO.json med versjon, bygg og kildecommit.
+Each release includes release notes, AppImage and `.deb` packages for Linux x86_64, `SHA256SUMS`, the full changelog, and `RELEASEINFO.json` with version, build number, and source commit.
 
-Den samme versjonsloggen finnes i appen under **Profil → Versjonslogg**.
+The same changelog is also available inside the app under **Profil → Versjonslogg** (Profile → Changelog).

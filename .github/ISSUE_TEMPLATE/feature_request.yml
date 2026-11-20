@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a new feature or improvement for Agentic Desktop
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem are you trying to solve, or what workflow would this improve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe how you envision this working in Chat, Code, or Settings.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered any workarounds, existing skills, hooks, or MCP servers?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any mockups, references, or extra details.

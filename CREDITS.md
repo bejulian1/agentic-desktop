@@ -41,8 +41,12 @@ Codex skrev fem skills for kildearbeid, oppfølging fra notater, dataanalyse, yt
 
 Codex implementerte stolpe- og linjediagrammer i chatmeldinger og kontrollerte strømming og gjenåpning av samtaler med en lokal testmodell.
 
+## Gemini – Google
+
+Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.
+
 ## Om GitHubs Contributors-graf
 
 README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Eksisterende historikk er ikke omskrevet for å endre statistikken. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
 
-Verktøyene oppføres som AI-assistanse, ikke som mennesker, prosjekteiere eller garantister. Krediteringen innebærer ingen offisiell støtte eller tilknytning til Anthropic eller OpenAI. Lisensvilkår endres ikke av denne filen.
+Verktøyene oppføres som AI-assistanse, ikke som mennesker, prosjekteiere eller garantister. Krediteringen innebærer ingen offisiell støtte eller tilknytning til Anthropic, OpenAI eller Google. Lisensvilkår endres ikke av denne filen.
