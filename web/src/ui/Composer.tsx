@@ -11,6 +11,7 @@ import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
 import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
+import { pendingModelSelection, selectThreadModel } from "../state/thread-model-selection";
 import { showPanel } from "../state/panel";
 import { revertLastTurn, startPlaytest, stopPlaytest, openVscode } from "../state/project-actions";
 import { formatCost, formatTokens } from "../lib/format";
@@ -124,10 +125,33 @@ function matchScore(command: CommandInfo, query: string): number | null {
 }
 
 type Chip = AttachmentRef & { label: string; key: string };
+type Draft = { text: string; chips: Chip[]; skill: string | null };
 
 const drafts = new Map<string, string>();
 const draftParts = new Map<string, { chips: Chip[]; skill: string | null }>();
 const draftOwners = new Map<string, symbol>();
+const draftRestorers = new Map<string, (key: string, draft: Draft) => void>();
+
+function mergeDraft(current: Draft, failed: Draft): Draft {
+  if (!current.text && !current.chips.length && !current.skill) return failed;
+  const text = failed.skill && !/^[/$]/.test(failed.text.trimStart())
+    ? `/${failed.skill}${failed.text ? ` ${failed.text}` : ""}` : failed.text;
+  toast("Meldingen ble ikke sendt. Ny tekst er bevart, og den usendte teksten er lagt under utkastet.", "info");
+  return {
+    text: [current.text, text].filter(Boolean).join("\n\n"),
+    chips: [...current.chips, ...failed.chips.filter((chip) => !current.chips.some((item) => item.key === chip.key))],
+    skill: current.skill,
+  };
+}
+
+function restoreSentDraft(key: string, failed: Draft): void {
+  const restore = draftRestorers.get(key);
+  if (restore) return restore(key, failed);
+  const parts = draftParts.get(key);
+  const restored = mergeDraft({ text: drafts.get(key) ?? "", chips: parts?.chips ?? [], skill: parts?.skill ?? null }, failed);
+  drafts.set(key, restored.text);
+  draftParts.set(key, { chips: restored.chips, skill: restored.skill });
+}
 
 // Round 11b (SPEC 25.1): images and text handed to a pane's field from outside, by Annoter in the
 // Browser panel. The field with that key (the thread's id, or the empty pane's) takes them, now or
@@ -778,7 +802,7 @@ export function Composer(props: {
     const id = acceptedThread();
     if (!id || uploading()) return;
     setAcceptedThread(null);
-    untrack(() => props.onAccepted?.(id));
+    if (sideAlive && props.threadId() === id) untrack(() => props.onAccepted?.(id));
   });
   let fileInput!: HTMLInputElement;
   let textInput!: HTMLInputElement;
@@ -788,7 +812,6 @@ export function Composer(props: {
   const [hasText, setHasText] = createSignal(false);
   const [draftModel, setDraftModel] = createSignal<string | null>(null);
   const [modelOpen, setModelOpen] = createSignal(false);
-  let modelSave: Promise<unknown> | null = null;
   const [effortOpen, setEffortOpen] = createSignal(false);
   let modelButton!: HTMLButtonElement;
   const [helpQuery, setHelpQuery] = createSignal<string | null>(null);
@@ -827,7 +850,10 @@ export function Composer(props: {
   createEffect(on(locked, (now, before) => {
     if (before && !now) requestAnimationFrame(() => textarea?.focus({ preventScroll: true }));
   }));
-  const modelId = createMemo(() => thread()?.modelId ?? draftModel());
+  const modelId = createMemo(() => {
+    const id = props.threadId();
+    return id ? pendingModelSelection(id)?.modelId ?? thread()?.modelId ?? null : draftModel();
+  });
   const sideScope = createMemo(() => JSON.stringify([
     props.threadId(), mode(), props.projectId, project()?.path, thread()?.mode,
     thread()?.chatProjectId, thread()?.temporary, thread()?.archived,
@@ -1654,6 +1680,16 @@ export function Composer(props: {
     setMenu(null);
   };
 
+  const restoreHere = (key: string, failed: Draft) => {
+    const restored = mergeDraft({ text: textarea.value, chips: chips(), skill: skill() }, failed);
+    draftRevision++;
+    textarea.value = restored.text;
+    drafts.set(key, restored.text);
+    setHasText(restored.text.length > 0);
+    setChips(restored.chips);
+    setSkill(restored.skill);
+  };
+
   const runSideCommand = async (name: "btw" | "background", args: string, raw: string, sourceChips: Chip[]) => {
     const id = props.threadId();
     if (!args.trim()) return toast(`Skriv ${name === "btw" ? "spørsmålet" : "oppgaven"} etter /${name}. Utkastet er beholdt.`, "info");
@@ -1695,25 +1731,29 @@ export function Composer(props: {
   // the second waits for the same promise instead of making a thread of its own.
   let creating: Promise<string> | null = null;
   let createdHere: string | null = null;
-  const ensureThread = (): Promise<string> => {
+  const ensureThread = (sourceKey = draftKey()): Promise<string> => {
     const existing = props.threadId();
     if (existing) return Promise.resolve(existing);
     creating ??= (async () => {
-      const created = await createThreadFor(props.projectId, draftModel(), { code: kode(), chatProjectId: props.chatProjectId });
+      const projectId = props.projectId;
+      const code = kode();
+      const chatProjectId = props.chatProjectId;
       const reasoning = draftReasoning();
-      if (reasoning !== undefined) await patch(`/api/threads/${created.id}`, { reasoning }).catch(report);
       const chosen = draftPersonality();
-      if (chosen && !props.projectId && !inChatProject()) await patch(`/api/threads/${created.id}`, { personality: chosen }).catch(report);
       const tools = chatTools.draft();
-      if (tools && !kode()) await patch(`/api/threads/${created.id}`, { chatTools: tools }).catch(report);
+      const created = await createThreadFor(projectId, draftModel(), { code, chatProjectId });
+      if (reasoning !== undefined) await patch(`/api/threads/${created.id}`, { reasoning }).catch(report);
+      if (chosen && !projectId && !chatProjectId) await patch(`/api/threads/${created.id}`, { personality: chosen }).catch(report);
+      if (tools && !code) await patch(`/api/threads/${created.id}`, { chatTools: tools }).catch(report);
+      if (!sideAlive || draftKey() !== sourceKey) return created.id;
       // Text or attachments entered while creation was pending belong to this new thread.
       // Transfer them before the parent changes threadId and mounts the thread's composer.
-      const before = draftKey();
       createdHere = created.id;
       if (textarea.value) drafts.set(created.id, textarea.value);
       draftParts.set(created.id, { chips: chips().map(chip => ({ ...chip })), skill: skill() });
       draftOwners.set(created.id, draftOwner);
-      if (before !== created.id && draftOwners.get(before) === draftOwner) { drafts.delete(before); draftParts.delete(before); draftOwners.delete(before); }
+      draftRestorers.set(created.id, restoreHere);
+      if (draftOwners.get(sourceKey) === draftOwner) { drafts.delete(sourceKey); draftParts.delete(sourceKey); draftOwners.delete(sourceKey); }
       props.onThreadCreated(created);
       return created.id;
     })().finally(() => (creating = null));
@@ -1722,6 +1762,8 @@ export function Composer(props: {
 
   const submit = async () => {
     if (locked() || resolvingCommand()) return;
+    const sourceId = props.threadId();
+    const sourceKey = draftKey();
     const raw = textarea.value;
     const text = raw.trim();
     if (uploading()) return toast("Vent til bildene er lastet opp.", "info");
@@ -1785,46 +1827,43 @@ export function Composer(props: {
       body = { text: usedSkill ? raw : text, attachments, ...(usedSkill ? { skill: usedSkill } : {}) };
     }
 
-    if (modelSave) return toast("Vent til modellvalget er lagret. Utkastet er beholdt.", "info");
-
     // While the agent works, the setting decides whether the message waits or goes in at once.
     if (deliveryOverride !== undefined) body.steer = deliveryOverride;
     else if (running() && !("shell" in body)) body.steer = busyMode() === "steer";
-    const restoreChips = chips();
-    const restoreSkill = startingSkill;
+    const failedDraft = { text: raw, chips: startingChips, skill: startingSkill };
     reset();
     props.onSent();
-    let effortSaveFailed = false;
+    let saveFailed = false;
+    let restoreKey = sourceKey;
     let accepted: string | null = null;
     try {
-      const id = await ensureThread();
-      // The run must see the effort level already shown in the composer. A failed save
+      const id = sourceId ?? await ensureThread(sourceKey);
+      if (createdHere === id) restoreKey = id;
+      // The run must see the model and effort shown in the composer. A failed save
       // follows the regular send-failure path below, which preserves the unsent draft.
-      let pendingWrite = effortWrites.get(id);
-      while (pendingWrite) {
-        const failure = await pendingWrite.done;
-        if (failure) { effortSaveFailed = true; throw failure; }
-        pendingWrite = effortWrites.get(id);
+      for (;;) {
+        const modelWrite = pendingModelSelection(id)?.saved;
+        if (modelWrite) {
+          try { await modelWrite; }
+          catch (error) {
+            if (!pendingModelSelection(id)) { saveFailed = true; throw error; }
+          }
+          continue;
+        }
+        const effortWrite = effortWrites.get(id);
+        if (!effortWrite) break;
+        const failure = await effortWrite.done;
+        if (failure) { saveFailed = true; throw failure; }
       }
       await post(`/api/threads/${id}/messages`, body);
       accepted = id;
     } catch (err) {
-      const current = textarea.value;
-      const currentChips = chips();
-      const pristine = !current && !currentChips.length && !skill();
-      // A failed request must not overwrite text or attachments added after Send.
-      const failed = restoreSkill && !/^[/$]/.test(raw.trimStart()) ? `/${restoreSkill}${raw ? ` ${raw}` : ""}` : raw;
-      textarea.value = pristine ? raw : [current, failed].filter(Boolean).join("\n\n");
-      drafts.set(draftKey(), textarea.value);
-      setHasText(true);
-      setChips(pristine ? restoreChips : [...currentChips, ...restoreChips.filter((chip) => !currentChips.some((current) => current.key === chip.key))]);
-      if (pristine) setSkill(restoreSkill);
-      else toast("Meldingen ble ikke sendt. Ny tekst er bevart, og den usendte teksten er lagt under utkastet.", "info");
-      if (!effortSaveFailed) report(err);
+      restoreSentDraft(restoreKey, failedDraft);
+      if (!saveFailed) report(err);
     }
     // Keep a landing composer alive until attachments added during the request finish uploading.
     // Its cleanup can then hand the complete next draft to the opened thread.
-    if (accepted && props.onAccepted) setAcceptedThread(accepted);
+    if (accepted && sideAlive && props.threadId() === accepted && props.onAccepted) setAcceptedThread(accepted);
   };
 
   const stop = () => {
@@ -1904,32 +1943,24 @@ export function Composer(props: {
     inspect();
   };
 
-  const setModel = async (id: string) => {
+  const setModel = (id: string) => {
     setModelOpen(false);
     modelButton.focus({ preventScroll: true });
     const current = props.threadId();
-    setDraftModel(id);
-    if (!current) return;
-    // A fast second pick still writes after the first, and Send waits for the saved selection.
-    const previous = modelSave;
-    const save = (async () => {
-      await previous?.catch(() => undefined);
-      return patch(`/api/threads/${current}`, { modelId: id });
-    })();
-    modelSave = save;
-    try { await save; }
-    catch (error) { report(error); }
-    finally { if (modelSave === save) modelSave = null; }
+    if (current) selectThreadModel(current, id);
+    else setDraftModel(id);
   };
 
   onMount(() => {
     // Cleanup must retain this composer's original key even after the focused thread changes.
     const mountedDraftKey = draftKey();
     draftOwners.set(mountedDraftKey, draftOwner);
+    draftRestorers.set(mountedDraftKey, restoreHere);
     const parts = draftParts.get(mountedDraftKey);
     if (parts) { setChips(parts.chips.map((chip) => ({ ...chip }))); setSkill(parts.skill); }
     onCleanup(() => {
       const owner = createdHere ?? mountedDraftKey;
+      for (const key of new Set([mountedDraftKey, owner])) if (draftRestorers.get(key) === restoreHere) draftRestorers.delete(key);
       if (!draftOwners.has(owner) || draftOwners.get(owner) === draftOwner) draftParts.set(owner, { chips: chips().map((chip) => ({ ...chip })), skill: skill() });
       if (createdHere && owner !== mountedDraftKey && draftOwners.get(mountedDraftKey) === draftOwner) { drafts.delete(mountedDraftKey); draftParts.delete(mountedDraftKey); draftOwners.delete(mountedDraftKey); }
     });
