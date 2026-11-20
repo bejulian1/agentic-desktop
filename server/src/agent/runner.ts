@@ -953,6 +953,10 @@ export class Runner {
     // Stop hooks, before the run ends, so Stop in the app still reaches them. Not after a stop
     // by the user, a shutdown, or a message a hook kept from the model.
     if (active.job.kind === "message" && !active.promptBlocked && (status === "done" || status === "error")) await this.stopHooks(active, status, error);
+    if (active.abort.signal.aborted) {
+      status = active.shuttingDown ? "interrupted" : "stopped";
+      error = undefined;
+    }
     this.log.flush(threadId);
     const thread = this.store.thread(threadId);
     if (thread) {
@@ -1205,10 +1209,9 @@ export class Runner {
     const project = this.projectOf(thread);
     const skills = thread.mode === "code" ? this.skillsFor(project, "code") : [];
     const system = this.systemPrompt(thread, project, skills, true);
-    const tools = this.toolDefs(thread, project, skills);
-    const offered = new Set(tools.map((t) => t.name));
+    const permissionMode = project && effectiveMode(project, thread);
     const provider = this.deps.provider(model);
-    const checks = project && tools.length ? verifyCommands(project.path) : [];
+    const checks = project && !this.isChat(thread, project) ? verifyCommands(project.path) : [];
     // Round 13 (SPEC 27.2): a chat with Nettsøk on, on a model with its own web search.
     const chat = this.isChat(thread, project);
     const webSearch = chat && this.chatTools(thread)?.web === true && this.webRoute(thread) === "provider";
@@ -1221,14 +1224,21 @@ export class Runner {
       this.assertRunContext(active);
       if (step > 0) await this.takeSteered(active);
       if (autoCompact) await this.maybeCompact(active, model, provider, system, false);
-      const turnSystem = [system, ...active.skillInstructions].join("\n\n");
+      const stepThread = this.store.thread(threadId)!;
+      const stepProject = this.projectOf(stepThread);
+      const stepSystem = stepThread.planMode !== thread.planMode || (stepProject && effectiveMode(stepProject, stepThread)) !== permissionMode
+        ? this.systemPrompt(stepThread, stepProject, skills)
+        : system;
+      const tools = this.toolDefs(stepThread, stepProject, skills);
+      const offered = new Set(tools.map((tool) => tool.name));
+      const turnSystem = [stepSystem, ...active.skillInstructions].join("\n\n");
       const { blocks, stop, detail } = await this.streamStep(active, model, provider, turnSystem, tools, webSearch);
       this.assertRunContext(active);
       if (blocks.length) this.store.appendMessage(threadId, { role: "assistant", content: blocks });
 
       if (stop === "refusal") throw new Error(`Modellen avslo forespørselen${detail ? `: ${detail}` : ""}`);
       const calls = blocks.filter((b) => b.type === "tool_use");
-      if (thread.mode === "code" && thread.planMode && !calls.length) {
+      if (thread.mode === "code" && stepThread.planMode && this.store.thread(threadId)?.planMode && !calls.length) {
         const plan = blocksText(blocks).trim();
         if (plan) {
           this.store.updateThread(threadId, { plan: plan.slice(0, 8000) });
@@ -1267,15 +1277,22 @@ export class Runner {
 
       // Read-only calls next to each other run at the same time; everything else one by one.
       for (let i = 0; i < calls.length; ) {
+        if (abort.signal.aborted || this.hasIncomingMessage(threadId)) {
+          const reason = abort.signal.aborted ? "Avbrutt av brukeren." : "Ikke kjørt: ny styring kom inn mens modellen eller forrige verktøy jobbet. Vurder behovet på nytt før et eventuelt nytt kall.";
+          for (const call of calls.slice(i)) this.addToolResult(threadId, call.id, reason, true);
+          abort.signal.throwIfAborted();
+          break;
+        }
         let j = i + 1;
         if (PARALLEL_TOOLS.has(this.toolName(calls[i].name) ?? "")) {
           while (j < calls.length && PARALLEL_TOOLS.has(this.toolName(calls[j].name) ?? "")) j++;
         }
         const group = calls.slice(i, j);
-        const results = await Promise.all(group.map(async (call) => {
-          if (abort.signal.aborted) return { result: { text: "Avbrutt av brukeren.", isError: true }, status: "cancelled" as ToolStatus };
-          return chat || call.name === "ui_mod" ? this.runChatTool(active, thread, call, offered) : this.runTool(active, thread, project!, skills, call, offered);
-        }));
+        const currentThread = this.store.thread(threadId)!;
+        const currentProject = this.projectOf(currentThread);
+        const results = await Promise.all(group.map((call) =>
+          chat || call.name === "ui_mod" ? this.runChatTool(active, currentThread, call, offered) : this.runTool(active, currentThread, currentProject!, skills, call, offered),
+        ));
         this.assertRunContext(active);
         group.forEach((call, k) => {
           const { result, status } = results[k];
@@ -1595,6 +1612,15 @@ export class Runner {
     const blocked = await this.preToolHooks(active, thread, call);
     if (abort.signal.aborted) return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
     if (blocked) return finish("denied", blocked);
+    const currentThread = this.store.thread(threadId)!;
+    if (currentThread.planMode && !READ_ONLY_TOOLS.has(call.name)) {
+      return finish("denied", { text: `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`, isError: true });
+    }
+    const currentProject = this.projectOf(currentThread)!;
+    if (!asks && effectiveMode(currentProject, currentThread) !== effectiveMode(project, thread) &&
+        decide(tool, call.input, currentProject, currentThread, this.store, this.deps.dataDir, local && { isAllowed: (kind, value) => local.has(`${kind}:${value}`) }).ask) {
+      return finish("denied", { text: "Tillatelsene er endret. Be om godkjenning med et nytt verktøykall.", isError: true });
+    }
 
     try {
       // run_command stops itself and kills its group. Other tools, such as a page that never
@@ -1633,7 +1659,9 @@ export class Runner {
       });
       return { result, status };
     };
-    const problem = !tool
+    const problem = thread.mode === "code" && thread.planMode
+      ? `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`
+      : !tool
       ? `Ukjent verktøy: ${call.name}. Verktøyene du har: ${[...offered].join(", ") || "ingen"}.`
       : call.parseError ?? (!input || typeof input !== "object" ? `Forventet for ${call.name}: ${describeParams(tool.def.parameters)}` : undefined);
     this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: tool && !problem ? tool.summary(input, ctx) : "", input, status: "running" });
@@ -1660,6 +1688,9 @@ export class Runner {
       const blocked = await this.preToolHooks(active, thread, { ...call, input });
       if (abort.signal.aborted) return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
       if (blocked) return finish("denied", blocked);
+      if (thread.mode === "code" && this.store.thread(threadId)?.planMode) {
+        return finish("denied", { text: `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`, isError: true });
+      }
       const raw = await Promise.race([tool.run(input, ctx), rejectOnAbort(abort.signal)]);
       this.assertRunContext(active);
       let result = {...raw, text: clip(raw.text,ctx.maxResultChars)};

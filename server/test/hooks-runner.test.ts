@@ -194,6 +194,23 @@ test("the user's Stop cancels a running hook at once, and the tool never runs", 
   await until(async () => (await h.api<HooksState>("GET", "/api/hooks")).hooks[0].lastRun?.outcome === "cancelled", "the run to be recorded");
 });
 
+test("Stop during a Stop hook stops the turn without sending the queued message", async (t) => {
+  const { h, llm, model, out } = await setup(t);
+  const started = path.join(out, "stop-started");
+  await addHook(h, { event: "Stop", timeoutSeconds: 120, command: `touch ${quote(started)}; sleep 60` });
+  llm.reply(sse(openaiText("Ferdig.")));
+  const thread = await h.thread(null, "chat", model.id);
+  await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "Første" });
+  await until(() => existsSync(started), "the Stop hook to start");
+  const queued = await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "I kø", steer: false });
+  await h.api("POST", `/api/threads/${thread.id}/stop`);
+  await until(() => !h.app.store.thread(thread.id)?.running, "the stopped thread to become idle");
+  const events = await h.finished(thread.id);
+  assert.deepEqual(ofType(events, "run.finished").map((event) => event.status), ["stopped"]);
+  assert.ok(ofType(events, "user.message").some((event) => event.messageId === queued.messageId));
+  assert.equal(llm.requests.length, 1);
+});
+
 test("a hook that times out is a non-blocking error: shown in the conversation, and the tool still runs", async (t) => {
   const { h, llm, model } = await setup(t);
   const project = await h.project(undefined, { permissionMode: "full" });
