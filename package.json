@@ -13,8 +13,16 @@
   "scripts": {
     "start": "node scripts/start.ts",
     "build": "node scripts/build.ts",
+    "test": "npm run typecheck && npm run test:server",
+    "test:server": "node --test --test-concurrency=4 \"server/test/*.test.ts\"",
     "typecheck": "tsc -p server/tsconfig.json && tsc -p web/tsconfig.json && tsc -p desktop/tsconfig.json",
+    "e2e": "node scripts/e2e.ts",
+    "seed:perf": "node scripts/seed-perf.ts",
+    "perf": "node scripts/perf.ts",
+    "test:ui": "node --test --test-concurrency=3 \"web/test/*.test.ts\"",
+    "screenshots": "node web/test/screenshots.ts",
     "desktop:build": "node scripts/build-desktop.ts",
+    "test:desktop": "node scripts/test-desktop.ts",
     "dist": "node scripts/dist.ts",
     "install-local": "node scripts/install-local.ts"
   },

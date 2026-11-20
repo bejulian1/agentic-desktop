@@ -5,10 +5,8 @@ desktop/build/
 dist-desktop/
 *.tsbuildinfo
 
-# Tester og bilder fra testene
-server/test/
-web/test/
-desktop/test/
+# Bilder og feilskjermbilder fra testene (selve testene er en del av repoet)
+web/test/failures/
 docs/screenshots/
 docs/perf/
 docs/perf-latest.md
@@ -21,10 +19,6 @@ docs/design-ref/
 *.log
 .DS_Store
 
-# Lokale kontrollnotater og private utviklingsverktøy
+# Lokale kontrollnotater og lokale verktøyinnstillinger
 docs/reviews/
-/scripts/e2e.ts
-/scripts/perf.ts
-/scripts/perf-desktop.ts
-/scripts/seed-perf.ts
-/scripts/kontrast.ts
+.claude/

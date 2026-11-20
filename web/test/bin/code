@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stands in for VS Code in the UI tests, which put this folder first in PATH. The real one would
+# open a window on the user's desktop.
+exit 0
