@@ -47,9 +47,8 @@ test("1: binds only to 127.0.0.1", async (t) => {
 });
 
 test("2: a fresh 32-byte token per run, in a 0600 file and the URL fragment", async (t) => {
-  const dataDir = tempDir(t);
-  const first = await startHarness(t, { dataDir: path.join(dataDir, "a") });
-  const second = await startHarness(t, { dataDir: path.join(dataDir, "b") });
+  const first = await startHarness(t);
+  const second = await startHarness(t);
   assert.notEqual(first.app.security.token, second.app.security.token);
   assert.equal(Buffer.from(first.app.security.token, "base64url").length, 32);
   assert.ok(first.app.link.endsWith(`/#token=${first.app.security.token}`));
@@ -60,10 +59,13 @@ test("2: the token file is 0600 and readable before login", async (t) => {
   const { startApp } = await import("../src/app.ts");
   const dataDir = tempDir(t);
   const app = await startApp({ dataDir, port: 0 });
-  t.after(() => app.close());
-  const file = path.join(dataDir, "token");
-  assert.equal(statSync(file).mode & 0o777, 0o600);
-  assert.equal(readFileSync(file, "utf8"), app.security.token);
+  try {
+    const file = path.join(dataDir, "token");
+    assert.equal(statSync(file).mode & 0o777, 0o600);
+    assert.equal(readFileSync(file, "utf8"), app.security.token);
+  } finally {
+    await app.close();
+  }
 });
 
 test("3: the token becomes an HttpOnly, SameSite=Strict cookie", async (t) => {
