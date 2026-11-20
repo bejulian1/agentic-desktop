@@ -7,6 +7,7 @@ import { addRunButton, createCodeBlock, finishedCodeBlock, lex, renderBlocks, re
 import { highlightWhenVisible } from "./highlight";
 import { artifactLangOf, looksLikeApp } from "./artifact-detect";
 import { createWritingBox, type WritingBox } from "./artifact-card";
+import { renderChart } from "./chart";
 
 const SEGMENT_BLOCKS = 32; // Blocks per content-visibility group, so layout skips long messages.
 const MAX_TAIL = 32 * 1024; // A block this long is committed at a line break anyway.
@@ -29,8 +30,8 @@ interface OpenFence {
 }
 
 function closesFence(line: string, fence: OpenFence): boolean {
-  const trimmed = line.trim();
-  return trimmed.length >= fence.length && trimmed[0] === fence.marker && [...trimmed].every((c) => c === fence.marker);
+  const marker = /^ {0,3}(`+|~+)[ \t]*\r?$/.exec(line)?.[1];
+  return !!marker && marker.length >= fence.length && marker[0] === fence.marker;
 }
 
 export class MarkdownStream {
@@ -186,11 +187,13 @@ export class MarkdownStream {
     block.code.appendChild(text);
     fence.block = { ...block, text };
     this.fence = fence;
-    this.live.replaceChildren(block.root);
+    if (fence.lang === "chart") this.live.replaceChildren("Tegner diagram …");
+    else this.live.replaceChildren(block.root);
     this.liveText = "";
   }
 
   private growFence(fence: OpenFence): void {
+    if (fence.lang === "chart") return;
     if (this.tail.length <= fence.shown) return;
     fence.block!.text.appendData(this.tail.slice(fence.shown));
     fence.shown = this.tail.length;
@@ -208,11 +211,16 @@ export class MarkdownStream {
 
   private finishFence(fence: OpenFence, text: string): void {
     const block = fence.block!;
-    if (block.text.data !== text) block.text.data = text;
     const segment = this.currentSegment();
-    segment.appendChild(block.root);
     this.segmentBlocks += 1;
     this.live.replaceChildren();
+    const chart = fence.lang === "chart" ? renderChart(text) : null;
+    if (chart) {
+      segment.appendChild(chart);
+      return;
+    }
+    if (block.text.data !== text) block.text.data = text;
+    segment.appendChild(block.root);
     addRunButton(block.root, fence.lang, text);
     highlightWhenVisible(segment, block.code, fence.lang, text);
     if (this.isLive) renderingLive(() => finishedCodeBlock(segment, fence.lang, text, fence.info));

@@ -108,6 +108,7 @@ Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
 ## Hva den kan
 
 - **Chat og Kode.** I Chat svarer modellen med Markdown, kodeblokker, tabeller og matte. I Kode jobber den i en mappe med verktøy for filer, kommandoer, søk og nettleser.
+- **Diagrammer i svaret.** I både Chat og Kode kan du be om «Sammenlign 9,12 og 5,33 sekunder med stolper» eller «Vis temperaturene 4, 7 og 5 grader fra mandag til onsdag som en linje». Diagrammet vises mellom avsnittene. I et linjediagram åpner «Vis verdiene» hele tallrekken. Diagrammene tegnes lokalt og fungerer også med Python og Artifacts slått av. Hvis modellen sender ugyldige diagramdata, vises de som en kopierbar kodeblokk. [Se et eksempel fra chatten.](docs/bilder/diagram-i-chat.png)
 - **Artifacts.** En hel app i én fil, i HTML eller React (JSX/TSX), blir en boks i chatten.
   - Boksen åpner et panel med **Forhåndsvisning** og **Kode**, og du kan bla mellom versjonene.
   - React kjører lokalt og uten nett, i en isolert sandkasse som ikke når appen eller filene dine.
@@ -316,4 +317,4 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 
-Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.
+Codex har også bidratt med visning av diagrammer direkte i samtalen. Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.

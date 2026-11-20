@@ -3,6 +3,7 @@
 import { Marked, type Token, type Tokens } from "marked";
 import { highlightWhenVisible } from "./highlight";
 import { renderMath } from "./math";
+import { renderChart } from "./chart";
 import { openCodeBlock } from "../ui/MiniEditorHooks";
 
 const SAFE_LINK = /^(https?|mailto):/i;
@@ -314,6 +315,11 @@ export function renderBlocks(tokens: Token[], parent: Node, tight = false, highl
         const code = token as Tokens.Code;
         const info = (code.lang ?? "").trim();
         const lang = info.split(/\s+/)[0] ?? "";
+        const chart = lang === "chart" ? renderChart(code.text) : null;
+        if (chart) {
+          parent.appendChild(chart);
+          break;
+        }
         const block = createCodeBlock(lang, code.text);
         parent.appendChild(block.root);
         if (highlight) {

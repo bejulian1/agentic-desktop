@@ -751,6 +751,31 @@ kbd.recording { color: var(--accent-text); border-color: var(--accent); }
 .md table { border-collapse: collapse; font-size: 0.95em; }
 .md th, .md td { border: 1px solid var(--border-strong); padding: 4px 10px; text-align: left; }
 .md th { font-weight: var(--weight-semibold); background: var(--hover); }
+.md-chart { margin: 0.8em 0 1.2em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.md-chart figcaption { margin-bottom: 0.45em; font-weight: var(--weight-semibold); }
+.md-chart .chart-bars { width: 100%; table-layout: fixed; line-height: 1.35; }
+.md-chart .chart-bars :is(th, td) { border: 0; background: transparent; padding: 0.2em 0; vertical-align: middle; }
+.md-chart .chart-bars th { width: 23%; padding-right: 0.7em; font-weight: normal; }
+.md-chart .chart-bars td:last-child { width: 14%; padding-left: 0.6em; text-align: right; }
+.chart-track { position: relative; display: block; height: 0.6em; }
+.chart-bar { position: absolute; inset-block: 0; border-radius: 0.2em; background: var(--accent); }
+.chart-bar[data-color="1"] { background: var(--ok); }
+.chart-bar[data-color="2"] { background: var(--tok-keyword); }
+.chart-bar[data-color="3"] { background: var(--warn); }
+.chart-zero { position: absolute; inset-block: -0.18em; border-left: 1px solid var(--text-3); }
+.chart-line { display: grid; grid-template-columns: fit-content(28%) minmax(0, 1fr); gap: 0.35em 0.75em; padding: 0.4em 2px 0; }
+.chart-line svg { width: 100%; height: 7em; overflow: visible; border-block: 1px solid var(--border); }
+.chart-line polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.chart-scale, .chart-endpoints, .md-chart details { font-size: var(--text-sm); color: var(--text-2); }
+.chart-scale, .chart-endpoints { display: flex; justify-content: space-between; line-height: 1.2; gap: 0.5em; }
+.chart-scale { flex-direction: column; text-align: right; }
+.chart-scale.constant { justify-content: center; }
+.chart-endpoints { grid-column: 2; }
+.chart-endpoints span:last-child { text-align: right; }
+.md-chart details { margin-top: 0.6em; }
+.md-chart summary { cursor: pointer; width: fit-content; }
+.md-chart dl { display: grid; grid-template-columns: auto auto; gap: 0.2em 1em; width: fit-content; max-width: 100%; margin: 0.5em 0; }
+.md-chart dd { margin: 0; text-align: right; }
 .md-raw { margin: 0 0 0.7em; font: 12.5px/1.5 var(--font-mono); white-space: pre-wrap; color: var(--text-2); }
 .md-code { margin: 0 0 0.8em; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-panel); contain: layout paint style; }
 .md-code-head { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 6px 0 var(--space-3); font-size: var(--text-xs); color: var(--text-3); border-bottom: 1px solid var(--border); }

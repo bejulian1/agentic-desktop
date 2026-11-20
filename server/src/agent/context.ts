@@ -10,7 +10,7 @@ import type { Block, ImageData, Message } from "../providers/types.ts";
 import { readImage } from "../images.ts";
 import { readTextUpload } from "../uploads.ts";
 import type { Skill } from "../skills.ts";
-import { basePrompt, environmentPrompt, memoryPrompt, USER_TASK_PROMPT, type PromptExtras } from "./prompt.ts";
+import { basePrompt, CHART_PROMPT, environmentPrompt, memoryPrompt, USER_TASK_PROMPT, type PromptExtras } from "./prompt.ts";
 import { HARNESS_VERSION, type ChatPersonal } from "./harness.ts";
 
 const MAX_INSTRUCTIONS_CHARS = 32_000;
@@ -121,6 +121,7 @@ function chatLayers(thread: Thread, chat: ChatExtras, extras: PromptExtras): Pro
       "- Lead with the answer or the result, then give the reasoning it needs. A short question gets a short answer; a hard one gets depth.",
       "- Be accurate. Separate what you know from what you assume, say when you are unsure or when something may have changed since your training, and never invent sources, quotes, numbers or actions.",
       "- Match the form to the content: paragraphs for explanations, a numbered list for steps, a table for comparisons, a code block for code. No headings on short answers.",
+      CHART_PROMPT,
       "- When you write or edit a text for the user, give the finished text first, ready to use and in the tone they asked for; comments come after it.",
       "- When asked for advice, give your recommendation and the main trade-off instead of listing every option without choosing.",
       "- Do not open by repeating the question or praising it, and do not close with a recap or an offer of more help unless it adds something.",

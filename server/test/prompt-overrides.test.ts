@@ -41,6 +41,7 @@ test("a saved layer text is what the model gets, per mode and variant, until it 
   assert.match(base.template, /working in the project folder \{\{project_path\}\}/);
   assert.match(base.template, /Here you can \{\{abilities\}\}/);
   assert.match(base.template, /Kode can \{\{kode_abilities\}\}/);
+  assert.match(base.text, /fenced Markdown block with the language chart/);
   assert.equal((await preview(code)).find((l) => l.id === "env").editable, false);
 
   // Save an own text for Kode with a project.
@@ -60,11 +61,13 @@ test("a saved layer text is what the model gets, per mode and variant, until it 
   const system = llm.requests.at(-1)!.body.messages[0].content as string;
   assert.match(system, /^EGEN-GRUNN for Butikk/);
   assert.doesNotMatch(system, /You are the coding agent in Agentic Desktop/);
+  assert.doesNotMatch(system, /fenced Markdown block with the language chart/);
   assert.match(system, /# Environment/);
 
   // Chat's base keeps the environment and the tool lines live through placeholders.
   const chatBase = (await preview("mode=chat")).find((l) => l.id === "chat-base");
   assert.match(chatBase.template, /\{\{environment\}\}/);
+  assert.match(chatBase.text, /fenced Markdown block with the language chart/);
   await h.api("PUT", "/api/harness/overrides", { mode: "chat", layer: "chat-base", text: "MIN CHAT.\n{{environment}}" });
   assert.match((await preview("mode=chat")).find((l) => l.id === "chat-base").text, /^MIN CHAT\.\n# Environment\n- Mode: Chat/);
 

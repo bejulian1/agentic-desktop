@@ -34,6 +34,8 @@ Videreutviklingen fra v0.11.0 til v0.24.0, samt v0.24.2 og v0.24.3, er gjort med
 
 **v0.29.0:** Codex implementerte lesestatus og kommandosnarveier. GPT 6.1 Sol-underagenter undersøkte og rettet agentkommunikasjon, tenkeinnsats og foreldrekjeder, skrev isolerte regresjonstester og gjennomgikk køgrenser og stoppatferd. Claude Fable 5.2 la til arbeid på «Denne datamaskinen» uten valgt prosjekt, med beskyttelse av nøkler og innlogginger i hjemmemappen.
 
+Codex implementerte stolpe- og linjediagrammer i chatmeldinger og kontrollerte strømming og gjenåpning av samtaler med en lokal testmodell.
+
 ## Om GitHubs Contributors-graf
 
 README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Eksisterende historikk er ikke omskrevet for å endre statistikken. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
