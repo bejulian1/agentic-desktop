@@ -130,6 +130,7 @@ interface ActiveRun {
   runId: string;
   threadId: string;
   projectId: string | null;
+  workspaceId: string | null;
   turnId: string;
   job: Job;
   pendingReceipts: string[]; // accepted messages awaiting a substantive provider response
@@ -857,6 +858,7 @@ export class Runner {
       runId: randomUUID(),
       threadId: thread.id,
       projectId: thread.projectId,
+      workspaceId: this.projectOf(thread)?.id ?? null,
       turnId: randomUUID(),
       job,
       pendingReceipts: job.kind === "message" && job.modelText && !heldPrompt ? [job.id] : [],
@@ -1952,7 +1954,10 @@ export class Runner {
     const thread = this.store.thread(turn.threadId);
     const project = thread ? this.projectOf(thread) : undefined;
     if (!thread || !project) throw new HttpError(404, "Fant ikke prosjektet");
-    if ([...this.active.values()].some((run) => run.projectId === project.id)) throw new HttpError(409, "Vent til trådene i prosjektet er ferdige før du angrer");
+    if ([...this.active.values()].some((run) => run.workspaceId === project.id)) {
+      const workspace = project.id === LOCAL_PANEL ? "på Denne datamaskinen" : "i prosjektet";
+      throw new HttpError(409, `Vent til trådene ${workspace} er ferdige før du angrer`);
+    }
     const paths = this.deps.turns.revert(turnId, project.path, force);
     this.store.markTurnReverted(turnId);
     this.store.appendMessage(thread.id, { role: "user", content: [{ type: "text", text: `[Brukeren angret filendringene fra en tidligere tur: ${paths.join(", ")}]` }] });

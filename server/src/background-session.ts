@@ -13,7 +13,7 @@ export function startBackgroundSession(store: Store, runner: Runner, threadId: s
   const source = store.thread(threadId);
   if (!source || source.archived) throw new HttpError(404, "Fant ikke en åpen samtale");
   if (store.threads().filter((thread) => thread.running && thread.forkedFrom?.background).length >= 4) throw new HttpError(429, "Fire bakgrunnsøkter jobber allerede. Vent på en av dem.");
-  const project = source.projectId ? store.project(source.projectId) : undefined;
+  const project = runner.projectOf(source);
   if (project?.folderMissing) throw new HttpError(409, "Prosjektmappen mangler. Velg mappen på nytt.");
   const fallback = store.settings().defaultModelId;
   const model = (source.modelId ? store.model(source.modelId) : undefined) ?? (fallback ? store.model(fallback) : undefined);

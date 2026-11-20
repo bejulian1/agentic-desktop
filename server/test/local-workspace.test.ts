@@ -5,8 +5,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { isProtectedCommand, isProtectedPath } from "../src/paths.ts";
-import { openaiText, openaiToolCall, sse, startFakeLlm, type FakeLlm } from "./fake-llm.ts";
-import { ofType, startHarness, tempDir, type Harness } from "./helpers.ts";
+import { hang, openaiText, openaiToolCall, sse, startFakeLlm, type FakeLlm } from "./fake-llm.ts";
+import { ofType, startHarness, tempDir, until, type Harness } from "./helpers.ts";
 
 function toolThenText(llm: FakeLlm, name: string, input: unknown, answer = "Ferdig.") {
   llm.always((req, res) => {
@@ -84,6 +84,7 @@ test("a turn on Denne datamaskinen reads files and runs commands, with the usual
 
 test("keys and logins under the home folder always ask, and search leaves them out", async (t) => {
   const { h, llm, thread } = await setup(t);
+  await h.api("PATCH", "/api/settings", { defaultPermissionMode: "full" });
   // A protected file is not read without a yes, even though reading normally never asks.
   toolThenText(llm, "read_file", { path: ".ssh/id_ed25519" });
   const stop = h.approveAll(thread.id, "deny");
@@ -112,6 +113,58 @@ test("keys and logins under the home folder always ask, and search leaves them o
   for (const rel of ["prosjekter/prism/README.md", ".config/Code/settings.json", "Dokumenter/ssh-notater.md"]) assert.equal(isProtectedPath(rel), false, rel);
   assert.equal(isProtectedCommand("cat ~/.ssh/id_ed25519", "/tmp/x"), true);
   assert.equal(isProtectedCommand("ls ~/prosjekter", "/tmp/x"), false);
+});
+
+test("local background turns keep their approval cap after the global default is raised", async (t) => {
+  const { h, llm, home, thread } = await setup(t);
+  llm.reply(sse(openaiText("Analysert.")));
+  const { thread: child } = await h.api("POST", `/api/threads/${thread.id}/background`, { text: "Analyser arbeidsområdet" });
+  await h.finished(child.id);
+  await h.api("PATCH", "/api/settings", { defaultPermissionMode: "full" });
+  llm.reply(sse(openaiToolCall("write_file", { path: "notat.txt", content: "Godkjenn først." }, "write")));
+  llm.reply(sse(openaiText("Ferdig.")));
+  await h.api("POST", `/api/threads/${child.id}/messages`, { text: "Skriv et notat" });
+  await until(async () => (await h.events(child.id)).some(({ event }) => event.type === "approval.requested") || !h.app.runner.isRunning(child.id), "the decision on the local write");
+  const [approval] = ofType((await h.events(child.id)).map(({ event }) => event), "approval.requested");
+  assert.ok(approval, "a higher default does not grant the background thread permission to write without asking");
+  assert.equal(child.projectId, null);
+  assert.equal(child.permissionCap, "ask");
+  assert.equal(existsSync(path.join(home, "notat.txt")), false);
+  await h.api("POST", `/api/approvals/${approval.approvalId}`, { decision: "deny" });
+  await h.finished(child.id, 2);
+});
+
+test("Undo waits for all local Code threads but not for Chat", async (t) => {
+  const { h, llm, home, thread } = await setup(t);
+  await h.api("PATCH", "/api/settings", { defaultPermissionMode: "full" });
+  const file = path.join(home, "notat.txt");
+  writeFileSync(file, "før\n");
+  llm.reply(sse(openaiToolCall("edit_file", { path: "notat.txt", old_string: "før", new_string: "etter" })));
+  llm.reply(sse(openaiText("Ferdig.")));
+  await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "Endre notatet" });
+  const [turn] = ofType(await h.finished(thread.id), "turn.changes");
+  assert.ok(turn);
+
+  const other = await h.thread(null, "code", thread.modelId!);
+  llm.reply(hang());
+  await h.api("POST", `/api/threads/${other.id}/messages`, { text: "Jobb på datamaskinen" });
+  await until(() => llm.requests.length === 3, "the other local Code thread");
+  const revert = `/api/turns/${turn.turnId}/revert`;
+  for (const force of [false, true]) {
+    await assert.rejects(h.api("POST", revert, { force }), /409.*Vent til trådene/);
+    assert.equal(readFileSync(file, "utf8"), "etter\n");
+  }
+  await h.api("POST", `/api/threads/${other.id}/stop`);
+  await h.finished(other.id);
+
+  const chat = await h.thread(null, "chat", thread.modelId!);
+  llm.reply(hang());
+  await h.api("POST", `/api/threads/${chat.id}/messages`, { text: "Chat uten arbeidsområde" });
+  await until(() => llm.requests.length === 4, "the unrelated Chat thread");
+  await h.api("POST", revert, {});
+  assert.equal(readFileSync(file, "utf8"), "før\n");
+  await h.api("POST", `/api/threads/${chat.id}/stop`);
+  await h.finished(chat.id);
 });
 
 test("without the home folder as a workspace, Kode without a project answers with text as before", async (t) => {

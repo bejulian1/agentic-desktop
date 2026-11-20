@@ -12,6 +12,7 @@ import { confirmDialog } from "../dialogs";
 import { IconPlay } from "../icons";
 import { ThemePicker } from "../ThemePicker";
 import { AppIconPicker } from "../AppIconPicker";
+import { DEFAULT_PERMISSION_SCOPE, DEFAULT_PERMISSION_TITLE } from "../permission-copy";
 import { Choice, Group, Page, Row, save, Segmented, Toggle } from "./parts";
 
 const THEMES: Array<{ value: ThemeSetting; label: string }> = [
@@ -134,8 +135,8 @@ function PermissionDefaults() {
   const [error, setError] = createSignal("");
   const options: Array<{ value: PermissionMode; label: string; text: string }> = [
     { value: "ask", label: "Be om godkjenning", text: "Lesing er tillatt. Spør før filendringer, kommandoer og bruk av nettleseren." },
-    { value: "accept-edits", label: "Godkjenn for meg", text: "Endrer prosjektfiler automatisk. Spør før kommandoer og bruk av nettleseren." },
-    { value: "full", label: "Full tilgang", text: "Godkjenner vanlige verktøyhandlinger i prosjektet automatisk. Beskyttede filer krever fortsatt godkjenning." },
+    { value: "accept-edits", label: "Godkjenn for meg", text: "Endrer filer i arbeidsområdet automatisk. Spør før kommandoer og bruk av nettleseren." },
+    { value: "full", label: "Full tilgang", text: "Godkjenner vanlige verktøyhandlinger, inkludert filendringer og kommandoer, automatisk. Beskyttede filer krever fortsatt godkjenning." },
   ];
   const choose = async (value: PermissionMode) => {
     if (busy() || value === app.settings.defaultPermissionMode) return;
@@ -150,7 +151,7 @@ function PermissionDefaults() {
     } finally { setBusy(false); }
   };
   return <Group title="Tillatelser i Kode">
-    <div class="setting setting-block"><div class="setting-text"><strong>Standard for nye prosjekter</strong><span class="muted">Eksisterende prosjekter beholder sine tillatelser. Du kan endre dem i meldingsfeltet i prosjektet. Kode uten prosjekt får ikke fil- eller kommandotilgang av dette valget.</span></div></div>
+    <div class="setting setting-block"><div class="setting-text"><strong>{DEFAULT_PERMISSION_TITLE}</strong><span class="muted">{DEFAULT_PERMISSION_SCOPE}</span></div></div>
     <div class="default-code-permissions" role="radiogroup" aria-label="Standardtillatelser i Kode" aria-busy={busy()}>
       <For each={options}>{(option) => <Row as="label" label={option.label} text={option.text}>
         <input type="radio" name="default-code-permission" value={option.value} checked={app.settings.defaultPermissionMode === option.value} disabled={busy()} onChange={() => void choose(option.value)} />

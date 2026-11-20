@@ -3,6 +3,7 @@
 // search for. A hit opens the page and points at the row with that title. The shortcuts come
 // from their own table.
 import { SHORTCUTS } from "../../state/shortcuts";
+import { DEFAULT_PERMISSION_TITLE } from "../permission-copy";
 
 export interface Entry {
   page: string;
@@ -37,7 +38,7 @@ export const ENTRIES: Entry[] = [
   { page: "general", label: "Vis tenkesammendrag", words: "tenkning resonnering thinking reasoning" },
   { page: "general", label: "Skallutdata utvidet", words: "shell terminal kommandoer verktøy utvid" },
   { page: "general", label: "Meldinger mens agenten jobber", words: "kø styr send med en gang steer queue melding tur" },
-  { page: "general", label: "Standard for nye prosjekter", words: "kode tillatelser godkjenning full tilgang" },
+  { page: "general", label: DEFAULT_PERMISSION_TITLE, words: "kode tillatelser godkjenning full tilgang hjemmemappen" },
   { page: "code", label: "Kode uten prosjekt", words: "startside hilsen prosjektkort hva skal vi bygge denne datamaskinen" },
   { page: "code", label: "Kode med prosjekt", words: "startside hilsen prosjektkort miljø github hva skal vi jobbe med" },
   { page: "code", label: "Festet sammendrag", words: "mål plan" },
@@ -108,7 +109,7 @@ export const ENTRIES: Entry[] = [
   { page: "browser", label: "Informasjonskapsler", words: "cookies innlogget logg inn importer firefox chromium glem" }, // round 12
   { page: "browser", label: "Spør før agenter bruker innloggede nettsteder", words: "agent godkjenning cookies innlogget" }, // round 12
   { page: "desktop", label: "Styr Linux-skrivebordet i bakgrunnen", words: "skrivebord computer use cua" },
-  { page: "permissions", label: "Standard for nye prosjekter", words: "tillatelser spør godta redigeringer full tilgang godkjenning" },
+  { page: "permissions", label: DEFAULT_PERMISSION_TITLE, words: "tillatelser spør godta redigeringer full tilgang godkjenning hjemmemappen" },
   { page: "permissions", label: "Prosjekter", words: "tillatelser per prosjekt" },
   { page: "archived", label: "Arkiverte tråder", words: "gjenopprett arkiv" },
   { page: "about", label: "Versjon", words: "om versjon byggnummer" },

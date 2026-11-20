@@ -32,6 +32,10 @@ flow("tillatelser uten prosjekt: ny standard lagres, synkroniseres med Generelt 
   const button = page.getByTestId("permission-button");
   await button.waitFor();
   assert.equal(await button.isDisabled(), false);
+  await button.click();
+  assert.match(await menu(page).innerText(), /nye prosjekter og alle Kode-tråder på Denne datamaskinen/);
+  assert.match(await row(page, "full").innerText(), /kjøre kommandoer i hjemmemappen uten å spørre/);
+  await page.keyboard.press("Escape");
   await choose(h, "full");
   assert.equal((await h.api("GET", "/api/bootstrap")).settings.defaultPermissionMode, "full");
   assert.equal(await storedMode(h, existing.id), "ask");
@@ -39,9 +43,13 @@ flow("tillatelser uten prosjekt: ny standard lagres, synkroniseres med Generelt 
   await button.getByText(LABELS.full, { exact: true }).waitFor();
   await button.click();
   assert.match(await menu(page).innerText(), /nye prosjekter/);
-  assert.match(await menu(page).innerText(), /ikke tilgang til filer eller kommandoer/);
+  assert.match(await menu(page).innerText(), /også eksisterende/);
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+,");
+  await page.locator(".settings-nav").getByRole("button", { name: "Generelt", exact: true }).click();
+  await page.getByText(/nye prosjekter og alle Kode-tråder på Denne datamaskinen/).waitFor();
+  await page.locator(".settings-nav").getByRole("button", { name: "Tillatelser", exact: true }).click();
+  await page.getByText(/nye prosjekter og alle Kode-tråder på Denne datamaskinen/).waitFor();
   await page.locator(".settings-nav").getByRole("button", { name: "Generelt", exact: true }).click();
   const modes = page.getByRole("radiogroup", { name: "Standardtillatelser i Kode" });
   assert.equal(await modes.getByRole("radio", { name: /^Full tilgang/ }).isChecked(), true);

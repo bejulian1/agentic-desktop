@@ -5,6 +5,7 @@ import type { PermissionMode, Project } from "../../../shared/protocol";
 import { patch } from "../lib/api";
 import { app, report, setApp } from "../state/app";
 import { IconAlert, IconCheck, IconHand, IconShieldCheck } from "./icons";
+import { DEFAULT_PERMISSION_SCOPE } from "./permission-copy";
 
 const MODES: PermissionMode[] = ["ask", "accept-edits", "full"];
 const LABELS: Record<PermissionMode, string> = {
@@ -17,10 +18,14 @@ const DESCRIPTIONS: Record<PermissionMode, string> = {
   "accept-edits": "Endrer prosjektfiler automatisk. Spør før kommandoer og bruk av nettleseren.",
   full: "Godkjenner vanlige verktøyhandlinger i prosjektet automatisk. Beskyttede filer spør fortsatt.",
 };
+const LOCAL_DESCRIPTIONS: Record<PermissionMode, string> = {
+  ask: "Spør før filendringer og kommandoer i hjemmemappen. Lesing er normalt tillatt.",
+  "accept-edits": "Endrer filer i hjemmemappen automatisk. Spør før kommandoer.",
+  full: "Lar agenten endre filer og kjøre kommandoer i hjemmemappen uten å spørre. Beskyttede filer krever fortsatt godkjenning.",
+};
 const ICONS = { ask: IconHand, "accept-edits": IconShieldCheck, full: IconAlert };
 
-// With a project, change that project. Without one, choose the default for new projects.
-// This never adds tools to a Code thread without a project.
+// Without a project, choose the shared mode for local Code threads and the default for new projects.
 export function PermissionPicker(props: { project?: Project; cap?: PermissionMode | null }) {
   const [open, setOpen] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
@@ -36,7 +41,6 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
   const effective = () => aboveCap(selected()) ? props.cap! : selected();
   const label = () => LABELS[effective()];
   const capDescription = () => props.cap ? `Denne tråden er begrenset til ${LABELS[props.cap]}.` : "";
-  const defaultDescription = "Standard for nye prosjekter. Eksisterende prosjekter beholder sine tillatelser.";
   const close = (restoreFocus = false) => {
     setOpen(false);
     if (restoreFocus) trigger.focus({ preventScroll: true });
@@ -145,8 +149,8 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
       class="foot-chip permission-chip"
       data-testid="permission-button"
       data-mode={effective()}
-      title={props.project ? `Tillatelser: ${label()}. ${capDescription()} Velg hvordan handlinger godkjennes i prosjektet`.trim() : defaultDescription}
-      aria-label={`Tillatelser: ${label()}${props.project ? (props.cap ? `. ${capDescription()}` : "") : `. ${defaultDescription}`}`}
+      title={`Tillatelser: ${label()}. ${capDescription()} ${props.project ? "Velg hvordan handlinger godkjennes i prosjektet." : DEFAULT_PERMISSION_SCOPE}`}
+      aria-label={`Tillatelser: ${label()}${props.cap ? `. ${capDescription()}` : ""}`}
       aria-haspopup="menu"
       aria-expanded={open()}
       aria-controls={open() ? id : undefined}
@@ -169,12 +173,12 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
             <span>Hvordan skal handlinger godkjennes?</span>
             <button type="button" class="permission-more" aria-expanded={expanded()} aria-controls={`${id}-more`} onClick={() => setExpanded(!expanded())}>Les mer</button>
           </div>
-          <Show when={!props.project}><p class="permission-cap">{defaultDescription} Kode uten prosjekt får ikke tilgang til filer eller kommandoer av dette valget.</p></Show>
+          <Show when={!props.project}><p class="permission-cap">{DEFAULT_PERMISSION_SCOPE}</p></Show>
           <Show when={expanded()}>
-            <p class="permission-explanation" id={`${id}-more`}><Show when={props.project} fallback={defaultDescription}>Valget gjelder hele prosjektet.</Show> Tråder med en egen grense får aldri høyere tilgang. Lesing er normalt tillatt. Lagrede godkjenninger kan også tillate handlinger. Beskyttede filer som .env og .git/hooks krever fortsatt godkjenning.</p>
+            <p class="permission-explanation" id={`${id}-more`}><Show when={props.project}>Valget gjelder hele prosjektet. </Show>Tråder med en egen grense får aldri høyere tilgang. Lesing er normalt tillatt. Lagrede godkjenninger kan også tillate handlinger. Beskyttede filer som .env, .git/hooks og filer i .ssh krever fortsatt godkjenning.</p>
           </Show>
           <Show when={props.cap}>
-            <p class="permission-cap">Denne tråden er begrenset til {LABELS[props.cap!]}. Du kan ikke velge høyere tilgang her.<Show when={effective() !== selected()}> Prosjektets innstilling er {LABELS[selected()]}.</Show></p>
+            <p class="permission-cap">Denne tråden er begrenset til {LABELS[props.cap!]}. Du kan ikke velge høyere tilgang her.<Show when={effective() !== selected()}> {props.project ? "Prosjektets innstilling" : "Standarden"} er {LABELS[selected()]}.</Show></p>
           </Show>
           <For each={MODES}>{(value) => {
             const Icon = ICONS[value];
@@ -190,7 +194,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
               onClick={() => void choose(value)}
             >
               <span class="permission-choice-icon"><Icon size={16} /></span>
-              <span class="permission-choice-text"><span class="permission-choice-name menu-name">{LABELS[value]}</span><span class="permission-choice-description menu-desc">{DESCRIPTIONS[value]}</span></span>
+              <span class="permission-choice-text"><span class="permission-choice-name menu-name">{LABELS[value]}</span><span class="permission-choice-description menu-desc">{(props.project ? DESCRIPTIONS : LOCAL_DESCRIPTIONS)[value]}</span></span>
               <span class="permission-choice-check"><Show when={selected() === value}><IconCheck size={15} /></Show></span>
             </button>;
           }}</For>

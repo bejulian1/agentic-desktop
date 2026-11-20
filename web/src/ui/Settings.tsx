@@ -37,12 +37,13 @@ import { HooksPage } from "./settings/hooks";
 import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
 import { IconPullRequest } from "./GitHubShared";
+import { DEFAULT_PERMISSION_SCOPE, DEFAULT_PERMISSION_TITLE } from "./permission-copy";
 import "../styles/settings-polish.css";
 
 const PERMISSIONS: Array<{ id: PermissionMode; label: string; text: string; icon: Icon }> = [
   { id: "ask", label: "Spør", text: "Lesing er tillatt. Filendringer, kommandoer og nettleser spør først.", icon: IconHand },
   { id: "accept-edits", label: "Godta redigeringer", text: "Filendringer er tillatt. Kommandoer og nettleser spør først.", icon: IconPencil },
-  { id: "full", label: "Full tilgang", text: "Alt er tillatt, unntatt .env-filer og .git/hooks, som alltid spør.", icon: IconShieldCheck },
+  { id: "full", label: "Full tilgang", text: "Filendringer og kommandoer godkjennes automatisk. Beskyttede filer krever fortsatt godkjenning.", icon: IconShieldCheck },
 ];
 
 interface Section { id: string; label: string; icon: Icon; demo?: boolean; beta?: boolean }
@@ -144,7 +145,8 @@ function Permissions() {
   return (
     <Page title="Tillatelser">
       {/* Rows with an icon and a check, like the permission menu in the message field. */}
-      <Group title="Standard for nye prosjekter">
+      <Group title={DEFAULT_PERMISSION_TITLE}>
+        <div class="setting setting-block"><div class="setting-text"><span class="muted">{DEFAULT_PERMISSION_SCOPE}</span></div></div>
         <div class="choice-list" role="radiogroup" aria-label="Standard tillatelsesmodus">
           <For each={PERMISSIONS}>
             {(mode) => (
