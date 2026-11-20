@@ -291,7 +291,7 @@ async function startServer(): Promise<void> {
 
 function showBusy(other: InstanceInfo | null): void {
   // A browser version started from this data folder can be asked to stop (stoppable).
-  const stoppable = other?.shell === "localhost" && !!readStopKey(dataDir);
+  const stoppable = other?.shell === "localhost" && other.port > 0 && !!readStopKey(dataDir);
   showShellPage("busy", { port: String(other?.port ?? ""), pid: String(other?.pid ?? ""), dir: dataDir, shell: other?.shell ?? "localhost", stoppable: stoppable ? "1" : "0" });
 }
 
@@ -316,7 +316,7 @@ async function stopOtherServer(): Promise<{ ok: boolean; message?: string }> {
     const other = await liveInstance(dataDir);
     if (other) {
       const key = readStopKey(dataDir);
-      if (other.shell !== "localhost" || !key) return { ok: false, message: "Denne serveren kan ikke avsluttes herfra. Stopp den der du startet den." };
+      if (other.shell !== "localhost" || other.port === 0 || !key) return { ok: false, message: "Denne serveren kan ikke avsluttes herfra. Stopp den der du startet den." };
       let answer: Response;
       try {
         answer = await fetch(`http://127.0.0.1:${other.port}/api/instance/stop`, { method: "POST", headers: { "x-agentic-stop-key": key }, signal: AbortSignal.timeout(5000) });

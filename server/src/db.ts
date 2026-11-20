@@ -240,13 +240,18 @@ export class Store {
   constructor(dataDir: string) {
     const file = path.join(dataDir, "agentic-desktop.db");
     this.db = new DatabaseSync(file);
-    chmodSync(file, 0o600);
-    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-    this.db.exec(SCHEMA);
-    this.migrate();
-    this.q(`INSERT OR IGNORE INTO providers (id, kind, name) VALUES (?, 'mock', 'Demo')`).run(MOCK_PROVIDER_ID);
-    this.q(`INSERT OR IGNORE INTO models (id, provider_id, name, model, context_window) VALUES (?, ?, 'Demo-modell (uten API)', 'mock', 200000)`)
-      .run(MOCK_MODEL_ID, MOCK_PROVIDER_ID);
+    try {
+      chmodSync(file, 0o600);
+      this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+      this.db.exec(SCHEMA);
+      this.migrate();
+      this.q(`INSERT OR IGNORE INTO providers (id, kind, name) VALUES (?, 'mock', 'Demo')`).run(MOCK_PROVIDER_ID);
+      this.q(`INSERT OR IGNORE INTO models (id, provider_id, name, model, context_window) VALUES (?, ?, 'Demo-modell (uten API)', 'mock', 200000)`)
+        .run(MOCK_MODEL_ID, MOCK_PROVIDER_ID);
+    } catch (err) {
+      this.close();
+      throw err;
+    }
   }
 
   // Columns added after the first release. ADD COLUMN is cheap and keeps old databases working.

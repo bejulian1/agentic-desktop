@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { test } from "node:test";
-import { closeAll, ELECTRON, launch, MAIN, ozoneArgs, sandbox, waitFor, type Running, type Sandbox } from "./helpers.ts";
+import { apiCall, closeAll, ELECTRON, launch, MAIN, ozoneArgs, sandbox, waitFor, type Running, type Sandbox } from "./helpers.ts";
 
 function secondStart(box: Sandbox): Promise<{ code: number | null; ms: number }> {
   const started = Date.now();
@@ -40,6 +40,28 @@ test("én instans om gangen: en ny start viser vinduet, også fra statusfeltet",
     await waitFor(async () => (await windowState()).visible, "vinduet vises igjen");
     assert.equal(await probe<number>("probe.secondInstances"), 2);
     assert.equal((await windowState()).count, 1, "fortsatt ett vindu");
+  } finally {
+    await closeAll(running);
+    box.cleanup();
+  }
+});
+
+test("et løsrevet samtalevindu bruker samme server som hovedvinduet", async () => {
+  const box = sandbox();
+  let running: Running | undefined;
+  try {
+    running = await launch(box);
+    const { app, page, probe } = running;
+    const serverPid = await probe<number>("probe.serverPid");
+    const thread = await apiCall<{ id: string }>(page, "POST", "/api/threads", { projectId: null, mode: "chat" });
+    const opened = app.waitForEvent("window");
+    await page.evaluate((id) => { window.open(`/?rute=${encodeURIComponent(id)}`, "ad-lock-test", "popup"); }, thread.id);
+    const detached = await opened;
+    await detached.locator(`[data-thread-id="${thread.id}"]`).waitFor();
+    assert.equal(app.windows().length, 2);
+    assert.equal(new URL(detached.url()).origin, new URL(page.url()).origin);
+    assert.equal(await probe<number>("probe.serverPid"), serverPid);
+    assert.equal(await probe<number>("probe.serverStarts"), 1);
   } finally {
     await closeAll(running);
     box.cleanup();

@@ -40,7 +40,7 @@ import { GITHUB_SECRET } from "./github.ts";
 import { ConfigDirs, defaultGlobalConfigDir } from "./config-dirs.ts";
 import { seedGlobalAgents, upgradeGlobalAgents } from "./agent/harness.ts";
 import { Terminals } from "./terminal.ts";
-import { claimDataDir, currentShell, removeInstance, sameKey, writeInstance } from "./instance.ts";
+import { claimDataDir, currentShell, sameKey, writeInstance } from "./instance.ts";
 import { Hooks } from "./hooks.ts";
 import { McpServers } from "./mcp/manager.ts";
 import os from "node:os";
@@ -85,13 +85,39 @@ export interface App {
 
 export async function startApp(options: AppOptions = {}): Promise<App> {
   const config = loadConfig(options);
-  // Before the database opens: the Electron app and a localhost server never share a data folder.
-  await claimDataDir(config.dataDir);
-  const store = new Store(config.dataDir);
+  // Before the database opens: reserve the data folder exclusively for the whole lifetime of the server.
+  const claim = await claimDataDir(config.dataDir);
+  const cleanups: Array<() => void | Promise<void>> = [];
+  let store: Store | undefined;
+  try {
+    store = new Store(config.dataDir);
+    return await startAppWithClaim(config, options, store, claim, (fn) => cleanups.push(fn));
+  } catch (err) {
+    for (let i = cleanups.length - 1; i >= 0; i--) {
+      try {
+        await cleanups[i]();
+      } catch {
+        // Best-effort rollback of partially initialized subsystems.
+      }
+    }
+    store?.close();
+    claim.release();
+    throw err;
+  }
+}
+
+async function startAppWithClaim(
+  config: Config,
+  options: AppOptions,
+  store: Store,
+  claim: Awaited<ReturnType<typeof claimDataDir>>,
+  onFail: (fn: () => void | Promise<void>) => void,
+): Promise<App> {
   // The label is what Passord og nøkler (Seahorse) shows for the item.
   const secrets = new Secrets(config.dataDir, options.keyring ?? defaultKeyring(), (id) =>
     id === GITHUB_SECRET ? "Agentic Desktop: GitHub-token" : id.startsWith("mcp:") ? `Agentic Desktop: MCP-hemmelighet (${id.split(":").slice(2).join(" ")})` : `Agentic Desktop: API-nøkkel for ${store.provider(id)?.name ?? id}`,
   );
+  onFail(() => secrets.idle());
   // Normally a tenth of a second. A locked keyring asks for the password; the start does not wait
   // for that, and the keys come in when it is unlocked (keyring.changed).
   const keyringLoaded = secrets.load().catch(() => undefined);
@@ -125,11 +151,13 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     projectOfThread: (threadId) => store.thread(threadId)?.projectId ?? null,
     stopPlaytest: (projectId) => playtest.stop(projectId),
   });
+  onFail(() => servers.close());
   const log = new EventLog(store, (envelope) => {
     hub.publishEvent(envelope);
     servers.onThreadEvent(envelope);
   });
   const terminals = new Terminals(env);
+  onFail(() => terminals.closeAll());
   terminals.watchers.add((terminal, text) => servers.onTerminalOutput(terminal, text));
   const tasks = new TaskBoard(store, publish);
   const turns = new Turns(store, config.dataDir);
@@ -145,6 +173,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     runtime: new PreviewRuntime(path.join(config.webDist, "preview-runtime")),
   });
   await preview.listen();
+  onFail(() => preview.close());
   security.setPreviewOrigin(preview.origin);
 
   const playtest: Playtest = new Playtest({
@@ -157,6 +186,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     },
     openInBrowser: async (projectId, url) => void (await browser.navigate(projectId, url)),
   });
+  onFail(() => playtest.stopAll());
 
   // Downloads from the Browser panel, into the folder from Settings or the default one.
   const downloads = new Downloads({
@@ -185,6 +215,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       return playtest.urlFor(project, url);
     },
   });
+  onFail(() => browser.dispose());
 
   // Web search and web reading for the model: their own Chrome without cookies, public addresses only.
   const web = new WebBrowser({
@@ -193,14 +224,22 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     appOrigins: () => security.origins,
     testing: options.webTesting,
   });
+  onFail(() => web.dispose());
 
   let modBusy=(_id:string)=>false;
   const uiMods=new UiMods(store,config.dataDir,()=>publish({type:"ui-mods.changed",state:uiMods.snapshot()}),id=>modBusy(id));
+  onFail(() => uiMods.close());
   const chatWorkspace = new ChatWorkspace(store, config.dataDir);
+  onFail(async () => {
+    chatWorkspace.close();
+    await chatWorkspace.ready;
+  });
   // The user's hooks (Innstillinger → Hooks): only from hooks.json in the data folder, never from a project.
   // MCP servers from Innstillinger → MCP-servere (mcp/manager.ts). Connected in the background below.
   const mcp: McpServers = new McpServers({ store, secrets, env, cwd: options.homeDir ?? os.homedir(), publish: (state) => publish({ type: "mcp.changed", state }) });
+  onFail(() => mcp.close());
   const hooks: Hooks = new Hooks({ dataDir: config.dataDir, env, homeDir: options.homeDir, changed: () => publish({ type: "hooks.changed", state: hooks.state() }) });
+  onFail(() => hooks.close());
   const runner = new Runner({
     uiMods,
     hooks,
@@ -238,6 +277,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
       if (project) publish({ type: "project.changed", project });
     },
   });
+  onFail(() => runner.shutdown());
 
   modBusy=id=>runner.isRunning(id);
 
@@ -259,6 +299,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   };
 
   hub = new Hub({ store, security, terminals, browser, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
+  onFail(() => hub.close());
   api = new Api({
     uiMods,
     hooks,
@@ -301,6 +342,7 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
     modelContextLookup: options.modelContextLookup,
     cookieBrowser: browser,
   });
+  onFail(() => api.close());
 
   // The key in instance.json that lets the Electron app stop this server (SPEC 29.1).
   const stopKey = options.onStopRequest && currentShell() === "localhost" ? randomBytes(32).toString("base64url") : undefined;
@@ -332,16 +374,15 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   });
   server.on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
 
-  try {
-    await new Promise<void>((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(config.port, "127.0.0.1", resolve);
-    });
-  } catch (err) {
-    await preview.close();
-    store.close();
-    throw err;
-  }
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(config.port, "127.0.0.1", resolve);
+  });
+  onFail(async () => {
+    hub.close();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
   const { port } = server.address() as AddressInfo;
   security.setPort(port);
 
@@ -350,38 +391,55 @@ export async function startApp(options: AppOptions = {}): Promise<App> {
   // In the background: a slow or broken MCP server never holds up the start.
   mcp.start();
   security.writeTokenFile();
+  onFail(() => security.removeTokenFile());
   writeInstance(config.dataDir, port, stopKey);
   // Half files from a server that stopped in the middle of a download: now, and once more when
   // those from just before the start are old enough to be sure of (downloads.ts).
   downloads.sweepStaging();
   const sweepAgain = setTimeout(() => downloads.sweepStaging(), STAGING_STALE_MS + 1000);
   sweepAgain.unref();
+  onFail(() => clearTimeout(sweepAgain));
 
   let closing: Promise<void> | undefined;
   const close = () => {
     closing ??= (async () => {
+      const errors: unknown[] = [];
+      const cleanup = async (step: () => void | Promise<void>) => {
+        try {
+          await step();
+        } catch (err) {
+          errors.push(err);
+        }
+      };
       clearTimeout(sweepAgain);
-      await api.close();
-      security.removeTokenFile();
-      removeInstance(config.dataDir);
-      servers.close();
-      hooks.close();
-      await runner.shutdown();
-      await mcp.close(); // stops every MCP server process group
-      uiMods.close();
-      chatWorkspace.close();
-      await chatWorkspace.ready;
-      await playtest.stopAll();
-      await terminals.closeAll();
-      await browser.dispose();
-      await web.dispose();
-      hub.close();
-      await preview.close();
-      server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
-      log.flushAll();
-      await secrets.idle();
-      store.close();
+      await cleanup(() => api.close());
+      await cleanup(() => security.removeTokenFile());
+      await cleanup(() => servers.close());
+      await cleanup(() => hooks.close());
+      await cleanup(() => runner.shutdown());
+      await cleanup(() => mcp.close());
+      await cleanup(() => uiMods.close());
+      await cleanup(() => chatWorkspace.close());
+      await cleanup(() => chatWorkspace.ready);
+      await cleanup(() => playtest.stopAll());
+      await cleanup(() => terminals.closeAll());
+      await cleanup(() => browser.dispose());
+      await cleanup(() => web.dispose());
+      await cleanup(() => hub.close());
+      await cleanup(() => preview.close());
+      await cleanup(async () => {
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+      });
+      await cleanup(() => log.flushAll());
+      await cleanup(() => secrets.idle());
+      await cleanup(() => {
+        store.close();
+        claim.release();
+      });
+      if (errors.length) {
+        throw new AggregateError(errors, "Kunne ikke avslutte alle deler av Agentic Desktop.");
+      }
     })();
     return closing;
   };
