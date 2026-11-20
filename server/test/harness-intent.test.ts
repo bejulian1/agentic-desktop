@@ -69,6 +69,6 @@ test("Chat customization, saved goals, plan mode and no-project Code keep the ob
   const noProject = await h.thread(null, "code");
   const noProjectLayers = h.app.runner.systemLayers(noProject, undefined, []);
   assert.ok(noProjectLayers.find((l) => l.id === "base")!.text.includes(USER_TASK_PROMPT));
-  assert.deepEqual(h.app.runner.toolDefs(noProject, undefined, []).map(t=>t.name), ["ui_mod"]);
+  assert.deepEqual(h.app.runner.toolDefs(noProject, undefined, []).map(t=>t.name), ["ui_mod", "request_user_input"]);
   assert.match(noProjectLayers.find((l) => l.id === "env")!.text, /Tools on: ui_mod/);
 });

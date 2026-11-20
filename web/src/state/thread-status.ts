@@ -15,8 +15,10 @@ export const STATE_LABEL: Record<ThreadState, string> = {
   idle: "",
 };
 
+export const waitingCount = (thread: Thread): number => thread.pendingApprovals + (thread.pendingQuestions ?? 0);
+
 export function threadState(thread: Thread, seen = true): ThreadState {
-  if (thread.pendingApprovals > 0) return "waiting";
+  if (waitingCount(thread) > 0) return "waiting";
   if (thread.running) return "running";
   if (thread.lastStatus === "error") return "error";
   if (thread.lastStatus === "stopped" || thread.lastStatus === "interrupted") return "stopped";

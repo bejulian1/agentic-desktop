@@ -120,7 +120,7 @@ test("harness parts switch on and off, identity and safety stay on, and the prev
   assert.deepEqual(chat.layers.map((l: any) => l.id), ["chat-base", "chat-personal", "ui-mods"]);
   assert.match(chat.layers[0].text, /chat assistant in Agentic Desktop/);
   assert.doesNotMatch(JSON.stringify(chat), /Kari|Svar på språket jeg skriver på|How to work/);
-  assert.deepEqual(chat.tools, ["ui_mod","create_document","list_chat_files"]);
+  assert.deepEqual(chat.tools, ["ui_mod","create_document","list_chat_files","request_user_input"]);
 });
 
 test("Chat has its own personalisation and memories, and can update them by itself", async (t) => {
@@ -314,7 +314,7 @@ test("the demo model answers «hei», «hvem er du» and «hva kan du» from the
   const hello = textOf(await h.finished(thread.id));
   assert.match(hello, /^Hei! Jeg er kodeagenten i Agentic Desktop, og jobber i \*\*/);
   assert.match(hello, new RegExp(`${path.basename(project.path)}\\*\\* \\(\`${project.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\`\\) på grenen \`main\``));
-  assert.match(hello, /Verktøy som er på \(28\):\*\*\n {2}- Filer og søk: `read_file`/);
+  assert.match(hello, /Verktøy som er på \(29\):\*\*\n {2}- Filer og søk: `read_file`/);
   assert.match(hello, /Minner:\*\* ingen ennå/, "the global AGENTS.md lines are not counted as memories");
   assert.match(hello, /`edit_file`/);
   assert.match(hello, /din globale `AGENTS.md`/);

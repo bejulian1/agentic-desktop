@@ -13,7 +13,7 @@ import { actions } from "../state/actions";
 import { applyDrop, beginDrag } from "../state/drag";
 import { gridFor } from "../state/grid";
 import { finished, gitInfo, loadGitInfo, markSeen } from "../state/home";
-import { STATE_LABEL, threadState } from "../state/thread-status";
+import { STATE_LABEL, threadState, waitingCount } from "../state/thread-status";
 import { newThreadIn, openThread, preloadThread } from "../state/navigate";
 import { diffStats, loadDiffStats, openProfile } from "../state/nav";
 import { setSnoozed } from "../state/thread-actions";
@@ -234,20 +234,20 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   });
   const isSnoozed = (t: Thread) => !!t.snoozedUntil && t.snoozedUntil > now();
-  const working = createMemo(() => all().filter((t) => t.running && t.pendingApprovals === 0 && !isSnoozed(t)));
+  const working = createMemo(() => all().filter((t) => t.running && !waitingCount(t) && !isSnoozed(t)));
   const snoozed = createMemo(() => all().filter(isSnoozed).sort((a, b) => a.snoozedUntil! - b.snoozedUntil!));
-  const needsYou = (t: Thread) => t.pendingApprovals > 0 || finished().includes(t.id) || t.pinned || now() - t.updatedAt < RECENT_MS || props.activeIds.has(t.id);
+  const needsYou = (t: Thread) => waitingCount(t) > 0 || finished().includes(t.id) || t.pinned || now() - t.updatedAt < RECENT_MS || props.activeIds.has(t.id);
   const cards = createMemo(() => {
-    const rank = (t: Thread) => (t.pendingApprovals > 0 ? 0 : finished().includes(t.id) ? 1 : t.pinned ? 2 : 3);
+    const rank = (t: Thread) => (waitingCount(t) > 0 ? 0 : finished().includes(t.id) ? 1 : t.pinned ? 2 : 3);
     return all()
-      .filter((t) => !isSnoozed(t) && !(t.running && t.pendingApprovals === 0) && needsYou(t))
+      .filter((t) => !isSnoozed(t) && !(t.running && !waitingCount(t)) && needsYou(t))
       .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   });
   const settled = createMemo(() => all().filter((t) => !isSnoozed(t) && !t.running && !needsYou(t)));
   // «Trenger deg» on top: approvals that wait. They are not in Jobber, so the count there and
   // Stopp alt in the top bar no longer seem to disagree.
-  const waiting = createMemo(() => cards().filter((t) => t.pendingApprovals > 0));
-  const recent = createMemo(() => cards().filter((t) => t.pendingApprovals === 0));
+  const waiting = createMemo(() => cards().filter((t) => waitingCount(t) > 0));
+  const recent = createMemo(() => cards().filter((t) => !waitingCount(t)));
 
   // One timer, for the next snooze that runs out, so the thread comes back by itself.
   createEffect(() => {

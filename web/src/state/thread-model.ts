@@ -192,7 +192,18 @@ export interface SummaryRow extends RowBase {
   turnId: string | null; // the turn with file changes, for Endringer
 }
 
-export type Row = UserRow | TextRow | ThinkingRow | ToolRow | ApprovalRow | ChangesRow | CompactedRow | SpawnedRow | NoticeRow | WorkRow | StepsRow | AgentsRow | SummaryRow | ModelChangeRow | HookRow | UnsentRow;
+export interface QuestionRow extends RowBase {
+  kind: "question";
+  requestId: string;
+  threadId: string;
+  runId: string;
+  callId: string;
+  questions: import("../../../shared/user-input").UserQuestion[];
+  result: import("../../../shared/user-input").UserInputResult | null;
+  closed: boolean;
+}
+
+export type Row = QuestionRow | UserRow | TextRow | ThinkingRow | ToolRow | ApprovalRow | ChangesRow | CompactedRow | SpawnedRow | NoticeRow | WorkRow | StepsRow | AgentsRow | SummaryRow | ModelChangeRow | HookRow | UnsentRow;
 
 // Kode: what the current run has going, for the small box under the conversation. Changed only
 // by events that start or end something, never by tokens.
@@ -307,6 +318,7 @@ class Folder {
   private thinking = new Map<string, ThinkingRow>();
   private tools = new Map<string, ToolRow>();
   private approvals = new Map<string, ApprovalRow>();
+  questions = new Map<string, QuestionRow>();
   private changes = new Map<string, ChangesRow>();
   private work: WorkRow | null = null; // Kode: the run being folded
   private activeModel: { runId: string; model: AnswerModel } | null = null;
@@ -476,6 +488,18 @@ class Folder {
         this.task(event.callId, { status: event.status });
         return;
       }
+      case "question.requested": {
+        const row: QuestionRow = { ...base(event.requestId), kind: "question", requestId: event.requestId, threadId: event.threadId, runId: event.runId, callId: event.callId, questions: event.questions, result: null, closed: false };
+        this.questions.set(event.requestId, row);
+        this.rows.push(row);
+        this.onRow(row);
+        return;
+      }
+      case "question.resolved": {
+        const row = this.questions.get(event.requestId);
+        if (row && row.runId === event.runId) { row.result = { cancelled: event.cancelled, answers: event.answers }; row.closed = true; row.touch(); }
+        return;
+      }
       case "approval.requested": {
         const asking = this.tools.get(event.callId);
         const row: ApprovalRow = {
@@ -588,6 +612,9 @@ class Folder {
             row.status = "cancelled";
             row.touch();
           }
+        }
+        for (const row of this.questions.values()) {
+          if (!row.closed) { row.closed = true; row.touch(); }
         }
         for (const row of this.approvals.values()) {
           if (row.decision === null) {
@@ -707,10 +734,14 @@ export class ThreadModel {
   refs = 0;
   usedAt = 0;
 
+  readonly questions: Accessor<QuestionRow[]>;
+  private setQuestions: Setter<QuestionRow[]>;
+
   constructor(id: string, code: boolean) {
     this.id = id;
     this.code = code;
     this.folder = new Folder(code);
+    [this.questions, this.setQuestions] = createSignal<QuestionRow[]>([]);
     [this.chunks, this.setChunks] = createSignal<Chunk[]>([]);
     [this.queued, this.setQueued] = createSignal<QueuedMessage[]>([]);
     [this.usage, this.setUsage] = createSignal<Usage | null>(null);
@@ -780,6 +811,7 @@ export class ThreadModel {
 
   private syncFolder(): void {
     this.syncActivity();
+    this.setQuestions([...this.folder.questions.values()]);
     this.setRetry(this.folder.retry);
     this.setQueued(this.folder.queued);
     if (this.folder.usage) this.setUsage(this.folder.usage);
@@ -802,6 +834,7 @@ export class ThreadModel {
     }
     if (event.type === "user.message" || event.type === "user.queued" || event.type === "user.queue-removed") this.setQueued(this.folder.queued);
     if (event.type === "usage") this.setUsage(event.usage);
+    if (event.type === "question.requested" || event.type === "question.resolved" || event.type === "run.finished") this.setQuestions([...this.folder.questions.values()]);
     if (ACTIVITY_EVENTS.has(event.type) || this.folder.activity?.phase !== phase) this.syncActivity();
     if (this.retry() !== this.folder.retry) this.setRetry(this.folder.retry);
   }
@@ -849,6 +882,7 @@ export class ThreadModel {
       this.historyRevision = fresh.historyRevision;
       batch(() => {
         this.setChunks(fresh.chunks());
+        this.setQuestions(fresh.questions());
         this.setChanges(fresh.changes());
         this.setHasOlder(fresh.hasOlder());
         this.setQueued(fresh.queued());

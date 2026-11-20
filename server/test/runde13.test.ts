@@ -101,13 +101,13 @@ test("chat tools: defaults in Settings, a choice per thread, checked on the way 
 test("the demo model in Chat: demo sources with Nettsøk on, plain words when a tool is off", async (t) => {
   const h = await startHarness(t);
   const off = await chat(h, {});
-  assert.deepEqual((await h.api("GET", `/api/threads/${off.id}/context`)).tools, 1, "bare ui_mod uten nettverktøy");
+  assert.deepEqual((await h.api("GET", `/api/threads/${off.id}/context`)).tools, 2, "ui_mod og spørrekort uten nettverktøy");
   let events = await say(h, off.id, "søk på nettet etter solsystemet");
   assert.equal(ofType(events, "tool.started").length, 0);
   assert.match(textOf(events), /Nettsøk er slått av i denne chatten/);
 
   const on = await chat(h, { web: true });
-  assert.equal((await h.api("GET", `/api/threads/${on.id}/context`)).tools, 2);
+  assert.equal((await h.api("GET", `/api/threads/${on.id}/context`)).tools, 3);
   events = await say(h, on.id, "søk på nettet etter solsystemet");
   const [started] = ofType(events, "tool.started");
   assert.deepEqual([started.tool, started.summary], ["web_search", "solsystemet"]);
@@ -171,7 +171,7 @@ test("Anthropic's own web search: the server tool is offered, the sources come b
   const provider = await h.api("POST", "/api/providers", { kind: "anthropic", name: "Fake Anthropic", baseUrl: llm.url, apiKey: "sk-ant-test" });
   const model = await h.api("POST", "/api/models", { providerId: provider.id, name: "Fake Claude", model: "fake-claude", contextWindow: 200_000, thinking: false });
   const thread = await chat(h, { web: true }, model.id);
-  assert.equal((await h.api("GET", `/api/threads/${thread.id}/context`)).tools, 1, "ui_mod er uavhengig av leverandørens søk");
+  assert.equal((await h.api("GET", `/api/threads/${thread.id}/context`)).tools, 2, "ui_mod og spørrekort er uavhengige av leverandørens søk");
 
   const results = [
     { type: "web_search_result", url: "https://kilde.example/a", title: "Kilde A", encrypted_content: "kryptert-a", page_age: null },
@@ -232,7 +232,7 @@ test("OpenAI-compatible web search: web_search_options when the model has it, so
   const withSearch = await chat(h, { web: true }, searching.id);
   const events = await say(h, withSearch.id, "Hva skjer i dag?");
   assert.deepEqual(llm.requests[0].body.web_search_options, {});
-  assert.deepEqual(llm.requests[0].body.tools.map((t:any)=>t.function.name), ["ui_mod"]);
+  assert.deepEqual(llm.requests[0].body.tools.map((t:any)=>t.function.name), ["ui_mod", "request_user_input"]);
   const [finished] = ofType(events, "tool.finished");
   assert.deepEqual(finished.sources?.map((s) => s.title), ["Første kilde", "Andre kilde"]);
 
@@ -241,7 +241,7 @@ test("OpenAI-compatible web search: web_search_options when the model has it, so
   const without = await chat(h, { web: true }, plain.id);
   await say(h, without.id, "Hva skjer i dag?");
   assert.equal(llm.requests[1].body.web_search_options, undefined);
-  assert.deepEqual(llm.requests[1].body.tools.map((t:any)=>t.function.name), ["ui_mod"]);
+  assert.deepEqual(llm.requests[1].body.tools.map((t:any)=>t.function.name), ["ui_mod", "request_user_input"]);
   assert.doesNotMatch(llm.requests[1].body.messages[0].content, /Web search is on/);
   assert.match(llm.requests[1].body.messages[0].content, /Chat cannot inspect or edit/);
 });

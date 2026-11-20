@@ -45,7 +45,7 @@ test("Kode without project keeps Kode identity and no tools or Chat personalizat
   await h.api("POST", "/api/memories", { scope: "global", text: "CODE_MEMORY" });
   const preview = await h.api("GET", "/api/harness/preview?mode=code");
   assert.equal(preview.mode, "code");
-  assert.deepEqual(preview.tools, ["ui_mod"]);
+  assert.deepEqual(preview.tools, ["ui_mod", "request_user_input"]);
   const prompt = preview.layers.map((l: any) => l.text).join("\n");
   assert.match(prompt, /^You are the coding agent/);
   assert.match(prompt, /Mode: Kode/);

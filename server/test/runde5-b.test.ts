@@ -86,7 +86,7 @@ test("the context split: system prompt, tools and messages, and what is free", a
   const chat = await h.thread(null, "chat");
   const chatContext = await h.api("GET", `/api/threads/${chat.id}/context`);
   assert.ok(chatContext.parts.tools > 0);
-  assert.equal(chatContext.tools,3,"Chat har dokumentverktøy, uten Kode-verktøy");
+  assert.equal(chatContext.tools,4,"Chat har dokumentverktøy og spørrekort, uten Kode-verktøy");
   assert.equal((await h.raw("GET", "/api/threads/finnes-ikke/context")).status, 404);
 
   // Lines changed per thread, for the smart sidebar.

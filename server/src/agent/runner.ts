@@ -1,3 +1,4 @@
+import { requestUserInputTool, UserInputs } from "./user-input.ts";
 import {uiModTool} from "./ui-mod-tool.ts";
 import type {UiMods} from "../ui-mods.ts";
 import {chatFileTools} from './chat-files.ts';
@@ -234,6 +235,7 @@ function rejectOnAbort(signal: AbortSignal): Promise<never> {
 const HELD_TITLES = ["Melding stoppet av hook", "Melding ikke sendt"];
 
 export class Runner {
+  readonly userInputs: UserInputs;
   private deps: RunnerDeps;
   private store: Store;
   private log: EventLog;
@@ -259,6 +261,8 @@ export class Runner {
     this.deps = deps;
     this.store = deps.store;
     this.log = deps.log;
+    this.userInputs = new UserInputs(this.log, deps.threadChanged);
+    this.store.pendingQuestions = (id) => this.userInputs.count(id);
     this.store.isRunning = (id) => this.active.has(id);
     this.store.pendingApprovals = (id) => [...this.approvals.values()].filter((a) => a.threadId === id).length;
     this.memories = new Memories(deps.config.globalDir, deps.dataDir);
@@ -330,7 +334,7 @@ export class Runner {
         this.store.enqueue(threadId, job.id, job);
         if (job.from && !ancestorReply) this.agentQueueSlots.add(threadId);
         this.logQueued(threadId, job);
-        if (steer) for (const notify of [...(this.incomingWaiters.get(threadId) ?? [])]) notify();
+        if (steer) this.notifySteering(threadId, !job.from);
         if (!input.from) this.store.clearQueuedDraft(threadId);
         if (!this.active.has(threadId)) this.startNext(current);
         return { messageId: job.id, queued: true, steer };
@@ -352,7 +356,13 @@ export class Runner {
     });
     if (!found || !updated) throw new HttpError(404, "Meldingen er ikke i køen lenger");
     this.logQueued(threadId, updated);
+    if (steer) this.notifySteering(threadId, true);
     return { messageId, steer };
+  }
+
+  private notifySteering(threadId: string, fromUser: boolean): void {
+    if (fromUser) this.userInputs.cancelForSteering(threadId);
+    for (const notify of [...(this.incomingWaiters.get(threadId) ?? [])]) notify();
   }
 
   queuedSnapshot(threadId: string) {
@@ -600,7 +610,7 @@ export class Runner {
     if (this.isChat(thread, project)) return this.chatToolDefs(thread, model);
     project ??= this.projectOf(thread);
     const mods=this.modTools(thread);
-    if (thread.mode !== "code" || !project) return mods;
+    if (thread.mode !== "code" || !project) return [...mods, requestUserInputTool];
     const hidden = new Set<string>();
     if (!this.codeWeb(thread, model)) hidden.add("web_search");
     if (!skills.some((skill) => skill.mode !== "chat")) hidden.add("use_skill");
@@ -619,8 +629,7 @@ export class Runner {
     return thread.mode === "chat";
   }
 
-  // Round 13 (SPEC 27.2): the tools of a chat, as switched in its tool menu. Kode without a project
-  // (Denne datamaskinen) has none, as before.
+  // Round 13 (SPEC 27.2): the tools of a chat, as switched in its tool menu.
   chatTools(thread: Thread): ChatTools | null {
     if (thread.mode !== "chat" || thread.projectId) return null;
     return chatToolsOf(thread, this.store.settings());
@@ -662,7 +671,7 @@ export class Runner {
     if (route === "browser" || route === "demo") out.push(webSearchTool);
     if (tools.fetch && this.deps.web) out.push(webFetchTool);
     if (this.deps.chatWorkspace) out.push(...chatFileTools(this.deps.chatWorkspace, tools.documents, tools.python && this.deps.chatWorkspace.status().available));
-    out.push(...this.mcpTools(thread));
+    out.push(...this.mcpTools(thread), requestUserInputTool);
     return out;
   }
 
@@ -1173,6 +1182,10 @@ export class Runner {
     return this.store.queuedJobs<Job>(threadId).some((job) => job.steer === true);
   }
 
+  private hasUserSteering(threadId: string): boolean {
+    return this.store.queuedJobs<Job>(threadId).some((job) => job.steer === true && !job.from);
+  }
+
   waitIdle(threadId: string, timeoutMs: number, signal: AbortSignal, requesterId?: string): Promise<boolean> {
     signal.throwIfAborted();
     if (!this.hasPendingWork(threadId)) return Promise.resolve(true);
@@ -1293,9 +1306,10 @@ export class Runner {
         const group = calls.slice(i, j);
         const currentThread = this.store.thread(threadId)!;
         const currentProject = this.projectOf(currentThread);
-        const results = await Promise.all(group.map((call) =>
-          chat || call.name === "ui_mod" ? this.runChatTool(active, currentThread, call, offered) : this.runTool(active, currentThread, currentProject!, skills, call, offered),
-        ));
+        const results = await Promise.all(group.map(async (call) => {
+          if (abort.signal.aborted) return { result: { text: "Avbrutt av brukeren.", isError: true }, status: "cancelled" as ToolStatus };
+          return chat || call.name === "ui_mod" || this.toolName(call.name) === "request_user_input" ? this.runChatTool(active, currentThread, call, offered) : this.runTool(active, currentThread, currentProject!, skills, call, offered);
+        }));
         this.assertRunContext(active);
         group.forEach((call, k) => {
           const { result, status } = results[k];
@@ -1307,6 +1321,10 @@ export class Runner {
           if (status === "done" && name && EDIT_TOOLS.has(name) && typeof (call.input as any)?.path === "string") edited.add((call.input as any).path);
           if (name === "run_command" && (status === "done" || status === "error")) edited.clear();
         });
+        if (group.some((call) => this.toolName(call.name) === "request_user_input") && this.hasUserSteering(threadId)) {
+          for (const call of calls.slice(j)) this.addToolResult(threadId, call.id, "Ikke kjørt: brukeren styrte turen. Vurder meldingen før du prøver igjen.", true);
+          break;
+        }
         i = j;
       }
     }
@@ -1314,7 +1332,7 @@ export class Runner {
   }
 
   private toolName(name: string): string | undefined {
-    return resolveToolName(name, TOOLS_BY_NAME.keys()) ?? (TOOL_ALIASES[name.toLowerCase()] && !TOOLS_BY_NAME.has(name) ? TOOL_ALIASES[name.toLowerCase()] : undefined);
+    return resolveToolName(name, TOOLS_BY_NAME.keys()) ?? TOOL_ALIASES[resolveToolName(name, Object.keys(TOOL_ALIASES)) ?? ""];
   }
 
   private addToolResult(threadId: string, toolUseId: string, content: string, isError: boolean): void {
@@ -1655,10 +1673,21 @@ export class Runner {
     // An MCP name with another case or a "functions." prefix is the MCP tool it means.
     const mcpName = thread.mode === "chat" ? this.deps.mcp?.tool(call.name, "chat")?.def.name : undefined;
     if (mcpName && mcpName !== call.name) call = { ...call, name: mcpName };
-    const tool = (thread.mode === "chat" ? this.chatToolDefs(thread) : this.modTools(thread)).find((t) => t.def.name === call.name && offered.has(t.def.name));
+    if (this.toolName(call.name) === "request_user_input") call = { ...call, name: "request_user_input" };
+    const tool = (thread.mode === "chat" ? this.chatToolDefs(thread) : [requestUserInputTool,...this.modTools(thread)]).find((t) => t.def.name === call.name && offered.has(t.def.name));
     const input = tool && call.input && typeof call.input === "object" && !Array.isArray(call.input) ? coerceArgs(call.input, tool.def.parameters) : call.input;
     const web = call.name === "web_search" ? this.webAccess(this.webRoute(thread)) : this.deps.web ? browserWeb(this.deps.web, undefined) : undefined;
-    const ctx = { thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web, skills: () => this.chatSkills(!!thread.chatProjectId), maxResultChars: resultBudget(this.resolveModelSafe(thread)) } as unknown as ToolContext;
+    const ctx = {
+      thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web,
+      skills: () => this.chatSkills(!!thread.chatProjectId), maxResultChars: resultBudget(this.resolveModelSafe(thread)),
+      requestUserInput: (input: unknown) => {
+        if (this.hasUserSteering(threadId)) return Promise.resolve({ cancelled: true, answers: [] });
+        return this.userInputs.ask({ threadId, runId, callId: call.id, signal: abort.signal, assertCurrent: () => {
+          this.assertRunContext(active);
+          if (this.active.get(threadId) !== active || this.store.thread(threadId)?.archived) throw new Error("Kjøringen kan ikke lenger ta imot svar.");
+        } }, input);
+      },
+    } as unknown as ToolContext;
     const finish = (status: ToolStatus, result: ToolResult) => {
       this.log.append(threadId, {
         type: "tool.finished", runId, callId: call.id, status, result: result.text, durationMs: Date.now() - startedAt,
@@ -1667,7 +1696,7 @@ export class Runner {
       });
       return { result, status };
     };
-    const problem = thread.mode === "code" && thread.planMode
+    const problem = thread.mode === "code" && thread.planMode && call.name !== "request_user_input"
       ? `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`
       : !tool
       ? `Ukjent verktøy: ${call.name}. Verktøyene du har: ${[...offered].join(", ") || "ingen"}.`
@@ -1696,12 +1725,13 @@ export class Runner {
       const blocked = await this.preToolHooks(active, thread, { ...call, input });
       if (abort.signal.aborted) return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
       if (blocked) return finish("denied", blocked);
-      if (thread.mode === "code" && this.store.thread(threadId)?.planMode) {
+      if (thread.mode === "code" && this.store.thread(threadId)?.planMode && call.name !== "request_user_input") {
         return finish("denied", { text: `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`, isError: true });
       }
       const raw = await Promise.race([tool.run(input, ctx), rejectOnAbort(abort.signal)]);
       this.assertRunContext(active);
-      let result = {...raw, text: clip(raw.text,ctx.maxResultChars)};
+      // A validated human answer must remain complete JSON, including on small-context models.
+      let result = { ...raw, text: call.name === "request_user_input" && !raw.isError ? raw.text : clip(raw.text, ctx.maxResultChars) };
       result = await this.postToolHooks(active, thread, { ...call, input }, result);
       if (abort.signal.aborted) return finish("cancelled", result);
       return finish(result.isError ? "error" : "done", result);
@@ -1751,6 +1781,7 @@ export class Runner {
       tool_name: call.name, tool_input: call.input, tool_use_id: call.id, tool_response: { content: result.text, is_error: result.isError === true },
     }, call.name, call.id);
     const notes = (batch?.results ?? []).filter((r) => r.feedback).map((r) => `[Tilbakemelding fra hooken «${r.hook.name}», et lokalt skript brukeren har satt opp]\n${r.feedback}`);
+    if (notes.length && call.name === "request_user_input" && !result.isError) return { ...result, text: JSON.stringify({ ...JSON.parse(result.text), hookFeedback: notes }) };
     return notes.length ? { ...result, text: [result.text, ...notes].join("\n\n") } : result;
   }
 
@@ -1980,13 +2011,17 @@ export class Runner {
       if (!thread) continue;
       const started = new Map<string, boolean>();
       const asked = new Set<string>();
+      const questions = new Set<string>();
       for (const { event } of this.store.events(run.threadId, run.startSeq - 1, 1_000_000)) {
         if (!("runId" in event) || event.runId !== run.id) continue;
         if (event.type === "tool.started") started.set(event.callId, true);
         if (event.type === "tool.finished") started.delete(event.callId);
+        if (event.type === "question.requested") questions.add(event.requestId);
+        if (event.type === "question.resolved") questions.delete(event.requestId);
         if (event.type === "approval.requested") asked.add(event.approvalId);
         if (event.type === "approval.resolved") asked.delete(event.approvalId);
       }
+      for (const requestId of questions) this.log.append(run.threadId, { type: "question.resolved", runId: run.id, requestId, cancelled: true, answers: [], reason: "restart" });
       for (const approvalId of asked) this.log.append(run.threadId, { type: "approval.resolved", runId: run.id, approvalId, decision: "deny" });
       for (const callId of started.keys()) {
         this.log.append(run.threadId, { type: "tool.finished", runId: run.id, callId, status: "cancelled", result: "Avbrutt av omstart. Kjøres ikke på nytt.", durationMs: 0 });

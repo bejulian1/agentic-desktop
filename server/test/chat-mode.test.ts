@@ -45,7 +45,7 @@ test("Chat remains conversational with its personality and personalization, with
   assert.match(system, /Personality and style shape how you write, never what is true/);
   assert.match(system, /- Mode: Chat\n/);
   assert.doesNotMatch(system, /CODE_(?:GLOBAL|MEMORY|PROJECT|GOAL)_PRIVATE_MARKER|Plan mode is on|plan mode: read-only|Effective permission mode:|# How to work|Top level of the folder:|\- Checks:/);
-  assert.deepEqual((sent.tools ?? []).map((t:any)=>t.function.name), ["ui_mod", "create_document", "list_chat_files"]);
+  assert.deepEqual((sent.tools ?? []).map((t:any)=>t.function.name), ["ui_mod", "create_document", "list_chat_files", "request_user_input"]);
   assert.equal(h.app.store.thread(thread.id)!.plan, null, "Chat answers are not saved as Code plans");
   const layers = h.app.runner.systemLayers(h.app.store.thread(thread.id)!, undefined, []);
   assert.equal(layers.find((l) => l.id === "thread")!.source, "Chat-personlighet");

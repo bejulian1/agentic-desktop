@@ -239,6 +239,7 @@ export class Store {
   private seqs = new Map<string, number>();
   isRunning: (threadId: string) => boolean = () => false;
   pendingApprovals: (threadId: string) => number = () => 0;
+  pendingQuestions: (threadId: string) => number = () => 0;
 
   constructor(dataDir: string) {
     const file = path.join(dataDir, "agentic-desktop.db");
@@ -609,6 +610,7 @@ export class Store {
     origin: row.origin,
     permissionCap: row.permission_cap,
     pendingApprovals: this.pendingApprovals(row.id),
+    ...(this.pendingQuestions(row.id) ? { pendingQuestions: this.pendingQuestions(row.id) } : {}),
     goal: row.goal ?? null,
     goalSetAt: row.goal_set_at ?? null,
     goalResumedAt: row.goal_resumed_at ?? null,

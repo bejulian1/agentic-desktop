@@ -14,6 +14,7 @@ import { Conversation, type ConversationTools } from "./Conversation";
 import { Home } from "./Home";
 import { IconBranch, IconClose, IconWarn } from "./icons";
 import { ApprovalCard } from "./rows";
+import { UserQuestionCard } from "./UserQuestion";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
 
@@ -110,6 +111,8 @@ export function Pane(props: {
     return out;
   });
 
+  const questions = createMemo(() => model()?.questions().filter((row) => (row.rev(), !row.closed)) ?? []);
+
   // Kode only, and only with something to show: a goal, a plan, chapters, threads it started or
   // files it changed. Chat is a plain conversation (SPEC 18.2).
   const parent = createMemo(() => {
@@ -191,6 +194,9 @@ export function Pane(props: {
       <div class="pane-foot">
       <Show when={mod()?.widgets.length}><UiModBand mod={mod()!} workspace={props.projectId?app.projects[props.projectId]?.name??"Prosjekt":props.code?"Denne datamaskinen":"Chat"} usage={()=>model()?.usage()??null}/></Show>
       {/* Round 14 (SPEC 30.5): a missing folder replaces the message field (FolderMissingBar in Composer). */}
+      <Show when={questions().length}>
+        <div class="approval-dock" data-testid="question-dock"><For each={questions()}>{(row) => <UserQuestionCard row={row}/>}</For></div>
+      </Show>
       <Show when={pending().length}>
         <div class="approval-dock" data-testid="approval-dock">
           <For each={pending()}>{(row) => <ApprovalCard row={row} />}</For>

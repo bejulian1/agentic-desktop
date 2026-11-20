@@ -170,7 +170,7 @@ test("Undo waits for all local Code threads but not for Chat", async (t) => {
 test("without the home folder as a workspace, Kode without a project answers with text as before", async (t) => {
   const h = await startHarness(t);
   const preview = await h.api("GET", "/api/harness/preview?mode=code");
-  assert.deepEqual(preview.tools, ["ui_mod"]);
+  assert.deepEqual(preview.tools, ["ui_mod", "request_user_input"]);
   assert.match(preview.layers.find((l: any) => l.id === "base").text, /no project is selected, so the file, command and browser tools are not offered yet/);
   assert.equal(existsSync(path.join(h.app.config.dataDir, "prosjekter")), false);
 });

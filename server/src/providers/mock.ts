@@ -23,7 +23,7 @@ const HELP = `Dette er demo-modellen. Den trenger ingen API-nøkkel, og alt den 
 
 Prøv disse:
 
-- **lag en side**: skriver \`index.html\`, kjører en kommando og åpner siden i nettleseren
+- **test spørrekort**: viser et spørsmål med valg, avkryssing og eget svar\n- **lag en side**: skriver \`index.html\`, kjører en kommando og åpner siden i nettleseren
 - **godkjenning**: skriver til \`.env.demo\`, som alltid krever godkjenning
 - **rediger**: endrer \`index.html\` med \`edit_file\`
 - **samarbeid**: lager en hjelpetråd, venter på den og oppsummerer
@@ -631,7 +631,7 @@ export function introduce(system: string, tools: string[], intent: Intent): stri
       "Hva har du lyst til å snakke om?",
     ].join("\n");
   }
-  if (!tools.some(t=>t!=="ui_mod")) return `${intent === "greet" ? "Hei! " : ""}Jeg er kodeagenten i Agentic Desktop. Du er i Kode uten et valgt prosjekt. Jeg kan forklare kode og hjelpe deg å planlegge, men har ingen fil- eller kommandoverktøy her. Velg et prosjekt hvis oppgaven krever det. Hva vil du jobbe med?`;
+  if (!tools.some(t=>t!=="ui_mod" && t!=="request_user_input")) return `${intent === "greet" ? "Hei! " : ""}Jeg er kodeagenten i Agentic Desktop. Du er i Kode uten et valgt prosjekt. Jeg kan forklare kode og hjelpe deg å planlegge, men har ingen fil- eller kommandoverktøy her. Velg et prosjekt hvis oppgaven krever det. Hva vil du jobbe med?`;
   const name = line(system, "Project") ?? "prosjektet";
   const folder = line(system, "Project folder");
   const git = line(system, "Git repository");
@@ -696,7 +696,23 @@ function decide(text: string, done: DoneCall[], tools: string[], system = ""): S
   const lower = text.toLowerCase();
   const mcp = mcpStep(text, done);
   if (mcp) return mcp;
-  const hasTools = tools.some(t=>t!=="ui_mod");
+  if (/^(test spørrekort|spør meg|still meg et spørsmål)\b/i.test(text.trim()) && tools.includes("request_user_input")) {
+    const answered = done.find((call) => call.name === "request_user_input");
+    if (answered) {
+      if (answered.isError) return { text: "Spørsmålet kunne ikke vises. " + answered.result };
+      try {
+        const result = JSON.parse(answered.result);
+        if (result.cancelled) return { text: "Du hoppet over spørsmålet. Ingen alternativer er valgt." };
+        const answers = result.answers.map((answer: any) => [...answer.selectedOptions, answer.text].filter(Boolean).join(" · ")).join("\n\n");
+        return { text: "Takk! Dette svarte du:\n\n" + answers + "\n\nDette er demo-modellen; ingen eksterne modellkall er gjort." };
+      } catch { return { text: "Kunne ikke lese svaret." }; }
+    }
+    return { text: "Velg et alternativ, eller skriv et eget svar i kortet nedenfor.", call: { name: "request_user_input", input: { questions: [
+      { id: "format", header: "Format", question: "Hvordan vil du ha resultatet?", options: [{ label: "Kort oppsummering", description: "Bare hovedpunktene og neste steg." }, { label: "Utfyllende gjennomgang", description: "Forklar valg og vis eksempler." }] },
+      { id: "include", header: "Innhold", question: "Hva skal være med?", multiSelect: true, options: [{ label: "Kode" }, { label: "Eksempler" }, { label: "Sjekkliste" }] },
+    ] } } };
+  }
+  const hasTools = tools.some(t=>t!=="ui_mod" && t!=="request_user_input");
   const mod=modStep(text,done,tools);if(mod)return mod;
   if (lower.includes("[kodegjennomgang]\n")) return review(text);
   if (/\bhjelp\b|\bhelp\b/.test(lower)) return { text: HELP };

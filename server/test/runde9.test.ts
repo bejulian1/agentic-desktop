@@ -16,7 +16,7 @@ test("Kode without a project is Denne datamaskinen: a thread with no tools, and 
   assert.equal(thread.mode, "code");
   assert.equal(thread.projectId, null);
   const store = h.app.store;
-  assert.deepEqual(h.app.runner.toolDefs(store.thread(thread.id)!, undefined, []).map(t=>t.name), ["ui_mod"], "ingen fil-/kommandoverktøy uten mappe");
+  assert.deepEqual(h.app.runner.toolDefs(store.thread(thread.id)!, undefined, []).map(t=>t.name), ["ui_mod", "request_user_input"], "ingen fil-/kommandoverktøy uten mappe");
   // The demo model writes files when it has the tool. Here it answers with text.
   await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "lag en side" });
   const events = await h.finished(thread.id);
@@ -114,7 +114,7 @@ test("Chat projects gather chats, have no folder, and never reach the file and c
 
   // A chat in a Chat project has no tools, and ! is refused there.
   const thread = h.app.store.thread(inside.id)!;
-  assert.deepEqual(h.app.runner.toolDefs(thread, undefined, []).map(t=>t.name), ["ui_mod","create_document","list_chat_files"]);
+  assert.deepEqual(h.app.runner.toolDefs(thread, undefined, []).map(t=>t.name), ["ui_mod","create_document","list_chat_files","request_user_input"]);
   assert.equal((await h.raw("POST", `/api/threads/${inside.id}/messages`, json({ text: "", shell: "ls" }))).status, 400);
   await h.api("POST", `/api/threads/${inside.id}/messages`, { text: "lag en side" });
   assert.equal(ofType(await h.finished(inside.id), "tool.started").length, 0);

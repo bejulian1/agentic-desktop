@@ -1,6 +1,7 @@
 import type {UiModsState} from "./ui-mods.ts";
 import type { HookEvent, HookOutcome, HooksState } from "./hooks.ts";
 import type { McpState } from "./mcp.ts";
+import type { UserAnswer, UserInputCloseReason, UserQuestion } from "./user-input.ts";
 // Contract between server and web. Change it here first, then on both sides.
 
 export type Mode = "chat" | "code";
@@ -170,6 +171,7 @@ export interface Thread {
   origin: "user" | "agent";
   permissionCap: PermissionMode | null; // never runs above this, set on agent-made threads
   pendingApprovals: number; // for the badge in the sidebar
+  pendingQuestions?: number; // structured questions waiting for this thread
   // Per-thread choices made with /goal, /plan, /reasoning and /personality.
   goal: string | null;
   // How long the goal has run: goalElapsedMs plus now - goalResumedAt while not paused.
@@ -697,6 +699,8 @@ export type ThreadEvent =
   // screenshotId, when set, is served by GET /api/screenshots/:id.
   // sources: what a web search found or the page a web read gave (round 13).
   | { type: "tool.finished"; runId: string; callId: string; status: ToolStatus; result?: string; durationMs: number; screenshotId?: string; sources?: WebSource[]; files?: ChatFile[] }
+  | { type: "question.requested"; threadId: string; runId: string; requestId: string; callId: string; questions: UserQuestion[] }
+  | { type: "question.resolved"; runId: string; requestId: string; cancelled: boolean; answers: UserAnswer[]; reason?: UserInputCloseReason }
   | { type: "approval.requested"; runId: string; approvalId: string; callId: string; title: string; detail: string; canAllowAlways: boolean }
   | { type: "approval.resolved"; runId: string; approvalId: string; decision: ApprovalDecision }
   | { type: "thread.spawned"; runId: string; childThreadId: string; title: string }
@@ -943,6 +947,8 @@ export interface BrowserImported {
 //                                            shell: command for !, needs no model and uses normal approvals.
 // POST   /api/threads/:id/compact           runs compaction now, 409 while a run is active
 // POST   /api/threads/:id/stop
+// POST   /api/threads/:id/questions/:requestId { runId, answers?: UserAnswer[], cancelled?: boolean }
+//                                            rejects stale runs and replies for another thread.
 // POST   /api/approvals/:id                 { decision: ApprovalDecision }
 //
 // GET    /api/projects/:id/tree?path=       FileEntry[]

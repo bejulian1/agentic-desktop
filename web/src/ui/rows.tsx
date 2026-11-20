@@ -26,6 +26,7 @@ import { stepSentence } from "./step-words";
 import { FileChangeCounts } from "./FileChangeCounts";
 import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
 import "../styles/hooks.css";
+import { UserQuestionSummary } from "./UserQuestion";
 export { NowLine } from "./steps";
 
 // The conversation's timeline map learns where the user messages are from this. Rows register
@@ -919,6 +920,8 @@ function RowKind(props: { row: Row; onThread: (id: string) => void }) {
       return <ThinkingView row={row} />;
     case "tool":
       return <ToolView row={row} chat={!row.work} />;
+    case "question":
+      return <UserQuestionSummary row={row}/>;
     case "approval":
       return <ApprovalView row={row} />;
     case "changes":

@@ -135,7 +135,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
   const outputText = document.createTextNode(row.output);
   const waiting = () => status() === "awaiting-approval";
   const busy = () => status() === "running" || status() === "pending";
-  const icon = () => (waiting() ? IconHand : row.tool === "ui_mod" ? IconPalette : KIND_ICON[kind()]);
+  const icon = () => (waiting() ? IconHand : row.tool === "ui_mod" ? IconPalette : row.tool === "request_user_input" ? IconThought : KIND_ICON[kind()]);
 
   const flush = () => {
     if (row.pendingOutput) {

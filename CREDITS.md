@@ -43,6 +43,8 @@ Codex skrev fem skills for kildearbeid, oppfølging fra notater, dataanalyse, yt
 
 Codex implementerte stolpe- og linjediagrammer i chatmeldinger og kontrollerte strømming og gjenåpning av samtaler med en lokal testmodell.
 
+**Utviklingsgrenen `feat/ask-user`:** Codex implementerte modellverktøyet `request_user_input`/`ask_user`, spørrekort med valg og fritekst, avbrudd og svarruting til riktig kjøring, samt isolerte tester og dokumentasjon.
+
 For leverandørkatalogen undersøkte en GPT 6.2 Sol-underagent leverandørenes dokumentasjon og skrev katalogoppføringene. En GPT 6.2 Astra-underagent bygde det søkbare grensesnittet og tilkoblingsflyten. Codex integrerte og kontrollerte adapterne og migreringen av eksisterende oppsett.
 
 For lokale modellservere bidro GPT 6.2 Sol med serverprofiler, oppdagelse av modeller, maskinvarebaserte anbefalinger, oppsett i Innstillinger og integrasjon med den eksisterende agentkjøringen. Codex samlet disse funksjonene i katalogflyten og la til isolerte tester.

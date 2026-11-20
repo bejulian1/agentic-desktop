@@ -757,7 +757,7 @@ export class Api {
         store.updateThread(params.id, { chatTools: body.chatTools === null ? null : chatToolsFromBody(body.chatTools, chatToolsOf(current, store.settings())) });
       }
       const changes = threadPatch(body, current.mode);
-      if (changes.archived === true && !current.running) runner.stop(current.id);
+      if (changes.archived === true && (!current.running || current.pendingQuestions)) runner.stop(current.id);
       store.updateThread(params.id, changes);
       if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
@@ -791,8 +791,8 @@ export class Api {
         list = store.threads().filter((t) => t.chatProjectId === body.chatProjectId && !t.projectId);
       } else throw new HttpError(400, "Si hvilke tråder");
       const candidates = list.filter((t) => t.archived !== archived && !t.temporary);
-      const running = archived ? candidates.filter((t) => t.running) : [];
-      const changed = candidates.filter((t) => !(archived && t.running));
+      const running = archived ? candidates.filter((t) => t.running && !t.pendingQuestions) : [];
+      const changed = candidates.filter((t) => !(archived && t.running && !t.pendingQuestions));
       for (const thread of changed) {
         if (archived) runner.stop(thread.id);
         store.updateThread(thread.id, { archived });
@@ -894,6 +894,12 @@ export class Api {
     });
 
     this.route("POST", "/api/threads/:id/compact", ({ params }) => runner.compact(params.id));
+
+    this.route("POST", "/api/threads/:id/questions/:requestId", ({ params, body }) => {
+      this.thread(params.id);
+      runner.userInputs.answer(params.id, params.requestId, body);
+      return { accepted: true };
+    });
 
     this.route("POST", "/api/approvals/:id", ({ params, body }) => {
       if (!["allow", "allow-always", "deny"].includes(body.decision)) throw new HttpError(400, "Ugyldig svar");

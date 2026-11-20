@@ -31,7 +31,7 @@ import { actions } from "../state/actions";
 import { skillsOpen } from "../state/skills-workspace";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { clearFinished, finished, markSeen, searchOpen, setSearchOpen } from "../state/home";
-import { STATE_LABEL, threadState } from "../state/thread-status";
+import { STATE_LABEL, threadState, waitingCount } from "../state/thread-status";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
@@ -220,8 +220,8 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           </Show>
         </button>
       </Show>
-      <Show when={thread.pendingApprovals > 0}>
-        <span class="badge" title={`${STATE_LABEL.waiting}: ${thread.pendingApprovals === 1 ? "1 godkjenning" : `${thread.pendingApprovals} godkjenninger`}`}><IconWarn size={11} />{thread.pendingApprovals}</span>
+      <Show when={waitingCount(thread) > 0}>
+        <span class="badge" title={STATE_LABEL.waiting}><IconWarn size={11} />{waitingCount(thread)}</span>
       </Show>
       <Show
         when={isSnoozed(thread)}
@@ -333,7 +333,7 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
     } },
   ];
   const isCollapsed = () => props.headOnly || collapsed().includes(props.project.id);
-  const pending = () => props.threads.reduce((sum, t) => sum + t.pendingApprovals, 0);
+  const pending = () => props.threads.reduce((sum, t) => sum + waitingCount(t), 0);
   const selected = () => mode() === "code" && projectId() === props.project.id && !room() && !skillsOpen();
   let head!: HTMLDivElement;
   return (
@@ -420,7 +420,7 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
 // Approvals that wait, and threads that finished while you looked elsewhere.
 export function Notifications(props: { rail?: boolean }) {
   const [open, setOpen] = createSignal(false);
-  const waiting = createMemo(() => Object.values(app.threads).filter((t): t is Thread => listed(t) && t.pendingApprovals > 0 && !t.archived));
+  const waiting = createMemo(() => Object.values(app.threads).filter((t): t is Thread => listed(t) && waitingCount(t) > 0 && !t.archived));
   const done = createMemo(() => finished().map((id) => app.threads[id]).filter(listed));
   const count = () => waiting().length + done().length;
   const go = (thread: Thread) => {
@@ -444,7 +444,7 @@ export function Notifications(props: { rail?: boolean }) {
       }
     >
       <div class="menu-list notify-list" role="list" aria-label="Varsler">
-        <Show when={count()} fallback={<div class="menu-empty">Ingen varsler. Godkjenninger som venter og tråder som blir ferdige, havner her.</div>}>
+        <Show when={count()} fallback={<div class="menu-empty">Ingen varsler. Spørsmål, godkjenninger og tråder som blir ferdige, havner her.</div>}>
           <Show when={waiting().length}>
             <div class="menu-heading">Venter på deg</div>
             <For each={waiting()}>
@@ -452,7 +452,7 @@ export function Notifications(props: { rail?: boolean }) {
                 <button type="button" class="menu-item notify-item" onClick={() => go(thread)}>
                   <span class="notify-icon waiting"><IconWarn size={13} /></span>
                   <span class="menu-name">{thread.title}</span>
-                  <span class="menu-tag">{thread.pendingApprovals} godkjenning{thread.pendingApprovals === 1 ? "" : "er"}</span>
+                  <span class="menu-tag">{thread.pendingQuestions ? `${thread.pendingQuestions} spørsmål${thread.pendingApprovals ? ` · ${thread.pendingApprovals} godkjenninger` : ""}` : `${thread.pendingApprovals} godkjenning${thread.pendingApprovals === 1 ? "" : "er"}`}</span>
                 </button>
               )}
             </For>

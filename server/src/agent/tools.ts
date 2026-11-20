@@ -1,3 +1,4 @@
+import { requestUserInputTool } from "./user-input.ts";
 // The tools the model can call. Every path goes through guardPath, and permissions are checked by
 // the loop before run() is reached.
 //
@@ -69,6 +70,7 @@ export interface CollabTools {
 }
 
 export interface ToolContext {
+  requestUserInput?: (input: unknown) => Promise<import("../../../shared/user-input.ts").UserInputResult>;
   thread: Thread;
   project: Project;
   runId: string;
@@ -953,6 +955,7 @@ export const CODE_TOOLS: Tool[] = [
   rememberTool,
   forgetTool,
   proposeSkillTool,
+  requestUserInputTool,
 ];
 
 export const TOOLS_BY_NAME = new Map(CODE_TOOLS.map((tool) => [tool.def.name, tool]));
@@ -964,6 +967,7 @@ export function abilities(tools: Tool[]): string[] {
 
 // Names models trained on other harnesses tend to use, for tools that take the same arguments.
 export const TOOL_ALIASES: Record<string, string> = {
+  ask_user: "request_user_input",
   grep: "search",
   rg: "search",
   search_files: "search",

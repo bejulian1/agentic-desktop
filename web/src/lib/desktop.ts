@@ -4,6 +4,7 @@ import { createEffect, createRoot } from "solid-js";
 import { app } from "../state/app";
 import { actions } from "../state/actions";
 import { reopenFreshView } from "../state/startup";
+import { waitingCount } from "../state/thread-status";
 
 export type CloseBehavior = "tray" | "quit";
 export interface WindowState {
@@ -58,7 +59,7 @@ export function connectDesktop(): void {
       for (const thread of Object.values(app.threads)) {
         if (!thread || thread.archived) continue;
         if (thread.running) working += 1;
-        if (thread.pendingApprovals > 0) waiting += 1;
+        if (waitingCount(thread) > 0) waiting += 1;
       }
       const key = `${working}/${waiting}`;
       if (key === last) return;
