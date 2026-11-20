@@ -6,7 +6,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import type { Project, Thread, ThreadEventEnvelope } from "../../shared/protocol.ts";
 
@@ -127,7 +127,8 @@ export async function waitFor(check: () => boolean | Promise<boolean>, what: str
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness & { close: () => Promise<void> }> {
-  assert.ok(existsSync(path.join(ROOT, "web/dist/build-info.json")), "Kjør npm run build først");
+  const webDist = options.env?.AD_WEB_DIST ?? process.env.AD_WEB_DIST ?? path.join(ROOT, "web/dist");
+  assert.ok(existsSync(path.join(webDist, "build-info.json")), "Bygg webgrensesnittet og legg build-info.json i AD_WEB_DIST først");
   const dataDir = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-ui-data-")));
   const projectDir = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-ui-project-")));
   const home = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-ui-home-")));
@@ -230,12 +231,12 @@ export function descendants(pid: number): number[] {
 }
 
 // A test with its own server and browser. It also fails on any console error or CSP violation.
-export function flow(name: string, body: (h: Harness) => Promise<void>, options: HarnessOptions = {}): void {
-  test(name, { timeout: 120_000 }, async () => {
+export function flow(name: string, body: (h: Harness, context: TestContext) => Promise<void>, options: HarnessOptions = {}): void {
+  test(name, { timeout: 120_000 }, async (context) => {
     const harness = await createHarness(options);
     let failed = true;
     try {
-      await body(harness);
+      await body(harness, context);
       const csp = await harness.page.evaluate(() => (window as any).__csp as string[]).catch(() => [] as string[]);
       assert.deepEqual(csp, [], "CSP ble brutt");
       assert.deepEqual(harness.errors.filter((e) => !harness.allowed.some((p) => p.test(e))), [], "feil i konsollen");

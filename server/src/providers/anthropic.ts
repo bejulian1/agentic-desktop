@@ -1,6 +1,6 @@
 // Anthropic Messages API over raw fetch, sharing the SSE parser with the OpenAI provider so the
 // app needs no SDK per vendor. Thinking blocks are passed back unchanged, with their signatures.
-import { getJson, mergeRoles, parseToolInput, postSse, redact } from "./http.ts";
+import { getJson, mergeRoles, normalizeProviderBaseUrl, parseToolInput, postSse, redact, withoutToolHistory } from "./http.ts";
 import { ProviderError, type Block, type Message, type Provider, type ProviderRequest, type StopReason, type StreamPart } from "./types.ts";
 import type { WebSource } from "../../../shared/protocol.ts";
 
@@ -73,7 +73,7 @@ function webResults(block: any): { sources: WebSource[]; error?: string } {
 }
 
 export function createAnthropicProvider(options: AnthropicOptions): Provider {
-  const baseUrl = (options.baseUrl || "https://api.anthropic.com").replace(/\/+$/, "");
+  const baseUrl = normalizeProviderBaseUrl(options.baseUrl || "https://api.anthropic.com");
   const headers = (): Record<string, string> => {
     if (!options.apiKey) throw new ProviderError("Mangler API-nøkkel for Anthropic");
     return { "x-api-key": options.apiKey, "anthropic-version": API_VERSION };
@@ -81,12 +81,13 @@ export function createAnthropicProvider(options: AnthropicOptions): Provider {
 
   async function* stream(request: ProviderRequest): AsyncGenerator<StreamPart> {
     const { model } = request;
+    const messages = model.supportsTools === false ? withoutToolHistory(request.messages) : request.messages;
     const body = {
       model: model.model,
       max_tokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       stream: true,
-      system: [{ type: "text", text: request.system, cache_control: { type: "ephemeral" } }],
-      messages: toAnthropicMessages(request.messages),
+      ...(request.system ? { system: [{ type: "text", text: request.system, cache_control: { type: "ephemeral" } }] } : {}),
+      messages: toAnthropicMessages(messages),
       ...(request.tools.length || request.webSearch
         ? { tools: [...request.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })), ...(request.webSearch ? [WEB_SEARCH_TOOL] : [])] }
         : {}),

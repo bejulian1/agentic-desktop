@@ -1,6 +1,6 @@
 // What the two HTTP providers share: fetch with a stall timeout, error mapping and an SSE parser.
 import { repairJson } from "../agent/args.ts";
-import { ProviderError } from "./types.ts";
+import { ProviderError, type Block, type Message } from "./types.ts";
 
 const STALL_TIMEOUT_MS = 120_000;
 
@@ -21,10 +21,36 @@ export function redact(text: string, secret?: string): string {
   return secret ? text.split(secret).join("[skjult]") : text;
 }
 
+export function reflectsKey(text: string | undefined, key?: string): boolean {
+  return !!(key && text && (text === key || (key.length >= 8 && text.includes(key))));
+}
+
+export function redactModelValue(text: string, key?: string): string {
+  return reflectsKey(text, key) ? redact(text, key) : text;
+}
+
+export function normalizeProviderBaseUrl(value: unknown, defaultPath = ""): string {
+  try {
+    if (typeof value !== "string" || value.length > 2_048) throw new Error();
+    const input = value.trim();
+    if (!/^https?:\/\/[^/]/i.test(input) || /[?#\\\x00-\x20\x7f]/.test(input)) throw new Error();
+    const url = new URL(input);
+    if (!url.hostname || input.slice(input.indexOf("://") + 3).split("/", 1)[0].includes("@")) throw new Error();
+    const pathname = url.pathname.replace(/\/+$/, "");
+    return url.origin + (pathname || defaultPath);
+  } catch {
+    throw new ProviderError("Skriv en http- eller https-adresse uten brukernavn, passord, spørring eller fragment.");
+  }
+}
+
 // Maps a non-2xx response to a ProviderError, with the provider's own message when it has one.
 export async function errorFromResponse(res: Response, secret?: string): Promise<ProviderError> {
+  if (res.status >= 300 && res.status < 400) {
+    await res.body?.cancel().catch(() => {});
+    return new ProviderError("Leverandøren videresender forespørselen. Skriv den endelige API-adressen.", { status: res.status });
+  }
   const body = await res.text().catch(() => "");
-  let message = body.slice(0, 500);
+  let message = body;
   try {
     const parsed = JSON.parse(body);
     message = parsed?.error?.message ?? parsed?.message ?? message;
@@ -32,7 +58,8 @@ export async function errorFromResponse(res: Response, secret?: string): Promise
     // Not JSON, keep the raw text.
   }
   const retryAfter = Number(res.headers.get("retry-after"));
-  return new ProviderError(redact(`HTTP ${res.status}: ${message || res.statusText}`, secret), {
+  const detail = redact(String(message || res.statusText), secret);
+  return new ProviderError(`HTTP ${res.status}: ${detail.slice(0, 500)}`, {
     status: res.status,
     retryable: res.status === 408 || res.status === 429 || res.status >= 500,
     retryAfterMs: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : undefined,
@@ -45,6 +72,7 @@ export async function* postSse(url: string, options: PostOptions): AsyncGenerato
   const stallMs = options.stallMs ?? STALL_TIMEOUT_MS;
   let timer = setTimeout(() => stall.abort(), stallMs);
   const signal = AbortSignal.any([options.signal, stall.signal]);
+  let reader: ReadableStreamDefaultReader<string> | undefined;
   try {
     let res: Response;
     try {
@@ -53,6 +81,7 @@ export async function* postSse(url: string, options: PostOptions): AsyncGenerato
         headers: { "content-type": "application/json", accept: "text/event-stream", ...options.headers },
         body: JSON.stringify(options.body),
         signal,
+        redirect: "manual",
       });
     } catch (err) {
       if (options.signal.aborted) throw err;
@@ -61,7 +90,7 @@ export async function* postSse(url: string, options: PostOptions): AsyncGenerato
     if (!res.ok) throw await errorFromResponse(res, options.secret);
     if (!res.body) throw new ProviderError("Svaret manglet innhold");
 
-    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = "";
     let data: string[] = [];
     let event: string | undefined;
@@ -72,7 +101,7 @@ export async function* postSse(url: string, options: PostOptions): AsyncGenerato
       } catch (err) {
         if (options.signal.aborted) throw err;
         const reason = stall.signal.aborted ? "Strømmen stoppet opp" : `Strømmen ble brutt: ${connectionMessage(err)}`;
-        throw new ProviderError(reason, { retryable: true });
+        throw new ProviderError(redact(reason, options.secret), { retryable: true });
       }
       clearTimeout(timer);
       timer = setTimeout(() => stall.abort(), stallMs);
@@ -105,6 +134,7 @@ export async function* postSse(url: string, options: PostOptions): AsyncGenerato
     }
   } finally {
     clearTimeout(timer);
+    await reader?.cancel().catch(() => {});
   }
 }
 
@@ -124,12 +154,16 @@ function connectionMessage(err: unknown): string {
 export async function getJson(url: string, headers: Record<string, string>, signal: AbortSignal, secret?: string): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetch(url, { headers, signal });
+    res = await fetch(url, { headers: { accept: "application/json", ...headers }, signal, redirect: "manual" });
   } catch (err) {
     throw new ProviderError(redact(`Fikk ikke kontakt: ${connectionMessage(err)}`, secret));
   }
   if (!res.ok) throw await errorFromResponse(res, secret);
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    throw new ProviderError(signal.aborted ? "Serveren brukte for lang tid på å svare." : "Leverandøren sendte ikke en gyldig JSON-modelliste.");
+  }
 }
 
 export function parseToolInput(raw: string): { input: unknown; parseError?: string } {
@@ -157,4 +191,15 @@ export function mergeRoles<T extends { role: string; content: unknown[] }>(messa
     else merged.push({ ...message });
   }
   return merged;
+}
+
+export function withoutToolHistory(messages: Message[]): Message[] {
+  return messages.map(({ role, content }) => ({
+    role,
+    content: content.flatMap((block): Block[] => {
+      if (block.type === "text" || block.type === "image") return [block];
+      if (block.type === "tool_result" && block.content) return [{ type: "text", text: `Earlier tool output:\n${block.content}` }];
+      return [];
+    }),
+  }));
 }

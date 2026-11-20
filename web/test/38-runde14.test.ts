@@ -38,11 +38,12 @@ flow("30.1: nøkkelfeltene viser prikker med et øye, og uten nøkkelring sier L
   assert.equal(await page.getByTestId("keyring-note").count(), 0);
   await page.getByRole("button", { name: "Koble til OpenRouter" }).click();
   await checkSecretField(page, "OpenRouter-API-nøkkel");
-  await page.getByText("Nøkkelen lagres kryptert i systemets nøkkelring").waitFor();
+  await page.getByText("Nøkkelen lagres i systemets nøkkelring.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Tilbake til leverandørene" }).click();
   // Egendefinert has the same field.
-  await page.getByRole("button", { name: "Egendefinert (OpenAI-kompatibel adresse)" }).click();
+  await page.getByRole("button", { name: "Egendefinert oppsett" }).click();
   await checkSecretField(page, "Nøkkel");
+  await page.getByRole("button", { name: "Tilbake til leverandørene" }).click();
   await page.locator(".settings-nav").getByText("GitHub", { exact: true }).click();
   await checkSecretField(page, "GitHub-token");
   await page.getByText("Tokenet lagres kryptert i systemets nøkkelring").waitFor();
@@ -60,7 +61,7 @@ flow("30.1: nøkkelfeltene viser prikker med et øye, og uten nøkkelring sier L
   await key.locator("xpath=following-sibling::button[1]").click();
   assert.equal(await key.getAttribute("type"), "text");
   await page.getByRole("button", { name: "Fortsett" }).click();
-  await page.getByText("Anthropic er koblet til").waitFor();
+  await page.getByText(/Anthropic er lagret/).waitFor();
   const providers = (await h.api("GET", "/api/bootstrap")).providers;
   assert.ok(providers.some((p: any) => p.name === "Anthropic" && p.hasKey));
   assert.ok(!JSON.stringify(providers).includes("sk-ant-test"));

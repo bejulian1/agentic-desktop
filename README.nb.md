@@ -233,7 +233,7 @@ Demo-modellen er forhåndsvalgt og merket **Demo-modell (uten API)**. Den bruker
 
 ### Med en ekte modell
 
-**Innstillinger → Modeller og leverandører:** velg OpenRouter, OpenAI, Anthropic eller en annen, og lim inn nøkkelen.
+Åpne **Innstillinger → Modeller og leverandører → Koble til leverandør**. Søk i katalogen eller filtrer på **Sky**, **Gatewayer** eller **Lokal drift**. **Finn lokale servere** sjekker standardadressene på maskinen. **Anbefal modell** gir et minneanslag før du eventuelt laster ned modellen selv. [Se oppsett og skjermbilde.](docs/PROVIDERS.md)
 - Feltet viser prikker. Nøkkelen lagres i GNOME-nøkkelringen.
 - Lokale modeller via **Ollama** og **LM Studio** virker uten nøkkel.
 
@@ -307,6 +307,8 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 - **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til kommandoveiledningen, skills og kommandoer for samtaler og prosjektpaneler. Codex har også bidratt med diagrammer og gjennomgang av datamappelåsen, gjenkobling etter omskriving og åpning i standardnettleseren.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 - **Google Gemini** bidro med første versjon av datamappelåsen, gjenkoblingsrettelsen og menyvalget for standardnettleseren.
+
+GPT 6.2 Sol og GPT 6.2 Astra bidro også med leverandørkatalogen, API-kompatibilitet, oppsett og anbefalinger for lokale modellservere.
 
 Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic, OpenAI eller Google.
 

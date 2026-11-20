@@ -185,9 +185,8 @@ flow("leverandører: de opprinnelige valgene, tilkoblingstest, Koble til med nø
   try {
     await openSettings(page);
     await page.locator(".settings-nav").getByRole("button", { name: "Modeller og leverandører", exact: true }).click();
-    const popular = page.locator(".settings-group", { hasText: /Populære leverandører|Leverandørkatalog/ });
+    const popular = page.getByRole("list", { name: "Leverandører i katalogen" });
     await popular.locator(".setting").nth(3).waitFor();
-    const hasCatalogue = await popular.getByRole("heading", { name: "Leverandørkatalog", exact: true }).count() === 1;
     assert.deepEqual((await popular.locator(".setting-text strong").allTextContents()).slice(0, 4), ["OpenRouter", "abliteration.ai", "Anthropic", "OpenAI"]);
     await page.locator(".settings-group", { hasText: "Tilkoblede leverandører" }).getByText("Demo-modell").waitFor();
     await page.getByRole("button", { name: /^Egendefinert/ }).waitFor();
@@ -207,7 +206,7 @@ flow("leverandører: de opprinnelige valgene, tilkoblingstest, Koble til med nø
     const view = page.getByRole("region", { name: "Koble til abliteration.ai" });
     assert.equal(await view.locator(".beta-tag, .beta-note").count(), 0);
     await view.locator("summary", { hasText: "Adresse" }).click();
-    const address = view.getByLabel(hasCatalogue ? "API-adresse" : "Adresse", { exact: true });
+    const address = view.getByLabel("API-adresse", { exact: true });
     assert.equal(await address.inputValue(), "https://api.abliteration.ai/v1");
     await address.fill(`http://127.0.0.1:${(fake.address() as AddressInfo).port}/v1`);
     const key = view.getByLabel("abliteration.ai-API-nøkkel");
@@ -220,8 +219,7 @@ flow("leverandører: de opprinnelige valgene, tilkoblingstest, Koble til med nø
     const row = page.locator(".provider-row", { hasText: "abliteration.ai" });
     await row.getByText("API-nøkkel").waitFor();
     await row.getByText("1 modell").waitFor();
-    if (hasCatalogue) await popular.getByRole("button", { name: "Vis oppsett for abliteration.ai", exact: true }).waitFor();
-    else assert.equal(await popular.getByText("abliteration.ai", { exact: true }).count(), 0);
+    await popular.getByRole("button", { name: "Vis oppsett for abliteration.ai", exact: true }).waitFor();
     assert.deepEqual(seen, [{ url: "/v1/models", auth: "Bearer ablit-test-nokkel" }]);
     assert.ok(!(await page.evaluate(() => document.body.innerHTML.includes("ablit-test-nokkel"))), "nøkkelen står ikke i siden");
     assert.ok(!JSON.stringify(await h.api("GET", "/api/bootstrap")).includes("ablit-test-nokkel"));

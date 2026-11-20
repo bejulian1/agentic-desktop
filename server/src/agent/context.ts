@@ -43,14 +43,14 @@ export function loadInstructionFile(project: Project, dataDir: string): { name: 
 const STYLE_IS_NOT_TRUTH = "Personality and style shape how you write, never what is true: facts, code and safety advice stay accurate and complete.";
 
 // What the user chose for this thread with /goal, /plan and /personality.
-export function threadChoices(thread: Thread): string[] {
+export function threadChoices(thread: Thread, canInspect = true): string[] {
   const parts: string[] = [];
   // A chat chooses among Chat's own personalities; null there follows the default from Innstillinger.
   const personality = thread.mode === "chat" ? (thread.personality ? chatPersonality(thread.personality) : undefined) : PERSONALITIES.find((p) => p.id === thread.personality);
   if (personality?.prompt) parts.push("", thread.mode === "chat" ? `Personality (${personality.label}): ${personality.prompt}\n${STYLE_IS_NOT_TRUTH}` : `Style: ${personality.prompt}`);
   if (thread.mode === "code" && thread.goal) parts.push("", `The user's goal for this thread: ${thread.goal}`, "This saved goal is context; later user clarifications, changes and limits take precedence.");
   if (thread.mode === "code" && thread.planMode) {
-    parts.push("", "Plan mode is on. Do not change files or run commands. Investigate with the read-only tools, then answer with a short numbered plan the user can approve.");
+    parts.push("", `Plan mode is on. Do not change files or run commands. ${canInspect ? "Investigate with the read-only tools, then answer" : "Use the context the user supplied and answer"} with a short numbered plan the user can approve.`);
   }
   return parts;
 }
@@ -224,7 +224,9 @@ export function systemLayers(
     if (agentic) out.push({ id: "agentic", title: ".agentic/AGENTS.md", source: ".agentic/AGENTS.md", text: ["Project instructions from .agentic/AGENTS.md:", "", agentic.slice(0, MAX_INSTRUCTIONS_CHARS)].join("\n") });
     if (global && (instructions || agentic)) out.at(-1)!.text += "\n\nWhere the project instructions and the user's own global instructions disagree, the project wins, within the user's current task and the app's permissions.";
   }
-  const choices = threadChoices(thread.mode === "chat" && chat.project ? { ...thread, personality: null } : thread).join("\n").trim();
+  const choices = threadChoices(thread.mode === "chat" && chat.project ? { ...thread, personality: null } : thread,
+    extras.tools?.some((name) => READ_ONLY_TOOLS.has(name)),
+  ).join("\n").trim();
   if (choices) out.push({ id: "thread", title: thread.mode === "chat" ? "Personlighet i chatten" : "Valg i tråden", source: thread.mode === "chat" ? "Chat-personlighet" : "/personality, /goal og /plan", text: choices });
   return out;
 }

@@ -1,11 +1,16 @@
 // OpenAI-style chat completions: OpenRouter, OpenAI, Ollama, LM Studio, Groq and others.
-import { getJson, mergeRoles, parseToolInput, postSse, redact } from "./http.ts";
+import { randomUUID } from "node:crypto";
+import { getJson, mergeRoles, normalizeProviderBaseUrl, parseToolInput, postSse, redact, redactModelValue, reflectsKey, withoutToolHistory, type PostOptions, type SseMessage } from "./http.ts";
+import { fetchLocalModels, localCatalogStatus } from "./local.ts";
+import { compatibleAuthHeaders, parseModelList } from "./presets.ts";
 import { ProviderError, type Block, type Message, type Provider, type ProviderRequest, type StopReason, type StreamPart } from "./types.ts";
-import { isOpenRouter, type WebSource } from "../../../shared/protocol.ts";
+import { isOpenRouter, modelAllowsTools, type LocalProviderKind, type ProviderPreset, type WebSource } from "../../../shared/protocol.ts";
 
 export interface OpenAiOptions {
   baseUrl: string;
   apiKey?: string;
+  localKind?: LocalProviderKind;
+  authHeader?: ProviderPreset["authHeader"];
   stallMs?: number;
 }
 
@@ -13,23 +18,31 @@ interface PendingCall {
   id: string;
   name: string;
   args: string;
+  geminiThoughtSignature?: string;
 }
 
 const REASONING_FIELDS = ["reasoning", "reasoning_content", "thinking"] as const;
 
-export function toOpenAiMessages(system: string, messages: Message[], supportsImages: boolean): unknown[] {
+export function toOpenAiMessages(system: string, messages: Message[], supportsImages: boolean, gemini = false, localKind?: LocalProviderKind): unknown[] {
   const out: unknown[] = system ? [{ role: "system", content: system }] : [];
   for (const message of mergeRoles(messages)) {
     if (message.role === "assistant") {
       const text = textOf(message.content);
       const calls = message.content.filter((b) => b.type === "tool_use");
-      const thinking = message.content.find((b) => b.type === "thinking" && b.field);
+      if (localKind && !text && !calls.length) continue;
+      const thinking = message.content.find((b) => b.type === "thinking" && b.field === (localKind ? "ollama_reasoning" : "reasoning_content"));
+      const replay = localKind === "ollama" ? "reasoning" : localKind ? undefined : "reasoning_content";
       out.push({
         role: "assistant",
-        content: text || null,
-        ...(thinking?.type === "thinking" && thinking.field ? { [thinking.field]: thinking.text } : {}),
+        content: text || (localKind ? "" : null),
+        ...(thinking?.type === "thinking" && replay ? { [replay]: thinking.text } : {}),
         ...(calls.length
-          ? { tool_calls: calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) } })) }
+          ? { tool_calls: calls.map((call) => ({
+            id: call.id, type: "function", function: { name: call.name, arguments: JSON.stringify(call.input ?? {}) },
+            ...(gemini && call.geminiThoughtSignature
+              ? { extra_content: { google: { thought_signature: call.geminiThoughtSignature } } }
+              : {}),
+          })) }
           : {}),
       });
       continue;
@@ -70,22 +83,29 @@ function mapFinishReason(reason: string): StopReason {
 }
 
 export function createOpenAiProvider(options: OpenAiOptions): Provider {
-  const baseUrl = options.baseUrl.replace(/\/+$/, "");
-  const auth: Record<string, string> = options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {};
+  const baseUrl = normalizeProviderBaseUrl(options.baseUrl);
+  const { apiKey, localKind } = options;
+  const auth = compatibleAuthHeaders(options.apiKey, options.authHeader);
+  const hostname = new URL(baseUrl).hostname;
+  const gemini = hostname === "generativelanguage.googleapis.com";
+  const tokenLimitField = options.authHeader === "api-key" || hostname === "api.openai.com" ? "max_completion_tokens" : "max_tokens";
 
   async function* stream(request: ProviderRequest): AsyncGenerator<StreamPart> {
     const { model } = request;
+    const toolsEnabled = modelAllowsTools(model, localKind);
+    const tools = toolsEnabled ? request.tools : [];
+    const allowToolCalls = toolsEnabled && (!localKind || tools.length > 0);
+    const messages = allowToolCalls ? request.messages : withoutToolHistory(request.messages);
     const body = {
       model: model.model,
-      messages: toOpenAiMessages(request.system, request.messages, model.supportsImages === true),
+      messages: toOpenAiMessages(request.system, messages, model.supportsImages === true, gemini, localKind),
       stream: true,
-      stream_options: { include_usage: true },
-      ...(request.tools.length
-        ? { tools: request.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } })) }
+      ...(tools.length
+        ? { tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } })) }
         : {}),
-      ...(model.maxOutputTokens ? { max_tokens: model.maxOutputTokens } : {}),
+      ...(model.maxOutputTokens ? { [tokenLimitField]: model.maxOutputTokens } : {}),
       // Round 13 (SPEC 27.2): the provider's own web search, for models that have it.
-      ...(request.webSearch ? { web_search_options: {} } : {}),
+      ...(!localKind && toolsEnabled && request.webSearch ? { web_search_options: {} } : {}),
       ...reasoningOptions(baseUrl, model.effort),
     };
 
@@ -93,16 +113,17 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
     let lastIndex = -1;
     let finish: string | undefined;
     let done = false;
+    let hasText = false;
+    let unsolicitedTool = false;
     let usage: Extract<StreamPart, { type: "usage" }> | undefined;
     const cited = new Map<string, WebSource>(); // url_citation annotations, the sources of a web search
 
-    for await (const message of postSse(`${baseUrl}/chat/completions`, {
+    for await (const message of postChatStream(`${baseUrl}/chat/completions`, body, {
       headers: auth,
-      body,
       signal: request.signal,
       secret: options.apiKey,
       stallMs: options.stallMs,
-    })) {
+    }, !localKind || localKind === "ollama")) {
       if (message.data.trim() === "[DONE]") {
         done = true;
         break;
@@ -113,14 +134,15 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
       } catch {
         continue; // Some gateways send keep-alive noise.
       }
-      if (chunk.error) {
+      if (chunk?.error) {
         const status = Number(chunk.error.code);
-        throw new ProviderError(redact(String(chunk.error.message ?? "Feil fra leverandøren"), options.apiKey), {
+        const error = typeof chunk.error === "string" ? chunk.error : chunk.error.message;
+        throw new ProviderError(redact(String(error ?? "Feil fra leverandøren"), apiKey), {
           status: Number.isFinite(status) ? status : undefined,
           retryable: status === 429 || status >= 500,
         });
       }
-      if (chunk.usage) {
+      if (chunk?.usage) {
         const u = chunk.usage;
         usage = {
           type: "usage",
@@ -129,47 +151,64 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
           cachedInputTokens: u.prompt_tokens_details?.cached_tokens ?? u.prompt_cache_hit_tokens ?? 0,
         };
       }
-      const choice = chunk.choices?.[0];
+      const choice = chunk?.choices?.[0];
       if (!choice) continue;
       const delta = choice.delta ?? choice.message ?? {};
 
       for (const field of REASONING_FIELDS) {
         const text = delta[field];
-        if (typeof text === "string" && text) yield { type: "thinking", text, ...(field === "reasoning_content" ? { field } : {}) };
+        const replay = localKind === "ollama" && field === "reasoning" ? "ollama_reasoning" : !localKind && field === "reasoning_content" ? field : undefined;
+        if (typeof text === "string" && text) yield { type: "thinking", text: redactModelValue(text, apiKey), ...(replay ? { field: replay } : {}) };
       }
-      for (const detail of delta.reasoning_details ?? []) {
+      for (const detail of Array.isArray(delta.reasoning_details) ? delta.reasoning_details : []) {
         // OpenRouter sends both `reasoning` and `reasoning_details`; only use the latter on its own.
-        if (typeof detail?.text === "string" && detail.text && !delta.reasoning) yield { type: "thinking", text: detail.text };
+        if (typeof detail?.text === "string" && detail.text && !delta.reasoning) yield { type: "thinking", text: redactModelValue(detail.text, apiKey) };
       }
-      if (typeof delta.content === "string" && delta.content) yield { type: "text", text: delta.content };
-      for (const note of Array.isArray(delta.annotations) ? delta.annotations : []) {
+      if (typeof delta.content === "string" && delta.content) {
+        hasText ||= !!delta.content.trim();
+        yield { type: "text", text: redactModelValue(delta.content, apiKey) };
+      }
+      for (const note of !localKind && Array.isArray(delta.annotations) ? delta.annotations : []) {
         const citation = note?.type === "url_citation" ? (note.url_citation ?? note) : null;
-        if (typeof citation?.url === "string" && /^https?:/.test(citation.url) && !cited.has(citation.url)) {
-          cited.set(citation.url, { title: String(citation.title || citation.url).slice(0, 160), url: citation.url });
+        if (typeof citation?.url === "string" && /^https?:/.test(citation.url) && !reflectsKey(citation.url, apiKey) && !cited.has(citation.url)) {
+          cited.set(citation.url, { title: redactModelValue(String(citation.title || citation.url), apiKey).slice(0, 160), url: citation.url });
         }
       }
 
-      for (const part of delta.tool_calls ?? []) {
+      if (choice.finish_reason) finish = choice.finish_reason;
+      const parts = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+      if (!allowToolCalls) {
+        unsolicitedTool ||= parts.length > 0 || !!delta.function_call;
+        continue;
+      }
+      for (const [position, part] of parts.entries()) {
+        if (!part || typeof part !== "object") continue;
         let index: number = part.index ?? -1;
         if (index === -1) {
           // No index: match on id, a new id starts a new call, otherwise continue the last one.
           const known = [...calls].find(([, call]) => part.id && call.id === part.id);
-          index = known ? known[0] : part.id || lastIndex === -1 ? lastIndex + 1 : lastIndex;
+          index = known ? known[0] : part.id ? lastIndex + 1 : parts.length > 1 ? position : Math.max(lastIndex, 0);
         }
         lastIndex = Math.max(lastIndex, index);
         const call = calls.get(index) ?? { id: "", name: "", args: "" };
-        if (part.id) call.id = part.id;
-        if (part.function?.name) call.name = part.function.name;
+        if (typeof part.id === "string" && part.id) call.id = part.id;
+        if (typeof part.function?.name === "string" && part.function.name) call.name = part.function.name;
         if (part.function?.arguments) {
           const args = part.function.arguments;
           call.args += typeof args === "string" ? args : JSON.stringify(args);
         }
+        // Gemini requires the opaque signature from a tool call to be replayed with that call.
+        const signature = part.extra_content?.google?.thought_signature;
+        if (gemini && typeof signature === "string" && signature) call.geminiThoughtSignature = signature;
         calls.set(index, call);
       }
-      if (choice.finish_reason) finish = choice.finish_reason;
     }
 
     if (!done && !finish) throw new ProviderError("Strømmen ble brutt før svaret var ferdig", { retryable: true });
+    if (!allowToolCalls && (unsolicitedTool || mapFinishReason(finish ?? "") === "tool_use")) {
+      if (!hasText) throw new ProviderError("Modellen svarte med et verktøykall, men denne turen hadde ingen tilgjengelige verktøy.");
+      if (mapFinishReason(finish ?? "") === "tool_use") finish = "stop";
+    }
     // The search itself is not announced in the stream, only the sources it gave.
     if (cited.size) {
       yield { type: "web_search", id: "web_search_1", query: "" };
@@ -177,8 +216,14 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
     }
 
     for (const [index, call] of [...calls].sort(([a], [b]) => a - b)) {
+      if ([call.args, call.name, call.id, call.geminiThoughtSignature].some((value) => reflectsKey(value, apiKey))) {
+        throw new ProviderError("Leverandøren returnerte API-nøkkelen i et verktøykall. Kallet ble avvist.");
+      }
       const { input, parseError } = parseToolInput(call.args);
-      yield { type: "tool_call", id: call.id || `call_${index}`, name: call.name, input, parseError };
+      yield {
+        type: "tool_call", id: call.id || (localKind ? `call_${randomUUID().replaceAll("-", "")}` : `call_${index}`), name: call.name, input, parseError,
+        ...(call.geminiThoughtSignature ? { geminiThoughtSignature: call.geminiThoughtSignature } : {}),
+      };
     }
     if (usage) yield usage;
     yield { type: "stop", reason: calls.size && (!finish || finish === "stop") ? "tool_use" : mapFinishReason(finish ?? "stop") };
@@ -187,11 +232,30 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
   return {
     stream,
     async test(signal) {
-      const list = (await getJson(`${baseUrl}/models`, auth, signal, options.apiKey)) as { data?: unknown[] };
-      const count = Array.isArray(list?.data) ? list.data.length : 0;
-      return { ok: true, message: count ? `Tilkoblingen virker, ${count} modeller` : "Tilkoblingen virker" };
+      if (localKind) return localCatalogStatus(await fetchLocalModels(localKind, baseUrl, apiKey, signal));
+      const models = parseModelList(await getJson(`${baseUrl}/models`, auth, signal, options.apiKey));
+      const count = models.length === 1 ? "1 modell" : `${models.length} modeller`;
+      return { ok: true, message: `Modellisten svarte, ${count}` };
     },
   };
+}
+
+async function* postChatStream(url: string, body: Record<string, unknown>, options: Omit<PostOptions, "body">, includeUsage: boolean): AsyncGenerator<SseMessage> {
+  if (!includeUsage) {
+    yield* postSse(url, { ...options, body });
+    return;
+  }
+  try {
+    yield* postSse(url, { ...options, body: { ...body, stream_options: { include_usage: true } } });
+    return;
+  } catch (err) {
+    // Some compatible endpoints reject optional usage reporting during request validation.
+    // Only HTTP validation errors from postSse qualify, before any model output has streamed.
+    if (!(err instanceof ProviderError) || (err.status !== 400 && err.status !== 422) ||
+        !/stream_options/i.test(err.message) ||
+        !/unknown|unrecognized|unexpected|unsupported|not supported|not allowed|extra|invalid|forbidden/i.test(err.message)) throw err;
+  }
+  yield* postSse(url, { ...options, body });
 }
 
 export function reasoningOptions(baseUrl: string, effort: ProviderRequest["model"]["effort"]): object {

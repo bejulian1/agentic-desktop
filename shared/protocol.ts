@@ -11,6 +11,8 @@ export const THEME_PRESETS = ["standard", "kontrast", "varm", "kald", "fjord", "
 export type ThemePreset = (typeof THEME_PRESETS)[number];
 export type PermissionMode = "ask" | "accept-edits" | "full";
 export type ProviderKind = "openai-compatible" | "anthropic" | "mock";
+export type LocalProviderKind = "ollama" | "lmstudio" | "openai-compatible";
+export const DEFAULT_LOCAL_CONTEXT_WINDOW = 4_096;
 export type ToolStatus = "pending" | "awaiting-approval" | "running" | "done" | "error" | "denied" | "cancelled";
 export type RunStatus = "running" | "done" | "stopped" | "error" | "interrupted";
 export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max"; // none: no thinking (round 9)
@@ -232,6 +234,7 @@ export interface ModelConfig {
   // Optional tuning. Left out means the provider default.
   maxOutputTokens?: number;
   supportsImages?: boolean; // openai-compatible only; anthropic always sends images
+  supportsTools?: boolean; // when unknown, defaults to off for local providers
   thinking?: boolean; // anthropic only; default true, set false for models without adaptive thinking
   effort?: ReasoningEffort; // anthropic output_config.effort, openai-compatible reasoning_effort
   webSearch?: boolean; // round 13: the provider's own web search; default on for anthropic, off for openai-compatible
@@ -242,9 +245,15 @@ export interface ProviderConfig {
   id: string;
   kind: ProviderKind;
   name: string;
+  presetId?: string;
+  localKind?: LocalProviderKind;
   baseUrl?: string;
   apiKeyEnv?: string;
   hasKey: boolean;
+}
+
+export function modelAllowsTools(model?: Pick<ModelConfig, "supportsTools">, localKind?: LocalProviderKind): boolean {
+  return model?.supportsTools ?? !localKind;
 }
 
 export interface Settings {
@@ -386,9 +395,10 @@ export function chatToolsOf(thread: (Pick<Thread, "chatTools"> & Partial<Pick<Th
 // otherwise the app's browser on the search page from Settings. The demo model shows marked demo
 // sources until a search page is set.
 export type WebSearchRoute = "provider" | "browser" | "demo";
-export function webSearchRoute(model: Pick<ModelConfig, "webSearch"> | undefined, kind: ProviderKind | undefined, settings: Pick<Settings, "webSearchUrl">): WebSearchRoute | null {
+export function webSearchRoute(model: Pick<ModelConfig, "webSearch" | "supportsTools"> | undefined, kind: ProviderKind | undefined, settings: Pick<Settings, "webSearchUrl">, localKind?: LocalProviderKind): WebSearchRoute | null {
+  if (!modelAllowsTools(model, localKind)) return null;
   if (kind === "mock") return settings.webSearchUrl ? "browser" : "demo";
-  if (model && kind && (model.webSearch ?? kind === "anthropic")) return "provider";
+  if (!localKind && model && kind && (model.webSearch ?? kind === "anthropic")) return "provider";
   return settings.webSearchUrl ? "browser" : null;
 }
 
@@ -549,6 +559,9 @@ export interface ProviderPreset {
   kind: "openai-compatible" | "anthropic";
   baseUrl: string;
   apiKeyEnv?: string;
+  category?: "cloud" | "gateway" | "local";
+  modelDiscovery?: "auto" | "manual";
+  authHeader?: "api-key";
   keyRequired: boolean;
   local?: boolean;
   docsUrl?: string;
@@ -562,6 +575,38 @@ export interface ListedModel {
   name: string;
   contextWindow: number;
   contextSource: "api" | "table" | "default"; // where the context size came from
+  supportsTools?: boolean;
+  supportsImages?: boolean;
+}
+
+export interface DetectedLocalProvider {
+  presetId: string;
+  modelCount: number;
+}
+
+export const LOCAL_MODEL_CONTEXT_OPTIONS = [4_096, 8_192, 16_384, 32_768, 65_536] as const;
+export const LOCAL_MODEL_RAM_RESERVE_GIB = 4;
+
+export interface LocalModelHardware {
+  availableRamGiB: number;
+  freeGpuGiB?: number;
+}
+
+export interface LocalModelSuggestion {
+  name: string;
+  ollamaId: string;
+  ggufUrl: string;
+  ggufQuantization: string;
+  placement: "gpu" | "ram";
+  estimatedRamGiB: number;
+  estimatedGpuGiB?: number;
+  supportsTools: boolean;
+}
+
+export interface LocalModelRecommendations {
+  hardware: LocalModelHardware;
+  contextTokens: number;
+  suggestions: LocalModelSuggestion[];
 }
 
 export interface GlobalConfig {
@@ -923,12 +968,14 @@ export interface BrowserImported {
 // POST   /api/model-context/location        { mode: "chat" | "code" } -> Settings; explicit IP lookup only
 // PATCH  /api/settings                      Partial<Settings>; modelContext deep-merges each mode
 // POST   /api/providers                     ProviderConfig fields + apiKey?
+// POST   /api/providers/local/detect        DetectedLocalProvider[]; fixed loopback defaults, no credentials
+// POST   /api/providers/local/recommend     { source, mode, contextTokens, availableRamGiB?, freeGpuGiB? } => LocalModelRecommendations
 // PATCH  /api/providers/:id
 // DELETE /api/providers/:id
-// POST   /api/providers/:id/test            { ok, message }
+// POST   /api/providers/:id/test            { modelId? } => { ok, message }
 // GET    /api/provider-presets              ProviderPreset[]
 // POST   /api/providers/:id/models/fetch    ListedModel[]  reads the provider's /models with the stored key
-// POST   /api/providers/:id/models          { models: Array<{ model, name?, contextWindow? }> } => ModelConfig[]  adds many
+// POST   /api/providers/:id/models          { models: Array<{ model, name?, contextWindow?, supportsTools?, supportsImages? }> } => ModelConfig[]
 // GET    /api/projects/:id/tasks            TeamTask[]  the shared task list for Agent Teams
 // POST   /api/projects/:id/tasks            { title, ownerThreadId? } => TeamTask
 // PATCH  /api/tasks/:id                     { status?, title?, ownerThreadId? } => TeamTask

@@ -41,6 +41,10 @@ Codex skrev fem skills for kildearbeid, oppfølging fra notater, dataanalyse, yt
 
 Codex implementerte stolpe- og linjediagrammer i chatmeldinger og kontrollerte strømming og gjenåpning av samtaler med en lokal testmodell.
 
+For leverandørkatalogen undersøkte en GPT 6.2 Sol-underagent leverandørenes dokumentasjon og skrev katalogoppføringene. En GPT 6.2 Astra-underagent bygde det søkbare grensesnittet og tilkoblingsflyten. Codex integrerte og kontrollerte adapterne og migreringen av eksisterende oppsett.
+
+For lokale modellservere bidro GPT 6.2 Sol med serverprofiler, oppdagelse av modeller, maskinvarebaserte anbefalinger, oppsett i Innstillinger og integrasjon med den eksisterende agentkjøringen. Codex samlet disse funksjonene i katalogflyten og la til isolerte tester.
+
 ## Gemini – Google
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.

@@ -120,7 +120,7 @@ The built-in **Demo-modell (uten API)** is selected by default. It does not call
 ### Connect a Real Provider or Local Model
 
 1. Open **Innstillinger → Modeller og leverandører** (Settings → Models & Providers).
-2. Add **OpenRouter**, **abliteration.ai**, **Anthropic**, **OpenAI**, or a **Custom** OpenAI-compatible provider (such as **Ollama** or **LM Studio**, which work without an API key).
+2. Choose **Koble til leverandør** to search the catalog or set up a custom endpoint. **Finn lokale servere** checks known local endpoints; **Anbefal modell** estimates which models fit your hardware. See the [provider guide](docs/PROVIDERS.md).
 3. Enter a key if the provider needs one. The app uses the system keyring when available. Use **Test tilkobling** (Test connection), then select your model in the composer.
 
 ## Development
@@ -190,6 +190,8 @@ The project owner credits the following AI models for development assistance (se
 - **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff.
 - **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
 - **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action.
+
+GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API compatibility, setup, and local model discovery and recommendations.
 
 Crediting AI models describes development assistance only and implies no official endorsement or affiliation with Anthropic, OpenAI, or Google.
 

@@ -29,3 +29,46 @@
 
 .provider-key-note { margin: 0 0 var(--space-6); color: var(--text-2); font-size: var(--text-sm); }
 .provider-cards .card-title > .key-tag { align-self: flex-start; margin-left: 0; }
+.provider-count, .provider-model-hint { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
+.provider-count { font-variant-numeric: tabular-nums; }
+.provider-catalog-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.provider-catalog-tools .settings-search { flex: 1 1 180px; min-width: 0; margin: 0; }
+.provider-catalog-tools .segmented { flex-wrap: wrap; }
+.provider-catalog-list { list-style: none; margin: 0; padding: 0; }
+.provider-catalog-list > li { border-top: 1px solid var(--border); }
+.provider-catalog-list .setting { min-height: 48px; padding-block: var(--space-2); }
+.provider-catalog-list strong { overflow-wrap: anywhere; }
+.provider-catalog-empty { padding: var(--space-3) var(--space-4); font-size: var(--text-sm); color: var(--text-2); }
+.provider-catalog-more.link-button { width: 100%; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); border-radius: 0; }
+.provider-docs-link { align-self: flex-start; color: var(--accent-text); font-size: var(--text-sm); }
+.model-fetch-actions { flex-wrap: wrap; align-items: center; }
+.model-fetch-actions .link-button { margin-right: auto; }
+.local-model-advisor {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.local-model-inputs { display: grid; gap: var(--space-2); padding: 0; margin: 0; border: 0; min-width: 0; }
+.local-model-inputs > .setting { min-height: 0; padding: var(--space-1) 0; }
+.local-model-advice { margin-top: var(--space-4); }
+.local-model-advice ol { list-style: none; padding: 0; display: grid; gap: var(--space-2); }
+.local-model-suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-3);
+}
+.local-model-recommended { border-color: var(--accent); }
+.local-model-sources {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
+}
+.fetch-tools { font-size: var(--text-xs); }
+.provider-detect-status { margin: 0; padding: 0 var(--space-4) var(--space-2); }
+.provider-detect-status:empty { padding: 0; }

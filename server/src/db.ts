@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS turn_files (
   interleaved INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (turn_id, path)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS providers (
-  id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, base_url TEXT, api_key_env TEXT);
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, base_url TEXT, api_key_env TEXT, preset_id TEXT);
 CREATE TABLE IF NOT EXISTS models (
   id TEXT PRIMARY KEY, provider_id TEXT NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
   name TEXT NOT NULL, model TEXT NOT NULL, context_window INTEGER NOT NULL,
@@ -174,6 +174,8 @@ export interface StoredProvider {
   id: string;
   kind: ProviderKind;
   name: string;
+  presetId?: string;
+  credentialId?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
 }
@@ -297,6 +299,8 @@ export class Store {
     add("threads", "forked_from", "TEXT");
     // Monotonic revision bumped whenever rewindThread deletes/reuses event seq numbers.
     add("threads", "history_revision", "INTEGER NOT NULL DEFAULT 0");
+    add("providers", "preset_id", "TEXT");
+    add("providers", "credential_id", "TEXT");
   }
 
   close(): void {
@@ -1132,6 +1136,8 @@ export class Store {
     id: row.id,
     kind: row.kind,
     name: row.name,
+    presetId: row.preset_id ?? undefined,
+    credentialId: row.credential_id ?? undefined,
     baseUrl: row.base_url ?? undefined,
     apiKeyEnv: row.api_key_env ?? undefined,
   });
@@ -1147,15 +1153,18 @@ export class Store {
 
   createProvider(provider: Omit<StoredProvider, "id">): StoredProvider {
     const id = randomUUID();
-    this.q("INSERT INTO providers (id, kind, name, base_url, api_key_env) VALUES (?, ?, ?, ?, ?)")
-      .run(id, provider.kind, provider.name, provider.baseUrl ?? null, provider.apiKeyEnv ?? null);
+    this.q("INSERT INTO providers (id, kind, name, base_url, api_key_env, preset_id) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(id, provider.kind, provider.name, provider.baseUrl ?? null, provider.apiKeyEnv ?? null, provider.presetId ?? null);
     return this.provider(id)!;
   }
 
   updateProvider(id: string, patch: Partial<Omit<StoredProvider, "id" | "kind">>): void {
-    if (patch.name !== undefined) this.q("UPDATE providers SET name = ? WHERE id = ?").run(patch.name, id);
-    if (patch.baseUrl !== undefined) this.q("UPDATE providers SET base_url = ? WHERE id = ?").run(patch.baseUrl || null, id);
-    if (patch.apiKeyEnv !== undefined) this.q("UPDATE providers SET api_key_env = ? WHERE id = ?").run(patch.apiKeyEnv || null, id);
+    this.transaction(() => {
+      if (patch.name !== undefined) this.q("UPDATE providers SET name = ? WHERE id = ?").run(patch.name, id);
+      if (patch.baseUrl !== undefined) this.q("UPDATE providers SET base_url = ? WHERE id = ?").run(patch.baseUrl || null, id);
+      if (patch.apiKeyEnv !== undefined) this.q("UPDATE providers SET api_key_env = ? WHERE id = ?").run(patch.apiKeyEnv || null, id);
+      if (patch.credentialId !== undefined) this.q("UPDATE providers SET credential_id = ? WHERE id = ?").run(patch.credentialId, id);
+    });
   }
 
   deleteProvider(id: string): void {

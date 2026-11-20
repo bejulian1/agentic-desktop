@@ -82,6 +82,26 @@ test("openai: request shape, auth and tools", async (t) => {
   assert.equal(sent.body.tools[0].function.name, "read_file");
 });
 
+test("Azure uses the resource key and deployment token field and retries only a rejected optional stream parameter", async (t) => {
+  const llm = await startFakeLlm(t);
+  llm.reply(httpError(422, { error: { message: "Unexpected field stream_options" } }));
+  llm.reply(sse(openaiChunk({ content: "OK" }, "stop") + OPENAI_DONE));
+  const client = createOpenAiProvider({ baseUrl: `${llm.url}/openai/v1`, authHeader: "api-key", apiKey: "fake-azure-key" });
+  assert.equal(textParts(await collect(client, request({ model: { ...MODEL, maxOutputTokens: 32 } })), "text"), "OK");
+  assert.equal(llm.requests[0].headers["api-key"], "fake-azure-key");
+  assert.equal(llm.requests[0].headers.authorization, undefined);
+  assert.equal(llm.requests[0].url, "/openai/v1/chat/completions");
+  assert.equal(llm.requests[0].body.max_completion_tokens, 32);
+  assert.deepEqual(llm.requests[0].body.stream_options, { include_usage: true });
+  assert.equal(llm.requests[1].body.stream_options, undefined);
+});
+
+test("Gemini tool-call history includes its opaque signature without changing other OpenAI requests", () => {
+  const history: Message[] = [{ role: "assistant", content: [{ type: "tool_use", id: "tool-1", name: "read_file", input: {}, geminiThoughtSignature: "opaque" }] }];
+  assert.match(JSON.stringify(toOpenAiMessages("", history, false, true)), /"thought_signature":"opaque"/);
+  assert.doesNotMatch(JSON.stringify(toOpenAiMessages("", history, false)), /thought_signature/);
+});
+
 test("openai: CRLF line ends and calls without an index, as some local servers send", async (t) => {
   const llm = await startFakeLlm(t);
   const body =

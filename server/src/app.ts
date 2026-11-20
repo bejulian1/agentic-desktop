@@ -115,7 +115,7 @@ async function startAppWithClaim(
 ): Promise<App> {
   // The label is what Passord og nøkler (Seahorse) shows for the item.
   const secrets = new Secrets(config.dataDir, options.keyring ?? defaultKeyring(), (id) =>
-    id === GITHUB_SECRET ? "Agentic Desktop: GitHub-token" : id.startsWith("mcp:") ? `Agentic Desktop: MCP-hemmelighet (${id.split(":").slice(2).join(" ")})` : `Agentic Desktop: API-nøkkel for ${store.provider(id)?.name ?? id}`,
+    id === GITHUB_SECRET ? "Agentic Desktop: GitHub-token" : id.startsWith("mcp:") ? `Agentic Desktop: MCP-hemmelighet (${id.split(":").slice(2).join(" ")})` : `Agentic Desktop: API-nøkkel for ${store.provider(id.split(":")[0])?.name ?? id}`,
   );
   onFail(() => secrets.idle());
   // Normally a tenth of a second. A locked keyring asks for the password; the start does not wait

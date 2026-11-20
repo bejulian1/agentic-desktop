@@ -3,6 +3,7 @@ import type { Secrets } from "../secrets.ts";
 import { createAnthropicProvider } from "./anthropic.ts";
 import { createMockProvider } from "./mock.ts";
 import { createOpenAiProvider } from "./openai-compatible.ts";
+import { localKindFor, providerPreset } from "./presets.ts";
 import { ProviderError, type Provider } from "./types.ts";
 
 export interface ProviderRegistryOptions {
@@ -12,7 +13,7 @@ export interface ProviderRegistryOptions {
 }
 
 export function apiKeyFor(provider: StoredProvider, secrets: Secrets): string | undefined {
-  return (provider.apiKeyEnv ? process.env[provider.apiKeyEnv] : undefined) || secrets.get(provider.id);
+  return secrets.get(provider.credentialId ?? provider.id) || (provider.apiKeyEnv ? process.env[provider.apiKeyEnv] : undefined);
 }
 
 export function createProvider(provider: StoredProvider, options: ProviderRegistryOptions): Provider {
@@ -24,6 +25,6 @@ export function createProvider(provider: StoredProvider, options: ProviderRegist
       return createAnthropicProvider({ baseUrl: provider.baseUrl, apiKey, stallMs: options.stallMs });
     case "openai-compatible":
       if (!provider.baseUrl) throw new ProviderError("Leverandøren mangler baseUrl");
-      return createOpenAiProvider({ baseUrl: provider.baseUrl, apiKey, stallMs: options.stallMs });
+      return createOpenAiProvider({ baseUrl: provider.baseUrl, apiKey, localKind: localKindFor(provider), authHeader: providerPreset(provider.presetId)?.authHeader, stallMs: options.stallMs });
   }
 }

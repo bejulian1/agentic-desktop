@@ -4,8 +4,8 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
-import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, MentionItem, ModelConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
-import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
+import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
+import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
 import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
@@ -490,14 +490,14 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   let frame = 0;
   const groups = createMemo(() => {
     const words = query().trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const out: Array<{ id: string; name: string; models: ModelConfig[] }> = [];
+    const out: Array<{ name: string; localKind?: LocalProviderKind; models: ModelConfig[] }> = [];
     for (const provider of app.providers) {
       const models = app.models.filter((m) => {
         if (m.providerId !== provider.id) return false;
         const hay = `${m.name} ${m.model} ${provider.name}`.toLowerCase();
         return words.every((w) => hay.includes(w));
       });
-      if (models.length) out.push({ id: provider.id, name: provider.name, models });
+      if (models.length) out.push({ name: provider.name, localKind: provider.localKind, models });
     }
     return out;
   });
@@ -574,8 +574,8 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
       <div class="model-list" role="listbox" aria-label="Modeller" id={listId} ref={list}>
         <For each={groups()} fallback={<p class="model-none">Ingen modeller passer «{query().trim()}».</p>}>
           {(group) => (
-            <div role="group" aria-label={group.name} class="model-group">
-              <div class="model-group-head" aria-hidden="true"><span>{group.name}</span></div>
+            <div role="group" aria-label={group.localKind ? `${group.name} (lokal)` : group.name} class="model-group">
+              <div class="model-group-head" aria-hidden="true"><span>{group.name}</span><Show when={group.localKind}><span class="model-source">Lokal</span></Show></div>
               <For each={group.models}>
                 {(model) => (
                   <button
@@ -592,6 +592,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
                     onClick={() => props.onPick(model.id)}
                   >
                     <span class="menu-name">{model.name}</span>
+                    <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? "Verktøy på" : "Verktøy av"}</span></Show>
                     <span class="menu-check"><Show when={props.chosen === model.id}><IconCheck size={14} /></Show></span>
                   </button>
                 )}

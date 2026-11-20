@@ -17,6 +17,7 @@ import type {
   Bootstrap,
   BrowserAnnotationSnapshot,
   CommandInfo,
+  LocalModelHardware,
   MentionItem,
   ModelConfig,
   PermissionMode,
@@ -31,6 +32,7 @@ import type {
   Thread,
 } from "../../../shared/protocol.ts";
 import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, type ProjectConfig } from "../../../shared/protocol.ts";
+import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS } from "../../../shared/protocol.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
 import { hooksRoutes } from "./hooks-routes.ts";
@@ -58,10 +60,14 @@ import { localFolder } from "../paths.ts";
 import { assertOutsideDataDir, guardPath, guardProjectRoot, LOCAL_PANEL, PathError, realDeepest } from "../paths.ts";
 import type { Playtest } from "../playtest.ts";
 import { apiKeyFor, createProvider } from "../providers/index.ts";
+import { testProviderModel } from "../providers/local.ts";
+import { readLocalModelHardware } from "../providers/local-hardware.ts";
+import { recommendLocalModels } from "../providers/local-recommendations.ts";
+import { normalizeProviderBaseUrl, redact } from "../providers/http.ts";
 import type { Secrets } from "../secrets.ts";
 import type { ConfigDirs } from "../config-dirs.ts";
 import type { TaskBoard } from "../agent/tasks.ts";
-import { fetchModelList, PROVIDER_PRESETS, tableContext, DEFAULT_CONTEXT_WINDOW } from "../providers/presets.ts";
+import { detectLocalProviders, fetchModelList, localKindFor, providerPreset, PROVIDER_PRESETS, tableContext, DEFAULT_CONTEXT_WINDOW } from "../providers/presets.ts";
 import type { Terminals } from "../terminal.ts";
 import type { Security } from "./security.ts";
 import { Artifacts, downloadName } from "../artifacts.ts";
@@ -294,7 +300,7 @@ export class Api {
 
   private providerConfigs(): ProviderConfig[] {
     const { store, secrets } = this.deps;
-    return store.providers().map((p) => ({ ...p, hasKey: apiKeyFor(p, secrets) !== undefined }));
+    return store.providers().map((p) => ({ ...p, localKind: localKindFor(p), hasKey: apiKeyFor(p, secrets) !== undefined }));
   }
 
   // The keyring answered after the start, or changed: hasKey may be different now.
@@ -1050,53 +1056,93 @@ export class Api {
 
     this.route("GET", "/api/provider-presets", () => PROVIDER_PRESETS);
 
-    this.route("POST", "/api/providers", async ({ body }) => {
-      if (body.preset !== undefined) {
-        const preset = PROVIDER_PRESETS.find((p) => p.id === body.preset);
-        if (!preset) throw new HttpError(400, "Ukjent leverandør");
-        body = { ...body, kind: preset.kind, name: body.name || preset.name, baseUrl: body.baseUrl || preset.baseUrl || undefined, apiKeyEnv: body.apiKeyEnv ?? preset.apiKeyEnv };
+    this.route("POST", "/api/providers/local/detect", () => detectLocalProviders());
+
+    this.route("POST", "/api/providers/local/recommend", async ({ body }) => {
+      if (body.mode !== "chat" && body.mode !== "code") throw new HttpError(400, "Velg Chat eller Kode.");
+      const contextTokens = LOCAL_MODEL_CONTEXT_OPTIONS.find((tokens) => tokens === body.contextTokens);
+      if (contextTokens === undefined) throw new HttpError(400, "Velg en av de tilgjengelige kontekstlengdene.");
+      let hardware: LocalModelHardware;
+      if (body.source === "manual") {
+        hardware = {
+          availableRamGiB: modelMemoryGiB(body.availableRamGiB, "tilgjengelig RAM"),
+          freeGpuGiB: body.freeGpuGiB === undefined ? undefined : modelMemoryGiB(body.freeGpuGiB, "ledig GPU-minne"),
+        };
+      } else if (body.source === "host") {
+        hardware = await readLocalModelHardware().catch((err: Error) => { throw new HttpError(503, err.message); });
+      } else {
+        throw new HttpError(400, "Velg denne maskinen eller oppgi minne selv.");
       }
-      if (!PROVIDER_KINDS.includes(body.kind)) throw new HttpError(400, "Ugyldig leverandørtype");
-      if (body.kind === "openai-compatible") requireHttpUrl(body.baseUrl);
-      else if (body.baseUrl) requireHttpUrl(body.baseUrl);
+      return recommendLocalModels(hardware, body.mode, contextTokens);
+    });
+
+    this.route("POST", "/api/providers", async ({ body }) => {
+      const preset = providerPreset(body.preset);
+      if (body.preset !== undefined && !preset) throw new HttpError(400, "Ukjent leverandør");
+      const kind = preset?.kind ?? body.kind;
+      if (!PROVIDER_KINDS.includes(kind)) throw new HttpError(400, "Ugyldig leverandørtype");
+      const defaultAddress = preset?.baseUrl || undefined;
+      const address = body.baseUrl ?? defaultAddress;
+      const baseUrl = providerAddress(address, kind, preset?.id);
+      const apiKey = providerKey(body.apiKey);
+      const apiKeyEnv = providerKeyEnv(body.apiKeyEnv === undefined && baseUrl === defaultAddress && !apiKey ? preset?.apiKeyEnv : body.apiKeyEnv);
       const provider = store.createProvider({
-        kind: body.kind,
-        name: requireString(body.name, "name"),
-        baseUrl: body.baseUrl,
-        apiKeyEnv: body.apiKeyEnv,
+        kind,
+        name: requireString(body.name || preset?.name, "name"),
+        presetId: preset?.id,
+        baseUrl,
+        apiKeyEnv: apiKeyEnv || undefined,
       });
-      if (typeof body.apiKey === "string" && body.apiKey) await secrets.set(provider.id, body.apiKey);
+      if (apiKey) await secrets.set(provider.id, apiKey);
       this.settingsChanged();
       return this.providerConfigs().find((p) => p.id === provider.id);
     });
 
     this.route("PATCH", "/api/providers/:id", async ({ params, body }) => {
       if (params.id === MOCK_PROVIDER_ID) throw new HttpError(400, "Demo-leverandøren kan ikke endres");
-      if (!store.provider(params.id)) throw new HttpError(404, "Fant ikke leverandøren");
-      if (body.baseUrl) requireHttpUrl(body.baseUrl);
-      store.updateProvider(params.id, { name: body.name, baseUrl: body.baseUrl, apiKeyEnv: body.apiKeyEnv });
-      if (typeof body.apiKey === "string") await secrets.set(params.id, body.apiKey || null);
+      const current = store.provider(params.id);
+      if (!current) throw new HttpError(404, "Fant ikke leverandøren");
+      const baseUrl = body.baseUrl === undefined ? undefined : providerAddress(body.baseUrl, current.kind, current.presetId) ?? "";
+      const addressChanged = baseUrl !== undefined && baseUrl !== (current.baseUrl?.replace(/\/+$/, "") ?? "");
+      const name = body.name === undefined ? undefined : requireString(body.name, "name");
+      const apiKey = providerKey(body.apiKey);
+      const requestedEnv = providerKeyEnv(body.apiKeyEnv);
+      const apiKeyEnv = addressChanged && (requestedEnv === undefined || requestedEnv === current.apiKeyEnv) ? "" : requestedEnv;
+      const previousCredential = current.credentialId ?? current.id;
+      const credentialId = addressChanged ? `${current.id}:${crypto.randomUUID()}` : previousCredential;
+      store.updateProvider(params.id, { name, baseUrl, apiKeyEnv, credentialId });
+      const cleanup = addressChanged ? secrets.set(previousCredential, null) : undefined;
+      const save = apiKey !== undefined ? secrets.set(credentialId, apiKey || null) : undefined;
+      await Promise.all([cleanup, save]);
       this.settingsChanged();
       return this.providerConfigs().find((p) => p.id === params.id);
     });
 
     this.route("DELETE", "/api/providers/:id", async ({ params }) => {
       if (params.id === MOCK_PROVIDER_ID) throw new HttpError(400, "Demo-leverandøren kan ikke slettes");
-      if (!store.provider(params.id)) throw new HttpError(404, "Fant ikke leverandøren");
+      const current = store.provider(params.id);
+      if (!current) throw new HttpError(404, "Fant ikke leverandøren");
       store.deleteProvider(params.id);
       this.deps.promptCompletion?.clear();
-      await secrets.set(params.id, null);
+      await secrets.set(current.credentialId ?? current.id, null);
       this.settingsChanged();
     });
 
-    this.route("POST", "/api/providers/:id/test", async ({ params }) => {
+    this.route("POST", "/api/providers/:id/test", async ({ params, body }) => {
       const provider = store.provider(params.id);
       if (!provider) throw new HttpError(404, "Fant ikke leverandøren");
+      const model = typeof body.modelId === "string" ? store.model(body.modelId) : undefined;
+      if (body.modelId !== undefined && model?.providerId !== provider.id) throw new HttpError(404, "Fant ikke modellen hos denne leverandøren");
+      if (!model && providerPreset(provider.presetId)?.modelDiscovery === "manual") {
+        return { ok: false, message: "Legg til en modell-ID og velg Test modell for å teste med et kort svar." };
+      }
       try {
         const client = createProvider(provider, { secrets, mockDelayMs: this.deps.mockDelayMs, stallMs: this.deps.stallMs });
-        return await client.test(AbortSignal.timeout(10_000));
+        if (!model) return await client.test(AbortSignal.timeout(10_000));
+        return await testProviderModel(client, model, !!localKindFor(provider), AbortSignal.timeout(30_000));
       } catch (err) {
-        return { ok: false, message: (err as Error).message };
+        if ((err as Error).name === "TimeoutError") return { ok: false, message: "Serveren brukte for lang tid på å svare." };
+        return { ok: false, message: redact((err as Error).message, apiKeyFor(provider, secrets)) };
       }
     });
 
@@ -1112,7 +1158,9 @@ export class Api {
     });
 
     this.route("POST", "/api/providers/:id/models", ({ params, body }) => {
-      if (!store.provider(params.id)) throw new HttpError(404, "Fant ikke leverandøren");
+      const provider = store.provider(params.id);
+      if (!provider) throw new HttpError(404, "Fant ikke leverandøren");
+      const local = !!localKindFor(provider);
       if (!Array.isArray(body.models) || !body.models.length || body.models.length > 200) throw new HttpError(400, "models må være en liste med 1 til 200 modeller");
       const existing = new Set(store.models().filter((m) => m.providerId === params.id).map((m) => m.model));
       const added: ModelConfig[] = [];
@@ -1120,9 +1168,13 @@ export class Api {
         const modelId = requireString(item?.model, "model");
         if (existing.has(modelId)) continue;
         existing.add(modelId);
-        const contextWindow = Number(item.contextWindow) || tableContext(modelId) || DEFAULT_CONTEXT_WINDOW;
-        added.push(store.saveModel(modelFromBody(crypto.randomUUID(), { providerId: params.id, name: item.name || modelId, model: modelId, contextWindow })));
+        const contextWindow = item.contextWindow ?? (local ? DEFAULT_LOCAL_CONTEXT_WINDOW : tableContext(modelId) ?? DEFAULT_CONTEXT_WINDOW);
+        added.push(modelFromBody(crypto.randomUUID(), {
+          providerId: params.id, name: item.name || modelId, model: modelId, contextWindow,
+          supportsTools: item.supportsTools, supportsImages: item.supportsImages,
+        }));
       }
+      for (const model of added) store.saveModel(model);
       this.settingsChanged();
       return added;
     });
@@ -1376,12 +1428,37 @@ function encodeRfc5987(value: string): string {
   return encodeURIComponent(value).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
-function requireHttpUrl(value: unknown): void {
+function providerAddress(value: unknown, kind: ProviderKind, presetId?: string): string | undefined {
+  if (kind === "anthropic" && (value === undefined || value === "")) return;
   try {
-    if (!/^https?:$/.test(new URL(String(value)).protocol)) throw new Error();
-  } catch {
-    throw new HttpError(400, "baseUrl må være en http- eller https-adresse");
+    const preset = providerPreset(presetId);
+    const local = preset?.category === "local";
+    const rootPath = local ? (preset.baseUrl ? new URL(preset.baseUrl).pathname.replace(/\/+$/, "") : "/v1") : "";
+    const base = normalizeProviderBaseUrl(value, rootPath);
+    return local ? base.replace(/\/v1\/(?:chat\/completions|models)$/, "/v1") : base;
+  } catch (err) {
+    throw new HttpError(400, (err as Error).message);
   }
+}
+
+function providerKey(value: unknown): string | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "string" || value.length > 16_384 || /[^\x20-\x7e\xa0-\xff]/.test(value) || value.trim() !== value) {
+    throw new HttpError(400, "Skriv inn en gyldig API-nøkkel uten linjeskift eller ekstra mellomrom.");
+  }
+  return value;
+}
+
+function providerKeyEnv(value: unknown): string | undefined {
+  if (value === undefined) return;
+  if (value === null || value === "") return "";
+  if (typeof value !== "string" || !/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value)) throw new HttpError(400, "Skriv navnet på miljøvariabelen, ikke nøkkelen.");
+  return value;
+}
+
+function modelMemoryGiB(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 65_536) throw new HttpError(400, `Oppgi ${label} som et tall fra 0 til 65 536 GiB.`);
+  return value;
 }
 
 function modelFromBody(id: string, body: any): ModelConfig {
@@ -1398,6 +1475,7 @@ function modelFromBody(id: string, body: any): ModelConfig {
     if (body[key] !== undefined && body[key] !== null) model[key] = Number(body[key]);
   }
   if (body.supportsImages !== undefined) model.supportsImages = body.supportsImages === true;
+  if (typeof body.supportsTools === "boolean") model.supportsTools = body.supportsTools;
   if (body.thinking !== undefined) model.thinking = body.thinking === true;
   if (body.webSearch !== undefined && body.webSearch !== null) model.webSearch = body.webSearch === true;
   if (body.effort) model.effort = body.effort;

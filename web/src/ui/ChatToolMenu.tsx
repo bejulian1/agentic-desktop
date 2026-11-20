@@ -4,7 +4,7 @@ import {setModsOpen} from '../state/ui-mods';
 // The choice belongs to the thread; a new chat starts with the defaults from Innstillinger → Chat.
 // Nettsøk is dimmed, with the reason, when the model cannot search and no search page is set up.
 import { createMemo, createResource, createSignal, For, type Accessor, type JSX } from "solid-js";
-import { CHAT_TOOL_IDS, chatToolsOf, webSearchRoute, type ChatProject, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
+import { CHAT_TOOL_IDS, chatToolsOf, modelAllowsTools, webSearchRoute, type ChatProject, type ChatToolId, type ChatTools, type WebSearchRoute } from "../../../shared/protocol";
 import { get, patch } from "../lib/api";
 import { app, modelFor, modelName, report, setSettingsOpen } from "../state/app";
 import { IconPalette, IconArtifact, IconBookmark, IconGlobe, IconSliders, IconFilePlus, IconTerminal } from "./icons";
@@ -20,6 +20,7 @@ export interface ChatToolState {
   set: (id: ChatToolId, on: boolean) => void;
   route: Accessor<WebSearchRoute | null>;
   model: Accessor<string>;
+  toolsAllowed: Accessor<boolean>;
   draft: Accessor<ChatTools | null>; // chosen before the chat exists, for when it is made
   temporary: Accessor<boolean>;
 }
@@ -32,11 +33,10 @@ export function useChatTools(threadId: Accessor<string | null>, modelId: Accesso
     return id ? app.threads[id] : undefined;
   };
   const tools = createMemo(() => (thread() ? chatToolsOf(thread(), app.settings) : (draft() ?? chatToolsOf(undefined, app.settings))));
-  const route = createMemo(() => {
-    const model = modelFor(modelId() ?? app.settings.defaultModelId);
-    const kind = model ? app.providers.find((p) => p.id === model.providerId)?.kind : undefined;
-    return webSearchRoute(model, kind, app.settings);
-  });
+  const model = () => modelFor(modelId() ?? app.settings.defaultModelId);
+  const provider = () => app.providers.find((p) => p.id === model()?.providerId);
+  const toolsAllowed = () => modelAllowsTools(model(), provider()?.localKind);
+  const route = createMemo(() => webSearchRoute(model(), provider()?.kind, app.settings, provider()?.localKind));
   const set = (id: ChatToolId, on: boolean) => {
     const current = thread();
     if (id === "memory" && current?.temporary) return;
@@ -46,7 +46,7 @@ export function useChatTools(threadId: Accessor<string | null>, modelId: Accesso
     }
     setDraft({ ...tools(), [id]: on });
   };
-  return { tools, set, route, model: () => modelName(modelId() ?? app.settings.defaultModelId), draft, temporary: () => thread()?.temporary === true };
+  return { tools, set, route, toolsAllowed, model: () => modelName(modelId() ?? app.settings.defaultModelId), draft, temporary: () => thread()?.temporary === true };
 }
 
 interface ToolInfo {
@@ -76,10 +76,12 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
   const [personal] = createResource(() => open() && !props.chatProject, () => get<ChatPersonalState>("/api/chat-personal").catch(() => null));
   const [python] = createResource(() => open(), () => get<{available:boolean;reason:string}>("/api/chat-workspace/status").catch(() => ({available:false,reason:"Kunne ikke kontrollere Python."})));
   const memoriesOff = () => personal()?.personal.memories === false;
-  const anyOn = () => CHAT_TOOL_IDS.some((id) => props.state.tools()[id]);
+  const requiresTools = (id: ChatToolId) => id !== "memory" && id !== "artifacts";
+  const anyOn = () => CHAT_TOOL_IDS.some((id) => props.state.tools()[id] && (!requiresTools(id) || props.state.toolsAllowed()));
   let menu: HTMLDivElement | undefined;
 
   const describe = (id: ChatToolId): { text: string; off?: string } => {
+    if (requiresTools(id) && !props.state.toolsAllowed()) return { text: "", off: "Verktøykall er slått av for denne modellen." };
     switch (id) {
       case "web": {
         const route = props.state.route();

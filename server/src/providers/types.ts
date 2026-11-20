@@ -5,7 +5,7 @@ export type Block =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string; signature?: string; field?: string }
   | { type: "redacted_thinking"; data: string }
-  | { type: "tool_use"; id: string; name: string; input: unknown; parseError?: string }
+  | { type: "tool_use"; id: string; name: string; input: unknown; parseError?: string; geminiThoughtSignature?: string }
   | { type: "tool_result"; toolUseId: string; content: string; isError?: boolean; image?: ImageData }
   // An image the user attached. Only in user messages.
   | { type: "image"; image: ImageData; name?: string }
@@ -46,7 +46,7 @@ export type StreamPart =
   | { type: "thinking"; text: string; field?: string }
   | { type: "thinking_signature"; signature: string }
   | { type: "redacted_thinking"; data: string }
-  | { type: "tool_call"; id: string; name: string; input: unknown; parseError?: string }
+  | { type: "tool_call"; id: string; name: string; input: unknown; parseError?: string; geminiThoughtSignature?: string }
   | { type: "usage"; inputTokens: number; outputTokens: number; cachedInputTokens: number }
   // Round 13: the provider's own web search, started and done. query may be unknown (OpenAI).
   | { type: "web_search"; id: string; query: string }
