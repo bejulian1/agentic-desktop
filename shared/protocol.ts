@@ -703,7 +703,7 @@ export type ThreadEvent =
   | { type: "question.resolved"; runId: string; requestId: string; cancelled: boolean; answers: UserAnswer[]; reason?: UserInputCloseReason }
   | { type: "approval.requested"; runId: string; approvalId: string; callId: string; title: string; detail: string; canAllowAlways: boolean }
   | { type: "approval.resolved"; runId: string; approvalId: string; decision: ApprovalDecision }
-  | { type: "thread.spawned"; runId: string; childThreadId: string; title: string }
+  | { type: "thread.spawned"; runId: string; childThreadId: string; title: string; model?: AnswerModel }
   | { type: "turn.changes"; runId: string; turnId: string; files: ChangedFile[] }
   | { type: "turn.reverted"; turnId: string }
   | { type: "context.compacted"; runId: string; beforeTokens: number; afterTokens: number }

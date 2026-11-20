@@ -168,6 +168,7 @@ export interface UnsentRow extends RowBase {
 export interface SpawnedRow extends RowBase {
   kind: "spawned";
   childThreadId: string;
+  model?: AnswerModel;
   title: string;
 }
 
@@ -542,7 +543,7 @@ class Folder {
         return;
       }
       case "thread.spawned": {
-        const child: SpawnedRow = { ...base(`spawn-${event.childThreadId}`), kind: "spawned", childThreadId: event.childThreadId, title: event.title };
+        const child: SpawnedRow = { ...base(`spawn-${event.childThreadId}`), kind: "spawned", childThreadId: event.childThreadId, title: event.title, model: event.model };
         this.activity?.tasks.push({ id: child.key, kind: "agent", summary: event.title, status: "running", threadId: event.childThreadId });
         if (this.agents) {
           this.agents.setItems([...this.agents.items(), child]);

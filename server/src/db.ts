@@ -7,6 +7,7 @@ import { chmodSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type {
+  AnswerModel,
   ArtifactSummary,
   Chapter,
   ForkOrigin,
@@ -1200,6 +1201,11 @@ export class Store {
     if (row.output_price !== null) model.outputPricePerMTok = row.output_price;
     return model;
   };
+
+  answerModel(model: ModelConfig): AnswerModel {
+    const provider = this.provider(model.providerId);
+    return { modelId: model.id, modelName: model.name, model: model.model, providerId: model.providerId, ...(provider ? { providerName: provider.name } : {}) };
+  }
 
   models(): ModelConfig[] {
     return this.q("SELECT * FROM models ORDER BY name").all().map(this.toModel);

@@ -1,12 +1,12 @@
 // Threads working together: the thread_* tools and their brakes. These are visible threads the
 // user can open and take over. The brakes are not optional, since collaboration can otherwise
 // run away and get expensive.
-import type { Project, Thread, ThreadRef } from "../../../shared/protocol.ts";
+import type { ModelConfig, Thread, ThreadRef } from "../../../shared/protocol.ts";
 import type { Store } from "../db.ts";
 import type { EventLog } from "./events.ts";
 import { effectiveMode } from "./permissions.ts";
 import { blocksText } from "./context.ts";
-import { clip, type CollabTools, type ToolResult } from "./tools.ts";
+import { clip, MAX_RESULT_CHARS, type CollabTools, type ToolResult } from "./tools.ts";
 
 export const MAX_DEPTH = 2;
 export const MAX_AGENT_THREADS = 4;
@@ -95,33 +95,68 @@ export class Collab implements CollabTools {
       .join("\n");
   }
 
-  create(thread: Thread, runId: string, input: { title: string; task: string; model?: string }): ToolResult {
-    const project = this.store.project(thread.projectId!) as Project;
-    if (this.depth(thread) >= MAX_DEPTH) return fail(`Grensen er nådd: tråder kan ikke lages dypere enn ${MAX_DEPTH} nivåer`);
+  models(query: unknown = "", offset: unknown = 0, maxChars = MAX_RESULT_CHARS): ToolResult {
+    if (typeof query !== "string" || typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0) {
+      return fail("Bruk tekst som søk og et heltall fra 0 og oppover som offset.");
+    }
+    const search = query.trim().toLowerCase();
+    const providers = new Map(this.store.providers().map(p => [p.id, p.name]));
+    const matches = this.store.models().map(m => ({
+      id: m.id, name: m.name, model: m.model, provider: providers.get(m.providerId),
+    })).filter(m => m.provider !== undefined && [m.name, m.model, m.provider].some(value => value?.toLowerCase().includes(search)));
+    const label = (value: string) => value.replace(/[\u0000-\u001f]/g, " ").slice(0, 160);
+    const models = matches.slice(offset, offset + 12).map(m => ({ id: m.id, name: label(m.name), model: label(m.model), provider: label(m.provider!) }));
+    const encode = () => JSON.stringify({ models, nextOffset: offset + models.length < matches.length ? offset + models.length : null });
+    while (models.length > 1 && encode().length > maxChars) models.pop();
+    if (encode().length > maxChars) return fail("Modellen har for lite plass i konteksten til å vise dette treffet.");
+    return { text: encode() };
+  }
+
+  modelChoice(requested: unknown, parentModelId: string): ModelConfig | ToolResult {
+    let model = this.store.model(parentModelId);
+    if (requested !== undefined) {
+      if (typeof requested !== "string" || !requested.trim()) return fail("Velg en modell fra thread_models.");
+      const wanted = requested.trim();
+      model = this.store.model(wanted);
+      if (!model) {
+        const key = wanted.toLowerCase();
+        const matches = this.store.models().filter(m => m.name.toLowerCase() === key || m.model.toLowerCase() === key);
+        if (matches.length > 1) return fail("Flere modeller passer. Bruk thread_models og velg nøyaktig id for riktig leverandør.");
+        model = matches[0];
+      }
+    }
+    if (!model || !this.store.provider(model.providerId)) return fail("Fant ingen modell for dette valget. Bruk thread_models for å se de konfigurerte modellene.");
+    return model;
+  }
+
+  create(thread: Thread, runId: string, parentModelId: string, input: { title: string; task: string; model: string }): ToolResult {
+    const currentThread = this.store.thread(thread.id);
+    const project = currentThread?.projectId ? this.store.project(currentThread.projectId) : undefined;
+    if (!currentThread || currentThread.archived || currentThread.planMode || !project || project.folderMissing) return fail("Hjelpetråder krever en aktiv Kode-tråd i et tilgjengelig prosjekt, uten planmodus.");
+    if (this.depth(currentThread) >= MAX_DEPTH) return fail(`Grensen er nådd: tråder kan ikke lages dypere enn ${MAX_DEPTH} nivåer`);
     if (this.host.runningAgentThreads(project.id) >= MAX_AGENT_THREADS) {
       return fail(`Grensen er nådd: ${MAX_AGENT_THREADS} tråder har agentarbeid som kjører eller venter i kø i prosjektet. Vent på en av dem.`);
     }
-    const title = String(input.title ?? "").trim().slice(0, 120);
-    const task = String(input.task ?? "").trim();
-    if (!title || !task) return fail("title og task må fylles ut");
-    const parentModelId = thread.modelId ?? this.store.settings().defaultModelId;
-    const modelId = input.model ?? parentModelId ?? null;
-    if (input.model && !this.store.model(input.model)) return fail(`Fant ingen modell med id ${input.model}`);
-
-    const child = this.store.createThread(project.id, "code", modelId, {
+    const title = typeof input.title === "string" ? input.title.trim().slice(0, 120) : "";
+    const task = typeof input.task === "string" ? input.task.trim() : "";
+    if (!title || !task || task.length > 200_000) return fail("title og task må fylles ut, og task kan ikke være over 200 000 tegn.");
+    const model = this.store.model(input.model);
+    if (!model) return fail("Den valgte modellen er ikke lenger tilgjengelig.");
+    const assigned = this.store.answerModel(model);
+    const child = this.store.createThread(project.id, "code", model.id, {
       title,
       parentThreadId: thread.id,
-      permissionCap: effectiveMode(project, thread), // Never above the thread that made it.
+      permissionCap: effectiveMode(project, currentThread), // Never above the thread that made it.
     });
     // The parent's per-thread effort overrides its model default. A helper on the same model
     // should keep that choice; an explicitly different model keeps its own effort setting.
-    if (modelId === parentModelId && thread.reasoning) this.store.updateThread(child.id, { reasoning: thread.reasoning });
+    if (model.id === parentModelId && thread.reasoning) this.store.updateThread(child.id, { reasoning: thread.reasoning });
     const chainId = this.host.chainOf(thread.id);
     this.count(chainId);
-    this.log.append(thread.id, { type: "thread.spawned", runId, childThreadId: child.id, title });
+    this.log.append(thread.id, { type: "thread.spawned", runId, childThreadId: child.id, title, model: assigned });
     this.host.threadChanged(child.id);
     this.host.sendFromThread(child.id, task, { threadId: thread.id, title: thread.title }, chainId);
-    return { text: `Tråden ${JSON.stringify(title)} er startet. tråd-id: ${child.id}` };
+    return { text: `Tråden ${JSON.stringify(title)} er startet med ${JSON.stringify(assigned.modelName)} (${JSON.stringify(assigned.providerName)}). tråd-id: ${child.id}` };
   }
 
   send(thread: Thread, _runId: string, input: { threadId: string; text: string }): ToolResult {

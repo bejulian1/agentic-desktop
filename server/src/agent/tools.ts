@@ -63,7 +63,8 @@ export interface BrowserTools {
 
 export interface CollabTools {
   list(thread: Thread): string;
-  create(thread: Thread, runId: string, input: { title: string; task: string; model?: string }): ToolResult;
+  models(query?: unknown, offset?: unknown, maxChars?: number): ToolResult;
+  create(thread: Thread, runId: string, parentModelId: string, input: { title: string; task: string; model: string }): ToolResult;
   send(thread: Thread, runId: string, input: { threadId: string; text: string }): ToolResult;
   read(thread: Thread, input: { threadId: string; limit?: number }): ToolResult;
   wait(thread: Thread, input: { threadId: string; timeoutSeconds?: number }, signal: AbortSignal): Promise<ToolResult>;
@@ -74,6 +75,7 @@ export interface ToolContext {
   thread: Thread;
   project: Project;
   runId: string;
+  modelId?: string;
   turnId: string;
   signal: AbortSignal;
   dataDir: string;
@@ -626,6 +628,18 @@ const threadId = str("Thread id from thread_list or thread_create");
 const threadTools: Tool[] = [
   {
     kind: "read",
+    can: "discover configured models for helper threads", def: {
+      name: "thread_models",
+      description: "Find configured models across providers for thread_create. Search by display name, provider or API model name. Use the returned id to select an exact model. Configuration does not guarantee endpoint availability or tool support.",
+      parameters: schema({ query: str("Optional model or provider search"), offset: int("Next page offset from the previous result") }, []),
+    },
+    summary: input => String(input.query ?? "").slice(0, 100),
+    async run(input, ctx) {
+      return ctx.collab.models(input.query, input.offset, ctx.maxResultChars);
+    },
+  },
+  {
+    kind: "read",
     can: "start and follow helper threads that work in parallel", def: { name: "thread_list", description: "List the threads in this project with title and status.", parameters: schema({}, []) },
     summary: () => "Tråder i prosjektet",
     async run(_input, ctx) {
@@ -637,11 +651,11 @@ const threadTools: Tool[] = [
     can: "start and follow helper threads that work in parallel", def: {
       name: "thread_create",
       description: "Start a helper thread in this project with its own task. It works in parallel in the same folder and cannot see this conversation, so the task must stand on its own: the goal, the files or area, what done looks like and which files it may change. Use it for an independent part of a large task or for an independent review; do small things yourself. Get its answer with thread_wait.",
-      parameters: schema({ title: str("Short title"), task: str("What the thread should do"), model: str("Model id, default the same as this thread") }, ["title", "task"]),
+      parameters: schema({ title: str("Short title"), task: str("What the thread should do"), model: str("Configured model id from thread_models, or an unambiguous exact display/API name. Omit to inherit the running model") }, ["title", "task"]),
     },
     summary: (input) => String(input.title ?? ""),
     async run(input, ctx) {
-      return ctx.collab.create(ctx.thread, ctx.runId, input);
+      return ctx.collab.create(ctx.thread, ctx.runId, ctx.modelId!, input);
     },
   },
   {

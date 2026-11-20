@@ -158,6 +158,7 @@ const VERBS: Record<string, [string, string]> = {
   thread_send: ["Sendte en melding", "Sender en melding"],
   thread_wait: ["Ventet på underagenten", "Venter på underagenten"],
   thread_read: ["Leste en tråd", "Leser en tråd"],
+  thread_models: ["Søkte etter modeller", "Søker etter modeller"],
   thread_list: ["Så på trådene", "Ser på trådene"],
   task_list: ["Leste oppgavelisten", "Leser oppgavelisten"],
   task_add: ["La til oppgaven", "Legger til oppgaven"],

@@ -26,6 +26,17 @@ flow("samarbeid lager en synlig tråd", async (h) => {
   await page.locator(".pane-inner.focused").getByTestId("context-ring").hover();
   assert.ok(await page.locator(".pane-inner.focused").getByTestId("project-usage").isVisible(), "kontekstringen viser samlet bruk");
   assert.match(await page.locator(".pane-inner.focused").getByTestId("project-usage").textContent() ?? "", /Prosjekt: .* tokens/);
+
+  const card = pane(page, parent!).getByTestId("agents-card");
+  const assignment = /Demo-modell \(uten API\) · /;
+  await card.getByRole("button", { name: assignment }).waitFor();
+  const toggle = card.getByRole("button", { name: /1 underagent/ });
+  await toggle.press("Enter");
+  assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+  assert.match(await toggle.innerText(), assignment);
+  await h.reload();
+  await threadItem(page, parent!).click();
+  await card.getByRole("button", { name: assignment }).waitFor();
 });
 
 flow("godkjenning gir merke i sidefanen, og Stopp alt stopper alle tråder", async (h) => {

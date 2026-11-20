@@ -129,10 +129,11 @@ test("unknown local model capabilities disable tools in Kode until the user opts
   assert.equal(ofType(first, "tool.finished").length, 0);
   assert.equal(llm.requests[0].body.tools, undefined);
   assert.match(llm.requests[0].body.messages[0].content, /text-only model/);
-  await h.api("PATCH", `/api/models/${model.id}`, { supportsTools: true });
+  await h.api("PATCH", `/api/models/${model.id}`, { supportsTools: true, contextWindow: 32_768 });
   llm.reply(sse(openaiText("Med verktøy")));
   await h.api("POST", messages, { text: "Prøv igjen." });
   await h.finished(thread.id, 2);
+  assert.equal(llm.requests.length, 2);
   assert.ok(llm.requests[1].body.tools.some((tool: any) => tool.function.name === "read_file"));
   assert.ok(llm.requests[1].body.messages.every((message: any) => !message.tool_calls));
 });

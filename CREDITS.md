@@ -49,6 +49,8 @@ For leverandørkatalogen undersøkte en GPT 6.2 Sol-underagent leverandørenes d
 
 For lokale modellservere bidro GPT 6.2 Sol med serverprofiler, oppdagelse av modeller, maskinvarebaserte anbefalinger, oppsett i Innstillinger og integrasjon med den eksisterende agentkjøringen. Codex samlet disse funksjonene i katalogflyten og la til isolerte tester.
 
+Codex implementerte modellsøk, godkjenning av leverandørbytte ved delegering og visning av tildelt modell på underagentkortene.
+
 ## Gemini – Google
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.

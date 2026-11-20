@@ -240,6 +240,7 @@
 .agent-row:hover { background: var(--hover); color: var(--text); }
 .agent-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .agent-title { color: var(--text); font-size: var(--text-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-assignment { font-size: var(--text-xs); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent-sub { font-size: var(--text-xs); color: var(--text-3); }
 
 /* Kode's timeline stays in the left margin and yields to the conversation in narrow panes. */

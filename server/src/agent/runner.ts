@@ -130,6 +130,7 @@ interface Job {
 
 interface ActiveRun {
   runId: string;
+  model: ModelConfig;
   threadId: string;
   projectId: string | null;
   workspaceId: string | null;
@@ -524,7 +525,7 @@ export class Runner {
       throw new HttpError(400, "Meldingen er tom");
     }
     if (input.skill) parts.push(shown);
-    else if (text) parts.unshift(input.from ? `[Melding fra tråden ${JSON.stringify(input.from.title)} (tråd-id: ${input.from.threadId})]\n\n${text}` : text);
+    else if (text) parts.unshift(input.from ? `[Melding fra tråden (tråd-id: ${input.from.threadId})]\n\n${text}` : text);
 
     let attachments: Attachment[] | undefined;
     let images: Job["images"];
@@ -866,6 +867,7 @@ export class Runner {
     const model = this.resolveModel(thread);
     const active: ActiveRun = {
       runId: randomUUID(),
+      model,
       threadId: thread.id,
       projectId: thread.projectId,
       workspaceId: this.projectOf(thread)?.id ?? null,
@@ -883,7 +885,7 @@ export class Runner {
     };
     this.active.set(thread.id, active);
     this.store.createRun({ id: active.runId, threadId: thread.id, modelId: model.id, turnId: active.turnId, startSeq: this.store.lastSeq(thread.id) + 1 });
-    this.log.append(thread.id, { type: "run.started", runId: active.runId, modelId: model.id, model: this.answerModel(model) });
+    this.log.append(thread.id, { type: "run.started", runId: active.runId, modelId: model.id, model: this.store.answerModel(model) });
     this.deps.threadChanged(thread.id);
     void this.execute(active, model);
   }
@@ -906,11 +908,6 @@ export class Runner {
     return job.kind === "message" && !!text && !!this.deps.hooks?.has("UserPromptSubmit", thread.mode);
   }
 
-  private answerModel(model: ModelConfig): AnswerModel {
-    const provider = this.store.provider(model.providerId);
-    return { modelId: model.id, modelName: model.name, model: model.model, providerId: model.providerId, ...(provider ? { providerName: provider.name } : {}) };
-  }
-
   // UI event only: model choices never add metadata or instructions to model-visible messages.
   // Rewind can supply the pre-rewind conversation/snapshot because it removes the old answer.
   recordModelChange(threadId: string, previousModelId: string | null, options: { hadConversation?: boolean; from?: AnswerModel } = {}): void {
@@ -921,8 +918,8 @@ export class Runner {
     const previousId = options.from?.modelId ?? previousModelId ?? this.store.settings().defaultModelId;
     if (!previousId || previousId === current.id) return;
     const previous = this.store.model(previousId);
-    const from = options.from ?? (previous ? this.answerModel(previous) : { modelId: previousId });
-    this.log.append(threadId, { type: "model.changed", from, to: this.answerModel(current) });
+    const from = options.from ?? (previous ? this.store.answerModel(previous) : { modelId: previousId });
+    this.log.append(threadId, { type: "model.changed", from, to: this.store.answerModel(current) });
   }
 
   private resolveModelSafe(thread: Thread): ModelConfig | undefined {
@@ -1562,6 +1559,24 @@ export class Runner {
     }
     active.mistakes = 0;
 
+    const requestedModel = call.name === "thread_create" ? call.input?.model : undefined;
+    const selected = call.name === "thread_create" ? this.collab.modelChoice(requestedModel, active.model.id) : undefined;
+    if (selected && "text" in selected) {
+      this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
+      return finish("error", selected);
+    }
+    const destination = (model: ModelConfig | undefined) => {
+      const provider = model && this.store.provider(model.providerId);
+      return provider && model ? JSON.stringify([model.id, model.model, model.name, provider.id, provider.name, provider.kind, provider.baseUrl]) : undefined;
+    };
+    const target = destination(selected);
+    const crossProvider = selected && selected.providerId !== active.model.providerId ? this.store.provider(selected.providerId) : undefined;
+    if (selected && requestedModel === undefined && (selected.model !== active.model.model || crossProvider)) {
+      this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
+      return finish("error", { text: "Modellen i den aktive kjøringen er endret. Velg hvilken modell hjelperen skal bruke.", isError: true });
+    }
+    if (selected) call.input = { ...call.input, model: selected.id };
+
     const ctx: ToolContext = {
       thread,
       project,
@@ -1582,7 +1597,8 @@ export class Runner {
       saveScreenshot: (png) => this.saveScreenshot(png),
       web: call.name === "web_search" ? this.codeWeb(thread) : undefined,
       memories: this.memoriesOn() ? this.memories : undefined,
-      maxResultChars: resultBudget(this.resolveModelSafe(thread)),
+      modelId: active.model.id,
+      maxResultChars: resultBudget(active.model),
       skillStore: this.skillStore,
       autoSkills: this.autoSkills(),
       setPlan: (text) => {
@@ -1601,7 +1617,7 @@ export class Runner {
     active.lastCall = active.lastCall.key === key ? { key, count: active.lastCall.count + 1 } : { key, count: 1 };
     const looping = active.lastCall.count >= DOOM_LIMIT;
     const overBudget = (call.name === "thread_create" || call.name === "thread_send") && this.collab.overBudget(active.job.chainId);
-    const asks = decision.ask || looping || overBudget;
+    const asks = decision.ask || looping || overBudget || !!crossProvider;
 
     this.log.append(threadId, {
       type: "tool.started",
@@ -1614,15 +1630,19 @@ export class Runner {
     });
 
     if (asks) {
-      const title = overBudget
+      const title = crossProvider
+        ? `Deleger til ${clip(crossProvider.name, 160)}?`
+        : overBudget
         ? "Trådene har sendt 20 meldinger til hverandre. Fortsette?"
         : looping
           ? "Samme verktøykall er gjentatt tre ganger. Fortsette?"
           : confirm
             ? confirm.title
             : `${call.name}: ${summary}`;
-      const detail = decision.reason ?? (call.name === "run_command" ? String(call.input.command) : JSON.stringify(call.input, null, 2));
-      const canAllowAlways = decision.canAllowAlways && !looping && !overBudget;
+      const detail = crossProvider
+        ? `Modellen ${clip(selected!.name, 160)} hos ${clip(crossProvider.name, 160)} får oppgaven og prosjektkonteksten. Den følger de samme tilgangsgrensene som hovedtråden.${overBudget ? " Dette fortsetter også samarbeidet etter grensen på 20 meldinger." : ""}\n\nOppgave: ${String(call.input.task)}`
+        : decision.reason ?? (call.name === "run_command" ? String(call.input.command) : JSON.stringify(call.input, null, 2));
+      const canAllowAlways = decision.canAllowAlways && !looping && !overBudget && !crossProvider;
       const answer = await this.askApproval(active, call.id, title, clip(detail, 4000), canAllowAlways);
       if (answer === "cancelled") return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
       if (answer === "deny") return finish("denied", { text: "Brukeren avslo dette verktøykallet.", isError: true });
@@ -1647,6 +1667,8 @@ export class Runner {
         decide(tool, call.input, currentProject, currentThread, this.store, this.deps.dataDir, local && { isAllowed: (kind, value) => local.has(`${kind}:${value}`) }).ask) {
       return finish("denied", { text: "Tillatelsene er endret. Be om godkjenning med et nytt verktøykall.", isError: true });
     }
+    if (selected && this.hasUserSteering(threadId)) return finish("denied", { text: "Hjelperen ble ikke startet: brukeren styrte turen. Vurder den nye meldingen først.", isError: true });
+    if (selected && destination(this.store.model(selected.id)) !== target) return finish("error", { text: "Modellen eller leverandøren er endret. Velg modell på nytt.", isError: true });
 
     try {
       // run_command stops itself and kills its group. Other tools, such as a page that never

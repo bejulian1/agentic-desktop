@@ -58,7 +58,7 @@ export function threadChoices(thread: Thread, canInspect = true): string[] {
 export const READ_ONLY_TOOLS = new Set(["request_user_input", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);
 
 // Tools that only look, so several in one step can run at the same time.
-export const PARALLEL_TOOLS = new Set(["read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);
+export const PARALLEL_TOOLS = new Set(["thread_models", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);
 
 // AGENTS.md from the global config folder and from .agentic/ in the project.
 export interface InstructionLayers {

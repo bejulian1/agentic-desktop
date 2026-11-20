@@ -805,6 +805,8 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
   const { row } = props;
   const [open, setOpen] = createSignal(true);
   const threads = createMemo(() => row.items().map((item) => ({ item, thread: app.threads[item.childThreadId] })));
+  const assignment = (model: AnswerModel) => [model.modelName ?? model.model, model.providerName].filter(Boolean).join(" · ");
+  const assignedModels = createMemo(() => [...new Set(row.items().flatMap(item => item.model ? [assignment(item.model)] : []))].join(" / "));
   const running = createMemo(() => threads().filter((t) => t.thread?.running).length);
   const done = createMemo(() => threads().filter((t) => t.thread && !t.thread.running && t.thread.lastStatus === "done").length);
   const failed = createMemo(() => threads().filter((t) => t.thread && !t.thread.running && t.thread.lastStatus && t.thread.lastStatus !== "done").length);
@@ -826,6 +828,7 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
           <span class="agents-title">
             <strong>{row.items().length === 1 ? "1 underagent" : `${row.items().length} underagenter`}</strong>
             <span class="agents-status">{status()}</span>
+            <Show when={!open() && assignedModels()}><span class="agent-assignment" title={assignedModels()}>{assignedModels()}</span></Show>
           </span>
           <Show when={running()} fallback={<AgentsTime threads={threads().map((t) => t.thread)} />}>
             <LiveAgentsTime threads={threads().map((t) => t.thread)} />
@@ -840,6 +843,10 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
                   <span class="agent-face" data-state={entry.thread?.running ? "running" : entry.thread?.lastStatus ?? "running"}><IconAgent size={14} /></span>
                   <span class="agent-text">
                     <span class="agent-title">{entry.thread?.title ?? entry.item.title}</span>
+                    <Show when={entry.item.model}>{snapshot => {
+                      const label = () => assignment(snapshot());
+                      return <span class="agent-assignment" title={`Modell ved oppstart: ${label()}`}>{label()}</span>;
+                    }}</Show>
                     <span class="agent-sub">{entry.thread?.running ? "Kjører…" : agentStatus(entry.thread?.lastStatus ?? null)}</span>
                   </span>
                   <Show when={entry.thread}>
