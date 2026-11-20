@@ -169,15 +169,25 @@ export class Hub {
       case "thread.subscribe": {
         if (!store.thread(message.threadId)) throw new Error("Fant ikke tråden");
         this.deps.flushThread(message.threadId);
-        // SQLite reads are sync, so nothing can fall between the backlog and the subscription.
-        // The stored JSON goes out as it is, the same text as client.send({ type: "thread.event", envelope }).
-        for (const envelope of store.eventsJson(message.threadId, Number(message.afterSeq) || 0, MAX_BACKLOG)) {
-          client.sendText(`{"type":"thread.event","envelope":${envelope}}`);
-        }
+        const currentRevision = store.historyRevision(message.threadId);
+        const clientRevision = typeof message.historyRevision === "number" && Number.isInteger(message.historyRevision)
+          ? message.historyRevision
+          : undefined;
         client.threads.add(message.threadId);
         let subscribers = this.threadClients.get(message.threadId);
         if (!subscribers) this.threadClients.set(message.threadId, (subscribers = new Set()));
         subscribers.add(client);
+        // If the thread history was rewritten while the client was away, ask it to reload instead
+        // of replaying events against stale/reused sequence numbers.
+        if (clientRevision !== undefined && clientRevision !== currentRevision) {
+          client.send({ type: "thread.reset", threadId: message.threadId, historyRevision: currentRevision });
+          return;
+        }
+        // SQLite reads are sync, so nothing can fall between the backlog and the subscription.
+        // The stored envelope JSON goes out as it is, with the revision from the same snapshot.
+        for (const envelope of store.eventsJson(message.threadId, Number(message.afterSeq) || 0, MAX_BACKLOG)) {
+          client.sendText(`{"type":"thread.event","historyRevision":${currentRevision},"envelope":${envelope}}`);
+        }
         return;
       }
       case "thread.unsubscribe":
@@ -226,7 +236,8 @@ export class Hub {
   publishEvent(envelope: ThreadEventEnvelope): void {
     const subscribers = this.threadClients.get(envelope.threadId);
     if (!subscribers?.size) return;
-    const text = JSON.stringify({ type: "thread.event", envelope } satisfies ServerMessage);
+    const historyRevision = this.deps.store.historyRevision(envelope.threadId);
+    const text = JSON.stringify({ type: "thread.event", envelope, historyRevision } satisfies ServerMessage);
     for (const client of subscribers) client.sendText(text);
   }
 

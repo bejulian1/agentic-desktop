@@ -295,6 +295,8 @@ export class Store {
     add("threads", "chat_tools", "TEXT");
     // Round 14 (SPEC 30.3): a fork's origin, as JSON (ForkOrigin).
     add("threads", "forked_from", "TEXT");
+    // Monotonic revision bumped whenever rewindThread deletes/reuses event seq numbers.
+    add("threads", "history_revision", "INTEGER NOT NULL DEFAULT 0");
   }
 
   close(): void {
@@ -955,6 +957,11 @@ export class Store {
     });
   }
 
+  historyRevision(threadId: string): number {
+    const row = this.q("SELECT history_revision FROM threads WHERE id = ?").get(threadId) as { history_revision: number } | undefined;
+    return Number(row?.history_revision ?? 0);
+  }
+
   // Chat: back to just before seq, to edit a message or make an answer again. The events and runs
   // from there on go, and the model's history is replaced. seq numbers are used again afterwards.
   rewindThread(threadId: string, seq: number, messages: Message[]): void {
@@ -964,6 +971,7 @@ export class Store {
       this.q("DELETE FROM runs WHERE thread_id = ? AND start_seq >= ?").run(threadId, seq);
       this.q("DELETE FROM messages WHERE thread_id = ?").run(threadId);
       for (const message of messages) this.appendMessage(threadId, message);
+      this.q("UPDATE threads SET history_revision = history_revision + 1 WHERE id = ?").run(threadId);
     });
     this.seqs.delete(threadId);
   }

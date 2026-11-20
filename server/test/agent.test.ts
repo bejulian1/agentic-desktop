@@ -558,7 +558,16 @@ test("each turn records before and after, and undo restores the files", async (t
   assert.deepEqual(JSON.parse(conflict.body).conflicts, ["a.txt"]);
   assert.equal(readFileSync(file, "utf8"), "brukerens endring\n");
 
+  const beforeUndo = h.app.store.lastSeq(thread.id);
+  const revision = h.app.store.historyRevision(thread.id);
   await h.api("POST", `/api/turns/${turn.turnId}/revert`, { force: true });
+  assert.equal(h.app.store.historyRevision(thread.id), revision);
+  const reconnected = await h.socket();
+  reconnected.send({ type: "thread.subscribe", threadId: thread.id, afterSeq: beforeUndo, historyRevision: revision });
+  const replay = await reconnected.waitFor((message) => message.type === "thread.event" || message.type === "thread.reset");
+  assert.equal(replay.type, "thread.event");
+  assert.equal(replay.envelope.event.type, "turn.reverted");
+  reconnected.close();
   assert.equal(readFileSync(file, "utf8"), "en\nto\n");
   assert.equal(existsSync(path.join(project.path, "ny/b.txt")), false);
   assert.equal(existsSync(path.join(project.path, "c.txt")), true, "command changes are not captured");

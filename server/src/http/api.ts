@@ -785,8 +785,9 @@ export class Api {
       return { run: status };
     });
 
-    this.route("GET", "/api/threads/:id/queue", ({ params }) => {
+    this.route("GET", "/api/threads/:id/queue", ({ params, res }) => {
       this.thread(params.id);
+      res.setHeader("x-thread-history-revision", String(store.historyRevision(params.id)));
       return runner.queuedSnapshot(params.id);
     });
 
@@ -803,6 +804,7 @@ export class Api {
       const rows = tail > 0
         ? store.eventsTailJson(params.id, Math.min(tail, MAX_EVENTS))
         : store.eventsJson(params.id, Number(query.get("after") ?? 0) || 0, limit);
+      res.setHeader("x-thread-history-revision", String(store.historyRevision(params.id)));
       jsonText(res, `[${rows.join(",")}]`);
       return HANDLED;
     });

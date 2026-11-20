@@ -159,7 +159,7 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     const oldRunId = oldAnswer?.event.type === "text.delta" ? oldAnswer.event.runId : undefined;
     const oldRun = oldRunId ? events.find(({ event }) => event.type === "run.started" && event.runId === oldRunId)?.event : undefined;
     store.rewindThread(thread.id, cut, historyBefore(store.messages(thread.id), events, cut));
-    publish({ type: "thread.reset", threadId: thread.id });
+    publish({ type: "thread.reset", threadId: thread.id, historyRevision: store.historyRevision(thread.id) });
     runner.recordModelChange(thread.id, thread.modelId, { hadConversation: true, ...(oldRun?.type === "run.started" && oldRun.model ? { from: oldRun.model } : {}) });
     threadChanged(thread.id);
     return dispatch();

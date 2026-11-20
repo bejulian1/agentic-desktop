@@ -1057,7 +1057,7 @@ export interface DownloadItem {
 // WebSocket on /ws?ticket=. One socket, multiplexed. Terminal and screencast
 // payloads stay out of the event log.
 export type ClientMessage =
-  | { type: "thread.subscribe"; threadId: string; afterSeq: number }
+  | { type: "thread.subscribe"; threadId: string; afterSeq: number; historyRevision?: number }
   | { type: "thread.unsubscribe"; threadId: string }
   | { type: "terminal.open"; projectId: string; terminalId?: string; cols: number; rows: number }
   | { type: "terminal.input"; terminalId: string; data: string }
@@ -1086,10 +1086,10 @@ export type ServerMessage =
   | {type:"ui-mods.changed";state:UiModsState}
   | { type: "mcp.changed"; state: McpState }
   | { type: "hooks.changed"; state: HooksState }
-  | { type: "thread.event"; envelope: ThreadEventEnvelope }
+  | { type: "thread.event"; envelope: ThreadEventEnvelope; historyRevision?: number }
   | { type: "thread.changed"; thread: Thread } // also sent for new threads
   | { type: "thread.deleted"; threadId: string }
-  | { type: "thread.reset"; threadId: string } // Chat: the log was cut back (edit or new answer), so load it again
+  | { type: "thread.reset"; threadId: string; historyRevision?: number } // Chat: the log was cut back (edit or new answer), so load it again
   | { type: "project.changed"; project: Project }
   | { type: "git.changed"; projectId: string } // also sent for new projects
   | { type: "project.deleted"; projectId: string }

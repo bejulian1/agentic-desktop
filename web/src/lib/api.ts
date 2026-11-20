@@ -17,7 +17,7 @@ export function setUnauthorizedHandler(handler: Unauthorized): void {
   onUnauthorized = handler;
 }
 
-export async function api<T = any>(method: string, url: string, body?: unknown): Promise<T> {
+export async function apiWithHeaders<T = any>(method: string, url: string, body?: unknown): Promise<{ data: T; headers: Headers }> {
   let res: Response;
   try {
     res = await fetch(url, {
@@ -40,10 +40,15 @@ export async function api<T = any>(method: string, url: string, body?: unknown):
     if (res.status === 401 && url !== "/api/auth/exchange") onUnauthorized();
     throw new ApiError(res.status, parsed?.error ?? `Feil ${res.status}`, parsed);
   }
-  return parsed as T;
+  return { data: parsed as T, headers: res.headers };
+}
+
+export async function api<T = any>(method: string, url: string, body?: unknown): Promise<T> {
+  return (await apiWithHeaders<T>(method, url, body)).data;
 }
 
 export const get = <T = any>(url: string) => api<T>("GET", url);
+export const getWithHeaders = <T = any>(url: string) => apiWithHeaders<T>("GET", url);
 export const post = <T = any>(url: string, body?: unknown) => api<T>("POST", url, body);
 export const patch = <T = any>(url: string, body?: unknown) => api<T>("PATCH", url, body);
 export const put = <T = any>(url: string, body?: unknown) => api<T>("PUT", url, body);

@@ -18,7 +18,7 @@ import type {
   WebSource,
 } from "../../../shared/protocol";
 import type { HookEvent, HookOutcome } from "../../../shared/hooks";
-import { get } from "../lib/api";
+import { ApiError, getWithHeaders } from "../lib/api";
 import { on, onOpen, send } from "../lib/socket";
 import { app } from "./app";
 
@@ -27,6 +27,11 @@ const TAIL_EVENTS = 500;
 const PAGE_EVENTS = 1500;
 const CACHED_MODELS = 12;
 const MAX_TOOL_OUTPUT = 64 * 1024;
+
+function historyRevisionOf(headers: Headers): number {
+  const revision = Number(headers.get("x-thread-history-revision"));
+  return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+}
 
 interface RowBase {
   key: string;
@@ -690,12 +695,15 @@ export class ThreadModel {
   private folder: Folder;
   readonly code: boolean;
   private loadingOlder: Promise<void> | null = null;
-  private held: ThreadEventEnvelope[] | null = null; // live events kept back while reload fetches
+  private reloading: Promise<void> | null = null;
+  private reloadAgain = false;
+  private held: Array<{ envelope: ThreadEventEnvelope; historyRevision?: number }> | null = null;
   private revertedTurns = new Set<string>();
   private queueSeq = 0; // snapshot boundary; older log entries still render but cannot rebuild the queue
   private lastQueueEvent = 0;
   firstSeq = 1;
   lastSeq = 0;
+  historyRevision = 0;
   refs = 0;
   usedAt = 0;
 
@@ -760,7 +768,8 @@ export class ThreadModel {
   }
 
   async refreshQueue(): Promise<void> {
-    const snapshot = await get<QueueSnapshot>(`/api/threads/${encodeURIComponent(this.id)}/queue`);
+    const { data: snapshot, headers } = await getWithHeaders<QueueSnapshot>(`/api/threads/${encodeURIComponent(this.id)}/queue`);
+    if (historyRevisionOf(headers) !== this.historyRevision) return;
     // A queue event that arrived after this snapshot already describes newer state.
     // Ignore the old response instead of bringing a removed/consumed message back.
     if (snapshot.seq < this.queueSeq || snapshot.seq < this.lastQueueEvent) return;
@@ -776,11 +785,12 @@ export class ThreadModel {
     if (this.folder.usage) this.setUsage(this.folder.usage);
   }
 
-  apply(envelope: ThreadEventEnvelope): void {
+  apply(envelope: ThreadEventEnvelope, historyRevision?: number): void {
     if (this.held) {
-      this.held.push(envelope);
+      this.held.push({ envelope, historyRevision });
       return;
     }
+    if (historyRevision !== undefined && historyRevision !== this.historyRevision) return;
     if (envelope.seq <= this.lastSeq) return;
     this.lastSeq = envelope.seq;
     const { event } = envelope;
@@ -800,36 +810,57 @@ export class ThreadModel {
   // read again into a model of its own, and taken over in one step, so the view never shows it
   // empty. This one stays registered and subscribed meanwhile: what arrives live is held and
   // applied after, so nothing falls between the fetch and the subscription.
-  async reload(): Promise<void> {
-    this.held = [];
-    const fresh = new ThreadModel(this.id, this.code);
-    try {
-      await fresh.load();
-    } catch {
+  reload(): Promise<void> {
+    if (this.reloading) {
+      this.reloadAgain = true;
+      return this.reloading;
+    }
+    this.reloading = this.runReload().finally(() => {
+      this.reloading = null;
+    });
+    return this.reloading;
+  }
+
+  private async runReload(): Promise<void> {
+    let retryMs = 250;
+    while (true) {
+      this.reloadAgain = false;
+      this.held = [];
+      const fresh = new ThreadModel(this.id, this.code);
+      try {
+        await fresh.load();
+      } catch (err) {
+        this.held = null;
+        if (this.reloadAgain) continue;
+        if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 429) return;
+        await new Promise((resolve) => setTimeout(resolve, retryMs));
+        if (this.refs === 0 && !this.reloadAgain) return;
+        retryMs = Math.min(retryMs * 2, 5000);
+        continue;
+      }
+      if (this.reloadAgain) continue;
+      this.folder = fresh.folder;
+      this.revertedTurns = fresh.revertedTurns;
+      this.queueSeq = fresh.queueSeq;
+      this.lastQueueEvent = fresh.lastQueueEvent;
+      this.folder.onRow = (row) => this.place(row);
+      this.firstSeq = fresh.firstSeq;
+      this.lastSeq = fresh.lastSeq;
+      this.historyRevision = fresh.historyRevision;
+      batch(() => {
+        this.setChunks(fresh.chunks());
+        this.setChanges(fresh.changes());
+        this.setHasOlder(fresh.hasOlder());
+        this.setQueued(fresh.queued());
+        this.setUsage(fresh.usage());
+        this.setActivity(fresh.activity());
+        this.setRetry(fresh.retry());
+      });
       const held = this.held;
       this.held = null;
-      for (const envelope of held ?? []) this.apply(envelope);
-      return;
+      for (const { envelope, historyRevision } of held) this.apply(envelope, historyRevision);
+      if (!this.reloadAgain) return;
     }
-    this.folder = fresh.folder;
-    this.revertedTurns = fresh.revertedTurns;
-    this.queueSeq = fresh.queueSeq;
-    this.lastQueueEvent = fresh.lastQueueEvent;
-    this.folder.onRow = (row) => this.place(row);
-    this.firstSeq = fresh.firstSeq;
-    this.lastSeq = fresh.lastSeq;
-    batch(() => {
-      this.setChunks(fresh.chunks());
-      this.setChanges(fresh.changes());
-      this.setHasOlder(fresh.hasOlder());
-      this.setQueued(fresh.queued());
-      this.setUsage(fresh.usage());
-      this.setActivity(fresh.activity());
-      this.setRetry(fresh.retry());
-    });
-    const held = this.held;
-    this.held = null;
-    for (const envelope of held) this.apply(envelope);
   }
 
   // Immediate feedback after a confirmed queue update; the durable event also reaches other windows.
@@ -840,16 +871,19 @@ export class ThreadModel {
 
   // Loads the page before what is in memory. It starts on a run boundary, so it folds on its own.
   loadOlder(): Promise<void> {
-    if (!this.hasOlder()) return Promise.resolve();
+    if (!this.hasOlder() || this.reloading) return Promise.resolve();
     this.loadingOlder ??= this.fetchOlder().finally(() => (this.loadingOlder = null));
     return this.loadingOlder;
   }
 
   private async fetchOlder(): Promise<void> {
+    const folderAtStart = this.folder;
     let span = PAGE_EVENTS;
     while (true) {
       const after = Math.max(0, this.firstSeq - 1 - span);
-      const events = await get<ThreadEventEnvelope[]>(`/api/threads/${encodeURIComponent(this.id)}/events?after=${after}&limit=${this.firstSeq - 1 - after}`);
+      const { data: events, headers } = await getWithHeaders<ThreadEventEnvelope[]>(`/api/threads/${encodeURIComponent(this.id)}/events?after=${after}&limit=${this.firstSeq - 1 - after}`);
+      if (this.folder !== folderAtStart || this.reloading) return;
+      if (historyRevisionOf(headers) !== this.historyRevision) return this.reload();
       const start = after === 0 ? 0 : events.findIndex((e) => startsRun(e.event));
       if (start === -1) {
         span *= 2;
@@ -875,7 +909,8 @@ export class ThreadModel {
   async load(): Promise<void> {
     let tail = TAIL_EVENTS;
     while (true) {
-      const events = await get<ThreadEventEnvelope[]>(`/api/threads/${encodeURIComponent(this.id)}/events?tail=${tail}`);
+      const { data: events, headers } = await getWithHeaders<ThreadEventEnvelope[]>(`/api/threads/${encodeURIComponent(this.id)}/events?tail=${tail}`);
+      this.historyRevision = historyRevisionOf(headers);
       const first = events[0]?.seq ?? 1;
       if (first <= 1) {
         this.firstSeq = 1;
@@ -946,7 +981,7 @@ function evict(): void {
 
 export function retainModel(model: ThreadModel): () => void {
   model.refs += 1;
-  if (model.refs === 1) send({ type: "thread.subscribe", threadId: model.id, afterSeq: model.lastSeq });
+  if (model.refs === 1) send({ type: "thread.subscribe", threadId: model.id, afterSeq: model.lastSeq, historyRevision: model.historyRevision });
   return () => {
     model.refs -= 1;
     model.usedAt = performance.now();
@@ -963,22 +998,22 @@ export function forgetModel(id: string): void {
 
 // The log was cut back (Chat: an edited message or a new answer), so what is in memory no longer
 // matches it. A model in view reads it again in place. A cached one is just dropped.
-function resetModel(id: string): void {
+function resetModel(id: string, revision?: number): void {
   const model = models.get(id);
-  if (!model) return;
+  if (!model || model.historyRevision === revision) return;
   if (model.refs > 0) void model.reload();
   else models.delete(id);
 }
 
 export function wireThreadEvents(): void {
-  on("thread.event", ({ envelope }) => models.get(envelope.threadId)?.apply(envelope));
+  on("thread.event", ({ envelope, historyRevision }) => models.get(envelope.threadId)?.apply(envelope, historyRevision));
   on("thread.deleted", ({ threadId }) => forgetModel(threadId));
-  on("thread.reset", ({ threadId }) => resetModel(threadId));
+  on("thread.reset", ({ threadId, historyRevision }) => resetModel(threadId, historyRevision));
   onOpen(() => {
     // Also the very first time: anything retained before the socket opened is not subscribed yet.
     for (const model of models.values()) {
       if (model.refs > 0) {
-        send({ type: "thread.subscribe", threadId: model.id, afterSeq: model.lastSeq });
+        send({ type: "thread.subscribe", threadId: model.id, afterSeq: model.lastSeq, historyRevision: model.historyRevision });
         void model.refreshQueue().catch(() => undefined); // durable replay remains the fallback on network errors
       }
     }

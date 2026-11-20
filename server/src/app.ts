@@ -231,8 +231,11 @@ async function startAppWithClaim(
   onFail(() => uiMods.close());
   const chatWorkspace = new ChatWorkspace(store, config.dataDir);
   onFail(async () => {
-    chatWorkspace.close();
-    await chatWorkspace.ready;
+    try {
+      await chatWorkspace.ready;
+    } finally {
+      chatWorkspace.close();
+    }
   });
   // The user's hooks (Innstillinger → Hooks): only from hooks.json in the data folder, never from a project.
   // MCP servers from Innstillinger → MCP-servere (mcp/manager.ts). Connected in the background below.
@@ -419,8 +422,8 @@ async function startAppWithClaim(
       await cleanup(() => runner.shutdown());
       await cleanup(() => mcp.close());
       await cleanup(() => uiMods.close());
-      await cleanup(() => chatWorkspace.close());
       await cleanup(() => chatWorkspace.ready);
+      await cleanup(() => chatWorkspace.close());
       await cleanup(() => playtest.stopAll());
       await cleanup(() => terminals.closeAll());
       await cleanup(() => browser.dispose());
