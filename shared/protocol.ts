@@ -711,7 +711,9 @@ export interface CommandInfo {
   aliases?: string[]; // other names, e.g. the Norwegian ones from before
   args?: string; // hint shown after the name, e.g. "<mål>"
   mode?: "code" | "chat"; // skills only: the mode it is written for; both when absent
-  demo?: boolean; // a placeholder: it explains what it will do, and does nothing
+  scope?: "code" | "project" | "chat" | "plain-chat"; // built-ins only
+  group?: "conversation" | "model" | "agent" | "workspace" | "app";
+  slashReserved?: boolean; // a built-in owns this skill's / name; use $ instead
 }
 
 export interface MentionItem {
@@ -1121,6 +1123,23 @@ export type ServerMessage =
   | { type: "error"; message: string };
 
 // Round 8 (agent G): GitHub, read only. The token stays on the server, like the provider keys.
+export interface PullWatchStatus {
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  state: "OPEN" | "CLOSED" | "MERGED";
+  draft: boolean;
+  head: string;
+  checks: "EXPECTED" | "PENDING" | "SUCCESS" | "ERROR" | "FAILURE" | null;
+  review: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+}
+
+export interface RunWatchStatus {
+  id: string;
+  status: RunStatus;
+}
+
 export type GitHubErrorCode = "bad-token" | "rate-limit" | "not-found" | "offline" | "not-connected" | "other";
 
 export interface GitHubStatus {

@@ -74,11 +74,12 @@ export async function newThreadIn(projectId: string | null, code = false, chatPr
   });
 }
 
-export async function createThreadFor(projectId: string | null, modelId: string | null, options: { code?: boolean; chatProjectId?: string | null } = {}): Promise<Thread> {
+export async function createThreadFor(projectId: string | null, modelId: string | null, options: { code?: boolean; chatProjectId?: string | null; title?: string } = {}): Promise<Thread> {
   const thread = await post<Thread>("/api/threads", {
     projectId,
     mode: projectId || options.code ? "code" : "chat",
     modelId: modelId ?? undefined,
+    title: options.title,
     ...(options.chatProjectId ? { chatProjectId: options.chatProjectId } : {}),
   });
   await loadModel(thread.id, thread.mode === "code");

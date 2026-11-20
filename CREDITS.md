@@ -29,6 +29,8 @@ Commits fra dette arbeidet har en `Co-Authored-By`-linje til Claude.
 
 Videreutviklingen fra v0.11.0 til v0.24.0, samt v0.24.2 og v0.24.3, er gjort med Codex, blant annet med GPT 6.1 Sol og underagenter: Chat-/Kode-flyt, harness og kontekst, skills, meldingsfelt, sidepanel, annotering, Git-grener/arbeidstrær, gjennomgang og feilrettinger. Codex har også hjulpet med dokumentasjon, skjermbilder, bygg og publisering til GitHub.
 
+Codex med GPT 6.2 Sol samlet slash-kommandoene i en søkbar guide og integrerte dem i Chat og Kode. GPT 6.2 Astra-underagenter implementerte samtale- og prosjektkommandoer og gjennomgikk tastaturbruk, rutevalg og samtidige endringer.
+
 **v0.27.0:** Codex koblet skills til Chat og bevarte prosjektgrenser og verktøyvalg. En GPT 6.1 Sol-agent utformet fire fil-skills for Excel, Word, PowerPoint og tekst/data og gjennomgikk integrasjonen. Lokale falske modeller brukes i kontrollene; skillenes effekt på ekte modellsvar er ikke målt.
 
 Codex skrev fem skills for kildearbeid, oppfølging fra notater, dataanalyse, ytelsesmåling og CI-diagnose. GPT 6.2 Sol og GPT 6.2 Astra vurderte dagens katalog og prøvde skillene på oppgaver med blant annet manglende data og avbrutte kjøringer.

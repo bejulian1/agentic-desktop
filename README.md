@@ -303,7 +303,7 @@ Localhost-versjonen og appen kan ikke bruke den samme datamappen samtidig. Bruk 
 
 Versjon **0.20.0**. Laget og testet på Ubuntu 26.04 med GNOME på Wayland. Det som gjenstår, står i [`docs/STATUS.md`](docs/STATUS.md).
 
-Slash-skills er beskrevet i [brukerveiledningen](docs/SLASH-SKILLS.md).
+Skriv `/` for kommandoer og `/help` for en søkbar guide til Chat, Kode og skills. [Se kommandoveiledningen.](docs/SLASH-SKILLS.md)
 
 Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.md).
 
@@ -316,6 +316,7 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 - **OpenAI GPT 6.2 Sol og GPT 6.2 Astra** vurderte hull i skill-katalogen og prøvde de nye instruksjonene på eksempeloppgaver.
 - **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
+- **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til å implementere og gjennomgå kommandoer for samtaler og prosjektpaneler i Chat og Kode.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 
 Codex har også bidratt med visning av diagrammer direkte i samtalen. Se [CREDITS.md](CREDITS.md) for bakgrunn. Krediteringen beskriver AI-assistanse; den innebærer ingen offisiell tilknytning til Anthropic eller OpenAI.

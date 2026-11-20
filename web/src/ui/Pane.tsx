@@ -118,7 +118,7 @@ export function Pane(props: {
   });
 
   return (
-    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-scene":scene(),"background-pane":background(),"ui-mod-glass":background()&&uiMods().glass!==false&&uiMods().glassStyle!=="panels","ui-mod-panels":background()&&uiMods().glass!==false&&uiMods().glassStyle==="panels","ui-mod-clear":background()&&uiMods().glass===false,"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)}>
+    <div class="pane-inner" data-pane-id={props.pane.id} data-thread-id={threadId() ?? ""} classList={{ focused: props.focused,"ui-mod-pane":!!mod(),"ui-mod-scene":scene(),"background-pane":background(),"ui-mod-glass":background()&&uiMods().glass!==false&&uiMods().glassStyle!=="panels","ui-mod-panels":background()&&uiMods().glass!==false&&uiMods().glassStyle==="panels","ui-mod-clear":background()&&uiMods().glass===false,"ui-mod-compact":mod()?.layout.density==="compact" }} style={modStyle()} data-ui-mod={mod()?.id} onPointerDown={() => props.grid?.focus(props.pane.id)} onFocusIn={() => props.grid?.focus(props.pane.id)}>
       <Show when={scene()}><Suspense><UiModBackdrop scene={mod()!.scene}/></Suspense></Show>
       <header class="pane-head" onPointerDown={startDrag}>
         <span class="pane-dot" classList={{ running: thread()?.running }} data-state={thread() ? threadState(thread()!) : "idle"} title={thread() ? STATE_LABEL[threadState(thread()!)] || undefined : undefined} />
@@ -181,7 +181,10 @@ export function Pane(props: {
           fallback={<Home projectId={props.projectId} code={props.code || thread()?.mode === "code"} paneKey={threadId() ?? props.pane.id} onPick={(text) => fill?.(text)} />}
         >
           <Show when={model()} keyed>
-            {(current) => <Conversation model={current} onThread={showThread} jump={(fn) => (toBottom = fn)} tools={(t) => paneTools.set(props.pane.id, t)} />}
+            {(current) => <Conversation model={current} onThread={showThread} jump={(fn) => (toBottom = fn)} tools={(tools) => {
+              paneTools.set(props.pane.id, tools);
+              return () => { if (paneTools.get(props.pane.id) === tools) paneTools.delete(props.pane.id); };
+            }} />}
           </Show>
         </Show>
       </div>
@@ -202,11 +205,16 @@ export function Pane(props: {
             code={props.code || thread()?.mode === "code"}
             chatProjectId={threadId() ? thread()?.chatProjectId ?? null : (props.code ? null : chatProjectFor(props.pane.id))}
             autofocus={props.focused}
+            detached={props.solo}
             onThreadCreated={(created) => {
               if (props.grid) props.grid.setThread(props.pane.id, created.id);
               else props.pane.setThreadId(created.id);
             }}
             onSent={() => toBottom?.()}
+            conversationTools={() => {
+              const tools = paneTools.get(props.pane.id);
+              return tools?.threadId === threadId() ? tools : undefined;
+            }}
             registerFill={(fn) => (fill = fn)}
           />
         )}

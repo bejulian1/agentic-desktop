@@ -6,7 +6,7 @@
 // server. Only a loopback address is accepted, so the variable can never send the token elsewhere.
 import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import path from "node:path";
-import type { GitHubErrorCode, GitHubItem, GitHubProject, GitHubRemote, GitHubStatus } from "../../shared/protocol.ts";
+import type { GitHubErrorCode, GitHubItem, GitHubProject, GitHubRemote, GitHubStatus, PullWatchStatus } from "../../shared/protocol.ts";
 import type { Secrets } from "./secrets.ts";
 
 export const GITHUB_SECRET = "integration:github";
@@ -250,6 +250,54 @@ export class GitHub {
     return out;
   }
 
+  async pullWatch(repo: string, number: number): Promise<PullWatchStatus> {
+    const [owner, name, extra] = repo.split("/");
+    if (extra !== undefined || !/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/.test(owner) ||
+        !NAME.test(name ?? "") || name === "." || name === ".." ||
+        !Number.isSafeInteger(number) || number < 1 || number > 2_147_483_647) {
+      throw new GitHubError("other", "Bruk et gyldig GitHub-repo og PR-nummer.", 400);
+    }
+    const token = this.token();
+    if (!token) throw new GitHubError("not-connected", "Koble til GitHub i Innstillinger for å følge en pull request.", 409);
+    const query = `query PullWatch($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          title state isDraft headRefOid reviewDecision statusCheckRollup { state }
+        }
+      }
+    }`;
+    const request = JSON.stringify({ query, variables: { owner, name, number } });
+    const { body, headers } = await this.request("/graphql", token, true, undefined, request);
+    const response = body as { data?: { repository?: { pullRequest?: {
+      title?: unknown; state?: unknown; isDraft?: unknown; headRefOid?: unknown;
+      reviewDecision?: unknown; statusCheckRollup?: { state?: unknown } | null;
+    } | null } | null }; errors?: Array<{ type?: string }> } | null;
+    if (response?.errors?.length) {
+      if (response.errors.some(error => error.type === "RATE_LIMITED")) {
+        const reset = Number(headers.get("x-ratelimit-reset"));
+        const resetAt = Number.isFinite(reset) && reset > 0 ? reset * 1000 : undefined;
+        throw new GitHubError("rate-limit", "GitHub har nådd grensen for antall forespørsler.", 429, resetAt);
+      }
+      if (response.errors.some(error => error.type === "FORBIDDEN" || error.type === "NOT_FOUND")) {
+        throw new GitHubError("not-found", "Fant ikke PR-en, eller GitHub-tokenet mangler lesetilgang til PR, sjekker eller status.", 404);
+      }
+      throw new GitHubError("other", "GitHub kunne ikke lese status for denne PR-en.", 502);
+    }
+    const pull = response?.data?.repository?.pullRequest;
+    if (!pull) throw new GitHubError("not-found", "Fant ikke PR-en, eller GitHub-tokenet mangler tilgang.", 404);
+    const { title, state, headRefOid: head, isDraft: draft, reviewDecision, statusCheckRollup } = pull;
+    if (typeof title !== "string" || typeof head !== "string" || typeof draft !== "boolean" ||
+        (state !== "OPEN" && state !== "CLOSED" && state !== "MERGED")) {
+      throw new GitHubError("other", "GitHub svarte uten full PR-status.", 502);
+    }
+    const checks = statusCheckRollup?.state;
+    if ((checks !== undefined && checks !== "EXPECTED" && checks !== "PENDING" && checks !== "SUCCESS" && checks !== "ERROR" && checks !== "FAILURE") ||
+        (reviewDecision !== null && reviewDecision !== "APPROVED" && reviewDecision !== "CHANGES_REQUESTED" && reviewDecision !== "REVIEW_REQUIRED")) {
+      throw new GitHubError("other", "GitHub svarte med en ukjent PR-status.", 502);
+    }
+    return { repo, number, title, url: `${this.web}/${owner}/${name}/pull/${number}`, state, head, draft, checks: checks ?? null, review: reviewDecision };
+  }
+
   private async loadAccount(token: string): Promise<void> {
     const { body, headers } = await this.request("/user", token, true);
     const user = body as { login?: unknown; name?: unknown };
@@ -267,16 +315,18 @@ export class GitHub {
     return value;
   }
 
-  private async request(pathAndQuery: string, token: string, stored: boolean, etag?: string): Promise<{ body: unknown; headers: Headers; notModified: boolean }> {
+  private async request(pathAndQuery: string, token: string, stored: boolean, etag?: string, query?: string): Promise<{ body: unknown; headers: Headers; notModified: boolean }> {
     let res: Response;
     try {
       res = await fetch(this.base + pathAndQuery, {
+        ...(query === undefined ? {} : { method: "POST", body: query }),
         headers: {
           accept: "application/vnd.github+json",
           authorization: `Bearer ${token}`,
           "user-agent": "Agentic-Desktop",
           "x-github-api-version": "2022-11-28",
           ...(etag ? { "if-none-match": etag } : {}),
+          ...(query === undefined ? {} : { "content-type": "application/json" }),
         },
         redirect: "error",
         signal: AbortSignal.timeout(TIMEOUT_MS),

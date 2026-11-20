@@ -3,7 +3,7 @@ import { ApiError, get, post } from "../lib/api";
 import { desktop } from "../lib/desktop";
 import { ProjectCreationDialog } from "./ProjectCreationDialog";
 import type { CommandInfo, FileEntry } from "../../../shared/protocol";
-import { app, currentProject, dismissToast, folderPickerOpen, mode, setFolderPickerOpen, setSettingsOpen, toasts } from "../state/app";
+import { app, currentProject, dismissToast, folderPickerOpen, mode, scope, setFolderPickerOpen, setSettingsOpen, toasts } from "../state/app";
 import { displayKeys, keysFor, SHORTCUTS } from "../state/shortcuts";
 import { HoverCardHost } from "./HoverCard";
 import { TooltipHost } from "./Tooltip";
@@ -11,7 +11,10 @@ import { TooltipHost } from "./Tooltip";
 import "../styles/cookies.css";
 import { MotionHost, motionOff } from "./Motion";
 import { chatProjectDialog, chromeImportOpen, cookieDialog, editing, gitWorkspaceDialog } from "./dialog-state";
-import { palette } from "../state/nav";
+import { chatProjectPageId, palette } from "../state/nav";
+import { peekGrid } from "../state/grid";
+import { visibleCommands } from "../../../shared/slash-commands";
+import { CommandList } from "./CommandList";
 import { IconClose, IconFolder, IconChevron, IconBack, IconSearch } from "./icons";
 
 interface Confirm {
@@ -127,24 +130,23 @@ function ShortcutTable() {
 }
 
 function CommandTable() {
-  const [commands] = createResource(() => {
-    const project = mode() === "code" ? currentProject() : undefined;
-    return get<CommandInfo[]>(project ? `/api/projects/${project.id}/commands` : "/api/commands");
-  });
+  const code = () => mode() === "code";
+  const project = () => code() ? currentProject()?.id : undefined;
+  const chatProject = () => {
+    if (code()) return false;
+    const active = peekGrid(scope())?.focusedThreadId();
+    return !!(chatProjectPageId() || (active && app.threads[active]?.chatProjectId));
+  };
+  const [commands] = createResource(
+    () => project() ? `/api/projects/${project()}/commands?includeReserved=1` : `/api/commands?includeReserved=1&mode=${code() ? "code" : "chat"}${chatProject() ? "&scope=project" : ""}`,
+    (url) => get<CommandInfo[]>(url).catch(() => null),
+  );
   return (
-    <dl class="key-list commands">
-      <For each={commands() ?? []}>
-        {(c) => (
-          <>
-            <dt><code>{c.kind === "skill" ? "$" : "/"}{c.name}</code><Show when={c.demo}> <span class="demo-badge">Demo</span></Show></dt>
-            <dd>{c.description}<Show when={c.aliases?.length}><span class="muted"> · også {c.aliases!.map((a) => `/${a}`).join(", ")}</span></Show></dd>
-          </>
-        )}
-      </For>
-      <dt><code>@</code></dt><dd>Legg ved filer, mapper og tråder</dd>
-      <dt><code>$</code></dt><dd>Bruk en skill</dd>
-      <dt><code>!kommando</code></dt><dd>Kjør en kommando i prosjektmappen</dd>
-    </dl>
+    <Show when={!commands.loading} fallback={<SkeletonLines />}>
+      <Show when={commands()} fallback={<p>Kunne ikke hente kommandoene.</p>}>
+        {entries => <CommandList commands={visibleCommands(entries(), { code: code(), project: !!project(), chatProject: chatProject(), detached: new URLSearchParams(location.search).has("rute") })} />}
+      </Show>
+    </Show>
   );
 }
 

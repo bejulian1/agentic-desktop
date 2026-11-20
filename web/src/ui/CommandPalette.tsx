@@ -123,12 +123,12 @@ function fileItem(project: Project, path: string): Item {
   return { key: `f:${project.id}:${path}`, icon: icon(IconFile), label: basename(path), detail: dir ? `${project.name}/${dir}` : project.name, run: () => openFile(project, path) };
 }
 
-function Palette(props: { initial: PaletteTab }) {
+function Palette(props: { initial: PaletteTab; initialQuery: string }) {
   let dialog!: HTMLDialogElement;
   let input!: HTMLInputElement;
   let list!: HTMLDivElement;
   const [tab, setTab] = createSignal<PaletteTab>(props.initial);
-  const [query, setQuery] = createSignal("");
+  const [query, setQuery] = createSignal(props.initialQuery);
   const [selected, setSelected] = createSignal(0);
   const [found, setFound] = createSignal<{ query: string; threads: Thread[] } | null>(null);
   const [files, setFiles] = createSignal<{ query: string; items: MentionItem[] } | null>(null);
@@ -318,7 +318,7 @@ function Palette(props: { initial: PaletteTab }) {
 export function CommandPaletteHost() {
   return (
     <Show when={palette()} keyed>
-      {(tab) => <Palette initial={tab} />}
+      {(initial) => <Palette initial={initial.tab} initialQuery={initial.query} />}
     </Show>
   );
 }

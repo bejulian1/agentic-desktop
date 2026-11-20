@@ -1,3 +1,6 @@
+# Tidlig ønskeliste for kommandoer
+
+Dette er en historisk plan, ikke en liste over tilgjengelige kommandoer. Se [kommandoguiden](SLASH-SKILLS.md) for det som virker i appen.
 
 |                |                                                                                         |
 | -------------- | --------------------------------------------------------------------------------------- |
@@ -61,5 +64,3 @@ Instillinger i applikasjonen kan inneholde: Main Desktop Settings Categories
   * Mulighet for headless chrome / headless application spill testing f.eks headless sodium Minecraft.
 
 *  mulig het for å laste ned ==**bruker verktøyet `cua-driver` for å styre  Linux-skrivebord i bakgrunnen uten å kapre den fysiske musepekeren din**==**.** Dette gjør at du kan fortsette å bruke PC-en uforstyrret mens kunstig intelligens utfører oppgaver for deg.
-
-  

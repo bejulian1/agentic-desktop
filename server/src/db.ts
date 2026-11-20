@@ -980,6 +980,13 @@ export class Store {
       .map((row: any) => ({ id: row.id, threadId: row.thread_id, turnId: row.turn_id, status: row.status, startSeq: row.start_seq }));
   }
 
+  runWatchStatus(threadId: string, runId: string | null): { id: string; status: RunStatus } | null {
+    const row = runId
+      ? this.q("SELECT id, status FROM runs WHERE thread_id = ? AND id = ?").get(threadId, runId)
+      : this.q("SELECT id, status FROM runs WHERE thread_id = ? ORDER BY start_seq DESC, rowid DESC LIMIT 1").get(threadId);
+    return row ? { id: String(row.id), status: row.status as RunStatus } : null;
+  }
+
   lastRun(threadId: string): { status: RunStatus; error: string | null } | undefined {
     const row = this.q("SELECT status, error, MAX(start_seq) FROM runs WHERE thread_id = ?").get(threadId) as any;
     return row?.status ? { status: row.status, error: row.error } : undefined;

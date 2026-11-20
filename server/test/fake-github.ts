@@ -44,7 +44,7 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
     };
 
     // The pages the links point to, so a test that clicks one stays on this server.
-    if (!url.pathname.startsWith("/user") && !url.pathname.startsWith("/repos/")) {
+    if (!url.pathname.startsWith("/user") && !url.pathname.startsWith("/repos/") && url.pathname !== "/graphql") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><title>Falsk GitHub</title><h1>Falsk side: ${url.pathname.replace(/[<>&]/g, "")}</h1>`);
       return;
@@ -55,6 +55,24 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
     }
     const good = auth === `Bearer ${GOOD_TOKEN}` || auth === `Bearer ${OTHER_TOKEN}`;
     if (!good || mode === "revoked") return send(401, { message: "Bad credentials" });
+    if (req.method === "POST" && url.pathname === "/graphql") {
+      let payload = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk) => { payload += chunk; });
+      req.on("end", () => {
+        const { query, variables } = JSON.parse(payload);
+        if (!query.startsWith("query PullWatch(") || variables.owner !== "acme" || variables.name !== "rakett") {
+          return send(200, { errors: [{ type: "NOT_FOUND" }] });
+        }
+        if (variables.number === 44) return send(200, { errors: [{ type: "RATE_LIMITED" }] }, { "x-ratelimit-reset": "2000000000" });
+        const pullRequest = variables.number === 42 ? {
+          title: PULLS[0].title, state: "OPEN", isDraft: false, headRefOid: "a".repeat(40),
+          reviewDecision: "REVIEW_REQUIRED", statusCheckRollup: { state: "PENDING" },
+        } : null;
+        send(200, { data: { repository: { pullRequest } } });
+      });
+      return;
+    }
     const reply = () => {
       if (url.pathname === "/user") return send(200, { login: auth === `Bearer ${GOOD_TOKEN}` ? "testbruker" : "annen", name: "Test Brukersen" }, { "x-oauth-scopes": "repo, read:org" });
       if (url.pathname === "/repos/acme/rakett") {

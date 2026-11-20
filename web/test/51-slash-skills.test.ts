@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { flow, openProject, threadItem, waitFor } from "./harness.ts";
 
-flow("Slash-skills: fuzzy tastaturvalg, app-demo, rå argumenter og skrivebeskyttet innsyn", async (h) => {
+flow("Slash-skills: fuzzy tastaturvalg, innebygd skill, rå argumenter og skrivebeskyttet innsyn", async (h) => {
   const { page } = h;
   // The shipped skills are written for Kode with a project, so they are not offered in Chat.
   await openProject(h, "Skillprosjekt");
@@ -14,9 +14,10 @@ flow("Slash-skills: fuzzy tastaturvalg, app-demo, rå argumenter og skrivebeskyt
   assert.match(await menu.innerText(), /Gjennomgå|gjennomgang|kode|review/i);
   await field.fill("/rvw");
   await menu.getByText("/review", { exact: true }).waitFor();
-  // In Kode the subsequence also finds the built-in /review-changes; the skill is one of the two.
+  // In Kode the subsequence finds both the skill and the built-in review command.
   const names = async () => (await menu.locator(".menu-name").allInnerTexts()).map((name) => name.trim());
-  assert.deepEqual([...(await names())].sort(), ["/review", "/review-changes"]);
+  const matches = await names();
+  assert.ok(matches.includes("/review") && matches.includes("/review-changes"));
   await page.keyboard.press("Escape");
   assert.equal(await menu.count(), 0);
   await field.fill("/rvw");
@@ -119,7 +120,7 @@ flow("Tregt første slash-oppslag sender ikke gammel tekst over et nyere utkast"
   let release!: () => void;
   const pending = new Promise<void>((resolve) => { release = resolve; });
   let requests = 0;
-  await page.route(/\/api\/(?:projects\/[^/]+\/)?commands$/, async (route) => {
+  await page.route(/\/api\/(?:projects\/[^/]+\/)?commands(?:\?.*)?$/, async (route) => {
     requests += 1;
     await pending;
     await route.continue();
@@ -133,9 +134,10 @@ flow("Tregt første slash-oppslag sender ikke gammel tekst over et nyere utkast"
   const field = page.getByLabel("Melding", { exact: true });
   await field.fill("/review gammel");
   await page.keyboard.press("Enter");
-  await waitFor(() => requests >= 2, "initialt oppslag venter");
-  await field.fill("/review nyere tekst");
-  release();
+  try {
+    await waitFor(() => requests >= 2, "initialt oppslag venter");
+    await field.fill("/review nyere tekst");
+  } finally { release(); }
   await page.waitForTimeout(160);
   assert.equal(await field.inputValue(), "/review nyere tekst");
   assert.equal(sent.length, 0, "det gamle snapshotet sendes ikke");

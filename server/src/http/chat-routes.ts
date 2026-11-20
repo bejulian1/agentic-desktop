@@ -105,6 +105,12 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     if (body.modelId !== undefined && (typeof body.modelId !== "string" || !store.model(body.modelId))) throw new HttpError(400, "Fant ikke modellen");
 
     const events = store.events(thread.id, 0, Number.MAX_SAFE_INTEGER);
+    if (body.latestOnly === true) {
+      const latest = events.findLast(({ event }) => event.type === "text.delta" || event.type === "user.message")?.event;
+      if (latest?.type !== "text.delta" || latest.messageId !== body.messageId) {
+        throw new HttpError(409, "Samtalen har endret seg. Prøv igjen med det nyeste svaret.");
+      }
+    }
     let cut = -1;
     let lastUser = -1;
     for (const { seq, event } of events) {
@@ -127,9 +133,10 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     const attachments = (original.attachments ?? []).map(attachmentRef).filter((a): a is AttachmentRef => a !== null);
     if (!text && !attachments.length) throw new HttpError(400, "Meldingen er tom");
     // A message sent with a skill shows as /name. Sent again, it uses the skill again.
-    const word = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
+    const word = /^\/(\S+)(?:[ \t\n]([\s\S]*))?$/.exec(text);
     const project = thread.projectId ? store.project(thread.projectId) : undefined;
-    const skill = word && runner.skillsFor(thread.mode === "code" ? project : undefined).find((s) => s.name === word[1]);
+    const skill = word && (thread.mode === "chat" ? runner.chatSkills(!!thread.chatProjectId) : runner.skillsFor(project, "code"))
+      .find((candidate) => candidate.name === word[1]);
     const dispatch = runner.prepareSend(thread.id, {
       text: skill ? (word![2] ?? "") : text,
       attachments: attachments.length ? attachments : undefined,

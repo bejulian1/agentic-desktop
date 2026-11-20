@@ -12,7 +12,7 @@ import type { EditableFile, Project } from "../../../shared/protocol.ts";
 import { hashContent } from "../agent/filestate.ts";
 import { HttpError } from "../errors.ts";
 import { looksBinary, MAX_TEXT_FILE } from "../files.ts";
-import { GitHub, GitHubError } from "../github.ts";
+import { GitHub, GitHubError, readGitHubRemote } from "../github.ts";
 import { guardPath, isProtectedPath } from "../paths.ts";
 import type { ApiDeps } from "./api.ts";
 
@@ -43,6 +43,25 @@ export function githubRoutes(route: Route, deps: ApiDeps, h: { project: (id: str
   route("DELETE", "/api/github/token", () => github.disconnect());
 
   route("GET", "/api/projects/:id/github", ({ params, query }) => github.project(h.project(params.id).path, query.get("refresh") === "1"));
+
+  route("GET", "/api/github/pull-watch", async ({ query }) => {
+    const number = query.get("number");
+    if (!number || !/^[1-9]\d{0,9}$/.test(number)) throw new HttpError(400, "Skriv et gyldig PR-nummer.");
+    const projectId = query.get("project");
+    let repo = query.get("repo");
+    if (projectId && !repo) {
+      const { remote, reason } = readGitHubRemote(h.project(projectId).path);
+      if (!remote) throw new HttpError(400, reason ?? "Prosjektet har ingen GitHub-tilkobling.");
+      repo = `${remote.owner}/${remote.repo}`;
+    }
+    if (!repo) throw new HttpError(400, "Velg et prosjekt eller oppgi en GitHub-PR-lenke.");
+    try {
+      return await github.pullWatch(repo, Number(number));
+    } catch (err) {
+      if (err instanceof GitHubError) throw new HttpError(err.status, err.message, { code: err.code, resetAt: err.resetAt });
+      throw err;
+    }
+  });
 
   // The mini editor reads a file through here, to get the hash it saves against.
   route("GET", "/api/projects/:id/file/edit", async ({ params, query }) => {

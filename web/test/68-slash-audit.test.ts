@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {flow,openProject,send,waitFor} from './harness.ts';
-flow('Slash: liste og hjelp følger modus, demokommandoer forklarer seg og prosjektkommandoer gir tilbakemelding',async h=>{
+flow('Slash: liste og søkbar hjelp følger modus og utelater fjernede demokommandoer',async h=>{
  const {page}=h;const field=page.getByLabel('Melding',{exact:true});
  await field.fill('/');
  const menu=page.getByTestId('composer-menu');await menu.getByText('/help',{exact:true}).waitFor();
@@ -10,18 +10,17 @@ flow('Slash: liste og hjelp følger modus, demokommandoer forklarer seg og prosj
   await send(page,`/${name}`);
   await page.getByText(`/${name} krever Kode-modus og et prosjekt.`,{exact:true}).waitFor();
  }
- for(const name of ['approve','ide-context','local']){
-  await send(page,`/${name}`);
-  const info=page.getByTestId('info-card');await info.waitFor();
-  assert.equal(await info.locator('.demo-badge').innerText(),'Demo');
-  await info.getByRole('button',{name:'Lukk',exact:true}).click();
- }
  await send(page,'/mcp');await page.locator('.settings-page .settings-title',{hasText:'MCP-servere'}).waitFor();
  await page.keyboard.press('Escape');await page.locator('.settings-page').waitFor({state:'detached'});
- await send(page,'/hjelp');
+ await send(page,'/hjelp export');
  const help=page.getByRole('dialog',{name:'Hjelp',exact:true});await help.waitFor();
- assert.equal(await help.locator('dt').filter({hasText:/^\/playtest$/}).count(),0);
- await help.getByRole('button',{name:'Lukk',exact:true}).click();
+ const search=help.getByRole('searchbox',{name:'Søk i kommandoer og skills'});
+ assert.equal(await search.inputValue(),'export');
+ await help.getByText('/save',{exact:true}).waitFor();
+ await search.fill('tomorrow');await help.getByText('/snooze',{exact:true}).waitFor();
+ await search.fill('playtest');await help.getByRole('status').filter({hasText:/Ingen kommandoer/}).waitFor();
+ await search.press('Escape');await help.waitFor({state:'detached'});
+ assert.equal(await field.evaluate(element=>element===document.activeElement),true);
  assert.equal((await h.api('GET','/api/bootstrap')).threads.length,0,'kommandoene utløser ikke modellkall eller tomme tråder');
  await page.locator('.sidebar .mode-button').filter({hasText:'Kode'}).click();
  await send(page,'/vscode');await page.getByText('/vscode krever Kode-modus og et prosjekt.',{exact:true}).last().waitFor();

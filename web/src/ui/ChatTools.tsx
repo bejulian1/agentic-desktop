@@ -4,8 +4,9 @@
 // several messages and copy them together.
 import { createContext, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { Thread, ThreadEventEnvelope } from "../../../shared/protocol";
-import { api, get, post } from "../lib/api";
+import { api, post } from "../lib/api";
 import { app, modelName, report, scopeOf, toast } from "../state/app";
+import { threadEventPages } from "../state/thread-actions";
 import { openThread } from "../state/navigate";
 import { peekGrid } from "../state/grid";
 import { openWindows } from "../state/windows";
@@ -298,8 +299,6 @@ export function confirmScript(script: string): Promise<boolean> {
 
 // Export
 
-const PAGE = 5000;
-
 function stamp(at: number): string {
   const date = new Date(at);
   return `${date.toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" })} kl. ${date.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}`;
@@ -366,12 +365,7 @@ export async function exportThread(threadId: string): Promise<void> {
   if (!thread) return;
   try {
     const events: ThreadEventEnvelope[] = [];
-    for (let after = 0; ; ) {
-      const page = await get<ThreadEventEnvelope[]>(`/api/threads/${encodeURIComponent(threadId)}/events?after=${after}&limit=${PAGE}`);
-      events.push(...page);
-      if (page.length < PAGE) break;
-      after = page.at(-1)!.seq;
-    }
+    for await (const page of threadEventPages(threadId)) events.push(...page);
     const url = URL.createObjectURL(new Blob([threadMarkdown(thread, events)], { type: "text/markdown;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;

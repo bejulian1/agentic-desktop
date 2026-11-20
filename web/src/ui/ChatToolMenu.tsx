@@ -70,8 +70,8 @@ const ROUTE_TEXT: Record<WebSearchRoute, string> = {
   demo: "Demo-kilder, tydelig merket",
 };
 
-export function ChatToolButton(props: { state: ChatToolState; chatProject?: ChatProject }) {
-  const [open, setOpen] = createSignal(false);
+export function ChatToolButton(props: { state: ChatToolState; chatProject?: ChatProject; open: Accessor<boolean>; setOpen: (open: boolean) => void }) {
+  const { open, setOpen } = props;
   // Read when the menu opens: whether Chat memories are on, and whether new ones are saved.
   const [personal] = createResource(() => open() && !props.chatProject, () => get<ChatPersonalState>("/api/chat-personal").catch(() => null));
   const [python] = createResource(() => open(), () => get<{available:boolean;reason:string}>("/api/chat-workspace/status").catch(() => ({available:false,reason:"Kunne ikke kontrollere Python."})));

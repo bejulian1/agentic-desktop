@@ -39,10 +39,10 @@ export function closeProfile(): void {
 
 // The command palette, and which tab it opens on.
 export type PaletteTab = "all" | "actions" | "chats" | "files" | "text";
-const [palette, setPalette] = createSignal<PaletteTab | null>(null);
+const [palette, setPalette] = createSignal<{ tab: PaletteTab; query: string } | null>(null);
 export { palette };
-export function openPalette(tab: PaletteTab = "all"): void {
-  setPalette(tab);
+export function openPalette(tab: PaletteTab = "all", query = ""): void {
+  setPalette({ tab, query });
 }
 export function closePalette(): void {
   setPalette(null);

@@ -185,11 +185,13 @@ function ChunkView(props: { chunk: Chunk; observe: (element: HTMLElement, chunk:
 
 // Chat: search and export live in the pane's top line, which calls these.
 export interface ConversationTools {
+  threadId: string;
   search: () => void;
+  retryLast: () => Promise<void>;
   exportMarkdown: () => void;
 }
 
-export function Conversation(props: { model: ThreadModel; onThread: (id: string) => void; jump?: (scrollToBottom: () => void) => void; tools?: (tools: ConversationTools) => void }) {
+export function Conversation(props: { model: ThreadModel; onThread: (id: string) => void; jump?: (scrollToBottom: () => void) => void; tools?: (tools: ConversationTools) => () => void }) {
   const [atBottom, setAtBottom] = createSignal(true);
   let root!: HTMLDivElement;
   let scroller!: HTMLDivElement;
@@ -303,17 +305,36 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
   let focusSearch: (() => void) | undefined;
   const openSearch = () => (searching() ? focusSearch?.() : setSearching(true));
   trackTemporary(() => props.model.id);
-  props.tools?.({ search: openSearch, exportMarkdown: () => void exportThread(props.model.id) });
 
   // The server cuts the log back and sends the message again. The model is loaded again from the
   // thread.reset that follows, so nothing here has to undo rows.
   // One at a time: a second click while the first is on its way would only meet a busy thread.
   let rewinding: Promise<unknown> | null = null;
   // Kode: files are not rolled back, which the server wants confirmed with keepFiles.
-  const rewind = (key: string, body: { text?: string; modelId?: string } = {}) => {
+  const rewind = (key: string, body: { text?: string; modelId?: string; latestOnly?: boolean } = {}) => {
     rewinding ??= post(`/api/threads/${props.model.id}/rewind`, { messageId: key, ...body, ...(chat ? {} : { keepFiles: true }) }).finally(() => (rewinding = null));
     return rewinding;
   };
+  const retryLast = async () => {
+    if (running() || rewinding) {
+      toast("Vent til svaret er ferdig, eller stopp det først.", "info");
+      return;
+    }
+    const key = lastAnswer();
+    if (!key || !users().length) {
+      toast("Det finnes ikke et svar å prøve på nytt.", "info");
+      return;
+    }
+    const ok = await confirmDialog({ title: "Lag siste svar på nytt?", text: "Det siste svaret erstattes ved et nytt modellkall.", confirm: "Lag svaret på nytt" });
+    if (!ok) return;
+    if (!root.isConnected || lastAnswer() !== key || rewinding) {
+      toast("Samtalen har endret seg. Skriv /retry igjen hvis du vil prøve det nye svaret på nytt.", "info");
+      return;
+    }
+    await rewind(key, { latestOnly: true });
+  };
+  const unregisterTools = props.tools?.({ threadId: props.model.id, search: openSearch, retryLast, exportMarkdown: () => void exportThread(props.model.id) });
+  if (unregisterTools) onCleanup(unregisterTools);
   // What goes when a message is sent again fades out first, calmly, so the cut is seen (SPEC 21.8).
   const fadeAfter = async (key: string): Promise<() => void> => {
     const rowEl = scroller.querySelector<HTMLElement>(`.row-user[data-key="${CSS.escape(key)}"]`);

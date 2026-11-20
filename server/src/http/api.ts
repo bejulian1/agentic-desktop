@@ -1,3 +1,4 @@
+import { BUILTIN_COMMANDS } from "../../../shared/slash-commands.ts";
 import type {UiMods} from "../ui-mods.ts";
 import type {ChatWorkspace} from '../chat-workspace.ts';
 // REST, as described in shared/protocol.ts.
@@ -82,46 +83,7 @@ const THEMES: ThemeSetting[] = ["light", "dark", "system"];
 const STATS_RANGES: StatsRange[] = ["all", "30d", "7d"];
 const PROVIDER_KINDS: ProviderKind[] = ["openai-compatible", "anthropic"];
 
-// English names from the wish list, with the Norwegian ones from before as aliases. The UI runs
-// them; the server only lists them. demo: a placeholder that explains itself and does nothing.
-export const BUILTIN_COMMANDS: CommandInfo[] = [
-  { name: "new", aliases: ["ny"], description: "Ny tråd", kind: "builtin" },
-  { name: "mode", aliases: ["modus"], description: "Bytt mellom Chat og Kode", kind: "builtin" },
-  { name: "model", aliases: ["modell"], args: "[navn]", description: "Velg modell for tråden", kind: "builtin" },
-  { name: "reasoning", aliases: ["tenkning"], args: "[none|low|medium|high|xhigh|max]", description: "Velg hvor mye modellen skal tenke", kind: "builtin" },
-  { name: "agents", aliases: ["agenter"], description: "Åpne prosjektets instanser, underagenter og meldinger", kind: "builtin" },
-  { name: "diff", aliases: ["endringer"], description: "Vis prosjektets filendringer", kind: "builtin" },
-  { name: "context", aliases: ["kontekst"], description: "Vis hva som fyller modellens kontekstvindu", kind: "builtin" },
-  { name: "stop", aliases: ["stopp"], description: "Stopp bare kjøringen i denne samtalen", kind: "builtin" },
-  { name: "status", description: "Vis tråd-ID, kontekstbruk og grenser", kind: "builtin" },
-  { name: "compact", aliases: ["komprimer"], description: "Komprimer konteksten nå", kind: "builtin" },
-  { name: "fork", aliases: ["gaffel", "kopier"], description: "Lag en gaffel: en ny tråd med hele historikken", kind: "builtin" },
-  { name: "goal", aliases: ["mål"], args: "<mål>", description: "Sett et mål for tråden, vist i det festede sammendraget", kind: "builtin" },
-  { name: "plan", description: "Slå planmodus av eller på: modellen planlegger uten å endre filer", kind: "builtin" },
-  { name: "init", description: "Lag en AGENTS.md-mal i prosjektet", kind: "builtin" },
-  { name: "project", aliases: ["prosjekt"], description: "Velg prosjekt for nye tråder", kind: "builtin" },
-  { name: "task", aliases: ["oppgave"], description: "Start en chat uten prosjekt", kind: "builtin" },
-  { name: "side", description: "Start en sidesamtale i en ny rute, uten å avbryte denne", kind: "builtin" },
-  { name: "btw", args: "<spørsmål>", description: "Et raskt sidespørsmål uten verktøy eller lagring i samtalen", kind: "builtin" },
-  { name: "background", aliases: ["bakgrunn"], args: "<oppgave>", description: "Start en egen bakgrunnsøkt med samtalens kontekst", kind: "builtin" },
-  { name: "queue", aliases: ["kø"], args: "<instruksjon>", description: "Kjør meldingen etter at den aktive turen er ferdig", kind: "builtin" },
-  { name: "steer", aliases: ["styr"], args: "<korrigering>", description: "Send korrigeringen inn ved neste steg i den aktive turen", kind: "builtin" },
-  { name: "personality", aliases: ["personlighet"], args: "[navn]", description: "Velg personlighet for svarene", kind: "builtin" },
-  { name: "undo", aliases: ["angre"], description: "Angre siste tur", kind: "builtin" },
-  { name: "playtest", description: "Start playtest", kind: "builtin" },
-  { name: "vscode", description: "Åpne prosjektet i VS Code", kind: "builtin" },
-  { name: "review-changes", aliases: ["review", "gjennomgå"], description: "Kodegjennomgang av endringene i tråden", kind: "builtin" },
-  { name: "approve", description: "Godkjenn ett nytt forsøk etter et avslag fra automatisk gjennomgang", kind: "builtin", demo: true },
-  { name: "ide-context", description: "Del kontekst fra editoren, som åpen fil og markering", kind: "builtin", demo: true },
-  { name: "local", description: "Kjør tråden i det valgte lokale prosjektet", kind: "builtin", demo: true },
-  { name: "mcp", description: "Vis MCP-serverne og statusen deres", kind: "builtin" },
-  { name: "memories", aliases: ["minner"], description: "Minner på tvers av tråder: se og endre dem i Innstillinger → Personalisering og minner", kind: "builtin" },
-  { name: "worktree", aliases: ["arbeidstre"], description: "Velg grener eller opprett et eget arbeidstre for prosjektet", kind: "builtin" },
-  { name: "storage", aliases: ["lagring"], description: "Vis hvor mye plass appen bruker, og rydd opp", kind: "builtin" },
-  { name: "help", aliases: ["hjelp"], description: "Vis hjelp", kind: "builtin" },
-];
-
-const BUILTIN_NAMES = new Set(BUILTIN_COMMANDS.flatMap((c) => [c.name, ...(c.aliases ?? [])]));
+export { BUILTIN_COMMANDS };
 
 interface Ctx {
   req: IncomingMessage;
@@ -384,15 +346,17 @@ export class Api {
     return scored.sort((a, b) => a.score - b.score).slice(0, MENTION_LIMIT).map((s) => s.item);
   }
 
-  private commands(project: Project | undefined, chat = false, chatProject = false): CommandInfo[] {
+  private commands(project: Project | undefined, chat = false, chatProject = false, includeReserved = false): CommandInfo[] {
     const discovered = chat ? this.deps.runner.chatSkills(chatProject) : this.deps.runner.skillsFor(project, "code");
     const reviewSkill = discovered.some((skill) => skill.name === "review");
-    const skills = discovered
-      .filter((skill) => skill.name === "review" || !BUILTIN_NAMES.has(skill.name))
-      .map((skill): CommandInfo => ({ name: skill.name, description: skill.description, kind: "skill", source: skill.source, ...(skill.args !== undefined ? { args: skill.args } : {}), ...(skill.mode ? { mode: skill.mode } : {}) }));
+    const skills = discovered.map((skill): CommandInfo => ({ name: skill.name, description: skill.description, kind: "skill", source: skill.source, ...(skill.args !== undefined ? { args: skill.args } : {}), ...(skill.mode ? { mode: skill.mode } : {}) }));
     const builtins = BUILTIN_COMMANDS.map((command) => command.name === "review-changes" && reviewSkill
       ? { ...command, aliases: command.aliases?.filter((alias) => alias !== "review") } : command);
-    return [...builtins, ...skills];
+    const reserved = new Set(builtins.flatMap((command) => [command.name, ...(command.aliases ?? [])]));
+    return [...builtins, ...skills.flatMap((skill) => {
+      if (!reserved.has(skill.name)) return [skill];
+      return includeReserved ? [{ ...skill, slashReserved: true }] : [];
+    })];
   }
 
   private openVscode(project: Project): Promise<void> {
@@ -630,8 +594,8 @@ export class Api {
       return store.projectUsage(params.id);
     });
 
-    this.route("GET", "/api/commands", ({ query }) => this.commands(undefined, query.get("mode") === "chat", query.get("scope") === "project"));
-    this.route("GET", "/api/projects/:id/commands", ({ params }) => this.commands(this.project(params.id)));
+    this.route("GET", "/api/commands", ({ query }) => this.commands(undefined, query.get("mode") === "chat", query.get("scope") === "project", query.get("includeReserved") === "1"));
+    this.route("GET", "/api/projects/:id/commands", ({ params, query }) => this.commands(this.project(params.id), false, false, query.get("includeReserved") === "1"));
     this.route("GET", "/api/projects/:id/mentions", ({ params, query }) => this.mentions(this.project(params.id), query.get("q") ?? "", query.get("kind")));
 
     const layoutKey = (id: string) => {
@@ -680,6 +644,8 @@ export class Api {
     // Threads
 
     this.route("POST", "/api/threads", ({ body }) => {
+      const title = typeof body.title === "string" ? cleanName(body.title) : undefined;
+      if (body.title !== undefined && !title) throw new HttpError(400, "Tittelen er tom");
       const projectId: string | null = body.projectId ?? null;
       const mode = body.mode ?? (projectId ? "code" : "chat");
       if (mode !== "chat" && mode !== "code") throw new HttpError(400, "Ugyldig modus");
@@ -699,8 +665,8 @@ export class Api {
       const side = typeof body.sideOf === "string" ? this.thread(body.sideOf) : undefined;
       if (side && (side.projectId !== projectId || side.mode !== mode || (chatProjectId && side.chatProjectId !== chatProjectId))) throw new HttpError(400, "En sidechat hører til samme prosjekt og modus");
       const thread = side
-        ? store.createThread(projectId, mode, modelId, { title: `Sidechat: ${side.title}`.slice(0, 80), parentThreadId: side.id, origin: "user" })
-        : store.createThread(projectId, mode, modelId);
+        ? store.createThread(projectId, mode, modelId, { title: title ?? `Sidechat: ${side.title}`.slice(0, 80), parentThreadId: side.id, origin: "user" })
+        : store.createThread(projectId, mode, modelId, { title });
       const inChatProject = chatProjectId ?? side?.chatProjectId ?? null;
       if (inChatProject) {
         store.setThreadChatProject(thread.id, inChatProject);
@@ -809,6 +775,14 @@ export class Api {
       this.deps.uiMods?.forgetThread(params.id);
       runner.files.forgetThread(params.id);
       publish({ type: "thread.deleted", threadId: params.id });
+    });
+
+    this.route("GET", "/api/threads/:id/run-watch", ({ params, query }) => {
+      this.thread(params.id);
+      const run = query.get("run");
+      const status = store.runWatchStatus(params.id, run);
+      if (run && !status) throw new HttpError(404, "Fant ikke den overvåkede kjøringen.");
+      return { run: status };
     });
 
     this.route("GET", "/api/threads/:id/queue", ({ params }) => {

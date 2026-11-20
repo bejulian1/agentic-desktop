@@ -4,7 +4,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
-import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, MentionItem, ModelConfig, ReasoningEffort, Thread } from "../../../shared/protocol";
+import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, MentionItem, ModelConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
 import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
@@ -12,7 +12,7 @@ import { gridFor } from "../state/grid";
 import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
 import { showPanel } from "../state/panel";
-import { revertLastTurn, startPlaytest, openVscode } from "../state/project-actions";
+import { revertLastTurn, startPlaytest, stopPlaytest, openVscode } from "../state/project-actions";
 import { formatCost, formatTokens } from "../lib/format";
 import {
   IconFile, IconFolder, IconBranch, IconSend, IconStop, IconCode, IconSpark, IconClose, IconTerminal, IconChevronDown, IconCheck, IconList, IconPlus,
@@ -34,11 +34,19 @@ import { gitInfo, loadGitInfo } from "../state/home";
 import { displayKeys } from "../state/shortcuts";
 import { registerChatPersonality } from "../state/chat-personality";
 import { composerDeliveries, deliverToComposer, setComposerDeliveries } from "../state/composer-delivery";
-import { chatProjectPageId, openedFileContext } from "../state/nav";
+import { beginNavigation, chatProjectPageId, currentNavigationGeneration, openPalette, openedFileContext } from "../state/nav";
 import { closeProjectPicker, useProjectPicker } from "../state/project-picker";
 import { openGitWorkspace } from "./dialog-state";
 import { ProjectEnvironmentPicker } from "./ProjectEnvironmentPicker";
 import { editChatProject } from "./chat-projects";
+import { COMMAND_GROUPS, commandGroup, commandUnavailable, visibleCommands } from "../../../shared/slash-commands";
+import { codeSlashActions } from "./slash-code";
+import { threadSlashActions } from "./slash-thread";
+import { babysit } from "./babysit";
+import { CommandList } from "./CommandList";
+import type { ConversationTools } from "./Conversation";
+import { openArtifacts } from "../state/artifacts";
+import { startTemporaryChat } from "./ChatTools";
 import { BtwPanel, createBtwController } from "./BtwPanel";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import "../styles/project-picker.css";
@@ -60,6 +68,7 @@ interface Picker {
 interface InfoCard {
   title: string;
   demo?: boolean;
+  link?: { url: string; label: string };
   rows?: Array<[string, string]>;
   text?: string;
 }
@@ -73,18 +82,6 @@ export const EFFORTS: Array<{ id: ReasoningEffort; label: string }> = [
   { id: "max", label: "Maks" },
 ];
 
-// What each placeholder will do when it is built. Shown with a Demo badge, never pretending.
-const DEMO_TEXT: Record<string, string> = {
-  approve: "Når automatisk gjennomgang av verktøykall finnes, lar denne deg godkjenne ett nytt forsøk etter et avslag. Appen har ingen automatisk gjennomgang ennå, så det er ingenting å godkjenne.",
-  "ide-context": "Skal dele åpen fil og markering fra VS Code med tråden, så modellen ser hva du ser på. Krever en utvidelse til editoren, som ikke finnes ennå.",
-  local: "Skal flytte en tråd fra skyen til det valgte lokale prosjektet. Alle tråder kjører lokalt i denne appen, så det er ingenting å flytte.",
-  memories: "Minnene er ekte nå: modellen lagrer korte notater med remember og får dem i nye tråder. Se, endre og slett dem i Innstillinger → Personalisering og minner.",
-};
-
-const CODE_ONLY = new Set(["undo", "playtest", "vscode", "init", "review", "review-changes", "worktree", "agents", "diff"]);
-const CODE_MODE_ONLY = new Set(["goal", "plan"]);
-const SIDE_COMMANDS = new Set(["btw", "background", "queue", "steer"]);
-
 // An icon per command, by what it is about: the thread, the model, the project or the agent.
 const COMMAND_ICONS: Record<string, (p: { size?: number }) => any> = {
   new: IconNewThread, fork: IconBranch, side: IconSplitRight, task: IconChat, compact: IconArchive, undo: IconUndo, review: IconEye,
@@ -93,7 +90,10 @@ const COMMAND_ICONS: Record<string, (p: { size?: number }) => any> = {
   model: IconBolt, reasoning: IconBrain, personality: IconSliders, status: IconInfo,
   project: IconFolder, init: IconFile, playtest: IconPlay, vscode: IconCode,
   goal: IconTarget, plan: IconList, memories: IconBook, storage: IconArchive, help: IconHelp, mode: IconChat,
-  mcp: IconUsers, local: IconLaptop, worktree: IconBranch, approve: IconCheck, "ide-context": IconCode,
+  sessions: IconSearch, find: IconSearch, retry: IconReset, temporary: IconChat, tools: IconSliders,
+  palette: IconSearch, skills: IconBook, settings: IconSliders, config: IconSliders, shortcuts: IconHelp,
+  version: IconInfo, browser: IconMonitor, files: IconFolder, terminal: IconTerminal, busy: IconList, babysit: IconEye,
+  mcp: IconUsers, worktree: IconBranch,
 };
 
 // The arguments as the user can type them, in Norwegian where the app understands both.
@@ -746,6 +746,8 @@ export function Composer(props: {
   // Navigation from a project landing happens only after the server accepted its first message.
   onAccepted?: (threadId: string) => void;
   autofocus?: boolean;
+  detached?: boolean;
+  conversationTools?: () => ConversationTools | undefined;
   registerFill?: (fill: (text: string) => void) => void;
 }) {
   let textarea!: HTMLTextAreaElement;
@@ -786,9 +788,10 @@ export function Composer(props: {
   const [hasText, setHasText] = createSignal(false);
   const [draftModel, setDraftModel] = createSignal<string | null>(null);
   const [modelOpen, setModelOpen] = createSignal(false);
+  let modelSave: Promise<unknown> | null = null;
   const [effortOpen, setEffortOpen] = createSignal(false);
   let modelButton!: HTMLButtonElement;
-  const [helpOpen, setHelpOpen] = createSignal(false);
+  const [helpQuery, setHelpQuery] = createSignal<string | null>(null);
   const [attachOpen, setAttachOpen] = createSignal(false);
   // Chosen before the thread exists: applied when the first message creates it.
   const [draftReasoning, setDraftReasoning] = createSignal<ReasoningEffort | null | undefined>(undefined);
@@ -804,8 +807,6 @@ export function Composer(props: {
   });
   const running = createMemo(() => thread()?.running ?? false);
   const kode = () => !!(props.projectId || props.code);
-  // A skill written for the other mode: Kode skills name tools a chat does not have.
-  const otherMode = (c: CommandInfo) => c.kind === "skill" && !!c.mode && c.mode !== (kode() ? "code" : "chat");
   // Kode threads choose a working style; a chat chooses among Chat's own personalities.
   const personalities = (): Array<{ id: string; label: string; prompt: string; text?: string }> => (kode() ? PERSONALITIES : CHAT_PERSONALITIES);
   const chatProject = createMemo(() => {
@@ -813,6 +814,9 @@ export function Composer(props: {
     return !kode() && id ? app.chatProjects[id] : undefined;
   });
   const inChatProject = () => !kode() && !!(thread()?.chatProjectId ?? props.chatProjectId);
+  const commandScope = () => ({ code: kode(), project: !!props.projectId, chatProject: inChatProject(), detached: props.detached });
+  const availableCommands = createMemo(() => visibleCommands(commands(), commandScope()));
+  const [toolsOpen, setToolsOpen] = createSignal(false);
   const enterNewline = () => app.settings.enterKey === "newline";
   const sendKeys = () => (enterNewline() ? "Mod+Enter" : "Enter");
   const project = createMemo(() => (props.projectId ? app.projects[props.projectId] : undefined));
@@ -1027,7 +1031,7 @@ export function Composer(props: {
   onCleanup(() => { commandsAlive = false; commandRequest += 1; });
   const loadCommands = async () => {
     const request = ++commandRequest;
-    const url = props.projectId ? `/api/projects/${props.projectId}/commands` : kode() ? "/api/commands" : `/api/commands?mode=chat${inChatProject() ? "&scope=project" : ""}`;
+    const url = props.projectId ? `/api/projects/${props.projectId}/commands?includeReserved=1` : `/api/commands?includeReserved=1${kode() ? "" : "&mode=chat"}${inChatProject() ? "&scope=project" : ""}`;
     try {
       const found = await get<CommandInfo[]>(url);
       if (commandsAlive && request === commandRequest) setCommands(found);
@@ -1089,18 +1093,22 @@ export function Composer(props: {
     if (kind !== "mention" && !commands().length) loadCommands();
   };
 
+  const exactCommandRestriction = (query: string) => {
+    const exact = commands().find(command => command.kind === "builtin" && (command.name === query || command.aliases?.includes(query)));
+    return exact && commandUnavailable(exact, commandScope());
+  };
+
   const commandItems = createMemo(() => {
     const current = menu();
     if (current?.kind !== "command" && current?.kind !== "skill") return [];
     const query = current.query.toLowerCase();
-    const hidden = (c: CommandInfo) => c.demo || otherMode(c) || (inChatProject() && (c.name === "personality" || (c.kind === "skill" && c.source !== "app"))) || (current.kind === "skill" && c.kind !== "skill") || (c.kind === "builtin" && ((!props.projectId && CODE_ONLY.has(c.name)) || (!kode() && CODE_MODE_ONLY.has(c.name))));
-    return commands()
-      .flatMap((c) => {
-        const score = hidden(c) ? null : matchScore(c, query);
-        return score === null ? [] : [{ c, score }];
-      })
-      .sort((a, b) => a.score - b.score)
-      .map((x) => x.c);
+    if (current.kind === "command" && exactCommandRestriction(query)) return [];
+    const entries = availableCommands().filter((command) => current.kind === "skill" ? command.kind === "skill" : !command.slashReserved);
+    if (!query) return Object.keys(COMMAND_GROUPS).flatMap(group => entries.filter(command => commandGroup(command) === group));
+    return entries.flatMap((command) => {
+      const score = matchScore(command, query) ?? (query.length >= 3 && command.description.toLowerCase().includes(query) ? 5 : null);
+      return score === null ? [] : [{ command, score }];
+    }).sort((a, b) => a.score - b.score).map(item => item.command);
   });
 
   const itemCount = () => {
@@ -1237,26 +1245,122 @@ export function Composer(props: {
     if (chatProjectPageId() && inChatProject()) await openThread(created);
   };
 
-  const runBuiltin = async (name: string, args = "") => {
-    if (inChatProject() && name === "personality") return toast("Dette prosjektet bruker sine egne instruksjoner. Endre dem i Rediger prosjekt.", "info");
-    if (CODE_ONLY.has(name) && (!kode() || !props.projectId)) return toast(`/${name} krever Kode-modus og et prosjekt.`, "info");
-    if (!kode() && CODE_MODE_ONLY.has(name)) return toast(`/${name} er bare tilgjengelig i Kode.`, "info");
+  const setPlan = async (next: boolean) => {
+    if (running()) return toast("Vent til kjøringen er ferdig, eller stopp den før du endrer planmodus.", "info");
+    await patchThread({ planMode: next });
+    toast(next ? "Planmodus er på. Modellen planlegger uten å endre filer." : "Planmodus er av.", "info");
+  };
+
+  const runBuiltin = async (command: CommandInfo, args = "") => {
+    const name = command.name;
     const id = props.threadId();
     const arg = args.trim();
     try {
+      const codeAction = Object.hasOwn(codeSlashActions, name) ? codeSlashActions[name] : undefined;
+      if (codeAction) return await codeAction({ projectId: props.projectId, threadId: id, arg });
+      const threadAction = Object.hasOwn(threadSlashActions, name) ? threadSlashActions[name] : undefined;
+      if (threadAction) return await threadAction({ thread: thread(), arg });
       switch (name) {
-        case "new":
-          if (inChatProject()) await newChatIn(thread()?.chatProjectId ?? props.chatProjectId ?? null);
+        case "sessions":
+          openPalette("chats", arg);
+          break;
+        case "palette":
+          openPalette("actions", arg);
+          break;
+        case "find": {
+          const tools = props.conversationTools?.();
+          if (!tools) return toast("Start en samtale for å søke i meldingene.", "info");
+          tools.search();
+          break;
+        }
+        case "retry": {
+          const tools = props.conversationTools?.();
+          if (!tools) return toast("Det finnes ikke et svar å prøve på nytt.", "info");
+          await tools.retryLast();
+          break;
+        }
+        case "temporary":
+          await startTemporaryChat();
+          break;
+        case "tools":
+          setToolsOpen(true);
+          break;
+        case "skills":
+          actions.skills();
+          break;
+        case "usage":
+          actions.settings("usage");
+          break;
+        case "settings":
+          actions.settings(kode() ? "code" : "chat");
+          break;
+        case "config":
+          actions.settings("config");
+          break;
+        case "shortcuts":
+          actions.shortcuts();
+          break;
+        case "artifacts":
+          openArtifacts();
+          break;
+        case "version": {
+          const build = app.build;
+          setInfo({ title: "Agentic Desktop", rows: [["Versjon", build?.version ?? "Ukjent"], ["Bygg", String(build?.build ?? "Ukjent")]] });
+          break;
+        }
+        case "theme": {
+          if (!arg) return actions.settings("appearance");
+          switch (arg.toLowerCase()) {
+            case "light": case "lys": return actions.theme("light");
+            case "dark": case "mørk": return actions.theme("dark");
+            case "system": return actions.theme("system");
+            default: return toast("Bruk /theme lys, /theme mørk eller /theme system.", "info");
+          }
+        }
+        case "babysit": {
+          const status = await babysit(arg, thread(), props.projectId);
+          if (textarea.isConnected) setInfo(status);
+          break;
+        }
+        case "busy": {
+          const value = arg.toLowerCase();
+          if (value === "queue" || value === "steer") return await setBusyMode(value);
+          if (value && value !== "status") return toast("Bruk /busy queue eller /busy steer.", "info");
+          return setInfo({ title: "Meldinger under kjøring", text: busyMode() === "queue"
+            ? "Kø er standard i nye sendinger. /steer kan sende én melding ved neste steg."
+            : "Straks er standard i nye sendinger. /queue kan legge én melding bak den aktive turen." });
+        }
+        case "queue": {
+          const items = id ? (await get<QueueSnapshot>(`/api/threads/${encodeURIComponent(id)}/queue`)).items : [];
+          if (!textarea.isConnected || props.threadId() !== id) return;
+          setInfo({ title: "Kø", ...(!items.length ? { text: "Ingen meldinger venter i denne tråden." } : {
+            rows: items.map((item, index) => [String(index + 1), `${item.steer ? "Straks · " : ""}${item.text || "Melding med vedlegg"}`]),
+          }) });
+          break;
+        }
+        case "new": {
+          const projectId = thread()?.chatProjectId ?? props.chatProjectId ?? null;
+          if (arg) {
+            const grid = gridFor(props.projectId ?? (kode() ? LOCAL_SCOPE : "chat"));
+            const pane = grid.focused();
+            const navigation = beginNavigation();
+            const created = await createThreadFor(props.projectId, modelId(), { code: kode(), chatProjectId: projectId, title: arg });
+            if (textarea.isConnected && navigation === currentNavigationGeneration() && pane === grid.focused()) await openThread(created);
+          } else if (inChatProject()) await newChatIn(projectId);
           else await newThreadIn(props.projectId, kode());
           break;
+        }
         case "mode":
           setMode(mode() === "code" ? "chat" : "code");
           break;
         case "model": {
-          const found = arg && app.models.find((m) => m.name.toLowerCase().includes(arg.toLowerCase()) || m.model.toLowerCase() === arg.toLowerCase());
-          if (found) setModel(found.id);
+          const query = arg.toLowerCase();
+          if (!query) { setModelOpen(true); break; }
+          const exact = app.models.filter(m => [m.id, m.name, m.model].some(value => value.toLowerCase() === query));
+          const matches = exact.length ? exact : app.models.filter(m => m.name.toLowerCase().includes(query));
+          if (matches.length === 1) await setModel(matches[0].id);
           else {
-            if (arg) toast(`Fant ingen modell som heter «${arg}».`, "info");
+            toast(matches.length ? `Flere modeller passer «${arg}». Velg en i listen.` : `Fant ingen modell som heter «${arg}».`, "info");
             setModelOpen(true);
           }
           break;
@@ -1310,6 +1414,7 @@ export function Composer(props: {
           break;
         case "fork":
           if (!id) return toast("Tråden er tom.", "info");
+          if (running()) return toast("Vent til svaret er ferdig, eller stopp det før du forgrener tråden.", "info");
           await forkThread(id);
           break;
         case "goal":
@@ -1320,10 +1425,10 @@ export function Composer(props: {
           else toast("Skriv målet etter kommandoen, for eksempel /goal Lag en kalkulator.", "info");
           break;
         case "plan": {
-          const next = !thread()?.planMode;
-          await patchThread({ planMode: next });
-          toast(next ? "Planmodus er på. Modellen planlegger uten å endre filer." : "Planmodus er av.", "info");
-          break;
+          const value = arg.toLowerCase();
+          if (value === "status") return setInfo({ title: "Planmodus", text: thread()?.planMode ? "På." : "Av." });
+          if (!value || value === "on" || value === "off") return await setPlan(value ? value === "on" : !thread()?.planMode);
+          return toast("Bruk /plan on, /plan off eller /plan status.", "info");
         }
         case "worktree":
           if (props.projectId) openGitWorkspace(props.projectId, true);
@@ -1368,7 +1473,10 @@ export function Composer(props: {
           await revertLastTurn(id);
           break;
         case "playtest":
-          if (props.projectId) await startPlaytest(props.projectId);
+          if (!props.projectId) break;
+          if (arg.toLowerCase() === "stop") await stopPlaytest(props.projectId);
+          else if (!arg || arg.toLowerCase() === "start") await startPlaytest(props.projectId);
+          else toast("Bruk /playtest start eller /playtest stop.", "info");
           break;
         case "vscode":
           if (props.projectId) await openVscode(props.projectId);
@@ -1389,30 +1497,34 @@ export function Composer(props: {
           else actions.settings("personalization");
           break;
         case "help":
-          setHelpOpen(true);
+          setHelpQuery(arg);
           if (!commands().length) loadCommands();
           break;
-        default: {
-          const command = commands().find((c) => c.name === name);
-          if (command?.demo) setInfo({ title: `/${name}`, demo: true, text: DEMO_TEXT[name] ?? command.description });
-        }
+        default:
+          toast(`Kommandoen /${name} er ikke tilgjengelig.`);
       }
     } catch (err) {
       report(err);
     }
   };
 
-  const findCommand = (word: string, entries = commands()) => entries.find((c) => c.name === word || c.aliases?.includes(word));
+  const findCommand = (word: string, entries: CommandInfo[], skillOnly: boolean) => {
+    const matches = (command: CommandInfo) => command.name === word || command.aliases?.includes(word);
+    return entries.find(command => (skillOnly ? command.kind === "skill" : !command.slashReserved) && matches(command));
+  };
 
   const pickCommand = (item: CommandInfo) => {
     const current = menu();
     if (current?.kind !== "command" && current?.kind !== "skill") return;
     setMenu(null);
     if (item.kind === "builtin") {
-      // Commands that need text get it typed after them; the rest run at once.
-      if (item.args?.startsWith("<")) return replaceWord(current.start, current.end, `/${item.name} `);
+      const suffix = textarea.value.slice(current.end);
+      if (item.args?.startsWith("<") || suffix.trim()) {
+        replaceWord(current.start, current.end, `/${item.name}${suffix ? "" : " "}`);
+        return;
+      }
       replaceWord(current.start, current.end, "");
-      void runBuiltin(item.name);
+      void runBuiltin(item);
     } else {
       replaceWord(current.start, current.end, "");
       setSkill(item.name);
@@ -1612,7 +1724,6 @@ export function Composer(props: {
     if (locked() || resolvingCommand()) return;
     const raw = textarea.value;
     const text = raw.trim();
-    if (inChatProject() && /^[/$](?:personality|personlighet)(?=\s|$)/i.test(text)) return toast("Dette prosjektet bruker sine egne instruksjoner. Endre dem i Rediger prosjekt. Utkastet er beholdt.", "info");
     if (uploading()) return toast("Vent til bildene er lastet opp.", "info");
     const startingChips = chips();
     const startingSkill = skill();
@@ -1630,8 +1741,8 @@ export function Composer(props: {
     } else if (!usedSkill && /^[/$]\S+/.test(text)) {
       // Consume the command and one separator, retaining the user's remaining spaces/newlines.
       const invocation = /^[/$]([^\s/$]+)(?:[ \t]([\s\S]*)|\r?\n([\s\S]*))?$/.exec(raw.trimStart());
-      const word = invocation?.[1] ?? "";
-      const args = invocation?.[2] ?? invocation?.[3] ?? "";
+      const word = invocation?.[1].toLowerCase() ?? "";
+      let args = invocation?.[2] ?? invocation?.[3] ?? "";
       // Hot reload keeps populated menus fresh; the server validates the skill again at send.
       // When initial loading is slow, do not send/reset an older snapshot over newer typing.
       let available = commands();
@@ -1639,26 +1750,32 @@ export function Composer(props: {
         setResolvingCommand(true);
         let found: CommandInfo[] | null;
         try { found = await loadCommands(); } finally { setResolvingCommand(false); }
-        if (textarea.value !== raw || chips() !== startingChips || skill() !== startingSkill) return;
+        if (!commandsAlive || textarea.value !== raw || chips() !== startingChips || skill() !== startingSkill) return;
         if (!found) return toast("Kunne ikke hente kommandoene. Utkastet er beholdt.");
         available = found;
       }
-      const known = findCommand(word, available);
-      if (known?.kind === "builtin" || SIDE_COMMANDS.has(word)) {
-        const name = known?.kind === "builtin" ? known.name : word;
+      const known = findCommand(word, available, text.startsWith("$"));
+      if (known) {
+        const reason = commandUnavailable(known, commandScope());
+        if (reason) { closeMenu(); return toast(reason, "info"); }
+      }
+      if (known?.kind === "builtin") {
+        const name = known.name;
+        const arg = args.trim();
+        if (!known.args && arg) return toast(`Bruk /${name} uten argumenter. Utkastet er beholdt.`, "info");
         if (name === "btw" || name === "background") return runSideCommand(name, args, raw, startingChips);
-        if (name === "queue" || name === "steer") {
+        const hasArgSeparator = invocation?.[2] !== undefined || invocation?.[3] !== undefined;
+        const listQueue = name === "queue" && (arg.toLowerCase() === "list" || !hasArgSeparator);
+        if ((name === "queue" && !listQueue) || name === "steer") {
+          if (name === "queue" && /^add(?:\s|$)/i.test(arg)) args = args.trimStart().replace(/^add(?:[ \t]|\r?\n)?/i, "");
           if (!args.trim()) return toast(`Skriv meldingen etter /${name}. Utkastet er beholdt.`, "info");
           body = { text: args, attachments };
           deliveryOverride = name === "steer";
         } else {
-          reset();
-          return runBuiltin(name, args);
+          replaceWord(0, raw.length, "");
+          return runBuiltin(known, args);
         }
-      }
-      else if (known?.kind === "skill") {
-        if (inChatProject() && known.source !== "app") return toast("Chat-prosjekter bruker bare innebygde app-skills og prosjektets egne instruksjoner.", "info");
-        if (otherMode(known)) return toast(`/${known.name} er bare tilgjengelig i ${known.mode === "code" ? "Kode" : "Chat"}.`, "info");
+      } else if (known?.kind === "skill") {
         usedSkill = known.name;
         body = { text: args, skill: known.name, attachments };
       } else body = { text, attachments };
@@ -1668,11 +1785,13 @@ export function Composer(props: {
       body = { text: usedSkill ? raw : text, attachments, ...(usedSkill ? { skill: usedSkill } : {}) };
     }
 
+    if (modelSave) return toast("Vent til modellvalget er lagret. Utkastet er beholdt.", "info");
+
     // While the agent works, the setting decides whether the message waits or goes in at once.
     if (deliveryOverride !== undefined) body.steer = deliveryOverride;
     else if (running() && !("shell" in body)) body.steer = busyMode() === "steer";
     const restoreChips = chips();
-    const restoreSkill = usedSkill;
+    const restoreSkill = startingSkill;
     reset();
     props.onSent();
     let effortSaveFailed = false;
@@ -1756,11 +1875,12 @@ export function Composer(props: {
         return;
       }
     }
-    if (event.key === "Escape" && (current || picker() || info())) {
+    if (event.key === "Escape" && (current || picker() || info() || helpQuery() !== null)) {
       event.preventDefault();
       setMenu(null);
       setPicker(null);
       setInfo(null);
+      setHelpQuery(null);
       return;
     }
     if (event.key === "Backspace" && !textarea.value) {
@@ -1784,12 +1904,22 @@ export function Composer(props: {
     inspect();
   };
 
-  const setModel = (id: string) => {
+  const setModel = async (id: string) => {
     setModelOpen(false);
     modelButton.focus({ preventScroll: true });
     const current = props.threadId();
     setDraftModel(id);
-    if (current) patch(`/api/threads/${current}`, { modelId: id }).catch(report);
+    if (!current) return;
+    // A fast second pick still writes after the first, and Send waits for the saved selection.
+    const previous = modelSave;
+    const save = (async () => {
+      await previous?.catch(() => undefined);
+      return patch(`/api/threads/${current}`, { modelId: id });
+    })();
+    modelSave = save;
+    try { await save; }
+    catch (error) { report(error); }
+    finally { if (modelSave === save) modelSave = null; }
   };
 
   onMount(() => {
@@ -1972,8 +2102,14 @@ export function Composer(props: {
             </Show>
             <Show when={menu()!.kind === "command" || menu()!.kind === "skill"}>
               <div class="menu-heading">{menu()!.kind === "skill" ? "Skills" : "Kommandoer"}</div>
-              <For each={commandItems()} fallback={<div class="menu-empty">{menu()!.kind === "skill" ? "Ingen skills. Legg dem i skills/ i prosjektet." : "Ingen treff"}</div>}>
+              <For each={commandItems()} fallback={<div class="menu-empty">{menu()!.kind === "skill"
+                ? "Ingen skills funnet."
+                : exactCommandRestriction(menu()!.query.toLowerCase()) ?? "Ingen treff"}</div>}>
                 {(item, index) => (
+                  <>
+                  <Show when={!menu()!.query && (index() === 0 || commandGroup(commandItems()[index() - 1]) !== commandGroup(item))}>
+                    <div class="menu-heading slash-category" aria-hidden="true">{COMMAND_GROUPS[commandGroup(item)]}</div>
+                  </Show>
                   <button
                     type="button"
                     role="option"
@@ -1992,9 +2128,9 @@ export function Composer(props: {
                     <span class="menu-name">{menu()!.kind === "skill" ? "$" : "/"}{item.name}</span>
                     <Show when={item.args && index() === selected()}><span class="menu-args">{item.kind === "skill" ? item.args : argsText(item.args!)}</span></Show>
                     <span class="menu-desc">{item.description}</span>
-                    <Show when={item.demo}><span class="demo-badge">Demo</span></Show>
                     <Show when={item.kind === "skill"}><span class="menu-tag">{item.source === "project" ? "prosjekt" : item.source === "app" ? "app" : "skill"}</span></Show>
                   </button>
+                  </>
                 )}
               </For>
             </Show>
@@ -2224,10 +2360,10 @@ export function Composer(props: {
             <PermissionPicker project={project()} cap={thread()?.permissionCap} />
           </Show>
           <Show when={!kode()}>
-            <ChatToolButton state={chatTools} chatProject={chatProject()} />
+            <ChatToolButton state={chatTools} chatProject={chatProject()} open={toolsOpen} setOpen={setToolsOpen} />
           </Show>
           <Show when={kode() && thread()?.planMode}>
-            <button type="button" class="pill pill-accent" title="Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av." onClick={() => void runBuiltin("plan")}><IconList size={12} />Plan</button>
+            <button type="button" class="pill pill-accent" title="Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av." onClick={() => void setPlan(false).catch(report)}><IconList size={12} />Plan</button>
           </Show>
           <span class="composer-spacer" />
           <Show when={steps().length}>
@@ -2306,24 +2442,18 @@ export function Composer(props: {
           </Show>
         </div>
       </form>
-      <Show when={helpOpen()}>
-        <div class="help-card" role="dialog" aria-label="Hjelp">
-          <div class="help-head"><strong>Kommandoer</strong>
-            <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setHelpOpen(false)}><IconClose size={14} /></button>
+      <Show when={helpQuery() !== null}>
+        <div class="help-card" role="dialog" aria-label="Hjelp" onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          setHelpQuery(null);
+          textarea.focus();
+        }}>
+          <div class="help-head"><strong>Kommandoer og skills</strong>
+            <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => { setHelpQuery(null); textarea.focus(); }}><IconClose size={14} /></button>
           </div>
-          <dl>
-            <For each={commands().filter((command) => !otherMode(command) && !(inChatProject() && (command.name === "personality" || (command.kind === "skill" && command.source !== "app"))) && (command.kind === "skill" || ((!CODE_ONLY.has(command.name) || (kode() && !!props.projectId)) && (kode() || !CODE_MODE_ONLY.has(command.name)))))}>
-              {(c) => (
-                <>
-                  <dt>{c.kind === "skill" ? "$" : "/"}{c.name}<Show when={c.demo}> <span class="demo-badge">Demo</span></Show></dt>
-                  <dd>{c.description}<Show when={c.aliases?.length}><span class="muted"> · også {c.aliases!.map((a) => `/${a}`).join(", ")}</span></Show></dd>
-                </>
-              )}
-            </For>
-            <dt>@</dt><dd>Legg ved filer, mapper og tråder</dd>
-            <Show when={!inChatProject()}><dt>$</dt><dd>Bruk en skill</dd></Show>
-            <Show when={kode() && props.projectId}><dt>!kommando</dt><dd>Kjør en kommando i prosjektmappen</dd></Show>
-          </dl>
+          <CommandList commands={availableCommands()} initialQuery={helpQuery() ?? ""} focusSearch />
         </div>
       </Show>
       <Show when={picker()} keyed>
@@ -2353,6 +2483,9 @@ export function Composer(props: {
               <strong>{card.title}<Show when={card.demo}> <span class="demo-badge">Demo</span></Show></strong>
               <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setInfo(null)}><IconClose size={14} /></button>
             </div>
+            <Show when={card.link}>{link => (
+              <a class="link-button" href={link().url} target="_blank" rel="noopener noreferrer">{link().label}</a>
+            )}</Show>
             <Show when={card.text}><p class="info-text">{card.text}</p></Show>
             <Show when={card.rows}>
               <dl>

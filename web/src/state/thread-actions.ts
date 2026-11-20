@@ -27,7 +27,7 @@ export async function setSnoozed(thread: Thread, until: number | null): Promise<
 }
 
 // The snooze choices: an hour, tomorrow morning and next Monday morning, in local time.
-export function snoozeTimes(now = new Date()): Array<{ label: string; at: number }> {
+export function snoozeTimes(now = new Date()): Array<{ id: "1h" | "tomorrow" | "week"; label: string; at: number }> {
   const morning = (days: number) => {
     const d = new Date(now);
     d.setDate(d.getDate() + days);
@@ -36,9 +36,9 @@ export function snoozeTimes(now = new Date()): Array<{ label: string; at: number
   };
   const toMonday = ((8 - now.getDay()) % 7) || 7;
   return [
-    { label: "Om 1 time", at: now.getTime() + 3_600_000 },
-    { label: "I morgen", at: morning(1) },
-    { label: "Neste uke", at: morning(toMonday) },
+    { id: "1h", label: "Om 1 time", at: now.getTime() + 3_600_000 },
+    { id: "tomorrow", label: "I morgen", at: morning(1) },
+    { id: "week", label: "Neste uke", at: morning(toMonday) },
   ];
 }
 
@@ -72,23 +72,39 @@ export async function forkFromLast(thread: Thread): Promise<void> {
 
 export const forkWhole = (thread: Thread) => forkThread(thread.id);
 
+// Event pages are ordered oldest first. Each request starts after the last event already read.
+export async function* threadEventPages(threadId: string): AsyncGenerator<ThreadEventEnvelope[]> {
+  const size = 5000;
+  let after = 0;
+  for (;;) {
+    const page = await get<ThreadEventEnvelope[]>(`/api/threads/${encodeURIComponent(threadId)}/events?after=${after}&limit=${size}`);
+    if (page.length) yield page;
+    if (page.length < size) return;
+    after = page[page.length - 1].seq;
+  }
+}
+
 // The conversation as plain text or Markdown: what was said, without tool details.
-async function transcript(thread: Thread, markdown: boolean): Promise<string> {
-  const events = await get<ThreadEventEnvelope[]>(`/api/threads/${thread.id}/events?limit=20000`);
+async function transcript(thread: Thread, format: "text" | "markdown" | "last"): Promise<string> {
   const parts: Array<{ who: "user" | "model"; text: string }> = [];
-  for (const { event } of events) {
-    if (event.type === "user.message") parts.push({ who: "user", text: event.text });
-    else if (event.type === "text.delta") {
-      const last = parts.at(-1);
-      if (last?.who === "model") last.text += event.text;
-      else parts.push({ who: "model", text: event.text });
-    } else if (event.type === "run.started") {
-      // A new run starts a new answer, even if the last one had no user message after it.
-      if (parts.at(-1)?.who === "model") parts.push({ who: "model", text: "" });
+  const answers = new Map<string, { text: string }>();
+  for await (const page of threadEventPages(thread.id)) {
+    for (const { event } of page) {
+      if (event.type === "user.message") parts.push({ who: "user", text: event.text });
+      else if (event.type === "text.delta") {
+        const answer = answers.get(event.messageId);
+        if (answer) answer.text += event.text;
+        else {
+          const part = { who: "model" as const, text: event.text };
+          answers.set(event.messageId, part);
+          parts.push(part);
+        }
+      }
     }
   }
   const shown = parts.filter((p) => p.text.trim());
-  if (markdown) return [`# ${thread.title}`, ...shown.map((p) => `## ${p.who === "user" ? "Du" : "Assistent"}\n\n${p.text.trim()}`)].join("\n\n") + "\n";
+  if (format === "last") return shown.findLast((p) => p.who === "model")?.text.trim() ?? "";
+  if (format === "markdown") return [`# ${thread.title}`, ...shown.map((p) => `## ${p.who === "user" ? "Du" : "Assistent"}\n\n${p.text.trim()}`)].join("\n\n") + "\n";
   return shown.map((p) => `${p.who === "user" ? "Du" : "Assistent"}: ${p.text.trim()}`).join("\n\n") + "\n";
 }
 
@@ -101,10 +117,13 @@ async function copy(text: string, what: string): Promise<void> {
   }
 }
 
-export async function copyThread(thread: Thread, as: "text" | "markdown" | "id"): Promise<void> {
+export async function copyThread(thread: Thread, as: "text" | "markdown" | "last" | "id"): Promise<void> {
   try {
     if (as === "id") return await copy(thread.id, "tråd-ID-en");
-    await copy(await transcript(thread, as === "markdown"), as === "markdown" ? "tråden som Markdown" : "tråden som tekst");
+    const text = await transcript(thread, as);
+    if (as === "last" && !text) return toast("Tråden har ingen svar å kopiere ennå.", "info");
+    const labels = { text: "tråden som tekst", markdown: "tråden som Markdown", last: "siste svar" };
+    await copy(text, labels[as]);
   } catch (err) {
     report(err);
   }

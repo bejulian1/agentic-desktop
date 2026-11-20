@@ -136,6 +136,34 @@ test("koble til, lese pull requests og issues, og koble fra, uten at tokenet for
   assert.equal((await h.api("GET", `/api/projects/${project.id}/github`)).error.code, "not-connected");
 });
 
+test("PR-oppfølging leser status for gyldige repoer og sender aldri tokenet til klienten", async (t) => {
+  fake.setMode("ok");
+  const h = await startHarness(t);
+  const dir = tempDir(t);
+  gitProject(dir, RAKETT);
+  const project = await h.project(dir);
+  const direct = "/api/github/pull-watch?repo=acme%2Frakett&number=42";
+  const initialRequests = fake.requests.length;
+  await assert.rejects(h.api("GET", direct), /409/);
+  assert.equal(fake.requests.length, initialRequests);
+  await h.api("PUT", "/api/github/token", { token: GOOD_TOKEN });
+  const before = fake.requests.length;
+  await assert.rejects(h.api("GET", "/api/github/pull-watch?repo=acme%2F..&number=42"), /400/);
+  await assert.rejects(h.api("GET", "/api/github/pull-watch?repo=acme%2Frakett&number=2147483648"), /400/);
+  assert.equal(fake.requests.length, before);
+  const byRepo = await h.api("GET", direct);
+  assert.deepEqual(await h.api("GET", `/api/github/pull-watch?project=${project.id}&number=42`), byRepo);
+  assert.deepEqual(byRepo, {
+    repo: "acme/rakett", number: 42, title: "Rask oppstart: last CodeMirror først når editoren åpnes 🚀",
+    url: `${fake.url}/acme/rakett/pull/42`, state: "OPEN", head: "a".repeat(40), draft: false, checks: "PENDING", review: "REVIEW_REQUIRED",
+  });
+  assert.ok(fake.requests.slice(before).every((request) => request.path === "/graphql" && request.auth === `Bearer ${GOOD_TOKEN}`));
+  await assert.rejects(h.api("GET", "/api/github/pull-watch?repo=acme%2Frakett&number=43"), /404/);
+  const limited = await h.raw("GET", "/api/github/pull-watch?repo=acme%2Frakett&number=44");
+  assert.equal(limited.status, 429);
+  assert.equal(JSON.parse(limited.body).resetAt, 2_000_000_000_000);
+});
+
 test("feil fra GitHub: grense, frakobling, tilbakekalt token og repo uten tilgang", async (t) => {
   const h = await startHarness(t);
   const dir = tempDir(t);
