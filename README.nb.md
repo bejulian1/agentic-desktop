@@ -109,6 +109,7 @@ Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
 
 ## Hva den kan
 
+- **Velkomst og import.** Koble til modeller og hent lokale prosjekter og samtaler fra Claude Code, Codex CLI, Gemini CLI og Pi. [Se veiledningen.](docs/VELKOMST-OG-IMPORT.md)
 - **Chat og Kode.** I Chat svarer modellen med Markdown, kodeblokker, tabeller og matte. I Kode jobber den i en mappe med verktøy for filer, kommandoer, søk og nettleser.
 - **Diagrammer i svaret.** I både Chat og Kode kan du be om «Sammenlign 9,12 og 5,33 sekunder med stolper» eller «Vis temperaturene 4, 7 og 5 grader fra mandag til onsdag som en linje». Diagrammet vises mellom avsnittene. I et linjediagram åpner «Vis verdiene» hele tallrekken. Diagrammene tegnes lokalt og fungerer også med Python og Artifacts slått av. Hvis modellen sender ugyldige diagramdata, vises de som en kopierbar kodeblokk. [Se et eksempel fra chatten.](docs/bilder/diagram-i-chat.png)
 - **Artifacts.** En hel app i én fil, i HTML eller React (JSX/TSX), blir en boks i chatten.

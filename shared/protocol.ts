@@ -192,6 +192,7 @@ export interface Thread {
   sectionId?: string | null; // round 11: the SidebarSection it is put in, set only when it is in one
   chatTools?: ChatTools | null; // round 13 (SPEC 27.2): Chat only, the tools chosen in this thread; unset follows Settings.chatTools
   forkedFrom?: ForkOrigin; // round 14 (SPEC 30.3): set on a fork, the thread it came from
+  importedFrom?: import("./history-import.ts").ImportedOrigin;
 }
 
 // Round 14 (SPEC 30.3): where a fork came from. The title is the source's title when the fork was
@@ -264,6 +265,7 @@ export interface Settings {
   githubOpenLinks?: boolean;
   githubViews?: GitHubView[];
   language?: import("./i18n.ts").LanguageSetting;
+  welcomeDone?: boolean;
   dictation?: { providerId: string; model: string } | null;
   promptAutocompleteModelId?: string | null; // null follows the conversation model
   promptAutocomplete?: boolean; // opt-in model-backed prompt suggestions, default off
@@ -696,6 +698,7 @@ export type ThreadEvent =
   | { type: "run.started"; runId: string; modelId: string; model?: AnswerModel }
   | { type: "model.changed"; from: AnswerModel; to: AnswerModel }
   | { type: "text.delta"; runId: string; messageId: string; text: string }
+  | { type: "history.answer"; messageId: string; text: string; note?: import("./history-import.ts").ImportedToolNote }
   | { type: "thinking.delta"; runId: string; blockId: string; text: string }
   | { type: "thinking.done"; runId: string; blockId: string; durationMs: number }
   | { type: "tool.started"; runId: string; callId: string; tool: string; summary: string; input: unknown; status: ToolStatus }

@@ -79,6 +79,7 @@ import type { PreviewServer } from "../preview.ts";
 import { findImage, saveImage } from "../images.ts";
 import { saveTextUpload } from "../uploads.ts";
 import { makeFork } from "../agent/fork.ts";
+import { HistoryImporter } from "../history-import/index.ts";
 import { startBackgroundSession } from "../background-session.ts";
 import type { SideQuestions } from "../side-questions.ts";
 import type { ImportedCookies } from "../browser-cookies.ts";
@@ -451,6 +452,14 @@ export class Api {
       sections: store.sections(),
       keyring: secrets.status(),
     }));
+
+    const history = new HistoryImporter({
+      home: this.deps.homeDir ?? homedir(), dataDir, store, config: this.deps.config, threadChanged,
+      findModel: (name) => this.findModel(name),
+      projectChanged: (project) => publish({ type: "project.changed", project }),
+    });
+    this.route("POST", "/api/history-import/scan", () => history.scan());
+    this.route("POST", "/api/history-import", ({ body }) => history.apply(body.scanId, body.threads));
 
     // Round 14 (SPEC 30.1): where the keys are kept, and a new try after the keyring was locked or
     // missing. A locked keyring shows the system's own unlock dialog.
@@ -966,6 +975,10 @@ export class Api {
       if (body.githubOpenLinks !== undefined) {
         if (typeof body.githubOpenLinks !== "boolean") throw new HttpError(400, "Velg om GitHub-lenker skal åpnes i appen.");
         patch.githubOpenLinks = body.githubOpenLinks;
+      }
+      if (body.welcomeDone !== undefined) {
+        if (typeof body.welcomeDone !== "boolean") throw new HttpError(400, "Bruk true/false.");
+        patch.welcomeDone = body.welcomeDone;
       }
       if (body.dictation !== undefined) {
         const choice = body.dictation;
