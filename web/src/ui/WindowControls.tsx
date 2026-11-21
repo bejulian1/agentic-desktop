@@ -1,6 +1,7 @@
 // Minimer, Maksimer (Gjenopprett when maximized) and Lukk at the right end of the top bar, in the
 // Electron app (SPEC 29.1). In a browser the place stays empty and takes no width. Lukk does what
 // Innstillinger → Generelt says: into the status area, or quit.
+import { t } from "../lib/i18n";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { connectDesktop, desktop } from "../lib/desktop";
 import "../styles/window-controls.css";
@@ -21,16 +22,16 @@ export function WindowControls() {
     onCleanup(bridge.window.onState((state) => setMaximized(state.maximized)));
   });
   return (
-    <div class="window-controls" data-testid="window-controls" data-shell="electron" role="group" aria-label="Vindu">
-      <button type="button" class="window-control" data-control="minimize" title="Minimer" aria-label="Minimer" onClick={() => bridge.window.minimize()}>
+    <div class="window-controls" data-testid="window-controls" data-shell="electron" role="group" aria-label={t("Vindu")}>
+      <button type="button" class="window-control" data-control="minimize" title={t("Minimer")} aria-label={t("Minimer")} onClick={() => bridge.window.minimize()}>
         <Svg><path d="M3.5 8.5h9" /></Svg>
       </button>
       <button
         type="button"
         class="window-control"
         data-control="maximize"
-        title={maximized() ? "Gjenopprett" : "Maksimer"}
-        aria-label={maximized() ? "Gjenopprett" : "Maksimer"}
+        title={maximized() ? t("Gjenopprett") : t("Maksimer")}
+        aria-label={maximized() ? t("Gjenopprett") : t("Maksimer")}
         onClick={() => bridge.window.toggleMaximize()}
       >
         <Svg>
@@ -40,7 +41,7 @@ export function WindowControls() {
           </Show>
         </Svg>
       </button>
-      <button type="button" class="window-control close" data-control="close" title="Lukk" aria-label="Lukk" onClick={() => bridge.window.close()}>
+      <button type="button" class="window-control close" data-control="close" title={t("Lukk")} aria-label={t("Lukk")} onClick={() => bridge.window.close()}>
         <Svg><path d="m4.5 4.5 7 7m0-7-7 7" /></Svg>
       </button>
     </div>

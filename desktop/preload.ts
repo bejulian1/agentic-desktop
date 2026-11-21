@@ -45,3 +45,7 @@ contextBridge.exposeInMainWorld("agenticDesktop", {
   // Only on the busy page: asks the browser version to stop, then starts the app's own server.
   stopOtherServer: (): Promise<{ ok: boolean; message?: string }> => ipcRenderer.invoke("shell:stop-other"),
 });
+
+if (location.protocol === "agentic-desktop:" && location.hostname === "shell") {
+  contextBridge.exposeInMainWorld("agenticShellCopy", (): Promise<{ language: string; labels: Record<string, string> } | null> => ipcRenderer.invoke("shell:copy"));
+}

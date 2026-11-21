@@ -3,6 +3,7 @@
 //
 // Each tool is its own chunk, loaded the first time it opens, and leaving it unmounts it so its
 // memory goes back.
+import { t } from "../lib/i18n";
 import { createMemo, For, lazy, Match, Show, Suspense, Switch, type JSX } from "solid-js";
 import { send } from "../lib/socket";
 import { app, LOCAL_SCOPE, untitled } from "../state/app";
@@ -75,11 +76,11 @@ export function PanelHome(props: { projectId: string | null }) {
   // Sidechat is not a panel: it starts a thread beside the one that is open.
   const sidechat: Tile = {
     id: "side",
-    label: "Sidechat",
+    label: t("Sidechat"),
     icon: IconPlusCircle,
     keys: "thread.side",
     blocked: () => !sidechatThread(),
-    tip: () => (sidechatThread() ? `Sidechat: en ny tråd ved siden av den du har åpen (${displayKeys(keysFor("thread.side"))})` : "Sidechat: åpne en tråd først, så lager den en ny ved siden av."),
+    tip: () => (sidechatThread() ? t("Sidechat: en ny tråd ved siden av den du har åpen ({keys})", { keys: displayKeys(keysFor("thread.side")) }) : t("Sidechat: åpne en tråd først, så lager den en ny ved siden av.")),
     run: () => {
       const thread = app.threads[sidechatThread() ?? ""];
       if (thread) void sideChat(thread);
@@ -98,13 +99,13 @@ export function PanelHome(props: { projectId: string | null }) {
     const play = app.playtest[id];
     if (play?.status === "running" && play.url) {
       const url = play.url;
-      out.push({ key: `p:${url}`, label: "Playtest", hint: hostOf(url), title: url, kind: "playtest", open: () => go(id, url) });
+      out.push({ key: `p:${url}`, label: t("Playtest"), hint: hostOf(url), title: url, kind: "playtest", open: () => go(id, url) });
     }
     for (const server of servers().filter((s) => s.projectId === id && s.url !== play?.url)) {
-      out.push({ key: `s:${server.id}`, label: `Server · ${server.port}`, hint: hostOf(server.url), title: `${server.command}\n${server.url}`, kind: "server", open: () => openServer(server) });
+      out.push({ key: `s:${server.id}`, label: t("Server · {port}", { port: server.port }), hint: hostOf(server.url), title: `${server.command}\n${server.url}`, kind: "server", open: () => openServer(server) });
     }
     for (const artifact of artifacts().filter((a) => a.projectId === id).slice(0, 6)) {
-      out.push({ key: `a:${artifact.id}`, label: artifact.title, hint: "Artifact", title: artifact.title, kind: "artifact", open: () => go(id, artifact.previewUrl) });
+      out.push({ key: `a:${artifact.id}`, label: artifact.title, hint: t("Artifact"), title: artifact.title, kind: "artifact", open: () => go(id, artifact.previewUrl) });
     }
     return out.slice(0, 6);
   });
@@ -112,11 +113,11 @@ export function PanelHome(props: { projectId: string | null }) {
   return (
     <div class="panel-home" data-testid="panel-home">
       <Show when={unifiedPanelTabs()}><div class="panel-new-sessions">
-        <button type="button" class="btn" onClick={() => { consumeStartPage(); requestBrowserTab(false); showPanel("browser"); }}><IconGlobe size={14} />Ny nettleserfane</button>
-        <button type="button" class="btn" onClick={() => { consumeStartPage(); requestTerminalSession(props.projectId ?? LOCAL_SCOPE); showPanel("terminal"); }}><IconPlusCircle size={14} />Ny terminal</button>
+        <button type="button" class="btn" onClick={() => { consumeStartPage(); requestBrowserTab(false); showPanel("browser"); }}><IconGlobe size={14} />{t("Ny nettleserfane")}</button>
+        <button type="button" class="btn" onClick={() => { consumeStartPage(); requestTerminalSession(props.projectId ?? LOCAL_SCOPE); showPanel("terminal"); }}><IconPlusCircle size={14} />{t("Ny terminal")}</button>
       </div></Show>
-      <h3 class="newtab-title">Verktøy</h3>
-      <div class="panel-tools" role="list" aria-label="Verktøy">
+      <h3 class="newtab-title">{t("Verktøy")}</h3>
+      <div class="panel-tools" role="list" aria-label={t("Verktøy")}>
         <For each={tiles}>
           {(tile) => (
             <button
@@ -138,7 +139,7 @@ export function PanelHome(props: { projectId: string | null }) {
         </For>
       </div>
       <Show when={suggestions().length}>
-        <h3 class="newtab-title">Foreslått</h3>
+        <h3 class="newtab-title">{t("Foreslått")}</h3>
         <div class="panel-suggestions">
           <For each={suggestions()}>
             {(s) => (
@@ -164,7 +165,7 @@ function go(projectId: string, url: string): void {
 // One tool's view. head: a stacked panel's top line, where Terminal and Nettleser put their tabs.
 export function ToolView(props: { tool: PanelTab; projectId: string | null; threadId: () => string | null; head?: () => HTMLElement | undefined; sharedTabs?: boolean; visible?: boolean }) {
   return (
-    <Suspense fallback={<div class="panel-empty" role="status">Åpner verktøy…</div>}>
+    <Suspense fallback={<div class="panel-empty" role="status">{t("Åpner verktøy…")}</div>}>
       <Show
         when={props.projectId}
         keyed
@@ -200,7 +201,7 @@ export function ToolView(props: { tool: PanelTab; projectId: string | null; thre
 // Økt shows the thread in focus; without one there is nothing to show yet.
 function Session(props: { threadId: () => string | null }) {
   return (
-    <Show when={props.threadId()} keyed fallback={<div class="panel-empty okt-none" data-testid="okt-none">Økten hører til en tråd. Skriv en melding, så viser den miljø, kontekst og det som kjører.</div>}>
+    <Show when={props.threadId()} keyed fallback={<div class="panel-empty okt-none" data-testid="okt-none">{t("Økten hører til en tråd. Skriv en melding, så viser den miljø, kontekst og det som kjører.")}</div>}>
       {(id) => <div class="okt-scroll"><SessionPanel threadId={id} onOpenFiles={() => showPanel("files")} onOpenThread={(threadId) => { const t = app.threads[threadId]; if (t) void openThread(t); }} /></div>}
     </Show>
   );

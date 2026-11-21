@@ -1,4 +1,5 @@
 // The file tree and preview. Editing opens the mini editor; CodeMirror loads on demand.
+import { t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { get } from "../lib/api";
 import { on } from "../lib/socket";
@@ -182,14 +183,14 @@ function ProjectFilesPanel(props: { projectId: string; threadId: () => string | 
   return (
     <div class="files-panel" data-testid="files-panel">
       <Show when={workingPath()}>
-        {(path) => <button type="button" class="file-activity" data-testid="file-activity" data-path={path()} data-active={!!workingNow()} onClick={() => show(path())} title={`Vis ${path()}`}>
-          <span>{workingNow() ? working()?.status === "awaiting-approval" ? "Venter på tillatelse" : working()?.tool === "read_file" ? "Leser" : working()?.tool === "delete_file" ? "Sletter" : "Redigerer" : working()?.status === "error" ? "Filverktøyet feilet" : working()?.status === "cancelled" ? "Filverktøyet ble avbrutt" : "Siste filverktøy"}</span>
+        {(path) => <button type="button" class="file-activity" data-testid="file-activity" data-path={path()} data-active={!!workingNow()} onClick={() => show(path())} title={t("Vis {path}", { path: path() })}>
+          <span>{workingNow() ? working()?.status === "awaiting-approval" ? t("Venter på tillatelse") : working()?.tool === "read_file" ? t("Leser") : working()?.tool === "delete_file" ? t("Sletter") : t("Redigerer") : working()?.status === "error" ? t("Filverktøyet feilet") : working()?.status === "cancelled" ? t("Filverktøyet ble avbrutt") : t("Siste filverktøy")}</span>
           <bdo dir="ltr">{path()}</bdo>
-          <span class="file-activity-open">Vis fil</span>
+          <span class="file-activity-open">{t("Vis fil")}</span>
         </button>}
       </Show>
       <div class="tree" role="tree">
-        <For each={listing(".")} fallback={<div class="panel-empty">Mappen er tom</div>}>
+        <For each={listing(".")} fallback={<div class="panel-empty">{t("Mappen er tom")}</div>}>
           {(entry) => (
             <FileTreeEntry entry={entry} depth={0} selected={selected()} listing={listing} expanded={(p) => expanded().has(p)} toggle={toggle} open={(e) => openFile(e.path)} working={workingPath()} changes={changes()} />
           )}
@@ -201,14 +202,14 @@ function ProjectFilesPanel(props: { projectId: string; threadId: () => string | 
             <div class="file-path" title={selected()!}><bdo dir="ltr">{selected()}</bdo></div>
             <Show when={changes().get(selected()!)}>{(change) => <FileChangeCounts file={change()} />}</Show>
             <Show when={file() && !file()!.binary}>
-              <button type="button" class="btn btn-small btn-ghost file-edit" title="Åpne i mini-editoren for å søke, se oversikten eller redigere" onPointerEnter={preloadMiniEditor} onClick={(e) => openMiniEditor({ kind: "file", projectId: props.projectId, path: selected()!, source: e.currentTarget })}>Rediger</button>
-              <button type="button" class="btn btn-small btn-ghost file-studio" title="Åpne denne filen i Kode Studio" onClick={() => { const path = selected()!; enterStudio(); requestFile(props.projectId, path); }}>Studio</button>
+              <button type="button" class="btn btn-small btn-ghost file-edit" title={t("Åpne i mini-editoren for å søke, se oversikten eller redigere")} onPointerEnter={preloadMiniEditor} onClick={(e) => openMiniEditor({ kind: "file", projectId: props.projectId, path: selected()!, source: e.currentTarget })}>{t("Rediger")}</button>
+              <button type="button" class="btn btn-small btn-ghost file-studio" title={t("Åpne denne filen i Kode Studio")} onClick={() => { const path = selected()!; enterStudio(); requestFile(props.projectId, path); }}>{t("Studio")}</button>
             </Show>
           </div>
         </Show>
         <Show when={error()}><div class="panel-empty">{error()}</div></Show>
-        <Show when={file()?.binary}><div class="panel-empty">Binærfil, {file()!.size} byte. Vises ikke.</div></Show>
-        <Show when={file()?.truncated}><div class="file-note">Filen er stor, så bare starten vises.</div></Show>
+        <Show when={file()?.binary}><div class="panel-empty">{t("Binærfil, {size} byte. Vises ikke.", { size: file()!.size })}</div></Show>
+        <Show when={file()?.truncated}><div class="file-note">{t("Filen er stor, så bare starten vises.")}</div></Show>
         <div class="editor-host" ref={host} style={!file() || file()?.binary ? "display:none" : undefined} data-testid="editor" />
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, localizedFormat, plural, t } from "../lib/i18n.ts";
 import {useTokenTooltip} from "./TokenTooltip";
 // The profile page in the middle of the window: initials, name, five key numbers and the token
 // activity for a year, per day, per week or added up. All numbers come from the database through
@@ -16,20 +16,21 @@ import { initials } from "./Sidebar";
 const CELL = 11;
 const GAP = 3;
 const MONTHS = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+const monthFormat = localizedFormat(locale => new Intl.DateTimeFormat(locale, { month: "short" }));
 type Day = ProfileStats["year"][number];
 
 export function formatLongDuration(ms: number | null): string {
   if (ms === null || ms <= 0) return "–";
-  if (ms < 1000) return "under 1 s";
+  if (ms < 1000) return t("under 1 s");
   const s = Math.round(ms / 1000);
-  if (s < 60) return `${s} s`;
+  if (s < 60) return t("{seconds} s", { seconds: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min ${s % 60} s`;
+  if (m < 60) return t("{minutes} min {seconds} s", { minutes: m, seconds: s % 60 });
   const h = Math.floor(m / 60);
-  return `${h} t ${m % 60} min`;
+  return t("{hours} t {minutes} min", { hours: h, minutes: m % 60 });
 }
 
-const days = (n: number) => `${n} ${n === 1 ? "dag" : "dager"}`;
+const days = (count: number) => plural(count, "{count} dag", "{count} dager");
 const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(language(), { day: "numeric", month: "short", year: "numeric" });
 
 // Months along the bottom, at the first week that starts in a new month.
@@ -40,7 +41,7 @@ function monthMarks(year: Day[]): Array<{ week: number; label: string }> {
     const month = Number(year[i].date.slice(5, 7)) - 1;
     if (month !== last) {
       // Not in the last two weeks, where the label would be cut off.
-      if (i / 7 < year.length / 7 - 2) marks.push({ week: i / 7, label: MONTHS[month] });
+      if (i / 7 < year.length / 7 - 2) marks.push({ week: i / 7, label: language() === "nb" ? MONTHS[month] : monthFormat.format(new Date(2000, month, 1)) });
       last = month;
     }
   }
@@ -63,7 +64,7 @@ function Daily(props: { year: Day[] }) {
   const weeks = () => Math.ceil(props.year.length / 7);
   const width = () => weeks() * (CELL + GAP) - GAP;
   return (
-    <>{tip.tooltip()}<svg class="profile-chart" viewBox={`0 0 ${width()} ${7 * (CELL + GAP) + 14}`} role="img" aria-label="Tokens per dag det siste året" data-testid="profile-daily">
+    <>{tip.tooltip()}<svg class="profile-chart" viewBox={`0 0 ${width()} ${7 * (CELL + GAP) + 14}`} role="img" aria-label={t("Tokens per dag det siste året")} data-testid="profile-daily">
       <For each={props.year}>
         {(day, i) => (
           <rect x={Math.floor(i() / 7) * (CELL + GAP)} y={(i() % 7) * (CELL + GAP)} width={CELL} height={CELL} rx={2.5} class={`heat-${level(day)}`} {...tip.bind(day.date,day.tokens,false,i()===0)} />
@@ -89,7 +90,7 @@ function Weekly(props: { year: Day[] }) {
   const max = () => Math.max(1, ...weeks().map((w) => w.tokens));
   const height = 7 * (CELL + GAP);
   return (
-    <>{tip.tooltip()}<svg class="profile-chart" viewBox={`0 0 ${weeks().length * (CELL + GAP) - GAP} ${height + 14}`} role="img" aria-label="Tokens per uke det siste året" data-testid="profile-weekly">
+    <>{tip.tooltip()}<svg class="profile-chart" viewBox={`0 0 ${weeks().length * (CELL + GAP) - GAP} ${height + 14}`} role="img" aria-label={t("Tokens per uke det siste året")} data-testid="profile-weekly">
       <For each={weeks()}>
         {(w, i) => {
           const h = () => (w.tokens ? Math.max(2, (w.tokens / max()) * height) : 1);
@@ -118,7 +119,7 @@ function Cumulative(props: { year: Day[] }) {
   const line = () => points().map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join("");
   const total = () => props.year.reduce((s, d) => s + d.tokens, 0);
   return (
-    <svg class="profile-chart" viewBox={`0 0 ${width()} ${height + 14}`} role="img" aria-label={`Tokens lagt sammen det siste året: ${formatTokens(total())}`} data-testid="profile-cumulative">
+    <svg class="profile-chart" viewBox={`0 0 ${width()} ${height + 14}`} role="img" aria-label={t("Tokens lagt sammen det siste året: {tokens}", { tokens: formatTokens(total()) })} data-testid="profile-cumulative">
       <path class="profile-area" d={`${line()}L${width()} ${height}L0 ${height}Z`} />
       <path class="profile-line" d={line()} />
       <For each={monthMarks(props.year)}>
@@ -133,33 +134,33 @@ export default function ProfilePage() {
   const [view, setView] = createSignal<"daily" | "weekly" | "cumulative">("daily");
   // Counted again when a run ends while the page is open, never on a timer.
   createEffect(on(runsFinished, () => void refetch(), { defer: true }));
-  const name = () => app.settings.profileName?.trim() || "Profil";
+  const name = () => app.settings.profileName?.trim() || t("Profil");
 
   const tiles = (s: ProfileStats) => [
-    { label: "Totalt antall tokens", value: formatTokens(s.totalTokens), title: `${s.totalTokens.toLocaleString(language())} tokens` },
-    { label: "Høyeste antall tokens på en dag", value: s.peakDay ? formatTokens(s.peakDay.tokens) : "–", title: s.peakDay ? dateLabel(s.peakDay.date) : undefined },
-    { label: "Lengste oppgave", value: formatLongDuration(s.longestRunMs), title: "Den lengste kjøringen fra start til slutt" },
-    { label: "Lengste rekke", value: days(s.longestStreak), title: "Flest dager på rad med bruk" },
-    { label: "Nåværende rekke", value: days(s.currentStreak), title: "Dager på rad til i dag" },
+    { label: t("Totalt antall tokens"), value: formatTokens(s.totalTokens), title: t("{tokens} tokens", { tokens: s.totalTokens.toLocaleString(language()) }) },
+    { label: t("Høyeste antall tokens på en dag"), value: s.peakDay ? formatTokens(s.peakDay.tokens) : "–", title: s.peakDay ? dateLabel(s.peakDay.date) : undefined },
+    { label: t("Lengste oppgave"), value: formatLongDuration(s.longestRunMs), title: t("Den lengste kjøringen fra start til slutt") },
+    { label: t("Lengste rekke"), value: days(s.longestStreak), title: t("Flest dager på rad med bruk") },
+    { label: t("Nåværende rekke"), value: days(s.currentStreak), title: t("Dager på rad til i dag") },
   ];
 
   return (
-    <section class="profile-page" aria-label="Profil" data-testid="profile-page">
+    <section class="profile-page" aria-label={t("Profil")} data-testid="profile-page">
       <div class="profile-page-bar">
-        <button type="button" class="btn btn-small" onClick={() => setSettingsOpen("usage")}>Bruk og navn</button>
-        <button type="button" class="icon-button" aria-label="Lukk profilen" title="Lukk" onClick={closeProfile}><IconClose size={15} /></button>
+        <button type="button" class="btn btn-small" onClick={() => setSettingsOpen("usage")}>{t("Bruk og navn")}</button>
+        <button type="button" class="icon-button" aria-label={t("Lukk profilen")} title={t("Lukk")} onClick={closeProfile}><IconClose size={15} /></button>
       </div>
       <div class="profile-page-body">
         <div class="profile-hero">
           <span class="avatar profile-avatar" aria-hidden="true">{initials(app.settings.profileName)}</span>
           <h1 class="profile-page-name">{name()}</h1>
-          <p class="muted">Lokal profil på denne maskinen</p>
+          <p class="muted">{t("Lokal profil på denne maskinen")}</p>
         </div>
         <Show
           when={stats()}
           fallback={
             <div class="profile-tiles profile-loading" role="status">
-              <span class="sr-only">Teller…</span>
+              <span class="sr-only">{t("Teller…")}</span>
               <For each={Array.from({ length: 5 })}>
                 {() => <div class="profile-tile" aria-hidden="true"><span class="skeleton skeleton-line" /><span class="skeleton skeleton-line short" /></div>}
               </For>
@@ -179,21 +180,24 @@ export default function ProfilePage() {
                 </For>
               </div>
               <div class="profile-section-head">
-                <h2>Tokenaktivitet</h2>
-                <div class="profile-views" role="tablist" aria-label="Visning">
-                  <button type="button" role="tab" aria-selected={view() === "daily"} onClick={() => setView("daily")}>Daglig</button>
-                  <button type="button" role="tab" aria-selected={view() === "weekly"} onClick={() => setView("weekly")}>Ukentlig</button>
-                  <button type="button" role="tab" aria-selected={view() === "cumulative"} onClick={() => setView("cumulative")}>Akkumulert</button>
+                <h2>{t("Tokenaktivitet")}</h2>
+                <div class="profile-views" role="tablist" aria-label={t("Visning")}>
+                  <button type="button" role="tab" aria-selected={view() === "daily"} onClick={() => setView("daily")}>{t("Daglig")}</button>
+                  <button type="button" role="tab" aria-selected={view() === "weekly"} onClick={() => setView("weekly")}>{t("Ukentlig")}</button>
+                  <button type="button" role="tab" aria-selected={view() === "cumulative"} onClick={() => setView("cumulative")}>{t("Akkumulert")}</button>
                 </div>
               </div>
               <div class="profile-activity">
                 {view() === "daily" ? <Daily year={s().year} /> : view() === "weekly" ? <Weekly year={s().year} /> : <Cumulative year={s().year} />}
               </div>
               <p class="muted small profile-foot">
-                {s().runs} kjøringer i {s().threads} tråder, {days(s().activeDays)} i bruk. Tellingen kommer fra databasen på denne maskinen.
+                {plural(s().activeDays,
+                  "{runs} kjøringer i {threads} tråder, {count} dag i bruk. Tellingen kommer fra databasen på denne maskinen.",
+                  "{runs} kjøringer i {threads} tråder, {count} dager i bruk. Tellingen kommer fra databasen på denne maskinen.",
+                  { runs: s().runs, threads: s().threads })}
               </p>
               <Show when={s().byModel.length}>
-                <div class="profile-section-head"><h2>Modeller</h2></div>
+                <div class="profile-section-head"><h2>{t("Modeller")}</h2></div>
                 <div class="profile-models">
                   <For each={s().byModel.slice(0, 5)}>
                     {(m) => (

@@ -4,6 +4,7 @@
 // formula can never become markup. What this does not know is shown as the formula's own text,
 // with a visible label that says so, never silently.
 
+import { t } from "../lib/i18n";
 const MATHML = "http://www.w3.org/1998/Math/MathML";
 
 class Unsupported extends Error {}
@@ -328,8 +329,8 @@ export function renderMath(source: string, display: boolean): HTMLElement {
   wrap.classList.add("md-math-raw");
   const label = document.createElement("span");
   label.className = "md-math-label";
-  label.textContent = "Formel som tekst";
-  label.title = "Appen tegner bare vanlig matte. Denne formelen bruker noe den ikke kan tegne ennå, så den vises slik modellen skrev den.";
+  label.textContent = t("Formel som tekst");
+  label.title = t("Appen tegner bare vanlig matte. Denne formelen bruker noe den ikke kan tegne ennå, så den vises slik modellen skrev den.");
   const code = document.createElement("code");
   code.textContent = source;
   wrap.append(label, code);

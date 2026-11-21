@@ -10,6 +10,7 @@
 // The panels are one flat list keyed by tool and placed with percentages, so moving one, resizing
 // or maximizing never mounts a tool again: a terminal keeps its shell, the browser its page. While a
 // divider is dragged the sizes change directly, without animation; only opacity and transform move.
+import { t } from "../lib/i18n";
 import { unifiedPanelTabs } from "../state/panel-sessions";
 import { createEffect, createMemo, createSignal, For, Index, onCleanup, Show, type JSX } from "solid-js";
 import { cancelFrameTask, onNextFrame } from "../lib/frame";
@@ -66,7 +67,14 @@ function rects(layout: StackLayout): Map<PanelTab, Rect> {
 
 const pct = (value: number) => `${(value * 100).toFixed(4)}%`;
 
-const EDGE_WORDS: Record<Edge, string> = { left: "Til venstre for", right: "Til høyre for", top: "Over", bottom: "Under" };
+const edgeLabel = (edge: Edge, tool: string) => {
+  switch (edge) {
+    case "left": return t("Til venstre for {tool}", { tool });
+    case "right": return t("Til høyre for {tool}", { tool });
+    case "top": return t("Over {tool}", { tool });
+    case "bottom": return t("Under {tool}", { tool });
+  }
+};
 
 export function PanelStack(props: { projectId: string | null; threadId: () => string | null }) {
   let root!: HTMLDivElement;
@@ -278,8 +286,8 @@ export function PanelStack(props: { projectId: string | null; threadId: () => st
                 role="separator"
                 tabindex="0"
                 aria-orientation={divider().kind === "col" ? "vertical" : "horizontal"}
-                aria-label={divider().kind === "col" ? "Skille mellom kolonner" : "Skille mellom paneler"}
-                title="Dra for å endre størrelsen. Dobbeltklikk deler plassen likt."
+                aria-label={divider().kind === "col" ? t("Skille mellom kolonner") : t("Skille mellom paneler")}
+                title={t("Dra for å endre størrelsen. Dobbeltklikk deler plassen likt.")}
                 data-testid={`stack-divider-${divider().key}`}
                 style={divider().kind === "col"
                   ? { left: pct(divider().x), top: "0", height: "100%" }
@@ -299,7 +307,7 @@ export function PanelStack(props: { projectId: string | null; threadId: () => st
             aria-hidden="true"
             style={dropRect() ? { left: pct(dropRect()!.x), top: pct(dropRect()!.y), width: pct(dropRect()!.w), height: pct(dropRect()!.h) } : undefined}
           >
-            <Show when={drop()}>{(d) => <span class="stack-drop-label">{EDGE_WORDS[d().edge]} {toolById(d().target).label}</span>}</Show>
+            <Show when={drop()}>{(d) => <span class="stack-drop-label">{edgeLabel(d().edge, toolById(d().target).label)}</span>}</Show>
           </div>
         </Show>
       </Show>
@@ -310,11 +318,11 @@ export function PanelStack(props: { projectId: string | null; threadId: () => st
 // No panel open yet: the start page, with a slim top line and Lukk.
 function EmptyStack(props: { projectId: string | null }) {
   return (
-    <section class="stack-panel stack-empty" aria-label="Sidepanel" style={{ left: "0", top: "0", width: "100%", height: "100%" }}>
+    <section class="stack-panel stack-empty" aria-label={t("Sidepanel")} style={{ left: "0", top: "0", width: "100%", height: "100%" }}>
       <header class="stack-head">
-        <span class="stack-title"><IconPanel size={14} /><span class="stack-name">Verktøy</span></span>
+        <span class="stack-title"><IconPanel size={14} /><span class="stack-name">{t("Verktøy")}</span></span>
         <span class="stack-spacer" />
-        <button type="button" class="icon-button stack-button" title="Skjul panelet" aria-label="Skjul panelet" onClick={() => setPanelOpen(false)}><IconClose size={13} /></button>
+        <button type="button" class="icon-button stack-button" title={t("Skjul panelet")} aria-label={t("Skjul panelet")} onClick={() => setPanelOpen(false)}><IconClose size={13} /></button>
       </header>
       <div class="stack-body" data-tool="home"><PanelHome projectId={props.projectId} /></div>
     </section>
@@ -353,13 +361,13 @@ function StackPanelView(props: {
     const toLeft = leftColumn ? () => moveInStack(props.tool, leftColumn.panels.at(-1)!.tool, "bottom") : !alone && own ? () => moveInStack(props.tool, own, "left") : undefined;
     const toRight = rightColumn ? () => moveInStack(props.tool, rightColumn.panels.at(-1)!.tool, "bottom") : !alone && own ? () => moveInStack(props.tool, own, "right") : undefined;
     return [
-      { label: "Flytt opp", disabled: !above, run: () => above && moveInStack(props.tool, above, "top") },
-      { label: "Flytt ned", disabled: !below, run: () => below && moveInStack(props.tool, below, "bottom") },
-      { label: leftColumn ? "Flytt til kolonnen til venstre" : "Egen kolonne til venstre", disabled: !toLeft, run: () => toLeft?.() },
-      { label: rightColumn ? "Flytt til kolonnen til høyre" : "Egen kolonne til høyre", disabled: !toRight, run: () => toRight?.() },
+      { label: t("Flytt opp"), disabled: !above, run: () => above && moveInStack(props.tool, above, "top") },
+      { label: t("Flytt ned"), disabled: !below, run: () => below && moveInStack(props.tool, below, "bottom") },
+      { label: leftColumn ? t("Flytt til kolonnen til venstre") : t("Egen kolonne til venstre"), disabled: !toLeft, run: () => toLeft?.() },
+      { label: rightColumn ? t("Flytt til kolonnen til høyre") : t("Egen kolonne til høyre"), disabled: !toRight, run: () => toRight?.() },
       "sep",
-      { label: props.maximized ? "Gjenopprett" : "Maksimer", icon: props.maximized ? IconRestore : IconExpand, run: () => toggleMaximized(props.tool) },
-      { label: `Lukk ${tool.label}`, icon: IconClose, run: () => closePanelTool(props.tool) },
+      { label: props.maximized ? t("Gjenopprett") : t("Maksimer"), icon: props.maximized ? IconRestore : IconExpand, run: () => toggleMaximized(props.tool) },
+      { label: t("Lukk {tool}", { tool: tool.label }), icon: IconClose, run: () => closePanelTool(props.tool) },
     ];
   };
 
@@ -374,8 +382,8 @@ function StackPanelView(props: {
       style={props.style}
       onPointerDown={() => setFocusedTool(props.tool)}
     >
-      <header class="stack-head" onPointerDown={(e) => props.onMoveStart(e)} onDblClick={(e) => !(e.target as HTMLElement).closest("button, [role=tab], .stack-tabs") && toggleMaximized(props.tool)} title={tabbed ? undefined : "Dra for å flytte panelet. Dobbeltklikk for å maksimere."}>
-        <span class="stack-title" title={tabbed ? `${tool.label}: dra for å flytte` : undefined}>
+      <header class="stack-head" onPointerDown={(e) => props.onMoveStart(e)} onDblClick={(e) => !(e.target as HTMLElement).closest(t("button, [role=tab], .stack-tabs")) && toggleMaximized(props.tool)} title={tabbed ? undefined : t("Dra for å flytte panelet. Dobbeltklikk for å maksimere.")}>
+        <span class="stack-title" title={tabbed ? t("{tool}: dra for å flytte", { tool: tool.label }) : undefined}>
           <tool.icon size={14} />
           <Show when={!tabbed}><span class="stack-name">{tool.label}</span></Show>
         </span>
@@ -384,8 +392,8 @@ function StackPanelView(props: {
         <button
           type="button"
           class="icon-button stack-button"
-          aria-label={`Mer for ${tool.label}`}
-          title="Flytt og ordne"
+          aria-label={t("Mer for {tool}", { tool: tool.label })}
+          title={t("Flytt og ordne")}
           aria-haspopup="menu"
           aria-expanded={!!menu()}
           onClick={(e) => setMenu(menu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
@@ -395,18 +403,18 @@ function StackPanelView(props: {
         <button
           type="button"
           class="icon-button stack-button"
-          aria-label={props.maximized ? `Gjenopprett ${tool.label}` : `Maksimer ${tool.label}`}
-          title={props.maximized ? "Gjenopprett" : "Maksimer"}
+          aria-label={props.maximized ? t("Gjenopprett {tool}", { tool: tool.label }) : t("Maksimer {tool}", { tool: tool.label })}
+          title={props.maximized ? t("Gjenopprett") : t("Maksimer")}
           aria-pressed={props.maximized}
           onClick={() => toggleMaximized(props.tool)}
         >
           <Show when={props.maximized} fallback={<IconExpand size={13} />}><IconRestore size={13} /></Show>
         </button>
-        <button type="button" class="icon-button stack-button" aria-label={`Lukk ${tool.label}`} title="Lukk" onClick={() => closePanelTool(props.tool)}>
+        <button type="button" class="icon-button stack-button" aria-label={t("Lukk {tool}", { tool: tool.label })} title={t("Lukk")} onClick={() => closePanelTool(props.tool)}>
           <IconClose size={13} />
         </button>
       </header>
-      <Show when={menu()}>{(a) => <ContextMenu anchor={a()} label={`Mer for ${tool.label}`} entries={menuEntries()} onClose={() => setMenu(null)} class="stack-menu" />}</Show>
+      <Show when={menu()}>{(a) => <ContextMenu anchor={a()} label={t("Mer for {tool}", { tool: tool.label })} entries={menuEntries()} onClose={() => setMenu(null)} class="stack-menu" />}</Show>
       <div class="stack-body" data-tool={props.tool}>
         {/* Tabbed tools wait for the top line, so their tabs go there from the start. */}
         <Show when={!tabbed || head()}>

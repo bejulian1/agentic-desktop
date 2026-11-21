@@ -13,7 +13,7 @@ export function folderPicker(deps: {
     const win = deps.window();
     if (!deps.trusted(event) || !win) return null;
     const options = folderOptions(start, title);
-    if (active) throw new Error("Mappevelgeren er allerede åpen");
+    if (active) throw new Error(t("Mappevelgeren er allerede åpen"));
     active = true;
     try {
       const result = await deps.show(win, { title: options.title ? lookupMessage(options.title) : t("Velg prosjektmappe"), ...(options.start ? { defaultPath: options.start } : {}), properties: ["openDirectory"] });

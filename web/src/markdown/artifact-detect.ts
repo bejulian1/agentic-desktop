@@ -3,6 +3,7 @@
 // of a thread's answers that the box and the panel share.
 import type { Token, Tokens } from "marked";
 import type { ArtifactLang } from "../../../shared/protocol";
+import { t } from "../lib/i18n";
 import { sourceKeyFor } from "../state/artifacts";
 import { peekModel, type TextRow } from "../state/thread-model";
 import { lex } from "./render";
@@ -11,6 +12,7 @@ export interface ArtifactDoc {
   lang: ArtifactLang;
   code: string;
   title: string;
+  usesDefaultTitle: boolean;
   file: string | null; // the file name the model put after the language, if any
   key: string; // the same for every version of one app in a thread
   sourceKey: string; // this block's text, as saved artifacts know it
@@ -55,28 +57,32 @@ export function fileFromInfo(info: string): string | null {
 }
 
 // The name the box shows: HTML's <title>, a React component's name, or the file name.
-export function artifactTitle(lang: ArtifactLang, text: string, file: string | null): string {
+function namedTitle(lang: ArtifactLang, text: string, file: string | null): string | null {
   const bare = file?.replace(/\.(html?|jsx|tsx)$/i, "") || null;
   if (lang === "html") {
     const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(text)?.[1]?.replace(/\s+/g, " ").trim();
-    return (title || bare || "HTML-app").slice(0, 80);
+    return (title || bare)?.slice(0, 80) ?? null;
   }
   const named = /\bexport\s+default\s+(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/.exec(text)?.[1]
     ?? /\bexport\s+default\s+([A-Z][\w$]*)\s*;?\s*$/m.exec(text)?.[1];
   if (named && named !== "App") return named.slice(0, 80);
-  return (bare || "React-app").slice(0, 80);
+  return bare?.slice(0, 80) ?? null;
 }
+
+export const defaultArtifactTitle = (lang: ArtifactLang) => lang === "html" ? t("HTML-app") : t("React-app");
+export const artifactDisplayTitle = (doc: ArtifactDoc) => doc.usesDefaultTitle ? defaultArtifactTitle(doc.lang) : doc.title;
 
 export function artifactDoc(lang: string, info: string, text: string, messageId: string | null): ArtifactDoc | null {
   const kind = artifactLangOf(lang);
   if (!kind || !isArtifactBlock(lang, text)) return null;
   const file = fileFromInfo(info);
-  const title = artifactTitle(kind, text, file);
+  const named = namedTitle(kind, text, file);
+  const title = named ?? (kind === "html" ? "HTML-app" : "React-app");
   // Versions of one app share a key: its file name when the model gave one, else its name. HTML
   // and React never share one.
   const family = kind === "html" ? "html" : "react";
   const key = `${family}:${(file?.replace(/\.(html?|jsx|tsx)$/i, "") ?? title).toLowerCase()}`;
-  return { lang: kind, code: text, title, file, key, sourceKey: sourceKeyFor(text), messageId };
+  return { lang: kind, code: text, title, usesDefaultTitle: named === null, file, key, sourceKey: sourceKeyFor(text), messageId };
 }
 
 export const lineCount = (text: string) => text.replace(/\n$/, "").split("\n").length;

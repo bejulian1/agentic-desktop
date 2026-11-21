@@ -1,4 +1,4 @@
-import { localizedFormat } from "../lib/i18n.ts";
+import { localizedFormat, t } from "../lib/i18n.ts";
 interface Point {
   label: string;
   value: number;
@@ -118,7 +118,7 @@ function line(chart: Chart, min: number, max: number): HTMLElement {
 
   const details = document.createElement("details");
   const summary = document.createElement("summary");
-  summary.textContent = "Vis verdiene";
+  summary.textContent = t("Vis verdiene");
   const values = document.createElement("dl");
   for (const point of chart.data) {
     const label = document.createElement("dt");

@@ -128,7 +128,7 @@ export class StatusArea {
       this.look = look;
     }
     const status = activityText(this.activity);
-    this.tray.setToolTip(status ? `Agentic Desktop: ${status}` : "Agentic Desktop");
+    this.tray.setToolTip(status ? t("Agentic Desktop: {status}", { status }) : "Agentic Desktop");
     const template: Electron.MenuItemConstructorOptions[] = [
       { label: t("Vis Agentic Desktop"), click: () => this.actions.show() },
       { label: t("Ny tråd"), click: () => this.actions.newThread() },

@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, plural, t } from "../lib/i18n.ts";
 // The sidebar, from the top: the app name, search, notifications and ⋯ in one calm row; Chat and
 // Kode; the navigation (new thread, Artifacts, Skills); Festet, shown only when something is pinned;
 // the sections made with ⋯ → Ny seksjon; then the mode's own lists. Kode (round 11, SPEC 24.4):
@@ -79,7 +79,7 @@ const THREADS_SHOWN = 10;
 const [snoozeNow, setSnoozeNow] = createSignal(Date.now());
 export const isSnoozed = (t: Thread, now = snoozeNow()) => !!t.snoozedUntil && t.snoozedUntil > now;
 const snoozeLabel = (at: number) =>
-  `Utsatt til ${new Date(at).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
+  t("Utsatt til {time}", { time: new Date(at).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) });
 
 export function afterPick(): void {
   if (narrowSidebar.matches) setSidebarOpen(false);
@@ -87,7 +87,7 @@ export function afterPick(): void {
 
 export function initials(name: string | undefined): string {
   const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return "Du";
+  if (!words.length) return t("Du");
   return words.map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
@@ -187,7 +187,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
         fallback={
           <input
             class="input rename"
-            aria-label="Nytt navn"
+            aria-label={t("Nytt navn")}
             value={thread.title}
             ref={(el) => setTimeout(() => el.select())}
             onBlur={(e) => commit(e.currentTarget)}
@@ -213,11 +213,11 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           </Show>
           {/* Round 14 (SPEC 30.3): a fork has a small fork mark; the hover card links back. */}
           <Show when={thread.forkedFrom}>
-            <span class="thread-fork" title={`Gaffel av ${forkSourceTitle(thread)}`} aria-label={`Gaffel av ${forkSourceTitle(thread)}.`}><IconBranch size={12} /></span>
+            <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
           </Show>
           <span class="thread-title">{thread.title}</span>
           <Show when={thread.origin === "agent"}>
-            <span class="thread-origin"><IconBranch size={11} />Laget av {parent()?.title ?? "en agent"}</span>
+            <span class="thread-origin"><IconBranch size={11} />{parent() ? t("Laget av {title}", { title: parent()!.title }) : t("Laget av en agent")}</span>
           </Show>
         </button>
       </Show>
@@ -228,18 +228,18 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
         when={isSnoozed(thread)}
         fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}
       >
-        <button type="button" class="thread-snooze" title={`${snoozeLabel(thread.snoozedUntil!)}. Trykk for å hente den tilbake.`} aria-label={`${snoozeLabel(thread.snoozedUntil!)}. Hent tilbake`} onClick={() => setSnoozed(thread, null)}>
+        <button type="button" class="thread-snooze" title={t("{snooze}. Trykk for å hente den tilbake.", { snooze: snoozeLabel(thread.snoozedUntil!) })} aria-label={t("{snooze}. Hent tilbake", { snooze: snoozeLabel(thread.snoozedUntil!) })} onClick={() => setSnoozed(thread, null)}>
           <IconSnooze size={13} />
         </button>
       </Show>
-      <button type="button" class="icon-button thread-pin" aria-label={thread.pinned ? "Løsne tråden" : "Fest tråden"} aria-pressed={thread.pinned} title={thread.pinned ? "Løsne fra Festet" : "Fest øverst i sidefanen"} disabled={pinBusy()} onClick={() => void togglePin()}>
+      <button type="button" class="icon-button thread-pin" aria-label={thread.pinned ? t("Løsne tråden") : t("Fest tråden")} aria-pressed={thread.pinned} title={thread.pinned ? t("Løsne fra Festet") : t("Fest øverst i sidefanen")} disabled={pinBusy()} onClick={() => void togglePin()}>
         <IconPinned size={14} />
       </button>
       <button
         type="button"
         class="icon-button thread-menu"
-        aria-label="Valg for tråden"
-        title="Valg for tråden: gi nytt navn, fest, sidechat, kopier og mer"
+        aria-label={t("Valg for tråden")}
+        title={t("Valg for tråden: gi nytt navn, fest, sidechat, kopier og mer")}
         aria-haspopup="menu"
         aria-expanded={!!menu()}
         onClick={(e) => (menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() }))}
@@ -247,7 +247,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
         <IconDots size={14} />
       </button>
       <Show when={menu()}>
-        {(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${thread.title}`} entries={threadMenuEntries(thread, () => setRenaming(true))} onClose={closeMenu} class="thread-context-menu" />}
+        {(anchor) => <ContextMenu anchor={anchor()} label={t("Valg for {title}", { title: thread.title })} entries={threadMenuEntries(thread, () => setRenaming(true))} onClose={closeMenu} class="thread-context-menu" />}
       </Show>
     </div>
   );
@@ -304,7 +304,7 @@ function ThreadTree(props: { threads: Thread[]; activeIds: ReadonlySet<string>; 
     <>
       <For each={shown()}>{(entry) => <ThreadItem thread={entry.thread} depth={entry.depth} active={props.activeIds.has(entry.thread.id)} />}</For>
       <Show when={shown().length < tree().length || all()}>
-        <button type="button" class="show-more" onClick={() => setAll(!all())}>{all() ? "Vis færre" : `Vis flere (${tree().length - shown().length})`}</button>
+        <button type="button" class="show-more" onClick={() => setAll(!all())}>{all() ? t("Vis færre") : t("Vis flere ({count})", { count: tree().length - shown().length })}</button>
       </Show>
     </>
   );
@@ -318,18 +318,18 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
   onCleanup(() => { if (menu()) suppressHoverCards(false); });
   createEffect(() => { if (settingsOpen()) closeMenu(); });
   const entries = (): MenuEntry[] => [
-    { label: props.project.pinned ? "Løsne prosjektet" : "Fest prosjektet", icon: IconPinned, run: () => patch<Project>(`/api/projects/${props.project.id}`, { pinned: !props.project.pinned }).then((project) => { setApp("projects", project.id, project); if (project.pinned) setShowPinned(true); }).catch(report) },
-    { label: "Rediger prosjekt…", icon: IconEdit, run: () => openEditProject(props.project.id) },
-    { label: "Ny bakgrunnstråd…", icon: IconAddRun, disabled: !!props.project.folderMissing, run: () => void startBackground(props.project.id) },
+    { label: props.project.pinned ? t("Løsne prosjektet") : t("Fest prosjektet"), icon: IconPinned, run: () => patch<Project>(`/api/projects/${props.project.id}`, { pinned: !props.project.pinned }).then((project) => { setApp("projects", project.id, project); if (project.pinned) setShowPinned(true); }).catch(report) },
+    { label: t("Rediger prosjekt…"), icon: IconEdit, run: () => openEditProject(props.project.id) },
+    { label: t("Ny bakgrunnstråd…"), icon: IconAddRun, disabled: !!props.project.folderMissing, run: () => void startBackground(props.project.id) },
     "sep",
-    { label: "Vis prosjektfiler", icon: IconFolder, disabled: !!props.project.folderMissing, title: "Åpne prosjektets filer i appens sidepanel", run: () => { setProjectId(props.project.id); setMode("code"); showPanel("files"); afterPick(); } },
-    { label: "Kopier prosjektsti", icon: IconCopy, run: () => navigator.clipboard.writeText(props.project.path).then(() => toast("Kopierte prosjektstien.", "info")).catch(() => toast("Kunne ikke kopiere prosjektstien.", "error")) },
+    { label: t("Vis prosjektfiler"), icon: IconFolder, disabled: !!props.project.folderMissing, title: t("Åpne prosjektets filer i appens sidepanel"), run: () => { setProjectId(props.project.id); setMode("code"); showPanel("files"); afterPick(); } },
+    { label: t("Kopier prosjektsti"), icon: IconCopy, run: () => navigator.clipboard.writeText(props.project.path).then(() => toast(t("Kopierte prosjektstien."), "info")).catch(() => toast(t("Kunne ikke kopiere prosjektstien."), "error")) },
     "sep",
-    { label: "Arkiver alle trådene", icon: IconArchive, disabled: !liveIn({ projectId: props.project.id }), title: "Trådene forsvinner fra sidefanen, men ingenting slettes. Du kan angre etterpå.", run: () => void archiveMany({ projectId: props.project.id }, `«${props.project.name}»`) },
-    ...(archivedIn({ projectId: props.project.id }) ? [{ label: `Vis arkiverte (${archivedIn({ projectId: props.project.id })})`, icon: IconArchive, run: () => openArchive({ kind: "project", id: props.project.id }) } as MenuEntry] : []),
+    { label: t("Arkiver alle trådene"), icon: IconArchive, disabled: !liveIn({ projectId: props.project.id }), title: t("Trådene forsvinner fra sidefanen, men ingenting slettes. Du kan angre etterpå."), run: () => void archiveMany({ projectId: props.project.id }, `«${props.project.name}»`) },
+    ...(archivedIn({ projectId: props.project.id }) ? [{ label: t("Vis arkiverte ({count})", { count: archivedIn({ projectId: props.project.id }) }), icon: IconArchive, run: () => openArchive({ kind: "project", id: props.project.id }) } as MenuEntry] : []),
     "sep",
-    { label: "Fjern prosjektet…", icon: IconRemove, danger: true, run: async () => {
-      const ok = await confirmDialog({ title: "Fjerne prosjektet?", text: `«${props.project.name}» og trådene fjernes fra appen. Mappen på disken røres aldri.`, confirm: "Fjern", danger: true });
+    { label: t("Fjern prosjektet…"), icon: IconRemove, danger: true, run: async () => {
+      const ok = await confirmDialog({ title: t("Fjerne prosjektet?"), text: t("«{name}» og trådene fjernes fra appen. Mappen på disken røres aldri.", { name: props.project.name }), confirm: t("Fjern"), danger: true });
       if (ok) del(`/api/projects/${props.project.id}`).catch(report);
     } },
   ];
@@ -352,7 +352,7 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
           when={!props.headOnly}
           fallback={<span class="group-toggle group-glyph" aria-hidden="true"><ProjectGlyph project={props.project} size={16} /></span>}
         >
-          <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? "Vis tråder" : "Skjul tråder"} title={isCollapsed() ? "Vis trådene i prosjektet" : "Skjul trådene i prosjektet"} onClick={() => toggleCollapsed(props.project.id)}>
+          <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? t("Vis tråder") : t("Skjul tråder")} title={isCollapsed() ? t("Vis trådene i prosjektet") : t("Skjul trådene i prosjektet")} onClick={() => toggleCollapsed(props.project.id)}>
             <ProjectGlyph project={props.project} size={16} open={!isCollapsed()} />
             <span class="fold-chevron" classList={{ open: !isCollapsed() }}><IconChevron size={12} /></span>
           </button>
@@ -369,19 +369,19 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
           <span>{props.project.name}</span>
         </button>
         <Show when={props.project.folderMissing}>
-          <span class="folder-badge" data-testid="folder-badge" title={`Fant ikke mappen ${props.project.path}. Åpne en tråd i prosjektet for å velge mappen på nytt.`} aria-label="Fant ikke mappen"><IconWarn size={12} /></span>
+          <span class="folder-badge" data-testid="folder-badge" title={t("Fant ikke mappen {path}. Åpne en tråd i prosjektet for å velge mappen på nytt.", { path: props.project.path })} aria-label={t("Fant ikke mappen")}><IconWarn size={12} /></span>
         </Show>
-        <Show when={isCollapsed() && pending() > 0}><span class="badge" title="Venter på godkjenning">{pending()}</span></Show>
+        <Show when={isCollapsed() && pending() > 0}><span class="badge" title={t("Venter på godkjenning")}>{pending()}</span></Show>
         <span class="group-actions" classList={{ open: !!menu() }}>
-          <button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(event) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: event.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
-          <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${props.project.name}`} entries={entries()} onClose={closeMenu} class="project-context-menu" />}</Show>
+          <button type="button" class="icon-button" aria-label={t("Valg for prosjektet")} title={t("Valg for prosjektet")} aria-haspopup="menu" aria-expanded={!!menu()} onClick={(event) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: event.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
+          <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={t("Valg for {name}", { name: props.project.name })} entries={entries()} onClose={closeMenu} class="project-context-menu" />}</Show>
           {/* Round 12 (SPEC 26.1): no new threads while the folder is gone; the tip says what to do. */}
           <button
             type="button"
             class="icon-button"
             classList={{ "is-disabled": !!props.project.folderMissing }}
-            title={props.project.folderMissing ? "Mappen mangler. Åpne en tråd i prosjektet og velg mappen på nytt for å lage nye tråder." : "Ny tråd i prosjektmappen"}
-            aria-label={`Ny tråd i ${props.project.name}`}
+            title={props.project.folderMissing ? t("Mappen mangler. Åpne en tråd i prosjektet og velg mappen på nytt for å lage nye tråder.") : t("Ny tråd i prosjektmappen")}
+            aria-label={t("Ny tråd i {name}", { name: props.project.name })}
             aria-disabled={props.project.folderMissing ? "true" : undefined}
             data-testid="project-new-thread"
             onClick={() => {
@@ -401,10 +401,10 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
             fallback={
               <Show when={selected()}>
                 <div class="sidebar-empty">
-                  <span>Ingen tråder</span>
+                  <span>{t("Ingen tråder")}</span>
                   {/* Round 14 (SPEC 30.4): the archived ones are a click away. */}
                   <Show when={archivedIn({ projectId: props.project.id })}>
-                    <button type="button" class="sidebar-empty-link" onClick={() => openArchive({ kind: "project", id: props.project.id })}>{archivedIn({ projectId: props.project.id })} arkivert{archivedIn({ projectId: props.project.id }) === 1 ? "" : "e"}</button>
+                    <button type="button" class="sidebar-empty-link" onClick={() => openArchive({ kind: "project", id: props.project.id })}>{plural(archivedIn({ projectId: props.project.id }), "{count} arkivert", "{count} arkiverte")}</button>
                   </Show>
                 </div>
               </Show>
@@ -438,28 +438,32 @@ export function Notifications(props: { rail?: boolean }) {
       below
       class="notifications"
       trigger={
-        <button type="button" class="icon-button" classList={{ "rail-button": props.rail }} aria-label={count() ? `Varsler (${count()})` : "Varsler"} title="Varsler" aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}>
+        <button type="button" class="icon-button" classList={{ "rail-button": props.rail }} aria-label={count() ? t("Varsler ({count})", { count: count() }) : t("Varsler")} title={t("Varsler")} aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}>
           <IconBell size={16} />
           <Show when={count()}><span class="notify-dot" data-testid="notify-count">{count()}</span></Show>
         </button>
       }
     >
-      <div class="menu-list notify-list" role="list" aria-label="Varsler">
-        <Show when={count()} fallback={<div class="menu-empty">Ingen varsler. Spørsmål, godkjenninger og tråder som blir ferdige, havner her.</div>}>
+      <div class="menu-list notify-list" role="list" aria-label={t("Varsler")}>
+        <Show when={count()} fallback={<div class="menu-empty">{t("Ingen varsler. Spørsmål, godkjenninger og tråder som blir ferdige, havner her.")}</div>}>
           <Show when={waiting().length}>
-            <div class="menu-heading">Venter på deg</div>
+            <div class="menu-heading">{t("Venter på deg")}</div>
             <For each={waiting()}>
               {(thread) => (
                 <button type="button" class="menu-item notify-item" onClick={() => go(thread)}>
                   <span class="notify-icon waiting"><IconWarn size={13} /></span>
                   <span class="menu-name">{thread.title}</span>
-                  <span class="menu-tag">{thread.pendingQuestions ? `${thread.pendingQuestions} spørsmål${thread.pendingApprovals ? ` · ${thread.pendingApprovals} godkjenninger` : ""}` : `${thread.pendingApprovals} godkjenning${thread.pendingApprovals === 1 ? "" : "er"}`}</span>
+                  <span class="menu-tag">{thread.pendingQuestions
+                    ? thread.pendingApprovals
+                      ? t("{questions} spørsmål · {approvals} godkjenninger", { questions: thread.pendingQuestions, approvals: thread.pendingApprovals })
+                      : t("{count} spørsmål", { count: thread.pendingQuestions })
+                    : plural(thread.pendingApprovals, "{count} godkjenning", "{count} godkjenninger")}</span>
                 </button>
               )}
             </For>
           </Show>
           <Show when={done().length}>
-            <div class="menu-heading">Uleste</div>
+            <div class="menu-heading">{t("Uleste")}</div>
             <For each={done()}>
               {(thread) => (
                 <button type="button" class="menu-item notify-item" onClick={() => go(thread)}>
@@ -469,7 +473,7 @@ export function Notifications(props: { rail?: boolean }) {
                 </button>
               )}
             </For>
-            <button type="button" class="menu-item menu-quiet" onClick={() => { clearFinished(); setOpen(false); }}>Merk alle som sett</button>
+            <button type="button" class="menu-item menu-quiet" onClick={() => { clearFinished(); setOpen(false); }}>{t("Merk alle som sett")}</button>
           </Show>
         </Show>
       </div>
@@ -478,35 +482,34 @@ export function Notifications(props: { rail?: boolean }) {
 }
 
 const CONNECTION: Record<string, string> = {
-  connecting: "Kobler til…",
-  online: "Tilkoblet",
-  offline: "Frakoblet, prøver igjen",
-  expired: "Økten er utløpt",
+  get connecting() { return t("Kobler til…"); },
+  get online() { return t("Tilkoblet"); },
+  get offline() { return t("Frakoblet, prøver igjen"); },
+  get expired() { return t("Økten er utløpt"); },
 };
 
 
 // The profile at the bottom of the sidebar opens this menu: the profile page, Settings, the
 // shortcuts and help.
 const THEMES: Array<{ id: "light" | "dark" | "system"; label: string }> = [
-  { id: "light", label: "Lys" },
-  { id: "dark", label: "Mørk" },
-  { id: "system", label: "System" },
+  { id: "light", get label() { return t("Lys"); } },
+  { id: "dark", get label() { return t("Mørk"); } },
+  { id: "system", get label() { return t("System"); } },
 ];
 
 // rail: only the avatar, in the thin row of icons (SPEC 23.9).
 export function ProfileMenu(props: { rail?: boolean }) {
   const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
-  const profileName = () => app.settings.profileName?.trim() || "Profil";
+  const profileName = () => app.settings.profileName?.trim() || t("Profil");
   // Under the name: the default model and the last seven days, from the statistics. Fetched again
   // each time the menu opens after a run has ended. A week with runs but no counted tokens (a
   // provider that does not report usage) says how many threads were used, not «0 tokens».
   const subline = () => {
     const week = homeStats("7d");
-    let tail = "";
-    if (week?.totalTokens) tail = ` · ${formatTokens(week.totalTokens)} tokens siste 7 dager`;
-    else if (week?.sessions) tail = ` · ${week.sessions} ${week.sessions === 1 ? "tråd" : "tråder"} siste 7 dager`;
-    else if (week) tail = " · ingen bruk siste 7 dager";
-    return `${modelName(null)}${tail}`;
+    const model = modelName(null);
+    if (week?.totalTokens) return t("{model} · {tokens} tokens siste 7 dager", { model, tokens: formatTokens(week.totalTokens) });
+    if (week?.sessions) return plural(week.sessions, "{model} · {count} tråd siste 7 dager", "{model} · {count} tråder siste 7 dager", { model });
+    return week ? t("{model} · ingen bruk siste 7 dager", { model }) : model;
   };
   // While the menu is open, a run that ends updates the line under the name.
   createEffect(on(runsFinished, () => {
@@ -522,16 +525,16 @@ export function ProfileMenu(props: { rail?: boolean }) {
       ),
     },
     "sep",
-    { label: "Profil", icon: IconUser, run: () => { closeArtifacts(); openProfile(); afterPick(); } },
-    { label: "Innstillinger", icon: IconSettings, keys: "settings.open", run: () => setSettingsOpen("general") },
-    { label: "Versjonslogg", icon: IconSpark, run: () => setInfoDialog("releases") },
-    { label: "Hurtigtaster", icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts, title: "Se hurtigtastene. De endres i Innstillinger → Hurtigtaster." },
+    { label: t("Profil"), icon: IconUser, run: () => { closeArtifacts(); openProfile(); afterPick(); } },
+    { label: t("Innstillinger"), icon: IconSettings, keys: "settings.open", run: () => setSettingsOpen("general") },
+    { label: t("Versjonslogg"), icon: IconSpark, run: () => setInfoDialog("releases") },
+    { label: t("Hurtigtaster"), icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts, title: t("Se hurtigtastene. De endres i Innstillinger → Hurtigtaster.") },
     "sep",
     {
       custom: () => (
-        <div class="profile-theme-row" role="group" aria-label="Tema">
+        <div class="profile-theme-row" role="group" aria-label={t("Tema")}>
           <IconSun size={15} />
-          <span class="menu-name">Tema</span>
+          <span class="menu-name">{t("Tema")}</span>
           <span class="profile-theme-switch">
             <For each={THEMES}>
               {(theme) => (
@@ -546,12 +549,12 @@ export function ProfileMenu(props: { rail?: boolean }) {
     },
     "sep",
     {
-      label: "Hjelp",
+      label: t("Hjelp"),
       icon: IconHelp,
       children: [
-        { label: "Kommandoer", icon: IconTerminal, run: actions.commands },
-        { label: "Hva er nytt", icon: IconSpark, run: () => setInfoDialog("whatsnew") },
-        { label: "Om Agentic Desktop", icon: IconInfo, run: actions.about },
+        { label: t("Kommandoer"), icon: IconTerminal, run: actions.commands },
+        { label: t("Hva er nytt"), icon: IconSpark, run: () => setInfoDialog("whatsnew") },
+        { label: t("Om Agentic Desktop"), icon: IconInfo, run: actions.about },
       ],
     },
   ];
@@ -561,8 +564,8 @@ export function ProfileMenu(props: { rail?: boolean }) {
         type="button"
         class="profile-button"
         classList={{ "rail-button": props.rail, "rail-avatar": props.rail }}
-        title="Profil, innstillinger og hjelp"
-        aria-label="Profil"
+        title={t("Profil, innstillinger og hjelp")}
+        aria-label={t("Profil")}
         aria-haspopup="menu"
         aria-expanded={!!anchor()}
         aria-pressed={profileOpen()}
@@ -591,7 +594,7 @@ export function ProfileMenu(props: { rail?: boolean }) {
           </span>
         </Show>
       </button>
-      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Profilmeny" entries={entries()} onClose={() => setAnchor(null)} class="profile-menu" />}</Show>
+      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label={t("Profilmeny")} entries={entries()} onClose={() => setAnchor(null)} class="profile-menu" />}</Show>
     </>
   );
 }
@@ -614,24 +617,24 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
     afterPick();
   };
   const entries = (): MenuEntry[] => [
-    { label: "Åpne prosjektet", icon: IconFolder, run: open },
-    { label: "Rediger prosjekt…", icon: IconEdit, run: () => void editChatProject(props.project) },
-    { label: props.project.pinned ? "Løsne prosjektet" : "Fest prosjektet", icon: IconPinned, run: () => patch(`/api/chat-projects/${props.project.id}`, { pinned: !props.project.pinned }).catch(report) },
+    { label: t("Åpne prosjektet"), icon: IconFolder, run: open },
+    { label: t("Rediger prosjekt…"), icon: IconEdit, run: () => void editChatProject(props.project) },
+    { label: props.project.pinned ? t("Løsne prosjektet") : t("Fest prosjektet"), icon: IconPinned, run: () => patch(`/api/chat-projects/${props.project.id}`, { pinned: !props.project.pinned }).catch(report) },
     "sep",
     // Round 14 (SPEC 30.4)
     {
-      label: "Arkiver alle chattene",
+      label: t("Arkiver alle chattene"),
       icon: IconArchive,
       disabled: !liveIn({ chatProjectId: props.project.id }),
-      title: "Chattene forsvinner fra sidefanen, men ingenting slettes. Angre i meldingen som kommer.",
+      title: t("Chattene forsvinner fra sidefanen, men ingenting slettes. Angre i meldingen som kommer."),
       run: () => void archiveMany({ chatProjectId: props.project.id }, `«${props.project.name}»`, { one: "chat", many: "chatter" }),
     },
     ...(archivedIn({ chatProjectId: props.project.id })
-      ? [{ label: `Vis arkiverte (${archivedIn({ chatProjectId: props.project.id })})`, run: () => openArchive({ kind: "chat-project", id: props.project.id }) } as MenuEntry]
+      ? [{ label: t("Vis arkiverte ({count})", { count: archivedIn({ chatProjectId: props.project.id }) }), run: () => openArchive({ kind: "chat-project", id: props.project.id }) } as MenuEntry]
       : []),
     "sep",
     {
-      label: "Fjern prosjektet…",
+      label: t("Fjern prosjektet…"),
       icon: IconRemove,
       danger: true,
       run: () => void removeChatProject(props.project),
@@ -640,21 +643,21 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
   return (
     <div class="group chat-project" data-chat-project={props.project.name}>
       <div class="group-head" classList={{ active: selected() }} ref={head} onPointerEnter={() => hoverIn("chat-project", props.project.id, head)} onPointerLeave={hoverOut} onPointerDown={hideHoverCard} onContextMenu={(event) => { event.preventDefault(); showMenu({ x: event.clientX, y: event.clientY }); }}>
-        <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? "Vis chatter" : "Skjul chatter"} title={isCollapsed() ? "Vis chattene i prosjektet" : "Skjul chattene i prosjektet"} onClick={() => toggleCollapsed(key())}>
+        <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? t("Vis chatter") : t("Skjul chatter")} title={isCollapsed() ? t("Vis chattene i prosjektet") : t("Skjul chattene i prosjektet")} onClick={() => toggleCollapsed(key())}>
           <ChatProjectGlyph project={props.project} size={16} open={!isCollapsed()} />
           <span class="fold-chevron" classList={{ open: !isCollapsed() }}><IconChevron size={12} /></span>
         </button>
-        <button type="button" class="group-title" aria-current={selected() ? "page" : undefined} title={`Åpne ${props.project.name}`} onClick={open}><span>{props.project.name}</span></button>
+        <button type="button" class="group-title" aria-current={selected() ? "page" : undefined} title={t("Åpne {name}", { name: props.project.name })} onClick={open}><span>{props.project.name}</span></button>
         <Show when={isCollapsed() && props.threads.length}><span class="group-count">{props.threads.length}</span></Show>
         <span class="group-actions" classList={{ open: !!menu() }}>
-          <button type="button" class="icon-button" aria-label="Valg for prosjektet" title="Valg for prosjektet" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
-          <button type="button" class="icon-button" title="Ny chat i prosjektet" aria-label={`Ny chat i ${props.project.name}`} onClick={() => { void newChatIn(props.project.id); afterPick(); }}><IconPlus size={14} /></button>
+          <button type="button" class="icon-button" aria-label={t("Valg for prosjektet")} title={t("Valg for prosjektet")} aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
+          <button type="button" class="icon-button" title={t("Ny chat i prosjektet")} aria-label={t("Ny chat i {name}", { name: props.project.name })} onClick={() => { void newChatIn(props.project.id); afterPick(); }}><IconPlus size={14} /></button>
         </span>
-        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${props.project.name}`} entries={entries()} onClose={closeMenu} class="project-context-menu" />}</Show>
+        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={t("Valg for {name}", { name: props.project.name })} entries={entries()} onClose={closeMenu} class="project-context-menu" />}</Show>
       </div>
       <Show when={!isCollapsed()}>
         <div class="group-body">
-          <Show when={props.threads.length} fallback={<div class="sidebar-empty">Ingen chatter ennå</div>}>
+          <Show when={props.threads.length} fallback={<div class="sidebar-empty">{t("Ingen chatter ennå")}</div>}>
             <ThreadTree threads={props.threads} activeIds={props.activeIds} limit={THREADS_SHOWN} />
           </Show>
         </div>
@@ -671,15 +674,15 @@ function LocalGroup(props: { threads: Thread[]; activeIds: ReadonlySet<string> }
   return (
     <div class="group local-group" data-testid="local-group">
       <div class="group-head" classList={{ active: selected() }}>
-        <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? "Vis tråder" : "Skjul tråder"} title={isCollapsed() ? "Vis trådene" : "Skjul trådene"} onClick={() => toggleCollapsed(LOCAL_SCOPE)}>
+        <button type="button" class="group-toggle" aria-expanded={!isCollapsed()} aria-label={isCollapsed() ? t("Vis tråder") : t("Skjul tråder")} title={isCollapsed() ? t("Vis trådene") : t("Skjul trådene")} onClick={() => toggleCollapsed(LOCAL_SCOPE)}>
           <span class="project-glyph local-glyph"><IconMonitor size={16} /></span>
           <span class="fold-chevron" classList={{ open: !isCollapsed() }}><IconChevron size={12} /></span>
         </button>
-        <button type="button" class="group-title" title="Kode uten prosjektmappe. Trådene her har ingen filer eller kommandoer." onClick={() => { setProjectId(null); setMode("code"); afterPick(); }}>
-          <span>Denne datamaskinen</span>
+        <button type="button" class="group-title" title={t("Kode uten prosjektmappe. Trådene her har ingen filer eller kommandoer.")} onClick={() => { setProjectId(null); setMode("code"); afterPick(); }}>
+          <span>{t("Denne datamaskinen")}</span>
         </button>
         <span class="group-actions">
-          <button type="button" class="icon-button" title="Ny tråd uten prosjektmappe" aria-label="Ny tråd på Denne datamaskinen" onClick={() => { void newThreadIn(null, true); afterPick(); }}><IconPlus size={14} /></button>
+          <button type="button" class="icon-button" title={t("Ny tråd uten prosjektmappe")} aria-label={t("Ny tråd på Denne datamaskinen")} onClick={() => { void newThreadIn(null, true); afterPick(); }}><IconPlus size={14} /></button>
         </span>
       </div>
       <Show when={!isCollapsed()}>
@@ -692,9 +695,9 @@ function LocalGroup(props: { threads: Thread[]; activeIds: ReadonlySet<string> }
 }
 
 const SORTS: Array<{ id: ProjectSort; label: string }> = [
-  { id: "recent", label: "Sist oppdatert" },
-  { id: "created", label: "Opprettet" },
-  { id: "name", label: "Navn" },
+  { id: "recent", get label() { return t("Sist oppdatert"); } },
+  { id: "created", get label() { return t("Opprettet"); } },
+  { id: "name", get label() { return t("Navn"); } },
 ];
 
 // Round 11 (SPEC 24.6): one ⋯ at the top of the sidebar for what used to be spread out: how the
@@ -707,41 +710,41 @@ function SidebarMenu(props: { foldIds: () => string[] }) {
   const anyFolded = () => props.foldIds().some((id) => collapsed().includes(id));
   const entries = (): MenuEntry[] => [
     {
-      label: "Organiser sidepanelet",
+      label: t("Organiser sidepanelet"),
       icon: IconSidebar,
       children: [
-        { heading: <span class="menu-heading">Grupper</span> },
-        { label: "Etter prosjekt", chosen: projectGroup() === "project", title: inChat() ? "Chattene i prosjektene sine, og resten under Chatter" : "Hvert prosjekt med trådene sine", run: () => setProjectGroup("project") },
-        { label: "Etter dato", chosen: projectGroup() === "list", title: "Én liste med I dag, I går og eldre", run: () => setProjectGroup("list") },
+        { heading: <span class="menu-heading">{t("Grupper")}</span> },
+        { label: t("Etter prosjekt"), chosen: projectGroup() === "project", title: inChat() ? t("Chattene i prosjektene sine, og resten under Chatter") : t("Hvert prosjekt med trådene sine"), run: () => setProjectGroup("project") },
+        { label: t("Etter dato"), chosen: projectGroup() === "list", title: t("Én liste med I dag, I går og eldre"), run: () => setProjectGroup("list") },
         "sep",
-        { label: "Fold sammen alle", icon: IconFoldAll, disabled: !anyOpen(), run: () => setAllCollapsed(props.foldIds(), true) },
-        { label: "Fold ut alle", icon: IconUnfoldAll, disabled: !anyFolded(), run: () => setAllCollapsed(props.foldIds(), false) },
+        { label: t("Fold sammen alle"), icon: IconFoldAll, disabled: !anyOpen(), run: () => setAllCollapsed(props.foldIds(), true) },
+        { label: t("Fold ut alle"), icon: IconUnfoldAll, disabled: !anyFolded(), run: () => setAllCollapsed(props.foldIds(), false) },
       ],
     },
     {
-      label: "Sorter samtaler etter",
+      label: t("Sorter samtaler etter"),
       icon: IconSort,
       children: SORTS.map((sort) => ({ label: sort.label, chosen: projectSort() === sort.id, run: () => setProjectSort(sort.id) })),
     },
     "sep",
-    { heading: <span class="menu-heading">Vis</span> },
-    { label: "Festet", toggle: showPinned(), title: "Festede tråder og prosjekter øverst. Av: de står der de ellers hører til.", run: () => setShowPinned(!showPinned()) },
-    ...(inChat() ? [{ label: "Prosjekter", toggle: showProjects(), title: "Prosjektene i Chat. Av: chattene deres står under Chatter.", run: () => setShowProjects(!showProjects()) } as MenuEntry] : []),
+    { heading: <span class="menu-heading">{t("Vis")}</span> },
+    { label: t("Festet"), toggle: showPinned(), title: t("Festede tråder og prosjekter øverst. Av: de står der de ellers hører til."), run: () => setShowPinned(!showPinned()) },
+    ...(inChat() ? [{ label: t("Prosjekter"), toggle: showProjects(), title: t("Prosjektene i Chat. Av: chattene deres står under Chatter."), run: () => setShowProjects(!showProjects()) } as MenuEntry] : []),
     "sep",
     inChat()
-      ? { label: "Nytt prosjekt…", icon: IconFolderPlus, title: "Et navn som samler chatter", run: () => void newChatProject() }
-      : { label: "Legg til prosjekt…", icon: IconFolderPlus, title: "Velg en mappe på PC-en. Prosjektet kommer under Chatter.", run: () => setFolderPickerOpen(true) },
-    { label: "Ny seksjon", icon: IconPlus, title: "En egen seksjon du kan dra tråder inn i", run: () => void newSection(mode()) },
+      ? { label: t("Nytt prosjekt…"), icon: IconFolderPlus, title: t("Et navn som samler chatter"), run: () => void newChatProject() }
+      : { label: t("Legg til prosjekt…"), icon: IconFolderPlus, title: t("Velg en mappe på PC-en. Prosjektet kommer under Chatter."), run: () => setFolderPickerOpen(true) },
+    { label: t("Ny seksjon"), icon: IconPlus, title: t("En egen seksjon du kan dra tråder inn i"), run: () => void newSection(mode()) },
     "sep",
-    { label: "Arkiverte tråder", icon: IconArchive, title: "Tråder du har arkivert. Ingenting er slettet.", run: () => openArchive() },
+    { label: t("Arkiverte tråder"), icon: IconArchive, title: t("Tråder du har arkivert. Ingenting er slettet."), run: () => openArchive() },
   ];
   return (
     <>
       <button
         type="button"
         class="icon-button"
-        aria-label="Valg for sidefanen"
-        title="Organiser, sorter og vis"
+        aria-label={t("Valg for sidefanen")}
+        title={t("Organiser, sorter og vis")}
         aria-haspopup="menu"
         aria-expanded={!!anchor()}
         data-testid="sidebar-menu"
@@ -757,7 +760,7 @@ function SidebarMenu(props: { foldIds: () => string[] }) {
       >
         <IconDots size={16} />
       </button>
-      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Valg for sidefanen" entries={entries()} onClose={() => setAnchor(null)} class="sidebar-menu" />}</Show>
+      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label={t("Valg for sidefanen")} entries={entries()} onClose={() => setAnchor(null)} class="sidebar-menu" />}</Show>
     </>
   );
 }
@@ -769,25 +772,25 @@ function SectionGroup(props: { section: SidebarSection; threads: Thread[]; activ
   const key = () => `sec:${props.section.id}`;
   const isCollapsed = () => collapsed().includes(key());
   const entries = (): MenuEntry[] => [
-    { label: "Gi nytt navn…", icon: IconEdit, run: () => void renameSection(props.section) },
+    { label: t("Gi nytt navn…"), icon: IconEdit, run: () => void renameSection(props.section) },
     "sep",
-    { label: "Slett seksjonen…", icon: IconRemove, danger: true, run: () => void deleteSection(props.section) },
+    { label: t("Slett seksjonen…"), icon: IconRemove, danger: true, run: () => void deleteSection(props.section) },
   ];
   return (
     <div class="group user-section" classList={{ "drop-over": sectionTarget() === props.section.id }} data-section-id={props.section.id} data-drop-section={props.section.id}>
       <div class="section-head section-head-user">
-        <button type="button" class="section-fold" aria-expanded={!isCollapsed()} title={isCollapsed() ? "Vis trådene i seksjonen" : "Skjul trådene i seksjonen"} onClick={() => toggleCollapsed(key())}>
+        <button type="button" class="section-fold" aria-expanded={!isCollapsed()} title={isCollapsed() ? t("Vis trådene i seksjonen") : t("Skjul trådene i seksjonen")} onClick={() => toggleCollapsed(key())}>
           <span class="section-label">{props.section.name}</span>
           <Show when={isCollapsed() && props.threads.length}><span class="section-count">{props.threads.length}</span></Show>
           <span class="fold-chevron" classList={{ open: !isCollapsed() }}><IconChevron size={12} /></span>
         </button>
         <span class="section-tools" classList={{ open: !!menu() }}>
-          <button type="button" class="icon-button" aria-label={`Valg for ${props.section.name}`} title="Valg for seksjonen" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => setMenu(menu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
+          <button type="button" class="icon-button" aria-label={t("Valg for {name}", { name: props.section.name })} title={t("Valg for seksjonen")} aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => setMenu(menu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}><IconDots size={14} /></button>
         </span>
-        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${props.section.name}`} entries={entries()} onClose={() => setMenu(null)} />}</Show>
+        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={t("Valg for {name}", { name: props.section.name })} entries={entries()} onClose={() => setMenu(null)} />}</Show>
       </div>
       <Show when={!isCollapsed()}>
-        <Show when={props.threads.length} fallback={<div class="sidebar-empty section-empty">Dra tråder hit, eller bruk trådmenyen</div>}>
+        <Show when={props.threads.length} fallback={<div class="sidebar-empty section-empty">{t("Dra tråder hit, eller bruk trådmenyen")}</div>}>
           <ThreadTree threads={props.threads} activeIds={props.activeIds} limit={THREADS_SHOWN} />
         </Show>
       </Show>
@@ -797,15 +800,17 @@ function SectionGroup(props: { section: SidebarSection; threads: Thread[]; activ
 
 // Etter dato: one list with I dag, I går, Siste 7 dager, Siste 30 dager and Eldre.
 const DAY = 86_400_000;
-function dateBucket(at: number, now: number): string {
+const dateBuckets = [() => t("I dag"), () => t("I går"), () => t("Siste 7 dager"), () => t("Siste 30 dager"), () => t("Eldre")];
+
+function dateBucket(at: number, now: number): number {
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
   const today = start.getTime();
-  if (at >= today) return "I dag";
-  if (at >= today - DAY) return "I går";
-  if (at >= today - 6 * DAY) return "Siste 7 dager";
-  if (at >= today - 29 * DAY) return "Siste 30 dager";
-  return "Eldre";
+  if (at >= today) return 0;
+  if (at >= today - DAY) return 1;
+  if (at >= today - 6 * DAY) return 2;
+  if (at >= today - 29 * DAY) return 3;
+  return 4;
 }
 
 function DateList(props: { threads: Thread[]; activeIds: ReadonlySet<string>; showProject?: boolean }) {
@@ -815,28 +820,27 @@ function DateList(props: { threads: Thread[]; activeIds: ReadonlySet<string>; sh
   const groups = createMemo(() => {
     const now = Date.now();
     const at = (t: Thread) => (projectSort() === "created" ? t.createdAt : t.updatedAt);
-    const out: Array<{ label: string; threads: Thread[] }> = [];
+    const out: Array<{ bucket: number; threads: Thread[] }> = [];
     for (const thread of shown()) {
-      const label = dateBucket(at(thread), now);
-      const group = out.find((g) => g.label === label);
+      const bucket = dateBucket(at(thread), now);
+      const group = out.find((g) => g.bucket === bucket);
       if (group) group.threads.push(thread);
-      else out.push({ label, threads: [thread] });
+      else out.push({ bucket, threads: [thread] });
     }
-    const order = ["I dag", "I går", "Siste 7 dager", "Siste 30 dager", "Eldre"];
-    return out.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+    return out.sort((a, b) => a.bucket - b.bucket);
   });
   return (
     <>
       <For each={groups()}>
         {(group) => (
           <>
-            <div class="date-head" role="presentation">{group.label}</div>
+            <div class="date-head" role="presentation">{dateBuckets[group.bucket]()}</div>
             <For each={group.threads}>{(thread) => <ThreadItem thread={thread} active={props.activeIds.has(thread.id)} showProject={props.showProject} />}</For>
           </>
         )}
       </For>
       <Show when={shown().length < props.threads.length || all()}>
-        <button type="button" class="show-more" onClick={() => setAll(!all())}>{all() ? "Vis færre" : `Vis flere (${props.threads.length - shown().length})`}</button>
+        <button type="button" class="show-more" onClick={() => setAll(!all())}>{all() ? t("Vis færre") : t("Vis flere ({count})", { count: props.threads.length - shown().length })}</button>
       </Show>
     </>
   );
@@ -874,7 +878,7 @@ export function Sidebar() {
   // dimmed with a clock, until the time is up.
   const order = (a: Thread, b: Thread) =>
     Number(isSnoozed(a)) - Number(isSnoozed(b)) ||
-    (projectSort() === "name" ? a.title.localeCompare(b.title, "nb", { sensitivity: "base" }) : projectSort() === "created" ? b.createdAt - a.createdAt : b.updatedAt - a.updatedAt);
+    (projectSort() === "name" ? a.title.localeCompare(b.title, language(), { sensitivity: "base" }) : projectSort() === "created" ? b.createdAt - a.createdAt : b.updatedAt - a.updatedAt);
   const threads = createMemo(() => Object.values(app.threads).filter(listed));
   const live = createMemo(() => threads().filter((t) => !t.archived).sort(order));
   // ⋯ → Vis → Festet. Pinned threads get their own place under Festet and are not shown twice; with
@@ -898,7 +902,7 @@ export function Sidebar() {
   // Projects in the order chosen in ⋯.
   const ordered = createMemo(() => {
     const list = [...sortedProjects()];
-    if (projectSort() === "name") list.sort((a, b) => a.name.localeCompare(b.name, "nb", { sensitivity: "base" }));
+    if (projectSort() === "name") list.sort((a, b) => a.name.localeCompare(b.name, language(), { sensitivity: "base" }));
     else if (projectSort() === "created") list.sort((a, b) => b.createdAt - a.createdAt);
     return list;
   });
@@ -956,7 +960,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside class="sidebar" classList={{ "sidebar-smart": smart() }} aria-label="Prosjekter og tråder">
+    <aside class="sidebar" classList={{ "sidebar-smart": smart() }} aria-label={t("Prosjekter og tråder")}>
       <div class="sidebar-head">
         <span class="app-name">Agentic Desktop</span>
         <span class="sidebar-spacer" />
@@ -964,8 +968,8 @@ export function Sidebar() {
           <button
             type="button"
             class="icon-button"
-            aria-label="Søk"
-            title={`Søk i tråder (${displayKeys(keysFor("thread.search"))})`}
+            aria-label={t("Søk")}
+            title={t("Søk i tråder ({keys})", { keys: displayKeys(keysFor("thread.search")) })}
             aria-pressed={searchOpen()}
             onClick={() => (searchOpen() ? closeSearch() : actions.searchThreads())}
           >
@@ -981,37 +985,37 @@ export function Sidebar() {
           <input
             class="search-input"
             type="search"
-            placeholder="Søk i tråder"
-            aria-label="Søk i tråder"
+            placeholder={t("Søk i tråder")}
+            aria-label={t("Søk i tråder")}
             value={query()}
             onInput={(e) => onSearch(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") closeSearch();
             }}
           />
-          <button type="button" class="icon-button" aria-label="Lukk søket" onClick={closeSearch}><IconClose size={13} /></button>
+          <button type="button" class="icon-button" aria-label={t("Lukk søket")} onClick={closeSearch}><IconClose size={13} /></button>
         </div>
       </Show>
       <ModeSwitch class="sidebar-mode" />
       <Show when={!smart()} fallback={<SmartSidebar activeIds={activeIds()} />}>
-        <nav class="sidebar-nav" aria-label="Navigasjon">
+        <nav class="sidebar-nav" aria-label={t("Navigasjon")}>
           <div class="nav-row">
-            <button type="button" class="nav-item" aria-label="Ny tråd" title={`Ny tråd (${displayKeys(keysFor("thread.new"))})`} onClick={() => { actions.newThread(); afterPick(); }}>
-              <IconCompose size={16} /><span>Ny tråd</span>
+            <button type="button" class="nav-item" aria-label={t("Ny tråd")} title={t("Ny tråd ({keys})", { keys: displayKeys(keysFor("thread.new")) })} onClick={() => { actions.newThread(); afterPick(); }}>
+              <IconCompose size={16} /><span>{t("Ny tråd")}</span>
             </button>
-            <button type="button" class="icon-button nav-row-extra" title="Ny tråd i et nytt prosjekt" aria-label="Ny tråd i et nytt prosjekt" onClick={() => setFolderPickerOpen(true)}><IconPlusCircle size={16} /></button>
+            <button type="button" class="icon-button nav-row-extra" title={t("Ny tråd i et nytt prosjekt")} aria-label={t("Ny tråd i et nytt prosjekt")} onClick={() => setFolderPickerOpen(true)}><IconPlusCircle size={16} /></button>
           </div>
           <button
             type="button"
             class="nav-item artifacts-row"
             aria-current={room() ? "page" : undefined}
-            title="Små programmer i én HTML-fil, med forhåndsvisning"
+            title={t("Små programmer i én HTML-fil, med forhåndsvisning")}
             onClick={() => { closeProfile(); openArtifacts(); afterPick(); }}
           >
-            <IconArtifact size={16} /><span>Artifacts</span><span class="nav-count" aria-label={`${artifactCount()} artifacts`}>{artifactCount()}</span>
+            <IconArtifact size={16} /><span>{t("Artifacts")}</span><span class="nav-count" aria-label={t("{count} artifacts", { count: artifactCount() })}>{artifactCount()}</span>
           </button>
-          <button type="button" class="nav-item" aria-current={skillsOpen() ? "page" : undefined} title="Skills som finnes for prosjektet og for deg" onClick={() => { actions.skills(); afterPick(); }}>
-            <IconSpark size={16} /><span>Skills</span>
+          <button type="button" class="nav-item" aria-current={skillsOpen() ? "page" : undefined} title={t("Skills som finnes for prosjektet og for deg")} onClick={() => { actions.skills(); afterPick(); }}>
+            <IconSpark size={16} /><span>{t("Skills")}</span>
           </button>
         </nav>
         <div class="sidebar-scroll" onScroll={hideHoverCard}>
@@ -1019,8 +1023,8 @@ export function Sidebar() {
             when={!query().trim()}
             fallback={
               <div class="group">
-                <div class="section-head"><span class="section-label">Treff</span></div>
-                <For each={results()} fallback={<div class="sidebar-empty">Ingen tråder funnet</div>}>
+                <div class="section-head"><span class="section-label">{t("Treff")}</span></div>
+                <For each={results()} fallback={<div class="sidebar-empty">{t("Ingen tråder funnet")}</div>}>
                   {(thread) => <ThreadItem thread={app.threads[thread.id] ?? thread} active={activeIds().has(thread.id)} />}
                 </For>
               </div>
@@ -1029,7 +1033,7 @@ export function Sidebar() {
             {/* Festet (SPEC 21.2): only when something is pinned, in both modes, and ⋯ → Vis → Festet is on. */}
             <Show when={anyPinned()}>
               <div class="section-head" data-section="pinned">
-                <span class="section-label">Festet</span>
+                <span class="section-label">{t("Festet")}</span>
               </div>
               <div class="pinned-projects">
                 <For each={pinnedThreads()}>
@@ -1055,18 +1059,18 @@ export function Sidebar() {
                 <>
                   <Show when={chatProjectsShown()}>
                     <div class="section-head" data-section="projects">
-                      <span class="section-label">Prosjekter</span>
-                      <button type="button" class="icon-button" title="Nytt prosjekt i Chat: et navn som samler chatter" aria-label="Nytt prosjekt i Chat" onClick={() => void newChatProject()}><IconPlus size={14} /></button>
+                      <span class="section-label">{t("Prosjekter")}</span>
+                      <button type="button" class="icon-button" title={t("Nytt prosjekt i Chat: et navn som samler chatter")} aria-label={t("Nytt prosjekt i Chat")} onClick={() => void newChatProject()}><IconPlus size={14} /></button>
                     </div>
-                    <For each={chatProjects()} fallback={<Show when={!pinnedChatProjects().length}><div class="sidebar-empty">Samle chatter i et prosjekt med +</div></Show>}>
+                    <For each={chatProjects()} fallback={<Show when={!pinnedChatProjects().length}><div class="sidebar-empty">{t("Samle chatter i et prosjekt med +")}</div></Show>}>
                       {(project) => <ChatProjectGroup project={project} threads={forChatProject(project.id)} activeIds={activeIds()} />}
                     </For>
                   </Show>
                   <div class="section-head" data-section="chats">
-                    <span class="section-label">Chatter</span>
-                    <button type="button" class="icon-button" title="Ny tråd i Chat" aria-label="Ny tråd i Chat" onClick={() => { void newThreadIn(null); afterPick(); }}><IconPlus size={14} /></button>
+                    <span class="section-label">{t("Chatter")}</span>
+                    <button type="button" class="icon-button" title={t("Ny tråd i Chat")} aria-label={t("Ny tråd i Chat")} onClick={() => { void newThreadIn(null); afterPick(); }}><IconPlus size={14} /></button>
                   </div>
-                  <Show when={chats().length} fallback={<div class="sidebar-empty">Ingen chatter ennå</div>}>
+                  <Show when={chats().length} fallback={<div class="sidebar-empty">{t("Ingen chatter ennå")}</div>}>
                     <Show when={projectGroup() === "list"} fallback={<ThreadTree threads={chats()} activeIds={activeIds()} limit={THREADS_SHOWN} />}>
                       <DateList threads={chats()} activeIds={activeIds()} />
                     </Show>
@@ -1078,7 +1082,7 @@ export function Sidebar() {
                   by itself when its folder is chosen in the message field or on the start page, and
                   ⋯ → Legg til prosjekt adds one without a thread. */}
               <div class="section-head" data-section="chats">
-                <span class="section-label">Chatter</span>
+                <span class="section-label">{t("Chatter")}</span>
               </div>
               <Show
                 when={projectGroup() === "project"}
@@ -1094,7 +1098,7 @@ export function Sidebar() {
                   {(project) => <ProjectGroup project={project} threads={forProject(project.id)} activeIds={activeIds()} />}
                 </For>
                 <Show when={shownProjects().length < otherProjects().length || allProjects()}>
-                  <button type="button" class="show-more" onClick={() => setAllProjects(!allProjects())}>{allProjects() ? "Vis færre" : "Vis flere"}</button>
+                  <button type="button" class="show-more" onClick={() => setAllProjects(!allProjects())}>{allProjects() ? t("Vis færre") : t("Vis flere")}</button>
                 </Show>
               </Show>
               {/* Only once there is a thread without a project (SPEC 23.2). */}
@@ -1103,7 +1107,7 @@ export function Sidebar() {
               </Show>
             </Show>
             <Show when={archivedCount()}>
-              <button type="button" class="show-more archived-link" aria-label={`Arkiverte (${archivedCount()})`} title="Arkiverte tråder: ingenting er slettet, og de kan hentes tilbake" onClick={() => openArchive()}><IconArchive size={14} /><span>Arkiverte</span><span class="archived-count">{archivedCount()}</span></button>
+              <button type="button" class="show-more archived-link" aria-label={t("Arkiverte ({count})", { count: archivedCount() })} title={t("Arkiverte tråder: ingenting er slettet, og de kan hentes tilbake")} onClick={() => openArchive()}><IconArchive size={14} /><span>{t("Arkiverte")}</span><span class="archived-count">{archivedCount()}</span></button>
             </Show>
           </Show>
         </div>
@@ -1116,15 +1120,15 @@ export function Sidebar() {
           type="button"
           class="icon-button settings-gear"
           data-testid="settings-gear"
-          title={`Innstillinger for ${inChat() ? "Chat" : "Kode"} (${displayKeys(keysFor("settings.open"))})`}
+          title={t("Innstillinger for {mode} ({keys})", { mode: inChat() ? t("Chat") : t("Kode"), keys: displayKeys(keysFor("settings.open")) })}
           onClick={() => setSettingsOpen(inChat() ? "chat" : "code")}
           onPointerEnter={preloadSettings}
           onFocus={preloadSettings}
         >
-          <IconSettings size={16} /><span class="sr-only">Innstillinger for {inChat() ? "Chat" : "Kode"}</span>
+          <IconSettings size={16} /><span class="sr-only">{t("Innstillinger for {mode}", { mode: inChat() ? t("Chat") : t("Kode") })}</span>
         </button>
       </div>
-      <div class="sidebar-resize" title="Dra for å endre bredden. Dobbeltklikk for standard." onPointerDown={startResize} onDblClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)} />
+      <div class="sidebar-resize" title={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)} />
     </aside>
   );
 }

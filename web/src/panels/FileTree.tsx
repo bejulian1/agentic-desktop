@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { For, Show } from "solid-js";
 import type { ChangedFile, FileEntry } from "../../../shared/protocol";
 import { FileChangeCounts } from "../ui/FileChangeCounts";
@@ -31,7 +32,7 @@ export function FileTreeEntry(props: {
         {dir() ? <IconFolder size={14} /> : <IconFile size={14} />}
         <span class="tree-name">{props.entry.name}</span>
         <Show when={props.changes.get(props.entry.path)}>{(change) => <FileChangeCounts file={change()} />}</Show>
-        <Show when={props.working === props.entry.path}><span class="file-working-dot" title="Modellens siste filverktøy" /></Show>
+        <Show when={props.working === props.entry.path}><span class="file-working-dot" title={t("Modellens siste filverktøy")} /></Show>
       </button>
       <Show when={open()}>
         <For each={props.listing(props.entry.path)}>

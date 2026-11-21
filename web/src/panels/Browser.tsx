@@ -11,6 +11,7 @@
 // tab page whose tools and suggestions fit the panel's width, with ⋯ only for what does not fit.
 // The tabs live on the server (one page each), so two windows, a reload and the agent all see the
 // same tabs; each model thread works in its own tab, independently of panel selection.
+import { t } from "../lib/i18n";
 import { batch, createEffect, createMemo, createSignal, For, on as watch, onCleanup, onMount, Show, untrack, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { onNextFrame } from "../lib/frame";
@@ -114,7 +115,7 @@ function decode(base64: string): Uint8Array<ArrayBuffer> {
 
 const newTabId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const isBlank = (url: string | undefined) => !url || url === "about:blank";
-const tabTitle = (tab: Pick<BrowserTabInfo, "title" | "url">) => (isBlank(tab.url) ? "Ny fane" : tab.title.trim() || hostOf(tab.url));
+const tabTitle = (tab: Pick<BrowserTabInfo, "title" | "url">) => (isBlank(tab.url) ? t("Ny fane") : tab.title.trim() || hostOf(tab.url));
 
 // The + in the tab row: a click makes a tab; resting on it shows Ny fane and Ny fane i fullvisning
 // with their keys. The menu waits a moment before it shows and before it goes, so moving from + to
@@ -203,7 +204,7 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
         ref={button}
         type="button"
         class="btn btn-small browser-newtab-button"
-        aria-label="Ny nettleserfane"
+        aria-label={t("Ny nettleserfane")}
         aria-haspopup="menu"
         aria-expanded={!!open()}
         aria-keyshortcuts={keysFor("browser.newTab").replace("Mod", "Control")}
@@ -229,7 +230,7 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
           }
         }}
       >
-        <span>Ny nettleserfane</span>
+        <span>{t("Ny nettleserfane")}</span>
       </button>
       <Show when={open()}>
         <Portal>
@@ -237,7 +238,7 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
             ref={place}
             class="popover context-menu newtab-menu"
             role="menu"
-            aria-label="Ny nettleserfane"
+            aria-label={t("Ny nettleserfane")}
             style="visibility:hidden"
             onPointerEnter={() => clearTimeout(closeTimer)}
             onPointerLeave={hoverOut}
@@ -260,10 +261,10 @@ function NewTabButton(props: { onNew: (full: boolean) => void; disabled: boolean
             }}
           >
             <button type="button" role="menuitem" class="menu-item" onClick={() => pick(false)}>
-              <IconPlus size={15} /><span class="menu-name">Ny nettleserfane</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTab"))}</kbd>
+              <IconPlus size={15} /><span class="menu-name">{t("Ny nettleserfane")}</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTab"))}</kbd>
             </button>
             <button type="button" role="menuitem" class="menu-item" onClick={() => pick(true)}>
-              <IconFullView size={15} /><span class="menu-name">Ny nettleserfane i fullvisning</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTabFull"))}</kbd>
+              <IconFullView size={15} /><span class="menu-name">{t("Ny nettleserfane i fullvisning")}</span><kbd class="menu-keys">{displayKeys(keysFor("browser.newTabFull"))}</kbd>
             </button>
           </div>
         </Portal>
@@ -390,7 +391,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   });
 
   const tabLabel = (tab: BrowserTabInfo) => tab.threadId
-    ? `${app.threads[tab.threadId]?.title || "Tråd"} · ${tabTitle(tab)}`
+    ? `${app.threads[tab.threadId]?.title || t("Tråd")} · ${tabTitle(tab)}`
     : tabTitle(tab);
   const focusedTab = createMemo(() => {
     const thread = focusedThread();
@@ -495,7 +496,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   let freshTimer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(freshTimer));
   const newTab = (full = false) => {
-    if (tabs().length >= MAX_TABS) return toast(`Høyst ${MAX_TABS} faner. Lukk en fane først.`, "info");
+    if (tabs().length >= MAX_TABS) return toast(t("Høyst {limit} faner. Lukk en fane først.", { limit: MAX_TABS }), "info");
     if (full) setPanelFull(true);
     const id = newTabId();
     setFresh(id);
@@ -567,7 +568,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         setFindMiss(!message.found);
       }),
       on("browser.cleared", (message) => {
-        if (message.projectId === props.projectId) toast("Nettlesingsdata er tømt.", "info");
+        if (message.projectId === props.projectId) toast(t("Nettlesingsdata er tømt."), "info");
       }),
       on("browser.frame", (message) => {
         if (message.projectId !== props.projectId) return;
@@ -686,7 +687,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
 
   // The frame on screen, as a PNG the user saves. Nothing is sent anywhere.
   const screenshot = () => {
-    if (!hasPage()) return toast("Det er ingen side å ta bilde av ennå.", "info");
+    if (!hasPage()) return toast(t("Det er ingen side å ta bilde av ennå."), "info");
     const name = `skjermbilde-${hostOf(state()?.url ?? "side").replace(/[^a-z0-9.-]+/gi, "-")}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
     const save = (href: string) => {
       const link = document.createElement("a");
@@ -696,11 +697,11 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     };
     const tab = active();
     if (native() && tab !== null) {
-      void nativeBridge!.freeze(props.projectId, tab).then((url) => (url ? save(url) : toast("Fikk ikke laget bildet.")));
+      void nativeBridge!.freeze(props.projectId, tab).then((url) => (url ? save(url) : toast(t("Fikk ikke laget bildet."))));
       return;
     }
     canvas.toBlob((blob) => {
-      if (!blob) return toast("Fikk ikke laget bildet.");
+      if (!blob) return toast(t("Fikk ikke laget bildet."));
       const href = URL.createObjectURL(blob);
       save(href);
       setTimeout(() => URL.revokeObjectURL(href), 10_000);
@@ -709,9 +710,9 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
 
   const clearData = async () => {
     const ok = await confirmDialog({
-      title: "Tømme nettlesingsdata?",
-      text: "Informasjonskapsler og hurtigbuffer i panelets nettleser slettes, sammen med lagrede data for siden som er åpen og historikken her. Nettleserprofilen deles av alle prosjektene.",
-      confirm: "Tøm",
+      title: t("Tømme nettlesingsdata?"),
+      text: t("Informasjonskapsler og hurtigbuffer i panelets nettleser slettes, sammen med lagrede data for siden som er åpen og historikken her. Nettleserprofilen deles av alle prosjektene."),
+      confirm: t("Tøm"),
       danger: true,
     });
     if (!ok) return;
@@ -725,10 +726,10 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         ? [
             ...history().slice(0, 12).map((v) => ({ label: v.title || hostOf(v.url), hint: hostOf(v.url), title: v.url, run: () => go(v.url) })),
             ...(imported()?.history.length
-              ? [{ heading: <span class="menu-heading">Fra Chrome</span> } as MenuEntry, ...imported()!.history.slice(0, 12).map((v) => ({ label: v.title, hint: hostOf(v.url), title: v.url, run: () => go(v.url) }))]
+              ? [{ heading: <span class="menu-heading">{t("Fra Chrome")}</span> } as MenuEntry, ...imported()!.history.slice(0, 12).map((v) => ({ label: v.title, hint: hostOf(v.url), title: v.url, run: () => go(v.url) }))]
               : []),
           ]
-        : [{ label: "Ingen historikk ennå", disabled: true }];
+        : [{ label: t("Ingen historikk ennå"), disabled: true }];
   const externalUrl = () => {
     const current = state();
     if (current) return httpUrlOf(current.pendingUrl ?? current.url);
@@ -744,34 +745,34 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   };
 
   const menuEntries = (): MenuEntry[] => [
-    { label: "Ny nettleserfane", icon: IconPlus, keys: "browser.newTab", run: () => newTab(false), disabled: tabs().length >= MAX_TABS },
-    { label: panelFull() ? "Avslutt fullvisning" : "Fullvisning", icon: panelFull() ? IconExitFullView : IconFullView, run: () => setPanelFull(!panelFull()) },
-    { label: "Åpne i standardnettleseren", icon: IconExternal, run: openInSystemBrowser, disabled: !externalUrl() },
+    { label: t("Ny nettleserfane"), icon: IconPlus, keys: "browser.newTab", run: () => newTab(false), disabled: tabs().length >= MAX_TABS },
+    { label: panelFull() ? t("Avslutt fullvisning") : t("Fullvisning"), icon: panelFull() ? IconExitFullView : IconFullView, run: () => setPanelFull(!panelFull()) },
+    { label: t("Åpne i standardnettleseren"), icon: IconExternal, run: openInSystemBrowser, disabled: !externalUrl() },
     "sep",
-    { label: "Finn på siden", icon: IconSearch, run: openFind, disabled: !hasPage() || blank() },
+    { label: t("Finn på siden"), icon: IconSearch, run: openFind, disabled: !hasPage() || blank() },
     {
       custom: () => (
         <div class="browser-zoom-row">
-          <span class="menu-name">Zoom</span>
-          <button type="button" class="icon-button" aria-label="Zoom ut" disabled={zoom() === ZOOMS[0]} onClick={() => zoomStep(-1)}>−</button>
-          <button type="button" class="browser-zoom-value" title="Tilbake til 100 %" aria-label="Faktisk størrelse" onClick={() => setZoom(1)}>{Math.round(zoom() * 100)} %</button>
-          <button type="button" class="icon-button" aria-label="Zoom inn" disabled={zoom() === ZOOMS.at(-1)} onClick={() => zoomStep(1)}>+</button>
+          <span class="menu-name">{t("Zoom")}</span>
+          <button type="button" class="icon-button" aria-label={t("Zoom ut")} disabled={zoom() === ZOOMS[0]} onClick={() => zoomStep(-1)}>−</button>
+          <button type="button" class="browser-zoom-value" title={t("Tilbake til 100 %")} aria-label={t("Faktisk størrelse")} onClick={() => setZoom(1)}>{Math.round(zoom() * 100)} %</button>
+          <button type="button" class="icon-button" aria-label={t("Zoom inn")} disabled={zoom() === ZOOMS.at(-1)} onClick={() => zoomStep(1)}>+</button>
         </div>
       ),
     },
-    { label: "Ta et skjermbilde", icon: IconImage, run: screenshot, disabled: !hasPage() || blank() },
+    { label: t("Ta et skjermbilde"), icon: IconImage, run: screenshot, disabled: !hasPage() || blank() },
     "sep",
-    { label: "Historikk", icon: IconHistory, children: historyEntries() },
+    { label: t("Historikk"), icon: IconHistory, children: historyEntries() },
     {
-      label: "Bokmerker",
+      label: t("Bokmerker"),
       icon: IconBookmark,
       children: bookmarks().length
         ? bookmarks().slice(0, 30).map((b) => ({ label: b.title, hint: hostOf(b.url), title: b.folder ? `${b.folder}\n${b.url}` : b.url, run: () => go(b.url) }))
-        : [{ label: "Ingen bokmerker ennå", disabled: true }, "sep", { label: "Importer fra Chrome…", run: openChromeImport }],
+        : [{ label: t("Ingen bokmerker ennå"), disabled: true }, "sep", { label: t("Importer fra Chrome…"), run: openChromeImport }],
     },
-    { label: "Nedlastinger", icon: IconDownload, hint: activeDownloads() ? `${activeDownloads()} pågår` : undefined, run: () => setShowDownloads(true) },
-    { label: "Importer fra Chrome…", icon: IconBookmark, run: openChromeImport },
-    { label: "Tøm nettlesingsdata…", icon: IconTrash, run: clearData },
+    { label: t("Nedlastinger"), icon: IconDownload, hint: activeDownloads() ? t("{count} pågår", { count: activeDownloads() }) : undefined, run: () => setShowDownloads(true) },
+    { label: t("Importer fra Chrome…"), icon: IconBookmark, run: openChromeImport },
+    { label: t("Tøm nettlesingsdata…"), icon: IconTrash, run: clearData },
   ];
 
   const blank = () => !state() || state()!.url === "about:blank" || state()!.url === "";
@@ -793,7 +794,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     const here = props.projectId === LOCAL_SCOPE ? null : props.projectId;
     const projectIds = [here, ...Object.keys(app.projects).filter((id) => id !== here)];
     const play = playtestUrl();
-    if (play) add({ url: play, label: "Playtest", hint: hostOf(play), kind: "server", projectId: here });
+    if (play) add({ url: play, label: t("Playtest"), hint: hostOf(play), kind: "server", projectId: here });
     for (const id of projectIds) {
       const name = id ? app.projects[id]?.name : undefined;
       // A server once: Playtest's is already there under its own name.
@@ -801,7 +802,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         add({ url: server.url, label: name ? `${name} · ${server.port}` : hostOf(server.url), hint: hostOf(server.url), kind: "server", projectId: id });
       }
       for (const artifact of artifacts().filter((a) => a.projectId === id).slice(0, 6)) {
-        add({ url: artifact.previewUrl, label: artifact.title, hint: name ? `Artifact · ${name}` : "Artifact", kind: "artifact", projectId: id });
+        add({ url: artifact.previewUrl, label: artifact.title, hint: name ? t("Artifact · {name}", { name }) : t("Artifact"), kind: "artifact", projectId: id });
       }
       const visits = id === props.projectId ? history() : id ? loadHistory(id) : [];
       for (const v of visits.slice(0, id === props.projectId ? 12 : 4)) add({ url: v.url, label: v.title || hostOf(v.url), hint: hostOf(v.url), kind: "history", projectId: id });
@@ -813,15 +814,15 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
 
   // The tools on Ny fane, with their keys.
   const tools = (): Array<{ id: string; label: string; icon: (p: { size?: number }) => JSX.Element; keys?: string; title?: string; run: () => void }> => [
-    { id: "files", label: "Filer", icon: IconFile, keys: "panel.files", run: () => actions.showTab("files") },
-    { id: "terminal", label: "Terminal", icon: IconTerminal, keys: "panel.terminal", run: () => actions.showTab("terminal") },
-    { id: "changes", label: "Endringer", icon: IconDiff, keys: "panel.changes", run: () => actions.showTab("changes") },
+    { id: "files", label: t("Filer"), icon: IconFile, keys: "panel.files", run: () => actions.showTab("files") },
+    { id: "terminal", label: t("Terminal"), icon: IconTerminal, keys: "panel.terminal", run: () => actions.showTab("terminal") },
+    { id: "changes", label: t("Endringer"), icon: IconDiff, keys: "panel.changes", run: () => actions.showTab("changes") },
     {
       id: "side",
-      label: "Sidechat",
+      label: t("Sidechat"),
       icon: IconPlusCircle,
       keys: "thread.side",
-      title: "En ny tråd ved siden av den du har åpen",
+      title: t("En ny tråd ved siden av den du har åpen"),
       run: () => {
         const thread = focusedThread();
         if (thread?.mode === "code" && (thread.projectId ?? LOCAL_SCOPE) === props.projectId) void sideChat(thread);
@@ -896,8 +897,8 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     <button
       type="button"
       class="icon-button browser-full"
-      aria-label={panelFull() ? "Avslutt fullvisning" : "Fullvisning"}
-      title={panelFull() ? "Avslutt fullvisning" : "Fullvisning: panelet over hele bredden"}
+      aria-label={panelFull() ? t("Avslutt fullvisning") : t("Fullvisning")}
+      title={panelFull() ? t("Avslutt fullvisning") : t("Fullvisning: panelet over hele bredden")}
       aria-pressed={panelFull()}
       onClick={() => setPanelFull(!panelFull())}
     >
@@ -918,7 +919,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         <div
           class="browser-tablist"
           role="tablist"
-          aria-label="Faner i nettleseren"
+          aria-label={t("Faner i nettleseren")}
           onKeyDown={(e) => {
             if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
             const list = [...e.currentTarget.querySelectorAll<HTMLButtonElement>(".browser-tab-main")];
@@ -955,12 +956,12 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
                   <TabIcon tab={tab} />
                   <span class="browser-tab-title">{tabLabel(tab)}</span>
                 </button>
-                <button type="button" class="browser-tab-close" tabindex="-1" aria-label={`Lukk fanen ${tabLabel(tab)}`} onClick={() => closeTab(tab.id)}><IconClose size={12} /></button>
+                <button type="button" class="browser-tab-close" tabindex="-1" aria-label={t("Lukk fanen {title}", { title: tabLabel(tab) })} onClick={() => closeTab(tab.id)}><IconClose size={12} /></button>
               </div>
             )}
           </For>
           <Show when={focusedTab() && focusedTab()!.id !== active()}>
-            <button type="button" class="icon-button" aria-label="Vis fanen til denne tråden" title="Vis fanen til denne tråden" onClick={() => { const tab = focusedTab(); if (tab) showTab(tab.id); }}><IconGlobe size={15} /></button>
+            <button type="button" class="icon-button" aria-label={t("Vis fanen til denne tråden")} title={t("Vis fanen til denne tråden")} onClick={() => { const tab = focusedTab(); if (tab) showTab(tab.id); }}><IconGlobe size={15} /></button>
           </Show>
           <NewTabButton active={surfaceActive()} onNew={newTab} disabled={tabs().length >= MAX_TABS} />
         </div>
@@ -974,15 +975,15 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       <form class="browser-bar" onSubmit={navigate}>
         <Show when={props.sharedTabs}><FullButton /></Show>
         <span class="browser-nav">
-          <button type="button" class="icon-button" aria-label="Tilbake" title="Tilbake" disabled={!state()?.canGoBack} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "back" })}><IconBack size={15} /></button>
-          <button type="button" class="icon-button" aria-label="Frem" title="Frem" disabled={!state()?.canGoForward} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "forward" })}><IconForward size={15} /></button>
-          <button type="button" class="icon-button" aria-label="Last på nytt" title="Last siden på nytt" onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "reload" })}><IconReload size={15} /></button>
+          <button type="button" class="icon-button" aria-label={t("Tilbake")} title={t("Tilbake")} disabled={!state()?.canGoBack} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "back" })}><IconBack size={15} /></button>
+          <button type="button" class="icon-button browser-forward" aria-label={t("Frem")} title={t("Frem")} disabled={!state()?.canGoForward} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "forward" })}><IconForward size={15} /></button>
+          <button type="button" class="icon-button" aria-label={t("Last på nytt")} title={t("Last siden på nytt")} onClick={() => sendTab({ type: "browser.history", projectId: props.projectId, action: "reload" })}><IconReload size={15} /></button>
         </span>
         <input
           ref={addressInput}
           class="input address"
-          aria-label="Adresse"
-          placeholder="Søk eller skriv nettadresse"
+          aria-label={t("Adresse")}
+          placeholder={t("Søk eller skriv nettadresse")}
           autocomplete="off"
           enterkeyhint="go"
           spellcheck={false}
@@ -1000,14 +1001,14 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
             }
           }}
         />
-        <button type="button" class="icon-button browser-history-button" aria-label="Nettleserhistorikk" title="Historikk" aria-haspopup="menu" aria-expanded={!!historyMenu()} onClick={(e) => { setMenu(null); setHistoryMenu(historyMenu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() }); }}><IconHistory size={15} /></button>
-        <Show when={historyMenu()}>{(anchor) => <ContextMenu anchor={anchor()} label="Nettleserhistorikk" entries={historyEntries()} onClose={() => setHistoryMenu(null)} class="browser-history-menu" />}</Show>
+        <button type="button" class="icon-button browser-history-button" aria-label={t("Nettleserhistorikk")} title={t("Historikk")} aria-haspopup="menu" aria-expanded={!!historyMenu()} onClick={(e) => { setMenu(null); setHistoryMenu(historyMenu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() }); }}><IconHistory size={15} /></button>
+        <Show when={historyMenu()}>{(anchor) => <ContextMenu anchor={anchor()} label={t("Nettleserhistorikk")} entries={historyEntries()} onClose={() => setHistoryMenu(null)} class="browser-history-menu" />}</Show>
         <AnnotateButton active={surfaceActive()} projectId={props.projectId} tab={active} ready={() => hasPage() && !blank()} url={() => state()?.url ?? ""} />
         <button
           type="button"
           class="icon-button browser-downloads-button"
-          aria-label="Nedlastinger"
-          title={activeDownloads() ? `Nedlastinger: ${activeDownloads()} pågår` : "Nedlastinger"}
+          aria-label={t("Nedlastinger")}
+          title={activeDownloads() ? t("Nedlastinger: {count} pågår", { count: activeDownloads() }) : t("Nedlastinger")}
           aria-pressed={showDownloads()}
           onClick={() => setShowDownloads(!showDownloads())}
         >
@@ -1017,23 +1018,23 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         <button
           type="button"
           class="icon-button"
-          aria-label="Mer for nettleseren"
-          title="Mer: faner, finn, zoom, skjermbilde, historikk og bokmerker"
+          aria-label={t("Mer for nettleseren")}
+          title={t("Mer: faner, finn, zoom, skjermbilde, historikk og bokmerker")}
           aria-haspopup="menu"
           aria-expanded={!!menu()}
           onClick={(e) => setMenu(menu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
         >
           <IconDots size={15} />
         </button>
-        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label="Nettlesermeny" entries={menuEntries()} onClose={() => setMenu(null)} class="browser-menu" />}</Show>
+        <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={t("Nettlesermeny")} entries={menuEntries()} onClose={() => setMenu(null)} class="browser-menu" />}</Show>
       </form>
       <Show when={finding()}>
-        <form class="browser-find" role="search" aria-label="Finn på siden" onSubmit={(e) => { e.preventDefault(); find(false); }}>
+        <form class="browser-find" role="search" aria-label={t("Finn på siden")} onSubmit={(e) => { e.preventDefault(); find(false); }}>
           <IconSearch size={14} />
           <input
             class="search-input"
-            aria-label="Finn på siden"
-            placeholder="Finn på siden"
+            aria-label={t("Finn på siden")}
+            placeholder={t("Finn på siden")}
             value={findText()}
             classList={{ miss: findMiss() }}
             onInput={(e) => { setFindText(e.currentTarget.value); setFindMiss(false); }}
@@ -1042,10 +1043,10 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
               if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); find(true); }
             }}
           />
-          <Show when={findMiss()}><span class="browser-find-miss" role="status">Ikke funnet</span></Show>
-          <button type="button" class="icon-button" aria-label="Forrige treff" onClick={() => find(true)}><span class="rot-up"><IconChevron size={13} /></span></button>
-          <button type="button" class="icon-button" aria-label="Neste treff" onClick={() => find(false)}><span class="rot-down"><IconChevron size={13} /></span></button>
-          <button type="button" class="icon-button" aria-label="Lukk søket på siden" onClick={() => setFinding(false)}><IconClose size={13} /></button>
+          <Show when={findMiss()}><span class="browser-find-miss" role="status">{t("Ikke funnet")}</span></Show>
+          <button type="button" class="icon-button" aria-label={t("Forrige treff")} onClick={() => find(true)}><span class="rot-up"><IconChevron size={13} /></span></button>
+          <button type="button" class="icon-button" aria-label={t("Neste treff")} onClick={() => find(false)}><span class="rot-down"><IconChevron size={13} /></span></button>
+          <button type="button" class="icon-button" aria-label={t("Lukk søket på siden")} onClick={() => setFinding(false)}><IconClose size={13} /></button>
         </form>
       </Show>
       <div class="browser-stage" ref={stage}>
@@ -1054,7 +1055,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           ref={canvas}
           class="browser-canvas"
           tabindex="0"
-          aria-label="Nettsiden"
+          aria-label={t("Nettsiden")}
           data-testid="browser-canvas"
           classList={{ hidden: !hasFrame() || native() || !!navigationError() }}
           onMouseDown={(e) => mouse("down", e)}
@@ -1075,7 +1076,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           <div class="browser-newtab" data-testid="browser-newtab" ref={newtab}>
             {/* Chat has the Browser panel only, so the tools are Kode's. */}
             <Show when={mode() === "code" && app.settings.panelNewTab !== "browser"}>
-            <h3 class="newtab-title">Verktøy</h3>
+            <h3 class="newtab-title">{t("Verktøy")}</h3>
             <div class="newtab-tools" classList={{ compact: toolsShown().compact }}>
               <For each={toolsShown().shown}>
                 {(tool) => (
@@ -1089,8 +1090,8 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
                 <button
                   type="button"
                   class="icon-button newtab-more"
-                  aria-label="Flere verktøy"
-                  title="Flere verktøy"
+                  aria-label={t("Flere verktøy")}
+                  title={t("Flere verktøy")}
                   aria-haspopup="menu"
                   aria-expanded={!!moreTools()}
                   onClick={(e) => setMoreTools(moreTools() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
@@ -1099,14 +1100,14 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
                 </button>
               </Show>
               <Show when={moreTools()}>
-                {(anchor) => <ContextMenu anchor={anchor()} label="Flere verktøy" entries={toolsShown().rest.map((t) => ({ label: t.label, icon: t.icon, keys: t.keys, run: t.run }))} onClose={() => setMoreTools(null)} />}
+                {(anchor) => <ContextMenu anchor={anchor()} label={t("Flere verktøy")} entries={toolsShown().rest.map((t) => ({ label: t.label, icon: t.icon, keys: t.keys, run: t.run }))} onClose={() => setMoreTools(null)} />}
               </Show>
             </div>
             </Show>
-            <h3 class="newtab-title">Foreslått</h3>
+            <h3 class="newtab-title">{t("Foreslått")}</h3>
             <Show
               when={suggestions().length}
-              fallback={<p class="newtab-empty">Servere som kjører, artifacts og sider du besøker i prosjektene dine, foreslås her.</p>}
+              fallback={<p class="newtab-empty">{t("Servere som kjører, artifacts og sider du besøker i prosjektene dine, foreslås her.")}</p>}
             >
               <div class="newtab-suggestions" style={`--cols:${tileColumns()}`}>
                 <For each={suggestionsShown().shown}>
@@ -1127,8 +1128,8 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
                     onClick={(e) => setMoreSites(moreSites() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}
                   >
                     <span class="newtab-site-icon"><IconDots size={18} /></span>
-                    <span class="newtab-site-label">Flere</span>
-                    <span class="newtab-site-host">{suggestionsShown().rest.length} til</span>
+                    <span class="newtab-site-label">{t("Flere")}</span>
+                    <span class="newtab-site-host">{t("{count} til", { count: suggestionsShown().rest.length })}</span>
                   </button>
                 </Show>
               </div>
@@ -1136,7 +1137,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
                 {(anchor) => (
                   <ContextMenu
                     anchor={anchor()}
-                    label="Flere forslag"
+                    label={t("Flere forslag")}
                     class="newtab-more-menu"
                     entries={suggestionsShown().rest.map((s) => ({ label: s.label, hint: s.hint, title: s.url, icon: s.kind === "artifact" ? IconArtifact : s.kind === "bookmark" ? IconBookmark : IconGlobe, run: () => go(s.url) }))}
                     onClose={() => setMoreSites(null)}
@@ -1145,11 +1146,11 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
               </Show>
             </Show>
             <Show when={!tipHidden() && imported() && !imported()!.importedAt}>
-              <div class="newtab-tip" role="note" aria-label="Tips: importer fra Chrome">
+              <div class="newtab-tip" role="note" aria-label={t("Tips: importer fra Chrome")}>
                 <IconBookmark size={15} />
-                <span>Har du bokmerker i Chrome? Ta dem med hit, så blir de foreslått her.</span>
-                <button type="button" class="btn btn-small" onClick={openChromeImport}>Importer…</button>
-                <button type="button" class="icon-button" aria-label="Skjul tipset" title="Skjul tipset" onClick={hideTip}><IconClose size={13} /></button>
+                <span>{t("Har du bokmerker i Chrome? Ta dem med hit, så blir de foreslått her.")}</span>
+                <button type="button" class="btn btn-small" onClick={openChromeImport}>{t("Importer…")}</button>
+                <button type="button" class="icon-button" aria-label={t("Skjul tipset")} title={t("Skjul tipset")} onClick={hideTip}><IconClose size={13} /></button>
               </div>
             </Show>
           </div>
@@ -1159,19 +1160,19 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
         </Show>
         <Show when={navigationError()}>
           <div class="browser-navigation-error" role="alert">
-            <IconGlobe size={24} /><h3>Kunne ikke åpne siden</h3><p>{navigationError()}</p>
-            <button type="button" class="btn btn-small" onClick={() => { const request = retryByTab.get(active() ?? ""); if (request) sendBrowser(request); else open(); }}>Prøv igjen</button>
+            <IconGlobe size={24} /><h3>{t("Kunne ikke åpne siden")}</h3><p>{navigationError()}</p>
+            <button type="button" class="btn btn-small" onClick={() => { const request = retryByTab.get(active() ?? ""); if (request) sendBrowser(request); else open(); }}>{t("Prøv igjen")}</button>
           </div>
         </Show>
         <Show when={!hasPage() && !showNewtab() && !navigationError()}>
           <div class="browser-empty">
             {closed() ? (
               <>
-                <p>Nettleseren ble lukket fordi ingen har brukt den på en stund.</p>
-                <button type="button" class="btn btn-small" onClick={open}>Start igjen</button>
+                <p>{t("Nettleseren ble lukket fordi ingen har brukt den på en stund.")}</p>
+                <button type="button" class="btn btn-small" onClick={open}>{t("Start igjen")}</button>
               </>
             ) : (
-              <p>Starter nettleseren…</p>
+              <p>{t("Starter nettleseren…")}</p>
             )}
           </div>
         </Show>

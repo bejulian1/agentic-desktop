@@ -1,5 +1,5 @@
-import { applyLanguage, t } from "./i18n.ts";
-import { isLanguage } from "../shared/i18n.ts";
+import { applyLanguage, lookupMessage, t } from "./i18n.ts";
+import { isLanguage, resolveLanguage } from "../shared/i18n.ts";
 // Agentic Desktop as a desktop app (SPEC 29). Electron is only a shell: the server is the same as
 // for `npm start`, in its own process (utilityProcess) on 127.0.0.1 with a port and a token of its
 // own, and the window loads the same web UI from it over HTTP and WebSocket. This file starts and
@@ -145,8 +145,8 @@ const browserPanel = new BrowserPanel({ window: () => win, appOrigins: () => uiO
 (globalThis as Record<string, unknown>).__agenticBrowserPanel = browserPanel.probe;
 // The menu in the status area cannot be clicked under xvfb; the tests choose its entries here.
 probe.statusAreaAction = (label: string) => {
-  if (label === "Vis Agentic Desktop") statusAreaActions.show();
-  else if (label === "Ny tråd") statusAreaActions.newThread();
+  if (label === t("Vis Agentic Desktop")) statusAreaActions.show();
+  else if (label === t("Ny tråd")) statusAreaActions.newThread();
   else if (label === t("Avslutt")) statusAreaActions.quit();
 };
 
@@ -209,7 +209,7 @@ function forkServer(port: number): Promise<Started> {
     const timer = setTimeout(() => {
       planned.add(child);
       child.kill();
-      settle({ ok: false, code: "ETIMEDOUT", message: "Serveren svarte ikke innen ett minutt.", log });
+      settle({ ok: false, code: "ETIMEDOUT", message: t("Serveren svarte ikke innen ett minutt."), log });
     }, READY_TIMEOUT_MS);
     child.on("message", (message: { type?: string; port?: number; token?: string; pid?: number; code?: string | null; message?: string }) => {
       if (message?.type === "ready" && message.port && message.token) {
@@ -222,11 +222,11 @@ function forkServer(port: number): Promise<Started> {
         if (sandbox.on) browserPanel.connect(child);
       } else if (message?.type === "failed") {
         planned.add(child);
-        settle({ ok: false, code: message.code ?? null, message: message.message ?? "Serveren startet ikke.", log });
+        settle({ ok: false, code: message.code ?? null, message: message.message === undefined ? t("Serveren startet ikke.") : lookupMessage(message.message), log });
       }
     });
     child.once("exit", (code) => {
-      if (!settled) settle({ ok: false, code: null, message: `Serveren stoppet under oppstarten (kode ${code}).`, log });
+      if (!settled) settle({ ok: false, code: null, message: t("Serveren stoppet under oppstarten (kode {code}).", { code }), log });
       else onServerExit(child, code);
     });
   });
@@ -312,25 +312,25 @@ const pidAlive = (pid: number) => {
 // starts its own server.
 let stoppingOther = false;
 async function stopOtherServer(): Promise<{ ok: boolean; message?: string }> {
-  if (stoppingOther) return { ok: false, message: "Holder allerede på." };
+  if (stoppingOther) return { ok: false, message: t("Holder allerede på.") };
   stoppingOther = true;
   try {
     const other = await liveInstance(dataDir);
     if (other) {
       const key = readStopKey(dataDir);
-      if (other.shell !== "localhost" || other.port === 0 || !key) return { ok: false, message: "Denne serveren kan ikke avsluttes herfra. Stopp den der du startet den." };
+      if (other.shell !== "localhost" || other.port === 0 || !key) return { ok: false, message: t("Denne serveren kan ikke avsluttes herfra. Stopp den der du startet den.") };
       let answer: Response;
       try {
         answer = await fetch(`http://127.0.0.1:${other.port}/api/instance/stop`, { method: "POST", headers: { "x-agentic-stop-key": key }, signal: AbortSignal.timeout(5000) });
       } catch {
-        return { ok: false, message: "Nettleserversjonen svarte ikke." };
+        return { ok: false, message: t("Nettleserversjonen svarte ikke.") };
       }
       const body = (await answer.json().catch(() => null)) as { ok?: boolean; pid?: number } | null;
-      if (answer.status !== 202 || !body?.ok || body.pid !== other.pid) return { ok: false, message: "Nettleserversjonen ville ikke avslutte." };
+      if (answer.status !== 202 || !body?.ok || body.pid !== other.pid) return { ok: false, message: t("Nettleserversjonen ville ikke avslutte.") };
       // It closes terminals, runs and Chrome first, as on Ctrl+C.
       const until = Date.now() + 30_000;
       while (Date.now() < until && (pidAlive(other.pid) || (await liveInstance(dataDir)))) await new Promise((resolve) => setTimeout(resolve, 150));
-      if (pidAlive(other.pid)) return { ok: false, message: "Nettleserversjonen bruker lang tid på å avslutte. Prøv igjen om litt." };
+      if (pidAlive(other.pid)) return { ok: false, message: t("Nettleserversjonen bruker lang tid på å avslutte. Prøv igjen om litt.") };
     }
     showShellPage("starting", {});
     await startServer();
@@ -649,12 +649,12 @@ function lockDownSession(): void {
   protocol.handle(SCHEME, async (request) => {
     const url = new URL(request.url);
     const name = url.pathname.replace(/^\/+/, "");
-    if (url.host !== "shell" || !/^(icons\/)?[a-z0-9@-]+\.(html|css|js|svg|png)$/.test(name)) return new Response("Fant ikke siden", { status: 404 });
+    if (url.host !== "shell" || !/^(icons\/)?[a-z0-9@-]+\.(html|css|js|svg|png)$/.test(name)) return new Response(t("Fant ikke siden"), { status: 404 });
     let body: Buffer;
     try {
       body = await readFile(path.join(shellDir, name)); // read from app.asar in the package
     } catch {
-      return new Response("Fant ikke siden", { status: 404 });
+      return new Response(t("Fant ikke siden"), { status: 404 });
     }
     return new Response(new Uint8Array(body), {
       headers: {
@@ -676,6 +676,42 @@ function trusted(event: IpcMainEvent | IpcMainInvokeEvent, shellOnly = false): b
   // The URL class gives a custom scheme the origin "null", so the app's own pages go by prefix.
   if (frame.url.startsWith(`${SHELL_ORIGIN}/`)) return true;
   return !shellOnly && isUi(frame.url);
+}
+
+function shellCopy(params: URLSearchParams) {
+  return {
+    language: resolveLanguage(state.get().language, [app.getLocale()]),
+    labels: {
+      window: t("Vindu"),
+      minimize: t("Minimer"),
+      maximize: t("Maksimer"),
+      restore: t("Gjenopprett"),
+      close: t("Lukk"),
+      starting: t("Starter serveren …"),
+      busyBrowser: t("Agentic Desktop kjører allerede i nettleseren"),
+      busyApp: t("Agentic Desktop bruker allerede datamappen"),
+      busyFolder: params.get("port")
+        ? t("En annen server bruker den samme datamappen, {dir}, på port {port}. Appen starter ikke sin egen server mot den samme mappen, så trådene aldri blir skrevet fra to steder samtidig.")
+        : t("En annen server bruker den samme datamappen, {dir}. Appen starter ikke sin egen server mot den samme mappen, så trådene aldri blir skrevet fra to steder samtidig."),
+      canStop: t("Appen kan avslutte nettleserversjonen for deg, på samme måte som Ctrl+C i terminalen. Kjøringer som pågår der, stopper."),
+      stopManually: t("Stopp serveren i terminalen der du startet den med {command} (Ctrl+C), og trykk Prøv igjen."),
+      stopApp: t("Avslutt den andre, og trykk Prøv igjen."),
+      stoppingBrowser: t("Avslutter nettleserversjonen …"),
+      stopBrowser: t("Avslutt nettleserversjonen og åpne appen"),
+      trying: t("Prøver …"),
+      retry: t("Prøv igjen"),
+      quit: t("Avslutt"),
+      stopFailed: t("Nettleserversjonen kunne ikke avsluttes."),
+      crashed: t("Serveren i Agentic Desktop stoppet"),
+      startFailed: t("Serveren i Agentic Desktop startet ikke"),
+      crashedHelp: t("Trådene og innstillingene dine er lagret. Terminaler, servere og nettleseren som kjørte, er stoppet. Start serveren på nytt for å fortsette der du var."),
+      startFailedHelp: t("Prøv å starte den på nytt. Hvis det skjer igjen, står feilen under Detaljer."),
+      restarting: t("Starter …"),
+      restart: t("Start på nytt"),
+      details: t("Detaljer"),
+      exitCode: t("Avslutningskode: {code}", { code: params.get("code") ?? "" }),
+    },
+  };
 }
 
 function listen(): void {
@@ -715,6 +751,8 @@ function listen(): void {
   });
   ipcMain.on("shell:restart", (event) => trusted(event, true) && void restartServer());
   ipcMain.on("shell:quit", (event) => trusted(event, true) && app.quit());
+  ipcMain.handle("shell:copy", (event) => trusted(event, true) && event.senderFrame
+    ? shellCopy(new URL(event.senderFrame.url).searchParams) : null);
   ipcMain.handle("shell:stop-other", (event) => (trusted(event, true) && probe.page === "busy" ? stopOtherServer() : { ok: false }));
   browserPanel.listen(ipcMain, (event) => trusted(event));
 }

@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, plural, t } from "../lib/i18n.ts";
 // A small card beside a thread or project in the sidebar, after the pointer has rested on it a
 // moment. Nothing runs per pointer move: entering starts one timer and leaving starts another.
 import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js";
@@ -60,8 +60,9 @@ function threadStatus(t: Thread): string {
 function messageCount(model: ThreadModel): string {
   let n = 0;
   for (const chunk of model.chunks()) for (const row of chunk.rows()) if (row.kind === "user") n++;
-  const text = `${n} ${n === 1 ? "melding" : "meldinger"}`;
-  return model.hasOlder() ? `minst ${text}` : text;
+  return model.hasOlder()
+    ? plural(n, "minst {count} melding", "minst {count} meldinger")
+    : plural(n, "{count} melding", "{count} meldinger");
 }
 
 function ThreadCard(props: { thread: Thread }) {
@@ -78,8 +79,8 @@ function ThreadCard(props: { thread: Thread }) {
         <span class="hover-card-age">{relativeTime(props.thread.updatedAt)}</span>
       </div>
       <div class="hover-card-row">
-        <Show when={project()} fallback={<>{props.thread.mode === "code" ? <IconMonitor size={14} /> : <IconChat size={14} />}<span>{props.thread.mode === "code" ? "Kode · Denne datamaskinen" : chatProject() ? `Chat · ${chatProject()!.name}` : "Chat uten prosjekt"}</span></>}>
-          {(p) => <><ProjectGlyph project={p()} size={14} /><span>{p().name}</span><span class="hover-card-mode">Kode</span></>}
+        <Show when={project()} fallback={<>{props.thread.mode === "code" ? <IconMonitor size={14} /> : <IconChat size={14} />}<span>{props.thread.mode === "code" ? t("Kode · Denne datamaskinen") : chatProject() ? t("Chat · {name}", { name: chatProject()!.name }) : t("Chat uten prosjekt")}</span></>}>
+          {(p) => <><ProjectGlyph project={p()} size={14} /><span>{p().name}</span><span class="hover-card-mode">{t("Kode")}</span></>}
         </Show>
       </div>
       <div class="hover-card-row muted hover-card-facts">
@@ -89,16 +90,16 @@ function ThreadCard(props: { thread: Thread }) {
       </div>
       <div class="hover-card-row muted">
         <IconClock size={14} />
-        <span>Sist aktiv {relativeTime(props.thread.updatedAt)}, laget {new Date(props.thread.createdAt).toLocaleDateString(language(), { day: "numeric", month: "short" })}</span>
+        <span>{t("Sist aktiv {updated}, laget {created}", { updated: relativeTime(props.thread.updatedAt), created: new Date(props.thread.createdAt).toLocaleDateString(language(), { day: "numeric", month: "short" }) })}</span>
       </div>
       <Show when={threadStatus(props.thread)}>{(status) => <div class="hover-card-row muted">{status()}</div>}</Show>
       <Show when={snoozed()}>
-        {(until) => <div class="hover-card-row muted"><IconSnooze size={14} />Utsatt til {new Date(until()).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" })}</div>}
+        {(until) => <div class="hover-card-row muted"><IconSnooze size={14} />{t("Utsatt til {time}", { time: new Date(until()).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) })}</div>}
       </Show>
       <Show when={parent()}>
         {(p) => (
           <button type="button" class="hover-card-link" onClick={() => { hideHoverCard(); void openThread(p()); }}>
-            {props.thread.origin === "agent" ? "Laget av" : "Sidechat fra"} {p().title}
+            {props.thread.origin === "agent" ? t("Laget av {title}", { title: p().title }) : t("Sidechat fra {title}", { title: p().title })}
           </button>
         )}
       </Show>
@@ -106,10 +107,10 @@ function ThreadCard(props: { thread: Thread }) {
       <Show when={props.thread.forkedFrom}>
         <Show
           when={forkSource(props.thread)}
-          fallback={<div class="hover-card-row muted"><IconBranch size={14} /><span>Gaffel av {props.thread.forkedFrom!.title} (slettet)</span></div>}
+          fallback={<div class="hover-card-row muted"><IconBranch size={14} /><span>{t("Gaffel av {title} (slettet)", { title: props.thread.forkedFrom!.title })}</span></div>}
         >
           <button type="button" class="hover-card-link hover-card-fork" onClick={() => { hideHoverCard(); void openForkSource(props.thread); }}>
-            <IconBranch size={13} /><span>Gaffel av {forkSourceTitle(props.thread)}</span>
+            <IconBranch size={13} /><span>{t("Gaffel av {title}", { title: forkSourceTitle(props.thread) })}</span>
           </button>
         </Show>
       </Show>
@@ -124,14 +125,14 @@ function ProjectCard(props: { project: Project }) {
       <div class="hover-card-head">
         <ProjectGlyph project={props.project} size={15} />
         <span class="hover-card-title">{props.project.name}</span>
-        <Show when={props.project.pinned}><span class="hover-card-age" title="Festet"><IconPin size={13} /></span></Show>
+        <Show when={props.project.pinned}><span class="hover-card-age" title={t("Festet")}><IconPin size={13} /></span></Show>
       </div>
-      <div class="hover-card-row"><IconCode size={14} /><span>{count()} {count() === 1 ? "tråd" : "tråder"} i Kode</span></div>
+      <div class="hover-card-row"><IconCode size={14} /><span>{plural(count(), "{count} tråd i Kode", "{count} tråder i Kode")}</span></div>
       <div class="hover-card-sep" />
       <div class="hover-card-row path"><IconFolder size={14} /><bdo dir="ltr">{props.project.path}</bdo></div>
       <div class="hover-card-sep" />
       <button type="button" class="hover-card-action" onClick={() => { hideHoverCard(); openEditProject(props.project.id); }}>
-        <IconSettings size={14} />Rediger prosjekt
+        <IconSettings size={14} />{t("Rediger prosjekt")}
       </button>
     </>
   );
@@ -144,12 +145,12 @@ function ChatProjectCard(props: { project: ChatProject }) {
     await editChatProject(props.project);
   };
   return <>
-    <div class="hover-card-head"><ChatProjectGlyph project={props.project} size={15} /><span class="hover-card-title">{props.project.name}</span><Show when={props.project.pinned}><span class="hover-card-age" title="Festet"><IconPin size={13} /></span></Show></div>
-    <div class="hover-card-row"><IconChat size={14} /><span>{count()} {count() === 1 ? "chat" : "chatter"} i Chat</span></div>
-    <div class="hover-card-row muted hover-card-note"><span>{props.project.memoryMode === "shared" ? "Egne instruksjoner og delte globale Chat-minner." : "Egne instruksjoner og minner for dette prosjektet."}</span></div>
+    <div class="hover-card-head"><ChatProjectGlyph project={props.project} size={15} /><span class="hover-card-title">{props.project.name}</span><Show when={props.project.pinned}><span class="hover-card-age" title={t("Festet")}><IconPin size={13} /></span></Show></div>
+    <div class="hover-card-row"><IconChat size={14} /><span>{plural(count(), "{count} chat i Chat", "{count} chatter i Chat")}</span></div>
+    <div class="hover-card-row muted hover-card-note"><span>{props.project.memoryMode === "shared" ? t("Egne instruksjoner og delte globale Chat-minner.") : t("Egne instruksjoner og minner for dette prosjektet.")}</span></div>
     <div class="hover-card-sep" />
-    <button type="button" class="hover-card-action" onClick={() => { hideHoverCard(); openChatProject(props.project.id); }}><IconFolder size={14} />Åpne prosjektet</button>
-    <button type="button" class="hover-card-action" onClick={() => void edit()}><IconSettings size={14} />Rediger prosjekt</button>
+    <button type="button" class="hover-card-action" onClick={() => { hideHoverCard(); openChatProject(props.project.id); }}><IconFolder size={14} />{t("Åpne prosjektet")}</button>
+    <button type="button" class="hover-card-action" onClick={() => void edit()}><IconSettings size={14} />{t("Rediger prosjekt")}</button>
   </>;
 }
 
@@ -198,7 +199,7 @@ export function HoverCardHost() {
               ref={place}
               class="popover hover-card"
               role="group"
-              aria-label={thread ? "Om tråden" : "Om prosjektet"}
+              aria-label={thread ? t("Om tråden") : t("Om prosjektet")}
               data-testid={`hover-card-${target.kind}`}
               onPointerEnter={() => clearTimeout(hideTimer)}
               onPointerLeave={hoverOut}

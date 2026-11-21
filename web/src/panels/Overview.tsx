@@ -1,6 +1,7 @@
 // Oversikt in the right panel: where the thread runs, how full its context window is and what fills
 // it, and the files the thread has changed. The context split is fetched when the thread changes and
 // when a new usage count arrives, never on a timer.
+import { t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
 import type { ChangedFile, ContextUsage, RunningServer, Thread } from "../../../shared/protocol";
 import { copyServerUrl, openServer, servers, stopServer } from "../state/servers";
@@ -19,11 +20,11 @@ import { IconImage } from "../ui/nav-icons";
 import { FileChangeCounts } from "../ui/FileChangeCounts";
 
 const PARTS: Array<{ id: keyof ContextUsage["parts"]; label: string; title: string }> = [
-  { id: "messages", label: "Meldinger", title: "Samtalen så langt, med verktøyresultater og vedlegg" },
-  { id: "system", label: "Systemprompt", title: "Instruksjonene modellen får: appens, AGENTS.md og listen over skills" },
-  { id: "tools", label: "Verktøy", title: "Beskrivelsene av verktøyene modellen kan bruke" },
-  { id: "compactBuffer", label: "Buffer før komprimering", title: "Når konteksten når 80 %, komprimeres den. Resten holdes av." },
-  { id: "free", label: "Ledig", title: "Plass som er igjen før komprimering" },
+  { id: "messages", get label() { return t("Meldinger"); }, get title() { return t("Samtalen så langt, med verktøyresultater og vedlegg"); } },
+  { id: "system", get label() { return t("Systemprompt"); }, get title() { return t("Instruksjonene modellen får: appens, AGENTS.md og listen over skills"); } },
+  { id: "tools", get label() { return t("Verktøy"); }, get title() { return t("Beskrivelsene av verktøyene modellen kan bruke"); } },
+  { id: "compactBuffer", get label() { return t("Buffer før komprimering"); }, get title() { return t("Når konteksten når 80 %, komprimeres den. Resten holdes av."); } },
+  { id: "free", get label() { return t("Ledig"); }, get title() { return t("Plass som er igjen før komprimering"); } },
 ];
 
 const percent = (part: number, whole: number) => (whole ? (part / whole) * 100 : 0);
@@ -47,7 +48,7 @@ interface Task {
   open: () => void;
 }
 
-const STATE_LABEL: Record<TaskState, string> = { running: "Kjører", done: "Ferdig", error: "Feilet", stopped: "Stoppet" };
+const STATE_LABEL: Record<TaskState, string> = { get running() { return t("Kjører"); }, get done() { return t("Ferdig"); }, get error() { return t("Feilet"); }, get stopped() { return t("Stoppet"); } };
 
 function hue(id: string): number {
   let h = 0;
@@ -57,10 +58,10 @@ function hue(id: string): number {
 
 function elapsed(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s} s`;
+  if (s < 60) return t("{seconds} s", { seconds: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min ${s % 60} s`;
-  return `${Math.floor(m / 60)} t ${m % 60} min`;
+  if (m < 60) return t("{minutes} min {seconds} s", { minutes: m, seconds: s % 60 });
+  return t("{hours} t {minutes} min", { hours: Math.floor(m / 60), minutes: m % 60 });
 }
 
 function threadState(t: Thread): TaskState {
@@ -76,18 +77,18 @@ function BackgroundTasks(props: { projectId: string; threadId: string | null; to
     const agents = Object.values(app.threads).filter((t): t is Thread => !!t && t.projectId === props.projectId && t.origin === "agent" && !t.archived);
     // The current thread's own helpers first, then the rest of the project's.
     agents.sort((a, b) => Number(b.parentThreadId === props.threadId) - Number(a.parentThreadId === props.threadId) || b.updatedAt - a.updatedAt);
-    for (const t of agents) {
-      const state = threadState(t);
-      const parent = t.parentThreadId ? app.threads[t.parentThreadId] : undefined;
+    for (const agent of agents) {
+      const state = threadState(agent);
+      const parent = agent.parentThreadId ? app.threads[agent.parentThreadId] : undefined;
       out.push({
-        key: `t:${t.id}`,
+        key: `t:${agent.id}`,
         kind: "agent",
-        name: t.title,
-        detail: parent ? `fra ${parent.title}` : "agent",
+        name: agent.title,
+        detail: parent ? t("fra {title}", { title: parent.title }) : t("agent"),
         state,
-        startedAt: t.createdAt,
-        ms: state === "running" ? null : Math.max(0, t.updatedAt - t.createdAt),
-        open: () => openThread(t),
+        startedAt: agent.createdAt,
+        ms: state === "running" ? null : Math.max(0, agent.updatedAt - agent.createdAt),
+        open: () => openThread(agent),
       });
     }
     for (const row of props.tools) {
@@ -96,7 +97,7 @@ function BackgroundTasks(props: { projectId: string; threadId: string | null; to
       out.push({
         key: `c:${row.key}`,
         kind: "command",
-        name: row.summary || "Kommando",
+        name: row.summary || t("Kommando"),
         detail: "kommando",
         state,
         startedAt: row.at,
@@ -112,7 +113,7 @@ function BackgroundTasks(props: { projectId: string; threadId: string | null; to
       out.push({
         key: "playtest",
         kind: "playtest",
-        name: "Playtest",
+        name: t("Playtest"),
         detail: playtest.url ?? "starter",
         state: playtest.status === "error" ? "error" : "running",
         startedAt: null,
@@ -149,12 +150,12 @@ function BackgroundTasks(props: { projectId: string; threadId: string | null; to
   );
 
   return (
-    <section class="overview-section" aria-label="Bakgrunnsoppgaver" data-testid="background-tasks">
-      <h3 class="overview-title">Bakgrunnsoppgaver</h3>
-      <Show when={tasks().length} fallback={<p class="overview-empty">Ingen agenter, kommandoer eller Playtest kjører i prosjektet.</p>}>
+    <section class="overview-section" aria-label={t("Bakgrunnsoppgaver")} data-testid="background-tasks">
+      <h3 class="overview-title">{t("Bakgrunnsoppgaver")}</h3>
+      <Show when={tasks().length} fallback={<p class="overview-empty">{t("Ingen agenter, kommandoer eller Playtest kjører i prosjektet.")}</p>}>
         <For each={active()}>{(task) => <Row task={task} />}</For>
         <Show when={over().length}>
-          <div class="task-group">Avsluttet</div>
+          <div class="task-group">{t("Avsluttet")}</div>
           <For each={over().slice(0, 12)}>{(task) => <Row task={task} />}</For>
         </Show>
       </Show>
@@ -176,37 +177,39 @@ function Servers(props: { projectId: string; threadId: string | null }) {
     onCleanup(() => clearInterval(timer));
   });
   const from = (s: RunningServer) => {
-    if (s.source === "playtest") return "Playtest";
-    if (s.source === "terminal") return `Terminal · ${s.command}`;
+    if (s.source === "playtest") return t("Playtest");
+    if (s.source === "terminal") return t("Terminal · {command}", { command: s.command });
     const thread = s.threadId ? app.threads[s.threadId] : undefined;
     return thread ? `${thread.title} · ${s.command}` : s.command;
   };
   const stop = async (s: RunningServer) => {
     const ok = await confirmDialog({
-      title: `Stoppe serveren på :${s.port}?`,
-      text: s.source === "playtest" ? "Playtest stoppes." : `Prosessen som lytter${s.pid ? ` (PID ${s.pid})` : ""} får beskjed om å avslutte. Den ble startet av appen: ${s.command}`,
-      confirm: "Stopp",
+      title: t("Stoppe serveren på :{port}?", { port: s.port }),
+      text: s.source === "playtest" ? t("Playtest stoppes.") : s.pid
+        ? t("Prosessen som lytter (PID {pid}) får beskjed om å avslutte. Den ble startet av appen: {command}", { pid: s.pid, command: s.command })
+        : t("Prosessen som lytter får beskjed om å avslutte. Den ble startet av appen: {command}", { command: s.command }),
+      confirm: t("Stopp"),
       danger: true,
     });
     if (ok) await stopServer(s);
   };
   return (
-    <section class="overview-section" aria-label="Servere" data-testid="servers">
-      <h3 class="overview-title">Servere</h3>
-      <For each={list()} fallback={<p class="overview-empty">Ingen servere kjører. Starter en kommando eller Playtest en server, vises den her.</p>}>
+    <section class="overview-section" aria-label={t("Servere")} data-testid="servers">
+      <h3 class="overview-title">{t("Servere")}</h3>
+      <For each={list()} fallback={<p class="overview-empty">{t("Ingen servere kjører. Starter en kommando eller Playtest en server, vises den her.")}</p>}>
         {(s) => (
           <div class="server-row" data-port={s.port}>
             <span class="server-dot" aria-hidden="true" />
             <div class="server-main">
               <div class="server-line">
-                <button type="button" class="server-port" title={`Åpne ${s.url} i nettleserpanelet`} onClick={() => openServer(s)}>:{s.port}</button>
+                <button type="button" class="server-port" title={t("Åpne {url} i nettleserpanelet", { url: s.url })} onClick={() => openServer(s)}>:{s.port}</button>
                 <span class="overview-muted" title={from(s)}>{from(s)}</span>
                 <span class="task-state">{elapsed(now() - s.startedAt)}</span>
               </div>
               <div class="server-actions">
-                <button type="button" class="btn btn-small" onClick={() => openServer(s)}>Åpne i nettleserpanelet</button>
-                <button type="button" class="btn btn-small" onClick={() => copyServerUrl(s)}>Kopier adresse</button>
-                <button type="button" class="btn btn-small btn-quiet-danger" aria-label={`Stopp serveren på :${s.port}`} title="Stopper prosessen appen startet, etter at du har bekreftet" onClick={() => stop(s)}>Stopp</button>
+                <button type="button" class="btn btn-small" onClick={() => openServer(s)}>{t("Åpne i nettleserpanelet")}</button>
+                <button type="button" class="btn btn-small" onClick={() => copyServerUrl(s)}>{t("Kopier adresse")}</button>
+                <button type="button" class="btn btn-small btn-quiet-danger" aria-label={t("Stopp serveren på :{port}", { port: s.port })} title={t("Stopper prosessen appen startet, etter at du har bekreftet")} onClick={() => stop(s)}>{t("Stopp")}</button>
               </div>
             </div>
           </div>
@@ -283,10 +286,10 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
 
   return (
     <div class="overview-panel" data-testid="overview-panel">
-      <section class="overview-section" aria-label="Miljø">
-        <h3 class="overview-title">Miljø</h3>
-        <div class="overview-row" title="Agenten kjører på denne maskinen, med tilgang bare til prosjektmappen">
-          <IconLaptop size={15} /><span class="overview-name">Denne datamaskinen</span><span class="overview-tag">Lokal</span>
+      <section class="overview-section" aria-label={t("Miljø")}>
+        <h3 class="overview-title">{t("Miljø")}</h3>
+        <div class="overview-row" title={t("Agenten kjører på denne maskinen, med tilgang bare til prosjektmappen")}>
+          <IconLaptop size={15} /><span class="overview-name">{t("Denne datamaskinen")}</span><span class="overview-tag">{t("Lokal")}</span>
         </div>
         <button type="button" class="overview-row overview-link" title={project()?.path} onClick={() => showPanel("files")}>
           <IconFolder size={15} /><span class="overview-name">{project()?.name}</span>
@@ -294,21 +297,21 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
         </button>
         <Show when={gitInfo(props.projectId)?.branch}>
           {(branch) => (
-            <div class="overview-row" title="Lest fra .git/HEAD">
+            <div class="overview-row" title={t("Lest fra .git/HEAD")}>
               <IconBranch size={15} /><span class="overview-name"><bdo dir="ltr">{branch()}</bdo></span>
-              <span class="overview-muted">{gitInfo(props.projectId)?.detached ? "frakoblet HEAD" : "gren"}</span>
+              <span class="overview-muted">{gitInfo(props.projectId)?.detached ? t("frakoblet HEAD") : t("gren")}</span>
             </div>
           )}
         </Show>
       </section>
 
-      <section class="overview-section" aria-label="Kontekst">
-        <h3 class="overview-title">Kontekst</h3>
-        <Show when={props.threadId()} fallback={<p class="overview-empty">Ingen tråd er valgt. Send en melding, så vises kontekstbruken her.</p>}>
+      <section class="overview-section" aria-label={t("Kontekst")}>
+        <h3 class="overview-title">{t("Kontekst")}</h3>
+        <Show when={props.threadId()} fallback={<p class="overview-empty">{t("Ingen tråd er valgt. Send en melding, så vises kontekstbruken her.")}</p>}>
           <Show when={context()} fallback={
-            <Show when={contextFailed()} fallback={<p class="overview-empty" role="status">Regner…</p>}>
-              <p class="overview-empty" role="status">Kunne ikke hente kontekstbruken.</p>
-              <button type="button" class="btn btn-small" onClick={() => setContextReload((value) => value + 1)}>Prøv igjen</button>
+            <Show when={contextFailed()} fallback={<p class="overview-empty" role="status">{t("Regner…")}</p>}>
+              <p class="overview-empty" role="status">{t("Kunne ikke hente kontekstbruken.")}</p>
+              <button type="button" class="btn btn-small" onClick={() => setContextReload((value) => value + 1)}>{t("Prøv igjen")}</button>
             </Show>
           }>
             {(c) => {
@@ -316,10 +319,10 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
               return (
                 <>
                   <div class="context-summary">
-                    <strong data-testid="context-used">{pct(used())} brukt</strong>
+                    <strong data-testid="context-used">{t("{percent} brukt", { percent: pct(used()) })}</strong>
                     <span class="overview-muted">{formatTokens(c().usedTokens)} / {formatTokens(c().contextWindow)}</span>
                   </div>
-                  <div class="context-bar" role="img" aria-label={`${pct(used())} av kontekstvinduet er brukt`}>
+                  <div class="context-bar" role="img" aria-label={t("{percent} av kontekstvinduet er brukt", { percent: pct(used()) })}>
                     <For each={PARTS}>
                       {(part) => <span class={`context-seg seg-${part.id}`} style={`width:${percent(c().parts[part.id], c().contextWindow)}%`} />}
                     </For>
@@ -337,7 +340,9 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
                     </For>
                   </div>
                   <p class="overview-note">
-                    {c().tools} verktøy og {c().skills} skills sendes med. {c().measured ? "Totalen er leverandørens egen telling; delene er anslått." : "Anslått, omtrent fire tegn per token."}
+                    {c().measured
+                      ? t("{tools} verktøy og {skills} skills sendes med. Totalen er leverandørens egen telling; delene er anslått.", { tools: c().tools, skills: c().skills })
+                      : t("{tools} verktøy og {skills} skills sendes med. Anslått, omtrent fire tegn per token.", { tools: c().tools, skills: c().skills })}
                   </p>
                 </>
               );
@@ -350,11 +355,11 @@ export default function OverviewPanel(props: { projectId: string; threadId: () =
 
       <BackgroundTasks projectId={props.projectId} threadId={props.threadId()} tools={commands()} />
 
-      <section class="overview-section" aria-label="Utdata">
-        <h3 class="overview-title">Utdata</h3>
-        <For each={outputs()} fallback={<p class="overview-empty">Ingen filer er endret i denne tråden ennå.</p>}>
+      <section class="overview-section" aria-label={t("Utdata")}>
+        <h3 class="overview-title">{t("Utdata")}</h3>
+        <For each={outputs()} fallback={<p class="overview-empty">{t("Ingen filer er endret i denne tråden ennå.")}</p>}>
           {(file) => (
-            <button type="button" class="overview-row overview-link" disabled={file.change === "deleted"} title={file.change === "deleted" ? `${file.path} (slettet)` : `Åpne ${file.path}`} onClick={() => open(file.path)}>
+            <button type="button" class="overview-row overview-link" disabled={file.change === "deleted"} title={file.change === "deleted" ? t("{path} (slettet)", { path: file.path }) : t("Åpne {path}", { path: file.path })} onClick={() => open(file.path)}>
               {isImage(file.path) ? <IconImage size={15} /> : /\.(tsx?|jsx?|css|html?|json|rs|py|go|java|c|cpp|h|sh)$/i.test(file.path) ? <IconCode size={15} /> : <IconFile size={15} />}
               <span class="overview-name" classList={{ deleted: file.change === "deleted" }}>{file.path.split("/").pop()}</span>
               <span class="overview-muted"><bdo dir="ltr">{file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""}</bdo></span>

@@ -6,6 +6,7 @@
 // without a thread) and puts the comments under what is typed there, as a numbered list. Avbryt or
 // Esc closes without adding anything. Drawn with SVG on screen and a canvas for the PNG; nothing new
 // is loaded.
+import { t } from "../lib/i18n";
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type JSX } from "solid-js";
 import "../styles/annotation-polish.css";
 import { Portal } from "solid-js/web";
@@ -39,11 +40,11 @@ const TEXT_H = 24;
 const MAX_COMMENT = 280;
 
 const TOOLS: Array<{ id: Tool; label: string; key: string; tip: string; hint: string; icon: (p: { size?: number }) => JSX.Element }> = [
-  { id: "element", label: "Element", key: "E", tip: "Velg element: se ramme, størrelse, farge og skrift", hint: "Pek på et element og klikk for å legge til en kommentar.", icon: IconRect },
-  { id: "marker", label: "Klikk", key: "K", tip: "Klikk: en nummerert markør med en kort kommentar", hint: "Klikk der noe skal endres, og skriv en kort kommentar.", icon: IconMarker },
-  { id: "pen", label: "Penn", key: "P", tip: "Penn: tegn fritt", hint: "Tegn med musen for å ringe inn eller peke på noe.", icon: IconPencil },
-  { id: "rect", label: "Rektangel", key: "R", tip: "Rektangel: ramme inn et område", hint: "Dra for å ramme inn et område.", icon: IconRect },
-  { id: "text", label: "Tekst", key: "T", tip: "Tekst: en fri kommentar på bildet", hint: "Klikk der teksten skal stå, skriv, og trykk Enter.", icon: IconText },
+  { id: "element", get label() { return t("Element"); }, key: "E", get tip() { return t("Velg element: se ramme, størrelse, farge og skrift"); }, get hint() { return t("Pek på et element og klikk for å legge til en kommentar."); }, icon: IconRect },
+  { id: "marker", get label() { return t("Klikk"); }, key: "K", get tip() { return t("Klikk: en nummerert markør med en kort kommentar"); }, get hint() { return t("Klikk der noe skal endres, og skriv en kort kommentar."); }, icon: IconMarker },
+  { id: "pen", get label() { return t("Penn"); }, key: "P", get tip() { return t("Penn: tegn fritt"); }, get hint() { return t("Tegn med musen for å ringe inn eller peke på noe."); }, icon: IconPencil },
+  { id: "rect", get label() { return t("Rektangel"); }, key: "R", get tip() { return t("Rektangel: ramme inn et område"); }, get hint() { return t("Dra for å ramme inn et område."); }, icon: IconRect },
+  { id: "text", get label() { return t("Tekst"); }, key: "T", get tip() { return t("Tekst: en fri kommentar på bildet"); }, get hint() { return t("Klikk der teksten skal stå, skriv, og trykk Enter."); }, icon: IconText },
 ];
 
 function IconMarker(p: { size?: number }) {
@@ -118,7 +119,7 @@ export function AnnotateButton(props: { projectId: string; tab: () => string | n
   createEffect(() => { if (props.active === false) setOpen(false); });
   const start = () => {
     if (open() || props.active === false) return;
-    if (!props.ready()) return toast("Åpne en side i nettleseren først, så kan du annotere den.", "info");
+    if (!props.ready()) return toast(t("Åpne en side i nettleseren først, så kan du annotere den."), "info");
     setOpen(true);
   };
   createEffect(on(annotateRequest, (seq) => seq && start(), { defer: true }));
@@ -128,8 +129,8 @@ export function AnnotateButton(props: { projectId: string; tab: () => string | n
         ref={button}
         type="button"
         class="icon-button browser-annotate-button"
-        aria-label="Annoter"
-        data-tip={props.ready() ? "Annoter: marker, tegn og skriv på et bilde av siden, og legg det ved meldingen" : "Annoter: åpne en side først"}
+        aria-label={t("Annoter")}
+        data-tip={props.ready() ? t("Annoter: marker, tegn og skriv på et bilde av siden, og legg det ved meldingen") : t("Annoter: åpne en side først")}
         data-keys="browser.annotate"
         aria-haspopup="dialog"
         aria-expanded={open()}
@@ -257,7 +258,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
         setElements(snapshot.elements);
       } catch {
         if (!alive) return;
-        setElementError("Elementvalg er utilgjengelig her. Bruk Klikk, Penn eller Rektangel på bildet.");
+        setElementError(t("Elementvalg er utilgjengelig her. Bruk Klikk, Penn eller Rektangel på bildet."));
         setTool("marker");
         const response = await fetch(`/api/browser/screenshot?${params}`, { credentials: "same-origin", signal: controller.signal });
         if (!response.ok) throw new Error(String(response.status));
@@ -280,7 +281,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
   // The server could not take the picture: the frame on screen is the picture.
   const useFrame = () => {
     if (!props.frame?.width) {
-      toast("Fikk ikke tatt et bilde av siden.");
+      toast(t("Fikk ikke tatt et bilde av siden."));
       return close();
     }
     batch(() => {
@@ -420,13 +421,13 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
       if (!layerAlive || closing()) return;
       const file = new File([blob], `annotering-${hostAndPath(props.url).split("/")[0].replace(/[^a-z0-9.-]+/gi, "-") || "side"}.png`, { type: "image/png" });
       const pane = ownerGrid.panes().find((p) => p.id === ownerPane);
-      if (scope() !== ownerScope || !pane || pane.threadId() !== ownerThread) { toast("Gå tilbake til den opprinnelige samtalen før du legger til annoteringen.", "info"); setBusy(false); return; }
+      if (scope() !== ownerScope || !pane || pane.threadId() !== ownerThread) { toast(t("Gå tilbake til den opprinnelige samtalen før du legger til annoteringen."), "info"); setBusy(false); return; }
       const key = ownerThread ?? ownerPane;
       deliverToComposer(key, { images: [file], text: listText() });
       close(true);
     } catch {
       if (!layerAlive || closing()) return;
-      toast("Fikk ikke laget bildet.");
+      toast(t("Fikk ikke laget bildet."));
       setBusy(false);
     }
   };
@@ -567,13 +568,13 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
       classList={{ closing: closing() }}
       role="dialog"
       aria-modal="true"
-      aria-label="Annoter siden"
+      aria-label={t("Annoter siden")}
       tabindex="-1"
       data-testid="annotate"
       data-tool={tool()}
     >
-      <div class="annotate-bar" role="toolbar" aria-label="Annoteringsverktøy">
-        <div class="annotate-tools" role="group" aria-label="Verktøy">
+      <div class="annotate-bar" role="toolbar" aria-label={t("Annoteringsverktøy")}>
+        <div class="annotate-tools" role="group" aria-label={t("Verktøy")}>
           <For each={TOOLS}>
             {(t) => (
               <button
@@ -591,14 +592,14 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
           </For>
         </div>
         <span class="annotate-sep" aria-hidden="true" />
-        <button type="button" class="icon-button" aria-label="Angre" data-tip="Angre" data-keys="Ctrl+Z" disabled={!past().length} onClick={undo}><IconUndo size={15} /></button>
-        <button type="button" class="icon-button" aria-label="Tøm" data-tip="Tøm: fjern alle markeringene" disabled={!items().length} onClick={clear}><IconTrash size={15} /></button>
+        <button type="button" class="icon-button" aria-label={t("Angre")} data-tip={t("Angre")} data-keys="Ctrl+Z" disabled={!past().length} onClick={undo}><IconUndo size={15} /></button>
+        <button type="button" class="icon-button" aria-label={t("Tøm")} data-tip={t("Tøm: fjern alle markeringene")} disabled={!items().length} onClick={clear}><IconTrash size={15} /></button>
         <span class="annotate-spacer" />
-        <button type="button" class="btn btn-small btn-ghost annotate-cancel" aria-label="Avbryt" data-tip="Avbryt uten å legge til noe" data-keys="Esc" onClick={() => close()}>
-          <IconClose size={14} /><span class="annotate-label">Avbryt</span>
+        <button type="button" class="btn btn-small btn-ghost annotate-cancel" aria-label={t("Avbryt")} data-tip={t("Avbryt uten å legge til noe")} data-keys="Esc" onClick={() => close()}>
+          <IconClose size={14} /><span class="annotate-label">{t("Avbryt")}</span>
         </button>
-        <button type="button" class="btn btn-small btn-primary annotate-done" data-tip="Legg bildet og kommentarene i meldingsfeltet" data-keys="Ctrl+Enter" disabled={!ready()} onClick={() => void finish()}>
-          <IconCheck size={14} />Ferdig
+        <button type="button" class="btn btn-small btn-primary annotate-done" data-tip={t("Legg bildet og kommentarene i meldingsfeltet")} data-keys="Ctrl+Enter" disabled={!ready()} onClick={() => void finish()}>
+          <IconCheck size={14} />{t("Ferdig")}
         </button>
       </div>
       <div class="annotate-stage" ref={stage}>
@@ -614,7 +615,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
         >
           <canvas ref={preview} class="annotate-picture" classList={{ hidden: source() === "png" }} aria-hidden="true" />
           <Show when={source() === "png" && image}>
-            <img class="annotate-picture" src={image!.src} alt="Skjermbilde av siden" draggable={false} />
+            <img class="annotate-picture" src={image!.src} alt={t("Skjermbilde av siden")} draggable={false} />
           </Show>
           <svg class="annotate-marks" viewBox={`0 0 ${size().w} ${size().h}`} aria-hidden="true">
             <Show when={tool() === "element" && !editing() ? hovered() : null} keyed>{(el) => <rect class="annotate-element-outline" x={el.rect.x} y={el.rect.y} width={el.rect.w} height={el.rect.h} stroke-width={2 * unit()} />}</Show>
@@ -623,8 +624,8 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
           </svg>
           <Show when={tool() === "element" && !editing() ? hovered() : null} keyed>{(el) => <div class="annotate-element-info" role="tooltip" style={bubbleStyle(el.rect.x * scale(), el.rect.y * scale(), size().w * scale())}>
             <div><strong>{el.tag}</strong><span>{Math.round(el.rect.w)} × {Math.round(el.rect.h)}</span></div>
-            <div><span>Farge</span><span>{el.color}</span></div>
-            <div><span>Skrift</span><span>{el.font}</span></div>
+            <div><span>{t("Farge")}</span><span>{el.color}</span></div>
+            <div><span>{t("Skrift")}</span><span>{el.font}</span></div>
           </div>}</Show>
           <Show when={editing()} keyed>
             {(current) => (
@@ -651,7 +652,7 @@ function AnnotateLayer(props: { projectId: string; tab: string; url: string; fra
           </Show>
         </div>
         <Show when={source() === null}>
-          <div class="annotate-status" role="status"><span class="spinner" aria-hidden="true" />Fryser siden…</div>
+          <div class="annotate-status" role="status"><span class="spinner" aria-hidden="true" />{t("Fryser siden…")}</div>
         </Show>
         <Show when={source() !== null && !items().length && !editing() && !draft()}>
           <div class="annotate-status annotate-hint" role="status">{elementError() || hint()}</div>
@@ -706,8 +707,8 @@ function Editor(props: {
       <input
         ref={input}
         class="annotate-input"
-        aria-label={marker() ? `Kommentar til markør ${props.number}` : "Tekst på bildet"}
-        placeholder={marker() ? "Legg til en kommentar …" : "Skriv en tekst"}
+        aria-label={marker() ? t("Kommentar til markør {number}", { number: props.number }) : t("Tekst på bildet")}
+        placeholder={marker() ? t("Legg til en kommentar …") : t("Skriv en tekst")}
         maxlength={MAX_COMMENT}
         value={props.initial}
         spellcheck={true}
@@ -726,8 +727,8 @@ function Editor(props: {
         }}
       />
       <Show when={marker()}>
-        <button type="button" class="icon-button" aria-label="Lagre kommentar" title="Lagre kommentar" onMouseDown={(event) => event.preventDefault()} onClick={() => end(props.onDone)}><IconCheck size={14} /></button>
-        <button type="button" class="icon-button" aria-label="Avbryt kommentar" title="Avbryt kommentar" onMouseDown={(event) => event.preventDefault()} onClick={() => end(props.onCancel)}><IconClose size={12} /></button>
+        <button type="button" class="icon-button annotate-save" aria-label={t("Lagre kommentar")} title={t("Lagre kommentar")} onMouseDown={(event) => event.preventDefault()} onClick={() => end(props.onDone)}><IconCheck size={14} /></button>
+        <button type="button" class="icon-button" aria-label={t("Avbryt kommentar")} title={t("Avbryt kommentar")} onMouseDown={(event) => event.preventDefault()} onClick={() => end(props.onCancel)}><IconClose size={12} /></button>
       </Show>
     </div>
   );

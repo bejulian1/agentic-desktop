@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, t } from "../lib/i18n.ts";
 // What the thread menu does, shared by the sidebar, the smart sidebar and the shortcuts: pin,
 // side chat, branches, copy, snooze, a new window and archive.
 import type { Thread, ThreadEventEnvelope } from "../../../shared/protocol";
@@ -12,7 +12,7 @@ import { openDetachedWindow } from "./windows";
 export async function setPinned(thread: Thread, pinned: boolean): Promise<void> {
   try {
     await patch(`/api/threads/${thread.id}`, { pinned });
-    toast(pinned ? "Festet tråden." : "Løsnet tråden.", "info");
+    toast(pinned ? t("Festet tråden.") : t("Løsnet tråden."), "info");
   } catch (err) {
     report(err);
   }
@@ -21,7 +21,7 @@ export async function setPinned(thread: Thread, pinned: boolean): Promise<void> 
 export async function setSnoozed(thread: Thread, until: number | null): Promise<void> {
   try {
     await patch(`/api/threads/${thread.id}`, { snoozedUntil: until });
-    toast(until ? `Utsatt til ${new Date(until).toLocaleString(language(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.` : "Hentet tilbake.", "info");
+    toast(until ? t("Utsatt til {time}.", { time: new Date(until).toLocaleString(language(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }) : t("Hentet tilbake."), "info");
   } catch (err) {
     report(err);
   }
@@ -37,9 +37,9 @@ export function snoozeTimes(now = new Date()): Array<{ id: "1h" | "tomorrow" | "
   };
   const toMonday = ((8 - now.getDay()) % 7) || 7;
   return [
-    { id: "1h", label: "Om 1 time", at: now.getTime() + 3_600_000 },
-    { id: "tomorrow", label: "I morgen", at: morning(1) },
-    { id: "week", label: "Neste uke", at: morning(toMonday) },
+    { id: "1h", label: t("Om 1 time"), at: now.getTime() + 3_600_000 },
+    { id: "tomorrow", label: t("I morgen"), at: morning(1) },
+    { id: "week", label: t("Neste uke"), at: morning(toMonday) },
   ];
 }
 
@@ -65,7 +65,7 @@ export async function forkFromLast(thread: Thread): Promise<void> {
   try {
     const branch = await post<Thread>(`/api/threads/${thread.id}/fork`, { from: "last" });
     await openBeside(thread.id, branch);
-    toast(`Laget «${branch.title}» fra siste melding.`, "info");
+    toast(t("Laget «{title}» fra siste melding.", { title: branch.title }), "info");
   } catch (err) {
     report(err);
   }
@@ -105,25 +105,25 @@ async function transcript(thread: Thread, format: "text" | "markdown" | "last"):
   }
   const shown = parts.filter((p) => p.text.trim());
   if (format === "last") return shown.findLast((p) => p.who === "model")?.text.trim() ?? "";
-  if (format === "markdown") return [`# ${thread.title}`, ...shown.map((p) => `## ${p.who === "user" ? "Du" : "Assistent"}\n\n${p.text.trim()}`)].join("\n\n") + "\n";
-  return shown.map((p) => `${p.who === "user" ? "Du" : "Assistent"}: ${p.text.trim()}`).join("\n\n") + "\n";
+  if (format === "markdown") return [`# ${thread.title}`, ...shown.map((p) => `## ${p.who === "user" ? t("Du") : t("Assistent")}\n\n${p.text.trim()}`)].join("\n\n") + "\n";
+  return shown.map((p) => `${p.who === "user" ? t("Du") : t("Assistent")}: ${p.text.trim()}`).join("\n\n") + "\n";
 }
 
-async function copy(text: string, what: string): Promise<void> {
+async function copy(text: string, success: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    toast(`Kopierte ${what}.`, "info");
+    toast(success, "info");
   } catch {
-    toast("Nettleseren slapp ikke til utklippstavlen.");
+    toast(t("Nettleseren slapp ikke til utklippstavlen."));
   }
 }
 
 export async function copyThread(thread: Thread, as: "text" | "markdown" | "last" | "id"): Promise<void> {
   try {
-    if (as === "id") return await copy(thread.id, "tråd-ID-en");
+    if (as === "id") return await copy(thread.id, t("Kopierte tråd-ID-en."));
     const text = await transcript(thread, as);
-    if (as === "last" && !text) return toast("Tråden har ingen svar å kopiere ennå.", "info");
-    const labels = { text: "tråden som tekst", markdown: "tråden som Markdown", last: "siste svar" };
+    if (as === "last" && !text) return toast(t("Tråden har ingen svar å kopiere ennå."), "info");
+    const labels = { text: t("Kopierte tråden som tekst."), markdown: t("Kopierte tråden som Markdown."), last: t("Kopierte siste svar.") };
     await copy(text, labels[as]);
   } catch (err) {
     report(err);
@@ -152,8 +152,8 @@ export async function toggleArchived(thread: Thread): Promise<void> {
   const archived = !thread.archived;
   try {
     await archiveThread(thread.id, archived);
-    toast(archived ? `Arkiverte «${thread.title}».` : `Gjenopprettet «${thread.title}».`, "info", {
-      label: "Angre",
+    toast(archived ? t("Arkiverte «{title}».", { title: thread.title }) : t("Gjenopprettet «{title}».", { title: thread.title }), "info", {
+      label: t("Angre"),
       run: () => void archiveThread(thread.id, !archived).catch(report),
     });
   } catch (err) {

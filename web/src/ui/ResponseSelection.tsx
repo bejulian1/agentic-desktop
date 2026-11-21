@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { Thread } from "../../../shared/protocol";
@@ -126,12 +127,12 @@ export function ResponseSelection(props: { root: () => HTMLElement; thread: () =
   return (
     <Show when={!props.selecting() && excerpt()}>
       <Portal>
-        <div class="response-selection" role="toolbar" aria-label="Handlinger for markert svartekst" data-testid="response-selection" ref={(element) => { toolbar = element; queueMicrotask(place); }} title="Alt+Enter flytter fokus til handlingene. Esc lukker.">
-          <button type="button" disabled={excerpt()!.text.length > MAX_QUOTE} onClick={() => add(false)}><IconChat size={14} /><span>Legg til i chat</span></button>
+        <div class="response-selection" role="toolbar" aria-label={t("Handlinger for markert svartekst")} data-testid="response-selection" ref={(element) => { toolbar = element; queueMicrotask(place); }} title={t("Alt+Enter flytter fokus til handlingene. Esc lukker.")}>
+          <button type="button" disabled={excerpt()!.text.length > MAX_QUOTE} onClick={() => add(false)}><IconChat size={14} /><span>{t("Legg til i chat")}</span></button>
           <span class="response-selection-divider" aria-hidden="true" />
-          <button type="button" disabled={detached || excerpt()!.text.length > MAX_QUOTE} title={detached ? "Åpne sidechat fra hovedvinduet" : "En ny sidechat i samme modus og prosjekt. Bare utdraget legges i utkastet."} onClick={() => add(true)}><IconSplitRight size={14} /><span>Legg til i sidechat</span></button>
-          <Show when={excerpt()!.text.length > MAX_QUOTE}><span class="response-selection-limit" role="status">Velg inntil 64 000 tegn</span></Show>
-          <span class="sr-only" role="status">Tekst valgt. Alt+Enter åpner handlingene.</span>
+          <button type="button" disabled={detached || excerpt()!.text.length > MAX_QUOTE} title={detached ? t("Åpne sidechat fra hovedvinduet") : t("En ny sidechat i samme modus og prosjekt. Bare utdraget legges i utkastet.")} onClick={() => add(true)}><IconSplitRight size={14} /><span>{t("Legg til i sidechat")}</span></button>
+          <Show when={excerpt()!.text.length > MAX_QUOTE}><span class="response-selection-limit" role="status">{t("Velg inntil 64 000 tegn")}</span></Show>
+          <span class="sr-only" role="status">{t("Tekst valgt. Alt+Enter åpner handlingene.")}</span>
         </div>
       </Portal>
     </Show>

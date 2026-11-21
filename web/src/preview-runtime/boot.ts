@@ -7,6 +7,8 @@
 //
 // Built by web/vite-preview-runtime.ts into preview-runtime/boot.js. "react" and "react-dom/client"
 // here are the same modules the import map gives the app's own code, so there is one React.
+import { applyLanguage, t } from "../lib/i18n";
+import { isLanguage } from "../../../shared/i18n.ts";
 import { createElement, type ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import { transform } from "sucrase";
@@ -21,7 +23,8 @@ const ALLOWED = ["react", "react-dom", "react-dom/client", "react/jsx-runtime"];
 // ---------------------------------------------------------------------------------------------
 // Messages. In a shadow root of their own, so the app's CSS can neither hide nor restyle them.
 
-const dark = /(?:^|[#&])tema=mork(?:&|$)/.test(location.hash);
+const params = new URLSearchParams(location.hash.slice(1));
+const dark = params.get("tema") === "mork";
 
 const STYLE = `
 :host { all: initial; }
@@ -126,7 +129,10 @@ function showFull(message: Message): void {
   head.append(badge(message.kind), el("h1", undefined, message.title));
   card.append(head, el("p", undefined, message.text));
   if (message.line && message.line <= source.code.split("\n").length) {
-    card.append(el("div", "where", `Linje ${message.line}${message.detail ? `: ${message.detail}` : ""}`), excerpt(source.code, message.line));
+    const where = message.detail
+      ? t("Linje {line}: {detail}", { line: message.line, detail: message.detail })
+      : t("Linje {line}", { line: message.line });
+    card.append(el("div", "where", where), excerpt(source.code, message.line));
   } else if (message.detail) {
     card.append(el("pre", undefined, message.detail));
   }
@@ -145,11 +151,11 @@ function showBar(detail: string): void {
   const bar = el("div", "bar");
   bar.setAttribute("role", "status");
   const text = el("div", "text");
-  text.append(el("strong", undefined, "Feil i appen"), el("span", undefined, detail));
+  text.append(el("strong", undefined, t("Feil i appen")), el("span", undefined, detail));
   const close = el("button");
   close.type = "button";
-  close.title = "Lukk";
-  close.setAttribute("aria-label", "Lukk meldingen");
+  close.title = t("Lukk");
+  close.setAttribute("aria-label", t("Lukk meldingen"));
   close.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
   close.addEventListener("click", () => {
     root.replaceChildren();
@@ -204,17 +210,17 @@ function checkImports(code: string): Message | null {
     if (/^(\.|\/|https?:)/.test(specifier)) {
       return {
         kind: "import",
-        title: "Appen må være én fil",
-        text: `Fila importerer «${specifier}», som ligger utenfor den. Forhåndsvisningen kjører én fil og henter ingenting annet, så koden derfra må stå i denne fila.`,
+        title: t("Appen må være én fil"),
+        text: t("Fila importerer «{specifier}», som ligger utenfor den. Forhåndsvisningen kjører én fil og henter ingenting annet, så koden derfra må stå i denne fila.", { specifier }),
       };
     }
     const name = packageName(specifier);
     return {
       kind: "import",
-      title: `Pakken «${name}» finnes ikke her`,
+      title: t("Pakken «{name}» finnes ikke her", { name }),
       text: name === "react" || name === "react-dom"
-        ? `Forhåndsvisningen har react, react-dom og react-dom/client, men ikke «${specifier}».`
-        : `Forhåndsvisningen har bare react og react-dom, og den henter ingenting fra nettet. Be om en versjon av appen uten «${name}», eller skriv den delen selv.`,
+        ? t("Forhåndsvisningen har react, react-dom og react-dom/client, men ikke «{specifier}».", { specifier })
+        : t("Forhåndsvisningen har bare react og react-dom, og den henter ingenting fra nettet. Be om en versjon av appen uten «{name}», eller skriv den delen selv.", { name }),
     };
   }
   return null;
@@ -234,7 +240,7 @@ async function run(): Promise<void> {
   try {
     source = JSON.parse(data?.textContent ?? "") as Source;
   } catch {
-    return showFull({ kind: "runtime", title: "Fant ingen kode", text: "Forhåndsvisningen fikk ingen fil å vise. Last inn på nytt." });
+    return showFull({ kind: "runtime", title: t("Fant ingen kode"), text: t("Forhåndsvisningen fikk ingen fil å vise. Last inn på nytt.") });
   }
 
   let js: string;
@@ -250,8 +256,8 @@ async function run(): Promise<void> {
     const detail = (error as Error).message?.replace(/\s*\(\d+:\d+\)\s*$/, "");
     return showFull({
       kind: "syntax",
-      title: "Koden kan ikke leses",
-      text: source.lang === "tsx" ? "Det er en feil i JSX- eller TypeScript-koden, så appen kan ikke starte." : "Det er en feil i JSX-koden, så appen kan ikke starte.",
+      title: t("Koden kan ikke leses"),
+      text: source.lang === "tsx" ? t("Det er en feil i JSX- eller TypeScript-koden, så appen kan ikke starte.") : t("Det er en feil i JSX-koden, så appen kan ikke starte."),
       line: loc?.line,
       detail: detail || describe(error),
     });
@@ -276,7 +282,7 @@ async function run(): Promise<void> {
       const blockedLate = checkImports(`import "${missing[1]}"`);
       if (blockedLate) return showFull(blockedLate);
     }
-    return showFull({ kind: "runtime", title: "Appen stoppet før den startet", text: "Koden kastet en feil da fila ble lastet.", line: lineOf(error), detail: describe(error) });
+    return showFull({ kind: "runtime", title: t("Appen stoppet før den startet"), text: t("Koden kastet en feil da fila ble lastet."), line: lineOf(error), detail: describe(error) });
   }
 
   const component = componentOf(module);
@@ -286,16 +292,17 @@ async function run(): Promise<void> {
     if (/\bcreateRoot\s*\(|\bhydrateRoot\s*\(/.test(js)) return;
     return showFull({
       kind: "export",
-      title: "Fant ingen komponent å vise",
-      text: "Fila må ha en React-komponent som default export, for eksempel export default function App() { … }.",
+      title: t("Fant ingen komponent å vise"),
+      text: t("Fila må ha en React-komponent som default export, for eksempel export default function App() { … }."),
     });
   }
   const root = createRoot(mount, {
     onUncaughtError(error) {
-      showFull({ kind: "runtime", title: "Appen stoppet med en feil", text: "En komponent kastet en feil mens den ble vist, så React tok den ned.", line: lineOf(error), detail: describe(error) });
+      showFull({ kind: "runtime", title: t("Appen stoppet med en feil"), text: t("En komponent kastet en feil mens den ble vist, så React tok den ned."), line: lineOf(error), detail: describe(error) });
     },
   });
   root.render(createElement(component));
 }
 
-void run();
+const requested = params.get("lang");
+void applyLanguage(isLanguage(requested) ? requested : "nb").catch(() => undefined).then(run);

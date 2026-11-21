@@ -1,5 +1,6 @@
 // xterm.js on a real PTY. The PTY lives on the server, so leaving this tab disposes the terminal
 // here and frees its memory, and coming back replays the output.
+import { t } from "../lib/i18n";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -87,7 +88,7 @@ function View(props: { projectId: string; tab: Tab }) {
         if (message.terminalId === terminalId) terminal.write(message.data);
       }),
       on("terminal.exit", (message) => {
-        if (message.terminalId === terminalId) terminal.write("\r\n[Prosessen er ferdig]\r\n");
+        if (message.terminalId === terminalId) terminal.write(t("\r\n[Prosessen er ferdig]\r\n"));
       }),
       onOpen(attach),
       observeResize(host, () => {
@@ -160,9 +161,12 @@ function View(props: { projectId: string; tab: Tab }) {
   };
   const hint = () => {
     const thread = target();
-    return thread
-      ? `Til utkastet i ${untitled(thread) ? "aktiv kodetråd" : `«${thread.title}»`}. Gjennomgå før sending.`
-      : `Åpne en kodetråd ${props.projectId === LOCAL_SCOPE ? "i Denne datamaskinen" : "i dette prosjektet"} for å dele til utkastet.`;
+    if (!thread) return props.projectId === LOCAL_SCOPE
+      ? t("Åpne en kodetråd i Denne datamaskinen for å dele til utkastet.")
+      : t("Åpne en kodetråd i dette prosjektet for å dele til utkastet.");
+    return untitled(thread)
+      ? t("Til utkastet i aktiv kodetråd. Gjennomgå før sending.")
+      : t("Til utkastet i «{title}». Gjennomgå før sending.", { title: thread.title });
   };
   const share = (selected: boolean) => {
     const thread = target();
@@ -170,13 +174,13 @@ function View(props: { projectId: string; tab: Tab }) {
     const excerpt = formatTerminalShare(selected ? terminal.getSelection() : readBuffer(), selected);
     if (!excerpt) return;
     deliverToComposer(thread.id, { text: excerpt.text, images: [] });
-    toast(excerpt.truncated ? "Avkortede terminalutdata er lagt i utkastet. Gjennomgå før sending." : "Terminalutdata er lagt i utkastet. Gjennomgå før sending.", "info");
+    toast(excerpt.truncated ? t("Avkortede terminalutdata er lagt i utkastet. Gjennomgå før sending.") : t("Terminalutdata er lagt i utkastet. Gjennomgå før sending."), "info");
   };
   return <>
     <div class="terminal-share" data-testid="terminal-share">
       <div class="terminal-share-actions">
-        <button type="button" disabled={!target() || !hasSelection()} title={target() ? "Marker tekst i terminalen og legg utvalget i utkastet (maks 200 linjer / 12 000 tegn)" : hint()} onMouseDown={(event) => event.preventDefault()} onClick={() => share(true)}>Del utvalg</button>
-        <button type="button" disabled={!target() || !hasOutput()} title={target() ? "Legg siste terminalutdata, inkludert kommandoer, i utkastet (maks 200 linjer / 12 000 tegn)" : hint()} onMouseDown={(event) => event.preventDefault()} onClick={() => share(false)}>Del siste utdata</button>
+        <button type="button" disabled={!target() || !hasSelection()} title={target() ? t("Marker tekst i terminalen og legg utvalget i utkastet (maks 200 linjer / 12 000 tegn)") : hint()} onMouseDown={(event) => event.preventDefault()} onClick={() => share(true)}>{t("Del utvalg")}</button>
+        <button type="button" disabled={!target() || !hasOutput()} title={target() ? t("Legg siste terminalutdata, inkludert kommandoer, i utkastet (maks 200 linjer / 12 000 tegn)") : hint()} onMouseDown={(event) => event.preventDefault()} onClick={() => share(false)}>{t("Del siste utdata")}</button>
       </div>
       <div class="terminal-share-hint">{hint()}</div>
     </div>
@@ -253,7 +257,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
   });
   createEffect(() => {
     publishPanelSessions(props.projectId, "terminal", { owner, create, tabs: tabs().map((tab, i) => ({
-      id: tab.terminalId, title: tab.title === "Terminal" ? `Terminal ${i + 1}` : tab.title,
+      id: tab.terminalId, title: tab.title === "Terminal" ? t("Terminal {number}", { number: i + 1 }) : tab.title,
       active: tab.terminalId === active(), select: () => { showPanel("terminal"); select(tab.terminalId); }, close: () => close(tab.terminalId),
     })) });
   });
@@ -264,14 +268,14 @@ export default function TerminalPanel(props: { projectId: string; place?: string
         <For each={tabs()}>
           {(tab, i) => (
             <div class="terminal-tab" classList={{ on: active() === tab.terminalId, exited: tab.exited }}>
-              <button type="button" class="terminal-tab-name" onClick={() => select(tab.terminalId)}>{tab.title === "Terminal" ? `Terminal ${i() + 1}` : tab.title}</button>
-              <button type="button" class="icon-button" aria-label="Lukk terminalen" onClick={() => close(tab.terminalId)}><IconClose size={12} /></button>
+              <button type="button" class="terminal-tab-name" onClick={() => select(tab.terminalId)}>{tab.title === "Terminal" ? t("Terminal {number}", { number: i() + 1 }) : tab.title}</button>
+              <button type="button" class="icon-button" aria-label={t("Lukk terminalen")} onClick={() => close(tab.terminalId)}><IconClose size={12} /></button>
             </div>
           )}
         </For>
-        <button type="button" class="terminal-new" title="Start en ny terminal i dette miljøet" aria-label="Ny terminal" onClick={create}>Ny terminal</button>
+        <button type="button" class="terminal-new" title={t("Start en ny terminal i dette miljøet")} aria-label={t("Ny terminal")} onClick={create}>{t("Ny terminal")}</button>
         {/* Round 9: without a project the shell starts in the home folder, and says where it is. */}
-        <Show when={props.place}><span class="terminal-place" data-testid="terminal-place" title="Uten prosjekt starter terminalen i hjemmemappen">{props.place}</span></Show>
+        <Show when={props.place}><span class="terminal-place" data-testid="terminal-place" title={t("Uten prosjekt starter terminalen i hjemmemappen")}>{props.place}</span></Show>
       </div>
   );
 
@@ -284,7 +288,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
           return tab ? <View projectId={props.projectId} tab={tab} /> : null;
         }}
       </Show>
-      <Show when={ready() && !tabs().length}><div class="panel-empty">Ingen terminaler. Velg «Ny terminal» for å starte en.</div></Show>
+      <Show when={ready() && !tabs().length}><div class="panel-empty">{t("Ingen terminaler. Velg «Ny terminal» for å starte en.")}</div></Show>
     </div>
   );
 }

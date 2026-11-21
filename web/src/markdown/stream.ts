@@ -3,6 +3,7 @@
 // lexed per frame. An open code fence is cheaper still: new text goes straight into its text node.
 // Hermes measured 14 times less CPU from this kind of lexing, and it makes the cost independent
 // of how long the message or the conversation is.
+import { t } from "../lib/i18n";
 import { addRunButton, createCodeBlock, finishedCodeBlock, lex, renderBlocks, renderingLive } from "./render";
 import { highlightWhenVisible } from "./highlight";
 import { artifactLangOf, looksLikeApp } from "./artifact-detect";
@@ -187,7 +188,7 @@ export class MarkdownStream {
     block.code.appendChild(text);
     fence.block = { ...block, text };
     this.fence = fence;
-    if (fence.lang === "chart") this.live.replaceChildren("Tegner diagram …");
+    if (fence.lang === "chart") this.live.replaceChildren(t("Tegner diagram …"));
     else this.live.replaceChildren(block.root);
     this.liveText = "";
   }

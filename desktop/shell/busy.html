@@ -4,33 +4,33 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="shell.css">
-  <script src="shell.js" defer></script>
+  <script src="shell.js" type="module"></script>
   <title>Agentic Desktop</title>
 </head>
 <body>
   <header class="topbar">
     <span class="name"><img src="icons/app-32.png" alt="">Agentic Desktop</span>
     <span class="spacer"></span>
-    <div class="window-controls" role="group" aria-label="Vindu">
-      <button type="button" class="window-control" data-action="minimize" title="Minimer" aria-label="Minimer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8.5h9"/></svg></button>
-      <button type="button" class="window-control" data-action="maximize" title="Maksimer" aria-label="Maksimer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect class="max" x="3.5" y="3.5" width="9" height="9" rx="1.5"/><g class="restore" hidden><rect x="3.5" y="5.5" width="7" height="7" rx="1.25"/><path d="M5.75 3.5h5.25a1.5 1.5 0 0 1 1.5 1.5v5.25"/></g></svg></button>
-      <button type="button" class="window-control close" data-action="close" title="Lukk" aria-label="Lukk"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
+    <div class="window-controls" role="group" data-copy-label="window" aria-label="Vindu">
+      <button type="button" class="window-control" data-action="minimize" data-copy-label="minimize" title="Minimer" aria-label="Minimer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8.5h9"/></svg></button>
+      <button type="button" class="window-control" data-action="maximize" data-copy-label="maximize" title="Maksimer" aria-label="Maksimer"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect class="max" x="3.5" y="3.5" width="9" height="9" rx="1.5"/><g class="restore" hidden><rect x="3.5" y="5.5" width="7" height="7" rx="1.25"/><path d="M5.75 3.5h5.25a1.5 1.5 0 0 1 1.5 1.5v5.25"/></g></svg></button>
+      <button type="button" class="window-control close" data-action="close" data-copy-label="close" title="Lukk" aria-label="Lukk"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button>
     </div>
   </header>
   <main>
     <div class="card" data-testid="busy-page">
       <img class="mark" src="icons/app-128.png" alt="">
-      <h1 data-when="shell=localhost">Agentic Desktop kjører allerede i nettleseren</h1>
-      <h1 data-when="shell=electron">Agentic Desktop bruker allerede datamappen</h1>
-      <p>En annen server bruker den samme datamappen, <code data-param="dir"></code><span data-optional-block>, på port <span data-param="port" data-optional></span></span>. Appen starter ikke sin egen server mot den samme mappen, så trådene aldri blir skrevet fra to steder samtidig.</p>
-      <p data-when="stoppable=1">Appen kan avslutte nettleserversjonen for deg, på samme måte som Ctrl+C i terminalen. Kjøringer som pågår der, stopper.</p>
-      <p data-when="shell=localhost stoppable=0">Stopp serveren i terminalen der du startet den med <code>npm start</code> (Ctrl+C), og trykk Prøv igjen.</p>
-      <p data-when="shell=electron">Avslutt den andre, og trykk Prøv igjen.</p>
+      <h1 data-when="shell=localhost" data-copy="busyBrowser">Agentic Desktop kjører allerede i nettleseren</h1>
+      <h1 data-when="shell=electron" data-copy="busyApp">Agentic Desktop bruker allerede datamappen</h1>
+      <p data-copy="busyFolder">En annen server bruker den samme datamappen, <code data-param="dir" data-slot="dir"></code><span data-optional-block>, på port <span data-param="port" data-slot="port" data-optional></span></span>. Appen starter ikke sin egen server mot den samme mappen, så trådene aldri blir skrevet fra to steder samtidig.</p>
+      <p data-when="stoppable=1" data-copy="canStop">Appen kan avslutte nettleserversjonen for deg, på samme måte som Ctrl+C i terminalen. Kjøringer som pågår der, stopper.</p>
+      <p data-when="shell=localhost stoppable=0" data-copy="stopManually">Stopp serveren i terminalen der du startet den med <code data-slot="command">npm start</code> (Ctrl+C), og trykk Prøv igjen.</p>
+      <p data-when="shell=electron" data-copy="stopApp">Avslutt den andre, og trykk Prøv igjen.</p>
       <p class="status" role="status" data-status hidden></p>
       <div class="actions">
-        <button type="button" class="btn primary" data-action="stop-other" data-when="stoppable=1" data-busy="Avslutter nettleserversjonen …" autofocus>Avslutt nettleserversjonen og åpne appen</button>
-        <button type="button" class="btn" data-action="restart" data-busy="Prøver …" data-fallback-primary>Prøv igjen</button>
-        <button type="button" class="btn" data-action="quit">Avslutt</button>
+        <button type="button" class="btn primary" data-action="stop-other" data-when="stoppable=1" data-busy="Avslutter nettleserversjonen …" data-busy-copy="stoppingBrowser" data-copy="stopBrowser" autofocus>Avslutt nettleserversjonen og åpne appen</button>
+        <button type="button" class="btn" data-action="restart" data-busy="Prøver …" data-busy-copy="trying" data-copy="retry" data-fallback-primary>Prøv igjen</button>
+        <button type="button" class="btn" data-action="quit" data-copy="quit">Avslutt</button>
       </div>
     </div>
   </main>

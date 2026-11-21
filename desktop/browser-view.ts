@@ -109,11 +109,11 @@ export function allowedUrl(raw: unknown, blockedOrigins: string[] = []): boolean
 // null when the command may go to the page; otherwise why not.
 export function checkPageCommand(method: string, params: Json | undefined, blockedOrigins: string[] = []): string | null {
   const domain = method.split(".")[0];
-  if (BLOCKED.has(method)) return `${method} er ikke tillatt i nettleserpanelet`;
-  if (domain === "Target") return PAGE_TARGET.has(method) ? null : `${method} er ikke tillatt i nettleserpanelet`;
-  if (domain === "Browser") return PAGE_BROWSER.has(method) ? null : `${method} er ikke tillatt i nettleserpanelet`;
-  if (!PAGE_DOMAINS.has(domain)) return `${domain} er ikke tillatt i nettleserpanelet`;
-  if (method === "Page.navigate" && !allowedUrl(params?.url, blockedOrigins)) return "Bare http- og https-adresser kan åpnes";
+  if (BLOCKED.has(method)) return t("{method} er ikke tillatt i nettleserpanelet", { method });
+  if (domain === "Target") return PAGE_TARGET.has(method) ? null : t("{method} er ikke tillatt i nettleserpanelet", { method });
+  if (domain === "Browser") return PAGE_BROWSER.has(method) ? null : t("{method} er ikke tillatt i nettleserpanelet", { method });
+  if (!PAGE_DOMAINS.has(domain)) return t("{domain} er ikke tillatt i nettleserpanelet", { domain });
+  if (method === "Page.navigate" && !allowedUrl(params?.url, blockedOrigins)) return t("Bare http- og https-adresser kan åpnes");
   return null;
 }
 
@@ -298,7 +298,7 @@ export class BrowserPanel {
     }
     const page = this.sessions.get(sessionId);
     const target = page?.target ?? this.children.get(sessionId);
-    if (!target || target.contents.isDestroyed()) return this.fail(message, "Fant ikke siden");
+    if (!target || target.contents.isDestroyed()) return this.fail(message, t("Fant ikke siden"));
     const method = message.method;
     const params = message.params ?? {};
     if (page && method === "Agentic.label") {
@@ -322,7 +322,7 @@ export class BrowserPanel {
     }
     let sendParams: Json = params;
     if (method === "Target.getTargetInfo") sendParams = {}; // its own, never another target's
-    if (method === "Target.detachFromTarget" && !(typeof params.sessionId === "string" && target.children.has(params.sessionId))) return this.fail(message, "Ukjent økt");
+    if (method === "Target.detachFromTarget" && !(typeof params.sessionId === "string" && target.children.has(params.sessionId))) return this.fail(message, t("Ukjent økt"));
     if (page) page.domains.add(method.split(".")[0]);
     // With the window hidden (in the status area) or minimized, nothing is drawn, and a picture over
     // CDP would wait for ever. The agent hears why at once instead.
@@ -391,8 +391,8 @@ export class BrowserPanel {
       }
       case "Target.attachToTarget": {
         const target = this.targets.get(String(params.targetId));
-        if (!target) throw new Error("Fant ikke siden");
-        if (params.flatten !== true) throw new Error("Bare flate økter");
+        if (!target) throw new Error(t("Fant ikke siden"));
+        if (params.flatten !== true) throw new Error(t("Bare flate økter"));
         return { sessionId: this.attachSession(target, sessionId) };
       }
       case "Target.detachFromTarget": {
@@ -418,7 +418,7 @@ export class BrowserPanel {
           }
         }
         // One refused cookie fails the call, as in Chrome, so ImportedCookies counts them one by one.
-        if (failed.length) throw new Error(`Informasjonskapselen ble avvist: ${failed.join(", ")}`);
+        if (failed.length) throw new Error(t("Informasjonskapselen ble avvist: {details}", { details: failed.join(", ") }));
         return {};
       }
       case "Storage.clearCookies":
@@ -433,7 +433,7 @@ export class BrowserPanel {
         return {};
       default:
         this.probe.refused.push(String(message.method));
-        throw new Error(`${message.method} er ikke tillatt i nettleserpanelet`);
+        throw new Error(t("{method} er ikke tillatt i nettleserpanelet", { method: String(message.method) }));
     }
   }
 
@@ -442,8 +442,8 @@ export class BrowserPanel {
   private async create(rawUrl: unknown): Promise<Target> {
     // Web pages never run in Electron without Chromium's sandbox (SPEC 29.2); main.ts then gives the
     // panel to the server's Chrome and never connects this bridge. This is the second lock.
-    if (app.commandLine.hasSwitch("no-sandbox")) throw new Error("Nettleserpanelet åpner ikke sider i appen uten Chromium-sandkassen");
-    if (this.targets.size >= MAX_PAGES) throw new Error("For mange faner i nettleserpanelet");
+    if (app.commandLine.hasSwitch("no-sandbox")) throw new Error(t("Nettleserpanelet åpner ikke sider i appen uten Chromium-sandkassen"));
+    if (this.targets.size >= MAX_PAGES) throw new Error(t("For mange faner i nettleserpanelet"));
     const ses = this.session();
     const view = new WebContentsView({
       webPreferences: {
@@ -477,7 +477,7 @@ export class BrowserPanel {
     }
     if (!targetId) {
       contents.close();
-      throw new Error("Fikk ikke åpnet siden");
+      throw new Error(t("Fikk ikke åpnet siden"));
     }
     const target: Target = { targetId, view, contents, children: new Set(), shown: false, size: { ...DEFAULT_SIZE } };
     this.targets.set(target.targetId, target);

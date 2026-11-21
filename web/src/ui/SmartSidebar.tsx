@@ -3,6 +3,7 @@
 // (running, out of the way until they need you), Utsatt (snoozed until a time) and Avsluttet.
 // It reads the same threads as the standard sidebar and does no work while nothing changes: one
 // timer at most, for the next snooze that runs out.
+import { t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Thread } from "../../../shared/protocol";
 import { get } from "../lib/api";
@@ -49,7 +50,7 @@ function store(key: string, value: unknown): void {
 }
 
 function rename(thread: Thread): void {
-  void promptDialog({ title: "Gi tråden nytt navn", value: thread.title, confirm: "Lagre" }).then((title) => {
+  void promptDialog({ title: t("Gi tråden nytt navn"), value: thread.title, confirm: t("Lagre") }).then((title) => {
     if (title?.trim() && title.trim() !== thread.title) renameThread(thread.id, title.trim()).catch(report);
   });
 }
@@ -130,8 +131,8 @@ function ThreadCard(props: { thread: Thread; active: boolean; compact?: boolean;
       <Show when={!props.compact}>
         <div class="smart-card-top">
           <Show when={project()} fallback={<IconChat size={13} />}>{(p) => <ProjectGlyph project={p()} size={13} />}</Show>
-          <Show when={thread().pinned}><span class="smart-pin" title="Festet"><IconPin size={12} /></span></Show>
-          <span class="smart-project">{project()?.name ?? "Chat"}</span>
+          <Show when={thread().pinned}><span class="smart-pin" title={t("Festet")}><IconPin size={12} /></span></Show>
+          <span class="smart-project">{project()?.name ?? t("Chat")}</span>
           <span class="smart-age">{relativeTime(thread().updatedAt, props.now)}</span>
         </div>
       </Show>
@@ -139,27 +140,27 @@ function ThreadCard(props: { thread: Thread; active: boolean; compact?: boolean;
       <div class="smart-card-bottom">
         {/* The branch only when there is one: «Ingen gren» on every card was noise. */}
         <Show when={!props.compact && branch()}>
-          <span class="smart-branch" title={`Gren: ${branch()}`}>
+          <span class="smart-branch" title={t("Gren: {branch}", { branch: branch()! })}>
             <IconBranch size={12} /><bdo dir="ltr">{branch()}</bdo>
           </span>
         </Show>
         <span class="sidebar-spacer" />
         <Show when={stat() && (stat()!.additions || stat()!.deletions)}>
-          <span class="smart-diff" title="Linjer lagt til og fjernet i tråden"><span class="add">+{stat()!.additions}</span> <span class="del">−{stat()!.deletions}</span></span>
+          <span class="smart-diff" title={t("Linjer lagt til og fjernet i tråden")}><span class="add">+{stat()!.additions}</span> <span class="del">−{stat()!.deletions}</span></span>
         </Show>
         <Show when={snoozed()}>
-          <button type="button" class="btn btn-small smart-wake" onClick={() => setSnoozed(thread(), null)}>Hent tilbake</button>
+          <button type="button" class="btn btn-small smart-wake" onClick={() => setSnoozed(thread(), null)}>{t("Hent tilbake")}</button>
         </Show>
         <span class="smart-state" data-state={state(thread())} title={STATE_LABEL[state(thread())]}>
           <Show when={state(thread()) === "waiting"}><IconWarn size={12} /></Show>
           <Show when={state(thread()) === "new"}><IconCheck size={12} /></Show>
         </span>
-        <button type="button" class="icon-button smart-menu" aria-label="Valg for tråden" title="Valg for tråden" aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => (menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() }))}>
+        <button type="button" class="icon-button smart-menu" aria-label={t("Valg for tråden")} title={t("Valg for tråden")} aria-haspopup="menu" aria-expanded={!!menu()} onClick={(e) => (menu() ? closeMenu() : showMenu({ x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() }))}>
           <IconDots size={14} />
         </button>
       </div>
       <Show when={menu()}>
-        {(anchor) => <ContextMenu anchor={anchor()} label={`Valg for ${thread().title}`} entries={threadMenuEntries(thread(), () => rename(thread()))} onClose={closeMenu} />}
+        {(anchor) => <ContextMenu anchor={anchor()} label={t("Valg for {title}", { title: thread().title })} entries={threadMenuEntries(thread(), () => rename(thread()))} onClose={closeMenu} />}
       </Show>
     </div>
   );
@@ -258,9 +259,9 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
   });
 
   const FILTERS: Array<{ id: Filter; label: string }> = [
-    { id: "all", label: "Alle tråder" },
-    { id: "code", label: "Bare prosjekter" },
-    { id: "chat", label: "Bare chatter" },
+    { id: "all", get label() { return t("Alle tråder"); } },
+    { id: "code", get label() { return t("Bare prosjekter"); } },
+    { id: "chat", get label() { return t("Bare chatter"); } },
   ];
 
   return (
@@ -268,26 +269,26 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
       <div class="smart-top">
         <label class="smart-search">
           <IconSearch size={15} />
-          <input class="search-input" type="search" placeholder="Søk" aria-label="Søk i tråder" value={query()} onInput={(e) => onSearch(e.currentTarget.value)} onKeyDown={(e) => e.key === "Escape" && onSearch("")} />
+          <input class="search-input" type="search" placeholder={t("Søk")} aria-label={t("Søk i tråder")} value={query()} onInput={(e) => onSearch(e.currentTarget.value)} onKeyDown={(e) => e.key === "Escape" && onSearch("")} />
         </label>
         <button
           type="button"
           class="icon-button"
           classList={{ on: filter() !== "all" }}
-          title="Filter"
-          aria-label="Filter"
+          title={t("Filter")}
+          aria-label={t("Filter")}
           aria-haspopup="menu"
           onClick={(e) => setFilterMenu(filterMenu() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect() })}
         >
           <IconFilter size={16} />
         </button>
-        <button type="button" class="icon-button" title="Nytt prosjekt" aria-label="Nytt prosjekt" onClick={() => setFolderPickerOpen(true)}><IconFolderPlus size={16} /></button>
-        <button type="button" class="icon-button" title="Ny tråd" aria-label="Ny tråd" onClick={() => { actions.newThread(); afterPick(); }}><IconCompose size={16} /></button>
+        <button type="button" class="icon-button" title={t("Nytt prosjekt")} aria-label={t("Nytt prosjekt")} onClick={() => setFolderPickerOpen(true)}><IconFolderPlus size={16} /></button>
+        <button type="button" class="icon-button" title={t("Ny tråd")} aria-label={t("Ny tråd")} onClick={() => { actions.newThread(); afterPick(); }}><IconCompose size={16} /></button>
         <Show when={filterMenu()}>
           {(anchor) => (
             <ContextMenu
               anchor={anchor()}
-              label="Filter"
+              label={t("Filter")}
               onClose={() => setFilterMenu(null)}
               entries={FILTERS.map((f) => ({ label: f.label, checked: filter() === f.id, run: () => setFilter(f.id) }))}
             />
@@ -298,7 +299,7 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
         <Show
           when={results() === null}
           fallback={
-            <For each={results()} fallback={<div class="sidebar-empty">Ingen tråder funnet</div>}>
+            <For each={results()} fallback={<div class="sidebar-empty">{t("Ingen tråder funnet")}</div>}>
               {(t) => <ThreadCard thread={app.threads[t.id] ?? t} active={props.activeIds.has(t.id)} now={now()} />}
             </For>
           }
@@ -307,34 +308,34 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
             when={cards().length}
             fallback={
               <div class="smart-empty">
-                <p>Ingenting trenger deg nå.</p>
-                <button type="button" class="btn btn-small" onClick={() => { void newThreadIn(null); afterPick(); }}>Ny tråd</button>
+                <p>{t("Ingenting trenger deg nå.")}</p>
+                <button type="button" class="btn btn-small" onClick={() => { void newThreadIn(null); afterPick(); }}>{t("Ny tråd")}</button>
               </div>
             }
           >
             <Show when={waiting().length}>
-              <div class="smart-heading" data-heading="waiting"><span>Trenger deg</span><span class="smart-count">{waiting().length}</span></div>
+              <div class="smart-heading" data-heading="waiting"><span>{t("Trenger deg")}</span><span class="smart-count">{waiting().length}</span></div>
               <For each={waiting()}>{(thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} now={now()} />}</For>
-              <Show when={recent().length}><div class="smart-heading"><span>Nylig</span></div></Show>
+              <Show when={recent().length}><div class="smart-heading"><span>{t("Nylig")}</span></div></Show>
             </Show>
             <For each={recent()}>{(thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} now={now()} />}</For>
           </Show>
         </Show>
       </div>
       <div class="smart-groups">
-        <Group id="working" label="Jobber" threads={working()} open={!!groups().working} onToggle={() => toggle("working")} activeIds={props.activeIds} now={now()} empty="Ingen tråder jobber nå" />
-        <Group id="snoozed" label="Utsatt" threads={snoozed()} open={!!groups().snoozed} onToggle={() => toggle("snoozed")} activeIds={props.activeIds} now={now()} empty="Ingenting er utsatt" />
-        <Group id="settled" label="Avsluttet" threads={settled()} open={!!groups().settled} onToggle={() => toggle("settled")} activeIds={props.activeIds} now={now()} empty="Ingen eldre tråder" />
+        <Group id="working" label={t("Jobber")} threads={working()} open={!!groups().working} onToggle={() => toggle("working")} activeIds={props.activeIds} now={now()} empty={t("Ingen tråder jobber nå")} />
+        <Group id="snoozed" label={t("Utsatt")} threads={snoozed()} open={!!groups().snoozed} onToggle={() => toggle("snoozed")} activeIds={props.activeIds} now={now()} empty={t("Ingenting er utsatt")} />
+        <Group id="settled" label={t("Avsluttet")} threads={settled()} open={!!groups().settled} onToggle={() => toggle("settled")} activeIds={props.activeIds} now={now()} empty={t("Ingen eldre tråder")} />
       </div>
       {/* With text, not bare icons: what they do should not need a tooltip. */}
       <div class="smart-tools">
-        <button type="button" class="smart-tool" title="Endringer i tråden, i panelet" aria-label="Endringer" onClick={() => actions.showTab("changes")}><IconDiff size={14} /><span>Endringer</span></button>
-        <button type="button" class="smart-tool" title="Statistikk på profilsiden" aria-label="Statistikk" onClick={() => { closeArtifacts(); openProfile(); afterPick(); }}><IconChart size={14} /><span>Statistikk</span></button>
-        <button type="button" class="smart-tool" title="Små programmer i én HTML-fil" aria-label="Artifacts" onClick={() => { openArtifacts(); afterPick(); }}><IconArtifact size={14} /><span>Artifacts</span></button>
+        <button type="button" class="smart-tool" title={t("Endringer i tråden, i panelet")} aria-label={t("Endringer")} onClick={() => actions.showTab("changes")}><IconDiff size={14} /><span>{t("Endringer")}</span></button>
+        <button type="button" class="smart-tool" title={t("Statistikk på profilsiden")} aria-label={t("Statistikk")} onClick={() => { closeArtifacts(); openProfile(); afterPick(); }}><IconChart size={14} /><span>{t("Statistikk")}</span></button>
+        <button type="button" class="smart-tool" title={t("Små programmer i én HTML-fil")} aria-label={t("Artifacts")} onClick={() => { openArtifacts(); afterPick(); }}><IconArtifact size={14} /><span>{t("Artifacts")}</span></button>
         <span class="sidebar-spacer" />
         {/* Round 14 (SPEC 30.4): the archive, also from the smart sidebar. */}
-        <button type="button" class="icon-button smart-archive" title={archivedCount() ? `Arkiverte tråder (${archivedCount()})` : "Arkiverte tråder"} aria-label={`Arkiverte (${archivedCount()})`} onClick={() => { openArchive(); afterPick(); }}><IconArchive size={16} /></button>
-        <button type="button" class="icon-button" title="Velg sidefane i Innstillinger → Generelt" aria-label="Velg sidefane" onClick={() => setSettingsOpen("general")}><IconSliders size={16} /></button>
+        <button type="button" class="icon-button smart-archive" title={archivedCount() ? t("Arkiverte tråder ({count})", { count: archivedCount() }) : t("Arkiverte tråder")} aria-label={t("Arkiverte ({count})", { count: archivedCount() })} onClick={() => { openArchive(); afterPick(); }}><IconArchive size={16} /></button>
+        <button type="button" class="icon-button" title={t("Velg sidefane i Innstillinger → Generelt")} aria-label={t("Velg sidefane")} onClick={() => setSettingsOpen("general")}><IconSliders size={16} /></button>
       </div>
     </div>
   );

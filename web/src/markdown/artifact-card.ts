@@ -7,11 +7,12 @@
 //
 // Plain DOM, like the Markdown it sits in. The app's code never runs here: only in the panel's
 // iframe on the preview server's origin.
+import { plural, t } from "../lib/i18n";
 import { app } from "../state/app";
 import { focusedThreadId } from "../state/actions";
 import { onArtifactsChanged, savedArtifactFor } from "../state/artifacts";
 import { artifactPanel, noteArtifactWritten, onShownVersion, openArtifactPanel, shownVersion } from "../state/artifact-panel";
-import { artifactDoc, artifactLangOf, fileFromInfo, lineCount, versionsIn, type ArtifactDoc } from "./artifact-detect";
+import { artifactDisplayTitle, artifactDoc, artifactLangOf, defaultArtifactTitle, fileFromInfo, lineCount, versionsIn, type ArtifactDoc } from "./artifact-detect";
 import { setCodeBlockHook } from "./render";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -29,6 +30,8 @@ const boxes = new Map<Element, Box>();
 let observer: IntersectionObserver | null = null;
 
 export const kindLabel = (lang: string) => (artifactLangOf(lang) === "html" ? "HTML" : "React");
+export const artifactLineLabel = (lang: string, count: number) =>
+  plural(count, "{kind} · {count} linje", "{kind} · {count} linjer", { kind: kindLabel(lang) });
 
 function svg(paths: string[], extra?: (svg: SVGSVGElement) => void): SVGSVGElement {
   const node = document.createElementNS(NS, "svg");
@@ -83,10 +86,10 @@ function frame(lang: string, title: string): { root: HTMLElement; button: HTMLBu
   text.append(titleEl, meta);
   const version = span("artifact-box-version");
   version.hidden = true;
-  const saved = span("artifact-box-saved", "Lagret");
+  const saved = span("artifact-box-saved", t("Lagret"));
   saved.hidden = true;
   const go = span("artifact-box-go");
-  go.append(span("artifact-box-go-label", "Åpne"), chevron());
+  go.append(span("artifact-box-go-label", t("Åpne")), chevron());
   button.append(icon, text, version, saved, go);
   root.appendChild(button);
   return { root, button, titleEl, meta, version, saved };
@@ -100,11 +103,11 @@ export interface WritingBox {
 
 export function createWritingBox(lang: string, info: string): WritingBox {
   const file = fileFromInfo(info);
-  const parts = frame(lang, file?.replace(/\.(html?|jsx|tsx)$/i, "") || (kindLabel(lang) === "HTML" ? "HTML-app" : "React-app"));
+  const parts = frame(lang, file?.replace(/\.(html?|jsx|tsx)$/i, "") || defaultArtifactTitle(artifactLangOf(lang) ?? "jsx"));
   parts.root.classList.add("writing");
   parts.root.setAttribute("aria-busy", "true");
   parts.button.disabled = true;
-  parts.button.setAttribute("aria-label", `Skriver en ${kindLabel(lang)}-app`);
+  parts.button.setAttribute("aria-label", t("Skriver en {kind}-app", { kind: kindLabel(lang) }));
   parts.root.querySelector(".artifact-box-go")!.replaceChildren(span("artifact-box-spinner"));
   let lines = -1;
   let titled = false;
@@ -114,7 +117,7 @@ export function createWritingBox(lang: string, info: string): WritingBox {
       const count = lineCount(text);
       if (count !== lines) {
         lines = count;
-        parts.meta.textContent = `Skriver ${kindLabel(lang)} · ${count} ${count === 1 ? "linje" : "linjer"}`;
+        parts.meta.textContent = plural(count, "Skriver {kind} · {count} linje", "Skriver {kind} · {count} linjer", { kind: kindLabel(lang) });
       }
       // The name, as soon as the <title> or the component is there.
       if (!titled) {
@@ -147,16 +150,19 @@ function refresh(box: Box): void {
   box.version.hidden = !many;
   if (many) {
     box.version.textContent = `v${at + 1}`;
-    box.version.title = `Versjon ${at + 1} av ${versions.length}`;
+    box.version.title = t("Versjon {current} av {total}", { current: at + 1, total: versions.length });
   }
   const saved = savedArtifactFor(messageId, box.doc.sourceKey);
   box.saved.hidden = !saved;
-  box.saved.title = saved ? `Lagret i Artifacts som «${saved.title}»` : "";
+  box.saved.title = saved ? t("Lagret i Artifacts som «{title}»", { title: saved.title }) : "";
   const shown = shownVersion();
   const active = !!shown && shown.sourceKey === box.doc.sourceKey && shown.messageId === messageId;
   box.root.classList.toggle("active", active);
   box.button.setAttribute("aria-expanded", String(active));
-  box.button.setAttribute("aria-label", `Åpne ${box.doc.title}, ${kindLabel(box.doc.lang)}-app med ${lineCount(box.doc.code)} linjer${many ? `, versjon ${at + 1} av ${versions.length}` : ""}`);
+  const description = { title: artifactDisplayTitle(box.doc), kind: kindLabel(box.doc.lang), lines: lineCount(box.doc.code) };
+  box.button.setAttribute("aria-label", many
+    ? t("Åpne {title}, {kind}-app med {lines} linjer, versjon {current} av {total}", { ...description, current: at + 1, total: versions.length })
+    : t("Åpne {title}, {kind}-app med {lines} linjer", description));
 }
 
 function open(box: Box): void {
@@ -187,9 +193,8 @@ function maybeOpen(box: Box): void {
 function createBox(parent: Node, lang: string, info: string, text: string, live: boolean): void {
   const doc = artifactDoc(lang, info, text, null);
   if (!doc) return;
-  const parts = frame(lang, doc.title);
-  const lines = lineCount(text);
-  parts.meta.textContent = `${kindLabel(lang)} · ${lines} ${lines === 1 ? "linje" : "linjer"}`;
+  const parts = frame(lang, artifactDisplayTitle(doc));
+  parts.meta.textContent = artifactLineLabel(lang, lineCount(text));
   const box: Box = { root: parts.root, button: parts.button, meta: parts.meta, version: parts.version, saved: parts.saved, doc };
   if (doc.file) parts.root.title = doc.file;
 

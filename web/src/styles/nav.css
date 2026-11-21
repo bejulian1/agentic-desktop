@@ -172,7 +172,7 @@
 @container (max-width: 47em) and (min-width: 381px) {
   .panel-tab { padding: 0 6px; }
   .panel-tab > .icon { display: none; }
-  .panel-tab[aria-label="GitHub"] > .icon { display: block; }
+  .panel-tab[data-panel-tab="github"] > .icon { display: block; }
 }
 /* The bar: the tabs in a row that scrolls sideways if they still do not fit (a larger text size),
    and the close button outside it, so it is never cut. */
@@ -257,9 +257,8 @@
 .browser-downloads-button { position: relative; flex: none; }
 .browser-downloads-button[aria-pressed="true"] { color: var(--text); background: var(--active); }
 .browser-downloads-button .browser-download-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg-panel); }
-@container (max-width: 340px) {
-  .browser-bar .icon-button[aria-label="Frem"] { display: none; }
-}
+.browser-panel .browser-bar .browser-forward { display: inline-flex; }
+.annotate-bubble button.annotate-save { background: var(--active); color: var(--text); }
 .browser-canvas.hidden { visibility: hidden; }
 
 /* Ny fane: tools in one row and the suggestions as tiles. Both follow the panel's width; ⋯ is only

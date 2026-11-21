@@ -10,13 +10,14 @@
 // is turned into JavaScript and rendered in that frame, never here.
 //
 // Loaded the first time a box is opened; closing it unmounts it.
+import { language, t } from "../lib/i18n";
 import { batch, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { post } from "../lib/api";
 import { isDark } from "../lib/theme";
 import { onNextFrame } from "../lib/frame";
 import { highlightWhenVisible } from "../markdown/highlight";
-import { kindIcon, kindLabel } from "../markdown/artifact-card";
-import { lineCount, versionsIn, type ArtifactDoc } from "../markdown/artifact-detect";
+import { artifactLineLabel, kindIcon } from "../markdown/artifact-card";
+import { artifactDisplayTitle, lineCount, versionsIn, type ArtifactDoc } from "../markdown/artifact-detect";
 import { report, toast } from "../state/app";
 import { createArtifact, openArtifacts, savedArtifactFor } from "../state/artifacts";
 import {
@@ -44,7 +45,7 @@ function CodeView(props: { doc: ArtifactDoc }) {
     highlightWhenVisible(scroller, code, doc.lang, doc.code);
   }));
   return (
-    <div class="artifact-source" ref={scroller} tabindex="0" role="region" aria-label={`Koden i ${props.doc.title}`} data-testid="artifact-source">
+    <div class="artifact-source" ref={scroller} tabindex="0" role="region" aria-label={t("Koden i {title}", { title: artifactDisplayTitle(props.doc) })} data-testid="artifact-source">
       <pre class="artifact-gutter" aria-hidden="true">{numbers()}</pre>
       <pre class="artifact-code-text"><code ref={code} /></pre>
     </div>
@@ -62,7 +63,7 @@ function Preview(props: { doc: ArtifactDoc; run: number }) {
   // The React preview draws its own messages in the app's light or dark look.
   const src = createMemo(() => {
     const base = url();
-    return base ? `${base}#tema=${isDark() ? "mork" : "lys"}` : undefined;
+    return base ? `${base}#tema=${isDark() ? "mork" : "lys"}${props.doc.lang === "html" ? "" : `&lang=${language()}`}` : undefined;
   });
   // A new frame for every run, also when the address is the same.
   const frame = createMemo(() => (src() ? { address: src()!, run: props.run } : undefined));
@@ -71,7 +72,7 @@ function Preview(props: { doc: ArtifactDoc; run: number }) {
     <div class="artifact-stage" data-loaded={loaded() ? "" : undefined}>
       <Show when={!url.error} fallback={
         <div class="artifact-stage-note" role="alert">
-          <p>Forhåndsvisningen kunne ikke lages.</p>
+          <p>{t("Forhåndsvisningen kunne ikke lages.")}</p>
           <p class="muted">{(url.error as Error)?.message ?? ""}</p>
         </div>
       }>
@@ -79,7 +80,7 @@ function Preview(props: { doc: ArtifactDoc; run: number }) {
           {({ address }) => (
             <iframe
               class="artifact-iframe"
-              title={`Forhåndsvisning: ${props.doc.title}`}
+              title={t("Forhåndsvisning: {title}", { title: artifactDisplayTitle(props.doc) })}
               sandbox={props.doc.lang === "html" ? "allow-scripts allow-modals" : "allow-scripts allow-modals allow-forms"}
               referrerpolicy="no-referrer"
               allow=""
@@ -142,7 +143,7 @@ export default function ArtifactPanel() {
     setSaving(true);
     try {
       await createArtifact({ html: current.code, lang: current.lang, threadId: artifactPanel()?.threadId ?? null, messageId: current.messageId, sourceKey: current.sourceKey });
-      toast(`«${current.title}» er lagret i Artifacts`, "info");
+      toast(t("«{title}» er lagret i Artifacts", { title: current.title }), "info");
     } catch (err) {
       report(err);
     } finally {
@@ -157,7 +158,7 @@ export default function ArtifactPanel() {
       setCopied(true);
       clearTimeout(copiedTimer);
       copiedTimer = setTimeout(() => setCopied(false), 1400);
-    }).catch(() => toast("Fikk ikke kopiert koden"));
+    }).catch(() => toast(t("Fikk ikke kopiert koden")));
   };
   onCleanup(() => clearTimeout(copiedTimer));
 
@@ -209,8 +210,8 @@ export default function ArtifactPanel() {
 
   const lines = () => lineCount(doc().code);
   const tabs: Array<{ id: ArtifactTab; label: string }> = [
-    { id: "preview", label: "Forhåndsvisning" },
-    { id: "code", label: "Kode" },
+    { id: "preview", get label() { return t("Forhåndsvisning"); } },
+    { id: "code", get label() { return t("Kode"); } },
   ];
   const onTabKey = (event: KeyboardEvent) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -221,38 +222,38 @@ export default function ArtifactPanel() {
   };
 
   return (
-    <aside class="artifact-panel" ref={root} aria-label={`Artifact: ${doc().title}`} data-testid="artifact-panel" data-lang={doc().lang} data-tab={tab()}>
-      <div class="panel-resize" title="Dra for å endre bredden. Dobbeltklikk for standard." onPointerDown={startResize} onDblClick={() => setArtifactWidth(Math.round(Math.min(Math.max(innerWidth * 0.44, 420), 760)), true)} />
+    <aside class="artifact-panel" ref={root} aria-label={t("Artifact: {title}", { title: artifactDisplayTitle(doc()) })} data-testid="artifact-panel" data-lang={doc().lang} data-tab={tab()}>
+      <div class="panel-resize" title={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setArtifactWidth(Math.round(Math.min(Math.max(innerWidth * 0.44, 420), 760)), true)} />
       <header class="artifact-panel-head">
         <span class="artifact-panel-icon" aria-hidden="true">{kindIcon(doc().lang)}</span>
         <div class="artifact-panel-heading">
-          <h2 title={doc().file ?? doc().title}>{doc().title}</h2>
+          <h2 title={doc().file ?? artifactDisplayTitle(doc())}>{artifactDisplayTitle(doc())}</h2>
           <span class="artifact-panel-meta">
-            {kindLabel(doc().lang)} · {lines()} {lines() === 1 ? "linje" : "linjer"}
-            <Show when={saved()}>{(a) => <span class="artifact-panel-saved" title={`Lagret i Artifacts som «${a().title}»`}> · Lagret</span>}</Show>
+            {artifactLineLabel(doc().lang, lines())}
+            <Show when={saved()}>{(a) => <span class="artifact-panel-saved" title={t("Lagret i Artifacts som «{title}»", { title: a().title })}>{" "}{t("· Lagret")}</span>}</Show>
           </span>
         </div>
         <Show when={versions().length > 1}>
-          <div class="artifact-versions" role="group" aria-label="Versjoner">
-            <button type="button" class="icon-button" aria-label="Forrige versjon" title="Forrige versjon" disabled={index() === 0} onClick={() => setIndex(index() - 1)}><IconBack size={14} /></button>
-            <span class="artifact-versions-label" aria-live="polite">Versjon {index() + 1} av {versions().length}</span>
-            <button type="button" class="icon-button" aria-label="Neste versjon" title="Neste versjon" disabled={index() >= versions().length - 1} onClick={() => setIndex(index() + 1)}><IconForward size={14} /></button>
+          <div class="artifact-versions" role="group" aria-label={t("Versjoner")}>
+            <button type="button" class="icon-button" aria-label={t("Forrige versjon")} title={t("Forrige versjon")} disabled={index() === 0} onClick={() => setIndex(index() - 1)}><IconBack size={14} /></button>
+            <span class="artifact-versions-label" aria-live="polite">{t("Versjon {current} av {total}", { current: index() + 1, total: versions().length })}</span>
+            <button type="button" class="icon-button" aria-label={t("Neste versjon")} title={t("Neste versjon")} disabled={index() >= versions().length - 1} onClick={() => setIndex(index() + 1)}><IconForward size={14} /></button>
           </div>
         </Show>
         <button
           type="button"
-          class="icon-button"
-          aria-label={artifactBig() ? "Vanlig størrelse" : "Åpne stort"}
-          title={artifactBig() ? "Vanlig størrelse" : "Åpne stort"}
+          class="icon-button artifact-expand"
+          aria-label={artifactBig() ? t("Vanlig størrelse") : t("Åpne stort")}
+          title={artifactBig() ? t("Vanlig størrelse") : t("Åpne stort")}
           aria-pressed={artifactBig()}
           onClick={() => setArtifactBig(!artifactBig())}
         >
           <Show when={artifactBig()} fallback={<IconExpand size={15} />}><IconCollapse size={15} /></Show>
         </button>
-        <button type="button" class="icon-button" aria-label="Lukk artifacten" title="Lukk (Esc)" onClick={closeArtifactPanel}><IconClose size={15} /></button>
+        <button type="button" class="icon-button" aria-label={t("Lukk artifacten")} title={t("Lukk (Esc)")} onClick={closeArtifactPanel}><IconClose size={15} /></button>
       </header>
       <div class="artifact-panel-bar">
-        <div class="segmented artifact-tabs" role="tablist" aria-label="Visning">
+        <div class="segmented artifact-tabs" role="tablist" aria-label={t("Visning")}>
           <For each={tabs}>
             {(item) => (
               <button
@@ -274,24 +275,24 @@ export default function ArtifactPanel() {
         </div>
         <span class="spacer" />
         <Show when={tab() === "preview"}>
-          <button type="button" class="icon-button" aria-label="Last inn på nytt" title="Last inn på nytt" onClick={() => setRun(run() + 1)}><IconReload size={15} /></button>
+          <button type="button" class="icon-button" aria-label={t("Last inn på nytt")} title={t("Last inn på nytt")} onClick={() => setRun(run() + 1)}><IconReload size={15} /></button>
         </Show>
-        <button type="button" class="btn btn-small artifact-action" data-done={copied() ? "" : undefined} aria-label={copied() ? "Kopiert" : "Kopier koden"} title="Kopier hele fila" onClick={copy}>
+        <button type="button" class="btn btn-small artifact-action" data-done={copied() ? "" : undefined} aria-label={copied() ? t("Kopiert") : t("Kopier koden")} title={t("Kopier hele fila")} onClick={copy}>
           <Show when={copied()} fallback={<IconCopy size={14} />}><IconCheck size={14} /></Show>
-          <span class="artifact-action-label">{copied() ? "Kopiert" : "Kopier"}</span>
+          <span class="artifact-action-label">{copied() ? t("Kopiert") : t("Kopier")}</span>
         </button>
-        <button type="button" class="btn btn-small artifact-action" aria-label="Last ned" title={`Last ned som ${fileNameFor(doc())}`} onClick={download}>
-          <IconDownload size={14} /><span class="artifact-action-label">Last ned</span>
+        <button type="button" class="btn btn-small artifact-action" aria-label={t("Last ned")} title={t("Last ned som {file}", { file: fileNameFor(doc()) })} onClick={download}>
+          <IconDownload size={14} /><span class="artifact-action-label">{t("Last ned")}</span>
         </button>
         <button
           type="button"
           class="btn btn-small artifact-action"
           disabled={saving()}
-          aria-label={saved() ? "Åpne i Artifacts" : "Lagre som artifact"}
-          title={saved() ? "Åpne den lagrede i Artifacts" : "Lagre i Artifacts, der den kan endres og kjøres senere"}
+          aria-label={saved() ? t("Åpne i Artifacts") : t("Lagre som artifact")}
+          title={saved() ? t("Åpne den lagrede i Artifacts") : t("Lagre i Artifacts, der den kan endres og kjøres senere")}
           onClick={() => void save()}
         >
-          <IconArtifact size={14} /><span class="artifact-action-label">{saved() ? "Åpne i Artifacts" : "Lagre som artifact"}</span>
+          <IconArtifact size={14} /><span class="artifact-action-label">{saved() ? t("Åpne i Artifacts") : t("Lagre som artifact")}</span>
         </button>
       </div>
       <div class="artifact-panel-body" id="artifact-panel-body" role="tabpanel" aria-labelledby={`artifact-tab-${tab()}`}>

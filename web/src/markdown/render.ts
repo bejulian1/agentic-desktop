@@ -1,5 +1,6 @@
 // Markdown tokens to DOM nodes. Agent output is untrusted, so this never builds an HTML string:
 // everything becomes an element made here or a text node, and raw HTML in the source stays text.
+import { t } from "../lib/i18n";
 import { Marked, type Token, type Tokens } from "marked";
 import { highlightWhenVisible } from "./highlight";
 import { renderMath } from "./math";
@@ -189,13 +190,13 @@ export function addRunButton(root: HTMLElement, lang: string, text: string): voi
     delete root.dataset.text;
     const label = root.querySelector(".md-lang")!;
     label.classList.remove("md-lang-text");
-    label.textContent = "skall";
+    label.textContent = t("skall");
   }
   const run = el("button", "md-run");
   run.type = "button";
-  run.title = "Kjør i prosjektmappen, med vanlige tillatelser";
-  run.setAttribute("aria-label", "Kjør kommandoen");
-  run.textContent = "Kjør";
+  run.title = t("Kjør i prosjektmappen, med vanlige tillatelser");
+  run.setAttribute("aria-label", t("Kjør kommandoen"));
+  run.textContent = t("Kjør");
   root.querySelector(".md-copy")?.before(run);
 }
 
@@ -211,18 +212,18 @@ export function createCodeBlock(lang: string, text: string): { root: HTMLElement
   if (isTextBlock(lang)) {
     root.dataset.text = lang ? "declared" : "bare";
     label.classList.add("md-lang-text");
-    label.textContent = "Tekst";
+    label.textContent = t("Tekst");
   } else label.textContent = lang;
   const actions = el("span", "md-code-actions");
   const copy = el("button", "md-copy");
   copy.type = "button";
-  copy.title = "Kopier koden";
-  copy.textContent = "Kopier";
+  copy.title = t("Kopier koden");
+  copy.textContent = t("Kopier");
   // Round 8: the block in the mini editor (ui/MiniEditorHooks.tsx), from the click listener below.
   const open = el("button", "md-open");
   open.type = "button";
-  open.title = "Åpne i mini-editoren, med søk og oversikt";
-  open.textContent = "Åpne";
+  open.title = t("Åpne i mini-editoren, med søk og oversikt");
+  open.textContent = t("Åpne");
   actions.append(open, copy);
   head.append(label, actions);
   const pre = el("pre");
@@ -370,10 +371,10 @@ export function handleCopyClick(event: MouseEvent): void {
   if (!code) return;
   const text = block!.dataset.shell ? shellCommand(code.textContent ?? "") : (code.textContent ?? "");
   void navigator.clipboard?.writeText(text).then(() => {
-    target.textContent = "Kopiert";
+    target.textContent = t("Kopiert");
     target.dataset.done = ""; // the check in styles/motion.css
     setTimeout(() => {
-      target.textContent = "Kopier";
+      target.textContent = t("Kopier");
       delete target.dataset.done;
     }, 1200);
   }).catch(() => undefined);

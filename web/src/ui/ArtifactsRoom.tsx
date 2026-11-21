@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, t } from "../lib/i18n.ts";
 // The Artifacts room in the middle of the window: a gallery, and an open artifact with its code
 // and a live preview. Loaded the first time the room opens, CodeMirror with it. Since round 15 an
 // artifact can be React in JSX or TSX as well as HTML: the editor follows, and the preview server
@@ -53,11 +53,11 @@ function Tile(props: { artifact: ArtifactSummary }) {
       </span>
       <span class="artifact-tile-text">
         <span class="artifact-tile-title">{props.artifact.title}</span>
-        <span class="artifact-tile-meta" title={`Endret ${formatDate(props.artifact.updatedAt)}, laget ${formatDate(props.artifact.createdAt)}`}>
-          Endret {relativeTime(props.artifact.updatedAt)}
+        <span class="artifact-tile-meta" title={t("Endret {updated}, laget {created}", { updated: formatDate(props.artifact.updatedAt), created: formatDate(props.artifact.createdAt) })}>
+          {t("Endret {time}", { time: relativeTime(props.artifact.updatedAt) })}
         </span>
         <Show when={props.artifact.threadTitle}>
-          <span class="artifact-tile-meta">Fra tråden «{props.artifact.threadTitle}»</span>
+          <span class="artifact-tile-meta">{t("Fra tråden «{title}»", { title: props.artifact.threadTitle! })}</span>
         </Show>
         <Show when={project()}>
           {(p) => <span class="artifact-tile-project"><ProjectGlyph project={p()} size={12} />{p().name}</span>}
@@ -76,7 +76,7 @@ function Gallery() {
     const by: Record<Sort, (a: ArtifactSummary, b: ArtifactSummary) => number> = {
       updated: (a, b) => b.updatedAt - a.updatedAt,
       created: (a, b) => b.createdAt - a.createdAt,
-      title: (a, b) => a.title.localeCompare(b.title, "nb"),
+      title: (a, b) => a.title.localeCompare(b.title, language()),
     };
     return [...found].sort(by[sort()]);
   });
@@ -93,23 +93,23 @@ function Gallery() {
     <div class="artifacts-gallery">
       <header class="artifacts-head">
         <div class="artifacts-heading">
-          <h1>Artifacts</h1>
+          <h1>{t("Artifacts")}</h1>
           <span class="artifacts-count">{artifacts().length}</span>
         </div>
         <span class="spacer" />
-        <button type="button" class="btn btn-primary btn-small" onClick={() => void create()}><IconPlus size={14} />Ny artifact</button>
-        <button type="button" class="icon-button" title="Lukk Artifacts" aria-label="Lukk Artifacts" onClick={closeArtifacts}><IconClose size={15} /></button>
+        <button type="button" class="btn btn-primary btn-small" onClick={() => void create()}><IconPlus size={14} />{t("Ny artifact")}</button>
+        <button type="button" class="icon-button" title={t("Lukk Artifacts")} aria-label={t("Lukk Artifacts")} onClick={closeArtifacts}><IconClose size={15} /></button>
       </header>
       <div class="artifacts-tools">
         <label class="artifacts-search">
           <IconSearch size={14} />
-          <input class="search-input" type="search" placeholder="Søk i artifacts" aria-label="Søk i artifacts" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
+          <input class="search-input" type="search" placeholder={t("Søk i artifacts")} aria-label={t("Søk i artifacts")} value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
         </label>
         <Select<Sort>
-          label="Sortering"
+          label={t("Sortering")}
           class="artifacts-sort"
           value={sort()}
-          options={[{ value: "updated", label: "Sist endret" }, { value: "created", label: "Sist laget" }, { value: "title", label: "Navn" }]}
+          options={[{ value: "updated", label: t("Sist endret") }, { value: "created", label: t("Sist laget") }, { value: "title", label: t("Navn") }]}
           onChange={setSort}
         />
       </div>
@@ -118,14 +118,15 @@ function Gallery() {
         fallback={
           <div class="artifacts-empty">
             <IconArtifact size={28} />
-            <h2>Ingen artifacts ennå</h2>
-            <p class="muted">Artifacts er små apper i én fil, i HTML eller React. Be modellen om en, for eksempel «lag et html-spill», åpne boksen i svaret og trykk <strong>Lagre som artifact</strong>. Eller lag en selv.</p>
-            <button type="button" class="btn btn-primary" onClick={() => void create()}>Ny artifact</button>
+            <h2>{t("Ingen artifacts ennå")}</h2>
+            <p class="muted">{t("Artifacts er små apper i én fil, i HTML eller React. Be modellen om en, for eksempel «lag et html-spill», åpne boksen i svaret og trykk {save}. Eller lag en selv.")
+              .split(/(\{save\})/).map(part => part === "{save}" ? <strong>{t("Lagre som artifact")}</strong> : part)}</p>
+            <button type="button" class="btn btn-primary" onClick={() => void create()}>{t("Ny artifact")}</button>
           </div>
         }
       >
         <div class="artifact-grid">
-          <For each={shown()} fallback={<p class="muted artifacts-none">Ingen treff</p>}>{(artifact) => <Tile artifact={artifact} />}</For>
+          <For each={shown()} fallback={<p class="muted artifacts-none">{t("Ingen treff")}</p>}>{(artifact) => <Tile artifact={artifact} />}</For>
         </div>
       </Show>
     </div>
@@ -188,7 +189,7 @@ function ArtifactView(props: { id: string }) {
   const previewSrc = () => {
     const url = summary()?.previewUrl ?? loaded()?.previewUrl;
     // React draws its own messages, in the app's light or dark look (round 15).
-    return url ? `${url}?r=${run()}${lang() === "html" ? "" : `#tema=${isDark() ? "mork" : "lys"}`}` : undefined;
+    return url ? `${url}?r=${run()}${lang() === "html" ? "" : `#tema=${isDark() ? "mork" : "lys"}&lang=${language()}`}` : undefined;
   };
 
   async function save(): Promise<void> {
@@ -207,7 +208,7 @@ function ArtifactView(props: { id: string }) {
   }
 
   const rename = async () => {
-    const next = await promptDialog({ title: "Gi nytt navn", value: title(), confirm: "Lagre" });
+    const next = await promptDialog({ title: t("Gi nytt navn"), value: title(), confirm: t("Lagre") });
     if (next?.trim() && next.trim() !== title()) updateArtifact(props.id, { title: next.trim() }).catch(report);
   };
 
@@ -220,7 +221,7 @@ function ArtifactView(props: { id: string }) {
   };
 
   const restore = async () => {
-    const ok = await confirmDialog({ title: "Gå tilbake til forrige versjon?", text: "Den lagrede versjonen og den forrige bytter plass, så du kan gå frem igjen på samme måte.", confirm: "Bytt" });
+    const ok = await confirmDialog({ title: t("Gå tilbake til forrige versjon?"), text: t("Den lagrede versjonen og den forrige bytter plass, så du kan gå frem igjen på samme måte."), confirm: t("Bytt") });
     if (!ok) return;
     try {
       const artifact = await restoreArtifact(props.id);
@@ -234,7 +235,7 @@ function ArtifactView(props: { id: string }) {
   };
 
   const remove = async () => {
-    const ok = await confirmDialog({ title: "Slette artifacten?", text: `«${title()}» slettes for godt. Tråden den kom fra røres ikke.`, confirm: "Slett", danger: true });
+    const ok = await confirmDialog({ title: t("Slette artifacten?"), text: t("«{title}» slettes for godt. Tråden den kom fra røres ikke.", { title: title() }), confirm: t("Slett"), danger: true });
     if (!ok) return;
     try {
       await deleteArtifact(props.id);
@@ -253,8 +254,8 @@ function ArtifactView(props: { id: string }) {
     setProjectId(project.id);
     setMode("code"); // leaves the room
     showPanel("browser");
-    send({ type: "browser.navigate", projectId: project.id, url });
-    toast(`Åpnet i Nettleser-panelet i ${project.name}`, "info");
+    send({ type: "browser.navigate", projectId: project.id, url: lang() === "html" ? url : `${url}#lang=${language()}` });
+    toast(t("Åpnet i Nettleser-panelet i {project}", { project: project.name }), "info");
   };
 
   const [more, setMore] = createSignal<MenuAnchor | null>(null);
@@ -266,15 +267,15 @@ function ArtifactView(props: { id: string }) {
     link.click();
   };
   const moreEntries = (): MenuEntry[] => [
-    { label: "Gi nytt navn", icon: IconPencil, run: rename },
-    { label: "Dupliser", icon: IconCopy, run: duplicate },
-    { label: `Last ned .${lang()}`, icon: IconDownload, run: download, title: dirty() ? "Laster ned det som er lagret" : undefined },
-    { label: "Åpne i Nettleser-panelet", icon: IconGlobe, run: openInBrowser, disabled: !browserProject() },
-    ...(summary()?.hasPrevious ? [{ label: "Forrige versjon", icon: IconUndo, run: restore } as MenuEntry] : []),
+    { label: t("Gi nytt navn"), icon: IconPencil, run: rename },
+    { label: t("Dupliser"), icon: IconCopy, run: duplicate },
+    { label: t("Last ned .{extension}", { extension: lang() }), icon: IconDownload, run: download, title: dirty() ? t("Laster ned det som er lagret") : undefined },
+    { label: t("Åpne i Nettleser-panelet"), icon: IconGlobe, run: openInBrowser, disabled: !browserProject() },
+    ...(summary()?.hasPrevious ? [{ label: t("Forrige versjon"), icon: IconUndo, run: restore } as MenuEntry] : []),
   ];
 
   const back = async () => {
-    if (dirty() && !(await confirmDialog({ title: "Forkaste endringene?", text: "Koden har endringer som ikke er lagret.", confirm: "Forkast", danger: true }))) return;
+    if (dirty() && !(await confirmDialog({ title: t("Forkaste endringene?"), text: t("Koden har endringer som ikke er lagret."), confirm: t("Forkast"), danger: true }))) return;
     openArtifacts(null);
   };
 
@@ -289,48 +290,49 @@ function ArtifactView(props: { id: string }) {
   return (
     <div class="artifact-view" data-view={view()} data-artifact-open={props.id}>
       <header class="artifact-bar">
-        <button type="button" class="icon-button" title="Alle artifacts" aria-label="Alle artifacts" onClick={() => void back()}><IconBack size={15} /></button>
+        <button type="button" class="icon-button" title={t("Alle artifacts")} aria-label={t("Alle artifacts")} onClick={() => void back()}><IconBack size={15} /></button>
         <div class="artifact-bar-title">
           <h1 title={title()}>{title()}</h1>
           <span class="artifact-save-state" data-state={saving() ? "saving" : dirty() ? "dirty" : "saved"}>
-            {saving() ? "Lagrer…" : dirty() ? "Ikke lagret" : "Lagret"}
+            {saving() ? t("Lagrer…") : dirty() ? t("Ikke lagret") : t("Lagret")}
           </span>
         </div>
         <span class="spacer" />
-        <div class="segmented" role="group" aria-label="Visning">
-          <button type="button" class="segment" aria-pressed={view() === "split"} onClick={() => setView("split")}>Delt</button>
-          <button type="button" class="segment" aria-pressed={view() === "code"} onClick={() => setView("code")}>Kode</button>
-          <button type="button" class="segment" aria-pressed={view() === "preview"} onClick={() => setView("preview")}>Forhåndsvisning</button>
+        <div class="segmented" role="group" aria-label={t("Visning")}>
+          <button type="button" class="segment" aria-pressed={view() === "split"} onClick={() => setView("split")}>{t("Delt")}</button>
+          <button type="button" class="segment" aria-pressed={view() === "code"} onClick={() => setView("code")}>{t("Kode")}</button>
+          <button type="button" class="segment" aria-pressed={view() === "preview"} onClick={() => setView("preview")}>{t("Forhåndsvisning")}</button>
         </div>
-        <button type="button" class="btn btn-primary btn-small" disabled={!dirty() || saving()} title="Lagre (Ctrl+S)" onClick={() => void save()}>Lagre</button>
-        <button type="button" class="btn btn-small" onClick={() => setRun(run() + 1)}><IconReload size={14} />Kjør på nytt</button>
-        <button type="button" class="icon-button" title="Lukk Artifacts" aria-label="Lukk Artifacts" onClick={closeArtifacts}><IconClose size={15} /></button>
+        <button type="button" class="btn btn-primary btn-small" disabled={!dirty() || saving()} title={t("Lagre (Ctrl+S)")} onClick={() => void save()}>{t("Lagre")}</button>
+        <button type="button" class="btn btn-small" onClick={() => setRun(run() + 1)}><IconReload size={14} />{t("Kjør på nytt")}</button>
+        <button type="button" class="icon-button" title={t("Lukk Artifacts")} aria-label={t("Lukk Artifacts")} onClick={closeArtifacts}><IconClose size={15} /></button>
       </header>
       {/* In a narrow window the secondary actions fold into ⋯, so the row is one line. */}
       <div class="artifact-actions">
-        <button type="button" class="icon-button artifact-more" aria-label="Mer for artifacten" title="Gi nytt navn, dupliser, last ned og mer" aria-haspopup="menu" aria-expanded={!!more()} onClick={(e) => setMore(more() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}><IconDots size={15} /></button>
-        <Show when={more()}>{(a) => <ContextMenu anchor={a()} label="Mer for artifacten" entries={moreEntries()} onClose={() => setMore(null)} />}</Show>
-        <button type="button" class="btn btn-small artifact-secondary" onClick={() => void rename()}>Gi nytt navn</button>
-        <button type="button" class="btn btn-small artifact-secondary" onClick={() => void duplicate()}><IconCopy size={14} />Dupliser</button>
-        <a class="btn btn-small artifact-secondary" href={downloadUrl()} download="" title={dirty() ? "Laster ned det som er lagret" : undefined}><IconDownload size={14} />Last ned .{lang()}</a>
+        <button type="button" class="icon-button artifact-more" aria-label={t("Mer for artifacten")} title={t("Gi nytt navn, dupliser, last ned og mer")} aria-haspopup="menu" aria-expanded={!!more()} onClick={(e) => setMore(more() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}><IconDots size={15} /></button>
+        <Show when={more()}>{(a) => <ContextMenu anchor={a()} label={t("Mer for artifacten")} entries={moreEntries()} onClose={() => setMore(null)} />}</Show>
+        <button type="button" class="btn btn-small artifact-secondary" onClick={() => void rename()}>{t("Gi nytt navn")}</button>
+        <button type="button" class="btn btn-small artifact-secondary" onClick={() => void duplicate()}><IconCopy size={14} />{t("Dupliser")}</button>
+        <a class="btn btn-small artifact-secondary" href={downloadUrl()} download="" title={dirty() ? t("Laster ned det som er lagret") : undefined}><IconDownload size={14} />{t("Last ned .{extension}", { extension: lang() })}</a>
         <button
           type="button"
           class="btn btn-small artifact-secondary"
           disabled={!browserProject()}
-          title={browserProject() ? `Åpnes i ${browserProject()!.name}` : "Nettleser-panelet hører til et prosjekt. Velg en mappe først."}
+          title={browserProject() ? t("Åpnes i {project}", { project: browserProject()!.name }) : t("Nettleser-panelet hører til et prosjekt. Velg en mappe først.")}
           onClick={openInBrowser}
         >
-          <IconGlobe size={14} />Åpne i Nettleser-panelet
+          <IconGlobe size={14} />{t("Åpne i Nettleser-panelet")}
         </button>
         <Show when={summary()?.hasPrevious}>
-          <button type="button" class="btn btn-small artifact-secondary" onClick={() => void restore()}>Forrige versjon</button>
+          <button type="button" class="btn btn-small artifact-secondary" onClick={() => void restore()}>{t("Forrige versjon")}</button>
         </Show>
         <span class="spacer" />
         <span class="artifact-meta">
-          <Show when={summary()?.threadTitle}>Fra «{summary()!.threadTitle}» · </Show>
-          Laget {summary() ? formatDate(summary()!.createdAt) : ""}
+          {summary()?.threadTitle
+            ? t("Fra «{title}» · Laget {date}", { title: summary()!.threadTitle!, date: formatDate(summary()!.createdAt) })
+            : t("Laget {date}", { date: summary() ? formatDate(summary()!.createdAt) : "" })}
         </span>
-        <button type="button" class="btn btn-small btn-danger" onClick={() => void remove()}><IconTrash size={14} />Slett</button>
+        <button type="button" class="btn btn-small btn-danger" onClick={() => void remove()}><IconTrash size={14} />{t("Slett")}</button>
       </div>
       <div class="artifact-split">
         <div class="artifact-code" ref={editorHost} data-testid="artifact-editor" />
@@ -339,7 +341,7 @@ function ArtifactView(props: { id: string }) {
             {(src) => (
               <iframe
                 class="artifact-iframe"
-                title={`Forhåndsvisning: ${title()}`}
+                title={t("Forhåndsvisning: {title}", { title: title() })}
                 sandbox={lang() === "html" ? "allow-scripts allow-modals" : "allow-scripts allow-modals allow-forms"}
                 referrerpolicy="no-referrer"
                 allow=""
@@ -355,7 +357,7 @@ function ArtifactView(props: { id: string }) {
 
 export default function ArtifactsRoom() {
   return (
-    <section class="artifacts-room" aria-label="Artifacts">
+    <section class="artifacts-room" aria-label={t("Artifacts")}>
       <Show when={room()?.id} keyed fallback={<Gallery />}>
         {(id) => <ArtifactView id={id} />}
       </Show>

@@ -1,5 +1,6 @@
 // Detached panes are ordinary browser windows of the same app. BroadcastChannel tells the main
 // window which ones are open, without polling window.closed.
+import { t } from "../lib/i18n";
 import { createSignal } from "solid-js";
 import { toast } from "./app";
 import type { Detached, Grid } from "./grid";
@@ -65,7 +66,7 @@ export function askWhoIsOpen(): void {
 export function openDetachedWindow(entry: Detached): void {
   const url = `/?rute=${encodeURIComponent(entry.threadId)}`;
   const win = window.open(url, `ad-pane-${entry.threadId}`, "popup,width=760,height=860");
-  if (!win) toast("Nettleseren blokkerte vinduet. Tillat oppsprett og trykk Åpne.", "info");
+  if (!win) toast(t("Nettleseren blokkerte vinduet. Tillat oppsprett og trykk Åpne."), "info");
 }
 
 // In a detached window.
