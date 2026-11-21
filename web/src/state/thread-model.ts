@@ -18,6 +18,7 @@ import type {
   WebSource,
 } from "../../../shared/protocol";
 import type { HookEvent, HookOutcome } from "../../../shared/hooks";
+import type { ImportedToolNote } from "../../../shared/history-import";
 import { ApiError, getWithHeaders } from "../lib/api";
 import { on, onOpen, send } from "../lib/socket";
 import { app } from "./app";
@@ -56,6 +57,7 @@ export interface TextRow extends RowBase {
   text: string; // Grows, and only flattened when a view mounts.
   pending: string; // Text the mounted view has not seen.
   done: boolean;
+  importedNote?: ImportedToolNote;
   model?: AnswerModel; // Snapshot of the run that wrote this text, never the current selector.
   onDelta?: () => void; // Set by the mounted view.
 }
@@ -404,6 +406,9 @@ class Folder {
         this.queued = at === -1 ? [...this.queued, item] : this.queued.map((q, i) => (i === at ? item : q));
         return;
       }
+      case "history.answer":
+        this.add({ ...base(event.messageId), kind: "text", at, text: event.text, pending: "", done: true, importedNote: event.note });
+        return;
       case "text.delta": {
         if (this.activity) this.activity.phase = "writing";
         let row = this.texts.get(event.messageId);

@@ -1,5 +1,6 @@
+import { openGitHubRoom } from "../state/github";
 import { lookupMessage, language, plural, t } from "../lib/i18n.ts";
-// GitHub (Beta) in the right panel (round 8, agent G): the project's repo from .git/config, and its
+// GitHub in the right panel (round 8, agent G): the project's repo from .git/config, and its
 // open pull requests and issues, read only. A link opens in the Nettleser panel. The token never
 // reaches the browser; the server asks GitHub and sends back only what is shown here.
 import { createResource, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
@@ -9,8 +10,8 @@ import { relativeTime } from "../lib/format";
 import { send } from "../lib/socket";
 import { setSettingsOpen } from "../state/app";
 import { showPanel } from "../state/panel";
-import { errorTitle, IconDraft, IconIssue, IconPullRequest, resetText } from "./GitHubShared";
-import { IconChat, IconGlobe, IconReload } from "./icons";
+import { errorTitle, IconDraft, IconPullRequest, resetText } from "./GitHubShared";
+import { IconChat, IconGlobe, IconIssue, IconReload } from "./icons";
 import { Rich } from "./settings/parts";
 
 const memory = new Map<string, "pulls" | "issues">();
@@ -70,7 +71,7 @@ export default function GitHubPanel(props: { projectId: string }) {
   return (
     <div class="github-panel" data-testid="github-panel">
       <div class="github-head">
-        <span class="github-title">GitHub<span class="beta-badge" title={t("Bare lesing. Prøvd mot en lokal testserver, ennå ikke mot github.com.")}>{t("Beta")}</span></span>
+        <span class="github-title">GitHub</span>
         <Show when={data()?.remote}>
           <button type="button" class="github-repo" title={t("Åpne {url} i Nettleser", { url: data()!.remote!.url })} onClick={() => openLink(data()!.repo?.url ?? data()!.remote!.url)}>
             <span class="github-owner">{data()!.remote!.owner}/</span><span class="github-name">{data()!.remote!.repo}</span>
@@ -167,6 +168,7 @@ export default function GitHubPanel(props: { projectId: string }) {
             <button type="button" class="btn btn-small btn-ghost github-all" onClick={() => openLink(`${data()!.remote!.url}/${list() === "pulls" ? "pulls" : "issues"}`)}>
               <IconGlobe size={13} />{t("Alle på GitHub")}
             </button>
+            <button type="button" class="btn btn-small btn-ghost" onClick={() => openGitHubRoom(list() === "pulls" ? "pull" : "issues", props.projectId ?? undefined)}>{t("Vis i appen")}</button>
           </Show>
         </Match>
       </Switch>

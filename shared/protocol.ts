@@ -193,6 +193,7 @@ export interface Thread {
   sectionId?: string | null; // round 11: the SidebarSection it is put in, set only when it is in one
   chatTools?: ChatTools | null; // round 13 (SPEC 27.2): Chat only, the tools chosen in this thread; unset follows Settings.chatTools
   forkedFrom?: ForkOrigin; // round 14 (SPEC 30.3): set on a fork, the thread it came from
+  importedFrom?: import("./history-import.ts").ImportedOrigin;
 }
 
 // Round 14 (SPEC 30.3): where a fork came from. The title is the source's title when the fork was
@@ -261,7 +262,11 @@ export function modelAllowsTools(model?: Pick<ModelConfig, "supportsTools">, loc
 }
 
 export interface Settings {
+  githubAuth?: "gh" | "token" | null;
+  githubOpenLinks?: boolean;
+  githubViews?: GitHubView[];
   language?: import("./i18n.ts").LanguageSetting;
+  welcomeDone?: boolean;
   dictation?: { providerId: string; model: string } | null;
   promptAutocompleteModelId?: string | null; // null follows the conversation model
   promptAutocomplete?: boolean; // opt-in model-backed prompt suggestions, default off
@@ -770,6 +775,7 @@ export type ThreadEvent =
   | { type: "run.started"; runId: string; modelId: string; model?: AnswerModel }
   | { type: "model.changed"; from: AnswerModel; to: AnswerModel }
   | { type: "text.delta"; runId: string; messageId: string; text: string }
+  | { type: "history.answer"; messageId: string; text: string; note?: import("./history-import.ts").ImportedToolNote }
   | { type: "thinking.delta"; runId: string; blockId: string; text: string }
   | { type: "thinking.done"; runId: string; blockId: string; durationMs: number }
   | { type: "tool.started"; runId: string; callId: string; tool: string; summary: string; input: unknown; status: ToolStatus }
@@ -1281,9 +1287,88 @@ export type GitHubErrorCode = "bad-token" | "rate-limit" | "not-found" | "offlin
 
 export interface GitHubStatus {
   connected: boolean;
+  method?: "gh" | "token";
   login?: string; // the account the token belongs to
   name?: string | null;
   scopes?: string | null; // X-OAuth-Scopes for a classic token, null for a fine-grained one
+}
+
+export type GitHubCliStatus =
+  | { state: "missing" | "signed-out" | "unavailable" }
+  | { state: "signed-in"; login: string };
+
+export type GitHubKind = "pull" | "issues";
+export type GitHubState = "open" | "closed" | "merged" | "draft";
+export type GitHubSort = "updated" | "newest" | "oldest" | "comments";
+export type GitHubInvolvement = "any" | "author" | "assignee" | "mentions" | "review-requested";
+
+export interface GitHubFilters {
+  search: string;
+  sort: GitHubSort;
+  state: "open" | "closed" | "all" | "merged";
+  involvement: GitHubInvolvement;
+  label: string;
+  projectId: string;
+}
+
+export interface GitHubView {
+  id: string;
+  name: string;
+  kind: GitHubKind;
+  filters: GitHubFilters;
+}
+
+export interface GitHubReference {
+  repo: string;
+  kind: GitHubKind;
+  number: number;
+}
+
+export interface GitHubScope {
+  id: string;
+  name: string;
+  repo: string;
+}
+
+export interface GitHubRow extends GitHubItem, GitHubReference {
+  state: GitHubState;
+  avatarId: number | null;
+  checks: PullWatchStatus["checks"];
+}
+
+export interface GitHubDetail extends GitHubRow {
+  projectIds: string[];
+  assignees: string[];
+  body: string;
+  pull?: {
+    base: string;
+    head: string;
+    review: PullWatchStatus["review"];
+    checks: Array<{ name: string; status: string }>;
+  };
+}
+
+export interface GitHubComment {
+  id: string;
+  author: string | null;
+  avatarId: number | null;
+  createdAt: string;
+  body: string;
+  review?: string;
+  path?: string;
+}
+
+export interface GitHubFile {
+  name: string;
+  previousName?: string;
+  additions: number;
+  deletions: number;
+  patch: string | null;
+}
+
+export interface GitHubPage<T> {
+  items: T[];
+  next: string | null;
 }
 
 // Read from .git/config, never by running git.

@@ -37,7 +37,7 @@ import { PreviewRuntime } from "./preview-runtime.ts";
 import { apiKeyFor, createProvider } from "./providers/index.ts";
 import { Secrets } from "./secrets.ts";
 import { defaultKeyring, type Keyring } from "./keyring.ts";
-import { GITHUB_SECRET } from "./github.ts";
+import { GitHub, GITHUB_SECRET } from "./github.ts";
 import { ConfigDirs, defaultGlobalConfigDir } from "./config-dirs.ts";
 import { seedGlobalAgents, upgradeGlobalAgents } from "./agent/harness.ts";
 import { Terminals } from "./terminal.ts";
@@ -307,6 +307,13 @@ async function startAppWithClaim(
   hub = new Hub({ store, security, terminals, browser, projectWatches, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   onFail(() => hub.close());
   api = new Api({
+    github: new GitHub(secrets, {
+      get: () => store.settings().githubAuth,
+      set: (githubAuth) => {
+        store.updateSettings({ githubAuth });
+        api.settingsChangedFromKeyring();
+      },
+    }),
     uiMods,
     hooks,
     mcp,

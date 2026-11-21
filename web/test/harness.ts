@@ -9,6 +9,7 @@ import path from "node:path";
 import { test, type TestContext } from "node:test";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import type { Project, Thread, ThreadEventEnvelope } from "../../shared/protocol.ts";
+import { Store } from "../../server/src/db.ts";
 
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -27,6 +28,7 @@ export function startServer(dataDir: string, options: { port?: number; mockDelay
       HOME: options.home ?? dataDir, // No skills or shell setup from the real home folder.
       XDG_CONFIG_HOME: path.join(options.home ?? dataDir, ".config"), // Never the user's ~/.config/agentic-desktop.
       XDG_DATA_HOME: path.join(options.home ?? dataDir, ".local/share"),
+      GH_CONFIG_DIR: path.join(options.home ?? dataDir, ".config/gh"),
       AD_DATA_DIR: dataDir,
       AD_PORT: String(options.port ?? 0),
       AD_MOCK_DELAY_MS: String(options.mockDelayMs ?? 1),
@@ -82,6 +84,7 @@ export interface HarnessOptions {
   mockDelayMs?: number;
   port?: number;
   env?: Record<string, string>;
+  firstRun?: boolean;
 }
 
 const CHROME_ARGS = ["--no-first-run", "--no-default-browser-check", "--disable-sync", "--mute-audio"];
@@ -130,6 +133,11 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const webDist = options.env?.AD_WEB_DIST ?? process.env.AD_WEB_DIST ?? path.join(ROOT, "web/dist");
   assert.ok(existsSync(path.join(webDist, "build-info.json")), "Bygg webgrensesnittet og legg build-info.json i AD_WEB_DIST først");
   const dataDir = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-ui-data-")));
+  if (!options.firstRun) {
+    const store = new Store(dataDir);
+    try { store.updateSettings({ welcomeDone: true }); }
+    finally { store.close(); }
+  }
   const projectDir = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-ui-project-")));
   const home = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-ui-home-")));
   const removeFolders = () => {

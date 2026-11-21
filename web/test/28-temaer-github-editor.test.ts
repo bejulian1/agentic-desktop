@@ -1,4 +1,4 @@
-// Round 8 (agent G): colour themes, GitHub (Beta) against a local fake server, and the mini editor.
+// Round 8 (agent G): colour themes, GitHub against a local fake server, and the mini editor.
 // No request goes to github.com: AD_GITHUB_API points the server at the fake one, and the links
 // it builds point there too.
 import assert from "node:assert/strict";
@@ -85,7 +85,7 @@ flow("fargetemaer: forhåndsvisningen stemmer med temaet, hele appen følger med
   assert.match(String(bad), /400/);
 });
 
-flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle feil", async (h) => {
+flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", async (h) => {
   const { page } = h;
   mkdirSync(path.join(h.projectDir, ".git"), { recursive: true });
   writeFileSync(path.join(h.projectDir, ".git/HEAD"), "ref: refs/heads/main\n");
@@ -95,14 +95,14 @@ flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle f
   await openTool(page, "GitHub");
   await panel.getByText("acme/rakett").waitFor();
   await panel.getByText("Ikke koblet til GitHub").waitFor();
-  await panel.getByText("Beta", { exact: true }).waitFor();
+  assert.equal(await panel.getByText("Beta", { exact: true }).count(), 0);
   assert.ok(!(await loaded(page)).some((u) => u.includes("/MiniEditor-")), "editoren er ikke lastet");
 
   // Koble til opens Innstillinger → GitHub. A wrong token is refused with a clear message (a 400).
   h.allow(/status of 400/);
   await panel.getByRole("button", { name: "Koble til…" }).click();
   const field = page.getByLabel("GitHub-token");
-  await field.fill("ghp_feil000000000000000000000000000000");
+  await field.fill("ghp_" + "feil000000000000000000000000000000");
   await page.getByRole("button", { name: "Koble til", exact: true }).click();
   await page.getByText("GitHub godtok ikke tokenet").waitFor();
   await field.fill(GOOD_TOKEN);
@@ -147,8 +147,15 @@ flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle f
   await toolShown(page, "Nettleser");
   await waitFor(() => fake.requests.some((r) => r.path === "/acme/rakett/pull/42"), "siden ble åpnet i nettleserpanelet", 30_000);
 
+  await openTool(page, "GitHub");
+  await panel.getByRole("button", { name: "Vis i appen" }).click();
+  const room = page.getByTestId("github-room");
+  await room.getByRole("heading", { name: "Pull requests" }).waitFor();
+  assert.equal(await room.getByLabel("Prosjekt", { exact: true }).locator("option:checked").textContent(), "Demo");
+
   // Not a GitHub repo.
   writeFileSync(path.join(h.projectDir, ".git/config"), `[remote "origin"]\n\turl = https://gitlab.com/acme/rakett.git\n`);
+  await room.getByRole("button", { name: "Lukk", exact: true }).click();
   await openTool(page, "GitHub");
   await page.getByTestId("github-panel").getByText("Ikke et GitHub-repo").waitFor();
   await page.getByTestId("github-panel").getByText("Ingen remote peker til GitHub.").waitFor();

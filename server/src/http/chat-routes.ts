@@ -106,8 +106,8 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
 
     const events = store.events(thread.id, 0, Number.MAX_SAFE_INTEGER);
     if (body.latestOnly === true) {
-      const latest = events.findLast(({ event }) => event.type === "text.delta" || event.type === "user.message")?.event;
-      if (latest?.type !== "text.delta" || latest.messageId !== body.messageId) {
+      const latest = events.findLast(({ event }) => event.type === "text.delta" || event.type === "history.answer" || event.type === "user.message")?.event;
+      if ((latest?.type !== "text.delta" && latest?.type !== "history.answer") || latest.messageId !== body.messageId) {
         throw new HttpError(409, "Samtalen har endret seg. Prøv igjen med det nyeste svaret.");
       }
     }
@@ -120,7 +120,7 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
           cut = seq;
           break;
         }
-      } else if (event.type === "text.delta" && event.messageId === body.messageId) {
+      } else if ((event.type === "text.delta" || event.type === "history.answer") && event.messageId === body.messageId) {
         cut = lastUser;
         break;
       }
@@ -146,7 +146,7 @@ export function chatRoutes(route: Route, deps: ApiDeps, h: { thread: (id: string
     // Chapters on messages that go, go too.
     const gone = new Set<string>();
     for (const { seq, event } of events) {
-      if (seq >= cut && (event.type === "user.message" || event.type === "text.delta")) gone.add(event.messageId);
+      if (seq >= cut && (event.type === "user.message" || event.type === "text.delta" || event.type === "history.answer")) gone.add(event.messageId);
     }
     for (const chapter of thread.chapters) {
       if (gone.has(chapter.messageId)) store.updateThread(thread.id, { chapter: { messageId: chapter.messageId, title: null } });

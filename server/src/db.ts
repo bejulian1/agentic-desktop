@@ -2,6 +2,8 @@
 // same tick. `events` is what the UI replays; `messages` is what the model sees and can be
 // rewritten by compaction.
 import type { Schedule } from '../../shared/schedules.ts';
+import type { HistorySource, ImportedToolNote } from "../../shared/history-import.ts";
+import { historyFrom } from "./agent/fork.ts";
 import { randomUUID } from "node:crypto";
 import { chmodSync, statSync } from "node:fs";
 import path from "node:path";
@@ -331,6 +333,10 @@ export class Store {
     add("threads", "forked_from", "TEXT");
     // Monotonic revision bumped whenever rewindThread deletes/reuses event seq numbers.
     add("threads", "history_revision", "INTEGER NOT NULL DEFAULT 0");
+    add("threads", "import_source", "TEXT");
+    add("threads", "import_session", "TEXT");
+    add("threads", "imported_at", "INTEGER");
+    this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS threads_import_session ON threads(import_source, import_session) WHERE import_source IS NOT NULL");
     add("providers", "preset_id", "TEXT");
     add("providers", "credential_id", "TEXT");
   }
@@ -674,6 +680,7 @@ export class Store {
     ...(row.section_id ? { sectionId: row.section_id } : {}),
     ...(row.chat_tools ? { chatTools: JSON.parse(row.chat_tools) } : {}),
     ...(row.forked_from ? { forkedFrom: JSON.parse(row.forked_from) } : {}),
+    ...(row.import_source ? { importedFrom: { source: row.import_source, importedAt: row.imported_at } } : {}),
   });
 
   threads(): Thread[] {
@@ -699,6 +706,35 @@ export class Store {
     ).run(id, projectId, mode, options.title ?? "Ny tråd", modelId, now, now, options.parentThreadId ?? null,
       options.origin ?? (options.parentThreadId ? "agent" : "user"), options.permissionCap ?? null);
     return this.thread(id)!;
+  }
+
+  hasImportedSession(source: HistorySource, session: string): boolean {
+    return !!this.q("SELECT 1 FROM threads WHERE import_source = ? AND import_session = ?").get(source, session);
+  }
+
+  // The caller commits the project, thread, and both kinds of history in one transaction.
+  createImportedThread(projectId: string, session: {
+    source: HistorySource;
+    sessionId: string;
+    title: string;
+    createdAt: number;
+    updatedAt: number;
+    messages: { role: "user" | "assistant"; text: string; at: number; note?: ImportedToolNote }[];
+  }, modelId: string | null): string {
+    const threadId = randomUUID();
+    this.q(`INSERT INTO threads (id, project_id, mode, title, model_id, created_at, updated_at, import_source, import_session, imported_at)
+      VALUES (?, ?, 'code', ?, ?, ?, ?, ?, ?, ?)`).run(threadId, projectId, session.title, modelId, session.createdAt, session.updatedAt, session.source, session.sessionId, Date.now());
+    const events = session.messages.map(({ role, at, text, note }, index): ThreadEventEnvelope => {
+      const messageId = randomUUID();
+      const event: ThreadEvent = role === "user" ? { type: "user.message", messageId, text }
+        : { type: "history.answer", messageId, text, ...(note ? { note } : {}) };
+      return { threadId, seq: index + 1, at, event };
+    });
+    for (const { seq, at, event } of events) {
+      this.q("INSERT INTO events (thread_id, seq, at, event) VALUES (?, ?, ?, ?)").run(threadId, seq, at, JSON.stringify(event));
+    }
+    for (const message of historyFrom(events)) this.appendMessage(threadId, message);
+    return threadId;
   }
 
   updateThread(id: string, patch: ThreadPatch): void {

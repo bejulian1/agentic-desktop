@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { _electron, type ElectronApplication, type Page } from "playwright-core";
+import { Store } from "../../server/src/db.ts";
 
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const ELECTRON = path.join(ROOT, "node_modules/electron/dist/electron");
@@ -33,11 +34,17 @@ export interface Sandbox {
   cleanup: () => void;
 }
 
-export function sandbox(options: { tray?: "on" | "off" } = {}): Sandbox {
+export function sandbox(options: { tray?: "on" | "off"; firstRun?: boolean } = {}): Sandbox {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), "ad-desktop-test-")));
   const home = path.join(dir, "home");
   const dataDir = path.join(dir, "data");
   mkdirSync(home, { recursive: true });
+  if (!options.firstRun) {
+    mkdirSync(dataDir, { mode: 0o700 });
+    const store = new Store(dataDir);
+    try { store.updateSettings({ welcomeDone: true }); }
+    finally { store.close(); }
+  }
   const externalLog = path.join(dir, "external.log");
   const env: Record<string, string> = {};
   for (const [name, value] of Object.entries(process.env)) if (value !== undefined) env[name] = value;

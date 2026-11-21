@@ -97,7 +97,7 @@ flow("Innstillinger → Nettleser: søkemotor, agenttilgang, lenker, avansert zo
   const server = createServer((req, res) => {
     if (req.url === "/v1/chat/completions") {
       res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8" });
-      const content = `Se lenke: [Testlenke](${baseUrl}/lenke)`;
+      const content = `Se lenke: [Testlenke](${baseUrl}/lenke) og [PR #42](https://github.com/acme/rakett/pull/42)`;
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: null }] })}\n\n`);
       res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\n`);
       res.end("data: [DONE]\n\n");
@@ -192,6 +192,13 @@ flow("Innstillinger → Nettleser: søkemotor, agenttilgang, lenker, avansert zo
     await popup.waitForLoadState("domcontentloaded");
     assert.equal(popup.url(), `${baseUrl}/lenke`);
     await popup.close();
+
+    // GitHub PR links still open in the in-app GitHub room when githubOpenLinks is on, even with openLinksIn: "app".
+    h.allow(/status of (401|409)/);
+    const ghLink = page.locator(".scroller a", { hasText: "PR #42" }).first();
+    await ghLink.click();
+    await page.getByTestId("github-room").waitFor({ timeout: 10_000 });
+    await page.getByTestId("github-room").getByRole("button", { name: "Lukk", exact: true }).click();
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

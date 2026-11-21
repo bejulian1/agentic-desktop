@@ -5,6 +5,7 @@ import { createStore, reconcile } from "solid-js/store";
 import type { Artifact, ArtifactLang, ArtifactSummary } from "../../../shared/protocol";
 import { del, post, patch } from "../lib/api";
 import { on } from "../lib/socket";
+import { closeGitHubRoom } from "./nav";
 
 const [list, setList] = createStore<{ items: ArtifactSummary[] }>({ items: [] });
 const listeners = new Set<() => void>();
@@ -51,6 +52,7 @@ const [room, setRoom] = createSignal<{ id: string | null } | null>(null);
 export { room };
 
 export function openArtifacts(id: string | null = null): void {
+  closeGitHubRoom();
   setRoom({ id });
 }
 

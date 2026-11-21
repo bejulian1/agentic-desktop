@@ -10,6 +10,7 @@ import { observeWhile, visibleSignal, whileVisible } from "../lib/visible";
 import { motionOff } from "./Motion";
 import { MarkdownStream, renderStatic } from "../markdown/stream";
 import { disposeArtifactBoxes } from "../markdown/artifact-card";
+import { githubReference, userGitHubLink } from "../state/github";
 import { app, report } from "../state/app";
 import { formatElapsed, useClock } from "../state/clock";
 import { peekPanelActions } from "../state/panel";
@@ -199,6 +200,18 @@ export function AttachmentChip(props: { attachment: Attachment }) {
   );
 }
 
+function userText(text: string) {
+  const parts = [];
+  let end = 0;
+  for (const match of text.matchAll(userGitHubLink)) {
+    const url = match[0];
+    if (!githubReference(url)) continue;
+    parts.push(text.slice(end, match.index), <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>);
+    end = match.index + url.length;
+  }
+  return end ? [...parts, text.slice(end)] : text;
+}
+
 function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
   const { row } = props;
   const register = useContext(UserRowRegistry);
@@ -245,7 +258,7 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
               <For each={others}>{(a) => <AttachmentChip attachment={a} />}</For>
             </div>
           </Show>
-          <div class="user-text">{row.text}</div>
+          <div class="user-text">{userText(row.text)}</div>
         </div>
         <Show when={code()?.mode === "code" && receipt()}>
           <span class="message-receipt" data-testid="message-receipt" data-status={receipt()} role="status" aria-label={receiptLabel()} title={receipt() === "received" ? t("Modellen har begynt å svare med meldingen i konteksten. {time}", { time: row.receivedAt ? fullTime(row.receivedAt) : "" }) : receiptLabel()}>
@@ -358,6 +371,13 @@ function TextView(props: { row: TextRow }) {
 
 function TextBody(props: { row: TextRow }) {
   const { row } = props;
+  if (row.importedNote) {
+    const { kind, tool, summary } = row.importedNote;
+    return <div class="row row-text imported-tool-note muted" data-row="text" data-message-id={row.key}>
+      {kind === "call" ? t("Verktøykall") : t("Verktøyresultat")}
+      <Show when={tool}> · {tool}</Show><Show when={summary}> · {summary}</Show>
+    </div>;
+  }
   if (row.done && row.text.length > HUGE_MESSAGE) return <LongText row={row} />;
   const root = document.createElement("div");
   root.className = "row row-text md";

@@ -2,7 +2,8 @@
 // line of scroll code: it opens at the bottom on the first frame, it stays pinned there while text
 // grows, and loading older messages above does not move what is on screen. Nothing listens to
 // scroll events. Position is read by an IntersectionObserver.
-import { plural, t } from "../lib/i18n";
+import { localizedFormat, plural, t } from "../lib/i18n";
+import { historySources } from "../../../shared/history-import";
 import { createEffect, createMemo, createSelector, createSignal, createUniqueId, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { frameBudget } from "../lib/frame";
 import { motionOff } from "./Motion";
@@ -17,6 +18,7 @@ import { app, modelName, report, toast } from "../state/app";
 import { patch, post } from "../lib/api";
 import { openThread } from "../state/navigate";
 import { openLink } from "../lib/links";
+import { githubReference } from "../state/github";
 import { registerJumper } from "../state/message-jump";
 import { confirmDialog, promptDialog } from "./dialogs";
 import type { Thread } from "../../../shared/protocol";
@@ -28,6 +30,7 @@ export { jumpToMessage } from "../state/message-jump";
 
 const MAX_TICKS = 80;
 const MIN_TIMELINE_MARKS = 4;
+const importedDate = localizedFormat((locale) => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }));
 
 // Markdown as plain text, for Kopier som tekst: the words without the marks around them.
 export function plainText(markdown: string): string {
@@ -638,6 +641,12 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
     const onLinkClick = (event: MouseEvent) => {
       const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
       if (!anchor || !scroller.contains(anchor) || anchor.hasAttribute("download")) return;
+      if (
+        event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
+        && app.settings.githubOpenLinks !== false
+        && anchor.closest('.row-text[data-row="text"], .row-user[data-row="user"]')
+        && githubReference(anchor.href)
+      ) return;
       openLink(anchor.href, event, true);
     };
     props.jump?.(() => (scroller.scrollTop = 0));
@@ -712,6 +721,11 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
       <Show when={thread()?.temporary}>
         <div class="temp-banner" data-testid="temp-banner"><IconClock size={12} />{t("Midlertidig chat. Vises ikke i historikken, og slettes når du lukker den.")}</div>
       </Show>
+      <Show when={thread()?.importedFrom}>{(origin) =>
+        <div class="temp-banner" role="note" data-testid="import-origin">
+          <IconClock size={12} />{t("Importert fra {app} · {date}", { app: historySources[origin().source], date: importedDate.format(origin().importedAt) })}
+        </div>
+      }</Show>
       <Show when={regen()} keyed>
         {(menu) => (
           <div class="popover regen-menu" role="menu" aria-label={t("Lag svaret på nytt med")} style={{ left: `${menu.left}px`, bottom: `${menu.bottom}px` }} data-testid="regen-menu">

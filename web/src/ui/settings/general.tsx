@@ -10,6 +10,7 @@ import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
 import { app, deleteThread, effectiveProjectOrder, report, setApp, setProjectSort, setSettingsOpen, toast } from "../../state/app";
 import { allowNotifications, chime } from "../../state/look";
+import { openWelcome } from "../../state/welcome";
 import { confirmDialog } from "../dialogs";
 import { IconPlay } from "../icons";
 import { ThemePicker } from "../ThemePicker";
@@ -34,6 +35,16 @@ const ACCENTS = (): Array<{ value: AccentColor; label: string }> => [
 ];
 
 
+export function LanguageRow() {
+  return (
+    <Row label={t("Språk")}>
+      <Choice<LanguageSetting> label={t("Språk")} value={app.settings.language ?? "system"}
+        options={[{ value: "system", label: t("Følg systemet") }, ...Object.entries(languages).map(([value, label]) => ({ value: value as LanguageSetting, label }))]}
+        onChange={language => save({ language })} />
+    </Row>
+  );
+}
+
 export function General() {
   const notifyChoice = async (value: ThreadNotifications) => {
     if (value !== "off" && !(await allowNotifications())) {
@@ -44,7 +55,13 @@ export function General() {
   return (
     <Page title={t("Generelt")}>
       <Group title={t("Språk")}>
-        <Row label={t("Språk")}><Choice<LanguageSetting> label={t("Språk")} value={app.settings.language ?? "system"} options={[{ value: "system", label: t("Følg systemet") }, ...Object.entries(languages).map(([value, label]) => ({ value: value as LanguageSetting, label }))]} onChange={language => save({ language })} /></Row>
+        <LanguageRow />
+        <Row label={t("Velkomstskjerm")}>
+          <button type="button" class="btn btn-small" onClick={(e) => openWelcome("welcome", e.currentTarget)}>{t("Åpne")}</button>
+        </Row>
+        <Row label={t("Importer fra andre kodeapper")}>
+          <button type="button" class="btn btn-small" onClick={(e) => openWelcome("import", e.currentTarget)}>{t("Åpne")}</button>
+        </Row>
       </Group>
       <PermissionDefaults />
       <Group title={t("Oppstart")}>

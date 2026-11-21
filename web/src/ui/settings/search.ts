@@ -19,6 +19,8 @@ export function canonicalSettingsPage(id: string): string {
 
 export const ENTRIES: Entry[] = [
   { page: "general", get label() { return t("Språk"); }, get words() { return t("language språk"); } },
+  { page: "general", get label() { return t("Velkomstskjerm"); } },
+  { page: "general", get label() { return t("Importer fra andre kodeapper"); } },
   { page: "code", get label() { return t("Fargetema for kode"); }, get words() { return t("lyst mørkt syntaks tema kodeutseende preview diff farger"); } },
   { page: "code", get label() { return t("Egen kodeskrift"); }, get words() { return t("font skrift monospace egendefinert"); } },
   { page: "code", get label() { return t("Standard samtalevisning"); }, get words() { return t("transkript normal tenkning detaljert verktøy trinn"); } },
@@ -71,7 +73,8 @@ export const ENTRIES: Entry[] = [
   { page: "providers", get label() { return t("Modellanbefaling"); }, get words() { return t("anbefal modell maskinvare ram gpu ledig minne"); } },
   { page: "providers", get label() { return t("Egendefinert oppsett"); }, get words() { return t("openai-kompatibel anthropic adresse egen lokal modellserver"); } },
   { page: "git", get label() { return t("Grener og arbeidstrær"); }, get words() { return t("git branch main gren bytt opprett arbeidstre worktree lokalt repo"); } },
-  { page: "github", get label() { return t("Konto"); }, get words() { return t("github token tilgangstoken personlig pull request issues koble til beta"); } },
+  { page: "github", get label() { return t("Åpne pull request-lenker i Agentic Desktop"); } },
+  { page: "github", get label() { return t("Konto"); }, get words() { return t("github token tilgangstoken personlig pull request issues koble til gh cli"); } },
   { page: "usage", get label() { return t("Bruk"); }, get words() { return t("tokens profil navn"); } },
   { page: "usage", get label() { return t("Statistikk"); }, get words() { return t("statistikk tokens økter meldinger rekke aktivitet aktivitetskart startside"); } },
   { page: "usage", get label() { return t("Kostnad"); }, get words() { return t("kostnad pris dollar"); } },

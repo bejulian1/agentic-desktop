@@ -13,7 +13,7 @@ import { DEFAULT_LOCAL_CONTEXT_WINDOW, modelAllowsTools } from "../../../../shar
 import type { KeyringStatus } from "../../../../shared/protocol";
 import { SecretInput } from "../SecretInput";
 import { confirmDialog } from "../dialogs";
-import { IconBack, IconClose, IconInfo, IconPlus, IconSearch } from "../icons";
+import { IconBack, IconCheck, IconClose, IconInfo, IconPlus, IconSearch } from "../icons";
 import { Choice, Group, Page, Row, Segmented, Toggle, save } from "./parts";
 import { Select } from "../Select";
 import { LocalModelAdvisor } from "./local-model-advisor";
@@ -332,17 +332,26 @@ function StepBudget() {
   );
 }
 
-function ModelDefaults(props: { active?: boolean }) {
+function DefaultModelRow(props: { active?: boolean; welcome?: boolean }) {
   const options = () =>
     app.providers.flatMap((provider) =>
-      app.models.filter((m) => m.providerId === provider.id).map((m) => ({ value: m.id, label: MOCK_PROVIDER(provider) ? m.name : `${m.name} (${provider.name})` })),
+      app.models.filter((m) => m.providerId === provider.id).map((m) => ({
+        value: m.id,
+        label: MOCK_PROVIDER(provider) ? props.welcome ? t("Prøv uten API-nøkkel") : lookupMessage(m.name) : `${m.name} (${provider.name})`,
+      })),
     );
+  return (
+    <Row label={t("Standardmodell")} text={props.welcome ? t("Demo-modellen kan brukes uten nettverk.") : t("Brukes i nye tråder. Hver tråd kan bytte modell i meldingsfeltet.")}>
+      <Choice active={props.active} label={t("Standardmodell")} value={app.settings.defaultModelId ?? ""} options={options()} onChange={(id) => save({ defaultModelId: id })} />
+    </Row>
+  );
+}
+
+function ModelDefaults(props: { active?: boolean }) {
   return (
     <>
       <Group title={t("Standard")}>
-        <Row label={t("Standardmodell")} text={t("Brukes i nye tråder. Hver tråd kan bytte modell i meldingsfeltet.")}>
-          <Choice active={props.active} label={t("Standardmodell")} value={app.settings.defaultModelId ?? ""} options={options()} onChange={(id) => save({ defaultModelId: id })} />
-        </Row>
+        <DefaultModelRow active={props.active} />
       </Group>
       <Group title={t("Agenten")}>
         <Toggle label={t("Komprimering")} text={t("Når dette er på, kortes gamle verktøyresultater og bilder ned ved 80 % av kontekstvinduet, og eldre samtale oppsummeres ved behov. Av beholder historikken til leverandørens kontekstgrense; bruk /compact ved behov. Gjelder nye turer.")}
@@ -518,22 +527,65 @@ function savedPreset(provider: ProviderConfig, presets: ProviderPreset[]): Provi
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+function localDetection() {
+  const [detected, setDetected] = createSignal<DetectedLocalProvider[]>([]);
+  const [detecting, setDetecting] = createSignal(false);
+  const [finished, setFinished] = createSignal(false);
+  const [error, setError] = createSignal<string>();
+  const status = () => {
+    const message = error();
+    if (message) return t("Kunne ikke sjekke standardadressene: {message}", { message });
+    if (!finished()) return "";
+    return detected().length ? plural(detected().length, "{count} API svarte på denne maskinen.", "{count} API-er svarte på denne maskinen.")
+      : t("Fant ingen åpne modellister på standardadressene. Velg en leverandør for å oppgi adresse eller nøkkel selv.");
+  };
+  const detect = async (onMatches?: () => void) => {
+    if (detecting()) return;
+    setDetecting(true);
+    setFinished(false);
+    setError(undefined);
+    setDetected([]);
+    try {
+      const matches = await post<DetectedLocalProvider[]>("/api/providers/local/detect");
+      setDetected(matches);
+      if (matches.length) onMatches?.();
+      setFinished(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDetecting(false);
+    }
+  };
+  return { detected, detecting, status, error, detect };
+}
+
+function DetectLocalRow(props: { detection: ReturnType<typeof localDetection>; onMatches?: () => void }) {
+  return <>
+    <Row label={t("Lokale modellservere")} text={t("Sjekk standardadressene for Ollama, LM Studio, llama.cpp og vLLM på denne maskinen.")}>
+      <button type="button" class="btn btn-small" aria-disabled={props.detection.detecting()} onClick={() => void props.detection.detect(props.onMatches)}>
+        {props.detection.detecting() ? t("Ser etter servere…") : t("Finn lokale servere")}
+      </button>
+    </Row>
+    <Show when={props.detection.status()}>
+      <p class="provider-detect-status" classList={{ muted: !props.detection.error() }} role={props.detection.error() ? "alert" : "status"}>{props.detection.status()}</p>
+    </Show>
+  </>;
+}
+
 function ProviderCatalog(props: {
   presets: ProviderPreset[];
   custom?: ProviderPreset;
   active?: boolean;
   saved: Map<string, ProviderConfig>;
+  detection: ReturnType<typeof localDetection>;
+  hideDetection?: boolean;
   searchRef: (input: HTMLInputElement) => void;
   onConnect: (preset: ProviderPreset, button: HTMLButtonElement) => void;
 }) {
   const [query, setQuery] = createSignal("");
   const [category, setCategory] = createSignal<CatalogCategory>("all");
   const [limit, setLimit] = createSignal(CATALOG_PAGE_SIZE);
-  const [detected, setDetected] = createSignal<DetectedLocalProvider[]>([]);
-  const [detecting, setDetecting] = createSignal(false);
-  const [detectStatus, setDetectStatus] = createSignal("");
-  const [detectError, setDetectError] = createSignal(false);
-  const detectedById = createMemo(() => new Map(detected().map((match) => [match.presetId, match])));
+  const detectedById = createMemo(() => new Map(props.detection.detected().map((match) => [match.presetId, match])));
   const categoryOf = (preset: ProviderPreset) => preset.category ?? (preset.local ? "local" : "cloud");
   const filtered = createMemo(() => {
     const words = query().trim().toLowerCase().split(/\s+/);
@@ -553,27 +605,6 @@ function ProviderCatalog(props: {
     setLimit(firstNew + CATALOG_PAGE_SIZE);
     list.children[firstNew]?.querySelector<HTMLButtonElement>("button")?.focus();
   };
-  const detect = async () => {
-    if (detecting()) return;
-    setDetecting(true);
-    setDetectError(false);
-    setDetectStatus("");
-    setDetected([]);
-    try {
-      const matches = await post<DetectedLocalProvider[]>("/api/providers/local/detect");
-      setDetected(matches);
-      if (matches.length) {
-        setCategory("local");
-        updateQuery("");
-      }
-      setDetectStatus(matches.length ? plural(matches.length, "{count} API svarte på denne maskinen.", "{count} API-er svarte på denne maskinen.") : t("Fant ingen åpne modellister på standardadressene. Velg en leverandør for å oppgi adresse eller nøkkel selv."));
-    } catch (err) {
-      setDetectError(true);
-      setDetectStatus(t("Kunne ikke sjekke standardadressene: {message}", { message: (err as Error).message }));
-    } finally {
-      setDetecting(false);
-    }
-  };
   return (
     <Group title={t("Leverandørkatalog")} action={<span class="provider-count" role="status">{plural(filtered().length, "{count} leverandør", "{count} leverandører")}</span>}>
       <div class="provider-catalog-tools">
@@ -586,10 +617,7 @@ function ProviderCatalog(props: {
         <Segmented<CatalogCategory> label={t("Leverandørtype")} options={categories()} value={category()} onChange={(value) => { setCategory(value); setLimit(CATALOG_PAGE_SIZE); }} />
       </div>
       <Show when={category() === "all" || category() === "local"}>
-        <Row label={t("Lokale modellservere")} text={t("Sjekk standardadressene for Ollama, LM Studio, llama.cpp og vLLM på denne maskinen.")}>
-          <button type="button" class="btn btn-small" aria-disabled={detecting()} onClick={() => void detect()}>{detecting() ? t("Ser etter servere…") : t("Finn lokale servere")}</button>
-        </Row>
-        <p class="provider-detect-status" classList={{ muted: !detectError() }} role={detectError() ? "alert" : "status"}>{detectStatus()}</p>
+        <Show when={!props.hideDetection}><DetectLocalRow detection={props.detection} onMatches={() => { setCategory("local"); updateQuery(""); }} /></Show>
         <LocalModelAdvisor active={props.active} />
       </Show>
       <ul class="provider-catalog-list" ref={list} aria-label={t("Leverandører i katalogen")}>
@@ -629,7 +657,7 @@ function ProviderCatalog(props: {
   );
 }
 
-export function Providers(props: { active?: boolean } = {}) {
+export function Providers(props: { active?: boolean; welcome?: boolean } = {}) {
   // Read the asynchronous list inside its own Suspense boundary: connected models and drafts
   // stay visible and usable while the catalogue is loading.
   const [catalogError, setCatalogError] = createSignal("");
@@ -639,6 +667,8 @@ export function Providers(props: { active?: boolean } = {}) {
     catch (err) { setCatalogError((err as Error).message); return []; }
   });
   const [connecting, setConnecting] = createSignal<ProviderPreset | null>(null);
+  const [catalogOpen, setCatalogOpen] = createSignal(false);
+  const detection = localDetection();
   const named = () => (presets() ?? []).filter((p) => p.id !== "custom");
   const presetFor = (provider: ProviderConfig) => savedPreset(provider, presets.loading ? [] : presets.latest ?? []);
   const saved = createMemo(() => {
@@ -656,9 +686,54 @@ export function Providers(props: { active?: boolean } = {}) {
     setConnecting(null);
     if (props.active !== false) (opener?.isConnected ? opener : catalogSearch)?.focus();
   };
+  const catalog = () => (
+    <Suspense fallback={<p class="muted" role="status">{t("Henter leverandører…")}</p>}>
+      <Show when={catalogError()}>
+        <div class="provider-catalog-error" role="alert"><span>{t("Kunne ikke hente leverandører: {message}", { message: catalogError() })}</span><button type="button" class="btn btn-small" onClick={() => void refetch()}>{t("Prøv igjen")}</button></div>
+      </Show>
+      <Show when={named().length}>
+        <ProviderCatalog presets={named()} custom={presets()?.find((preset) => preset.id === "custom")} saved={saved()}
+          active={props.active !== false && !connecting()} detection={detection} hideDetection={props.welcome}
+          searchRef={(input) => { catalogSearch = input; }} onConnect={connect} />
+      </Show>
+    </Suspense>
+  );
+  const ready = (on: boolean) => on ? <span class="welcome-ready"><IconCheck size={13} />{t("Klar")}</span> : <span class="muted">{t("Ingen modeller")}</span>;
+  const welcomeBody = () => <>
+    <Group>
+      <DefaultModelRow welcome />
+      <For each={app.providers.filter((provider) => !MOCK_PROVIDER(provider))}>{(provider) =>
+        <Row label={provider.name}>
+          <Show when={presetFor(provider)?.keyRequired && !provider.hasKey} fallback={ready(app.models.some((model) => model.providerId === provider.id))}>
+            <span class="muted">{t("Ingen nøkkel satt")}</span>
+          </Show>
+        </Row>
+      }</For>
+      <DetectLocalRow detection={detection} />
+      <For each={detection.detected()}>{(match) =>
+        <Show when={presets.latest?.find((preset) => preset.id === match.presetId)}>{(preset) =>
+          <Row label={preset().name} text={preset().baseUrl}>
+            {ready(match.modelCount > 0)}
+            <Show when={!app.providers.some((provider) => provider.baseUrl === preset().baseUrl)}>
+              <button type="button" class="btn btn-small" aria-label={t("Koble til {name}", { name: preset().name })} onClick={(e) => connect(preset(), e.currentTarget)}>{t("Koble til")}</button>
+            </Show>
+          </Row>
+        }</Show>
+      }</For>
+      <Row label={t("Andre leverandører")}>
+        <button type="button" class="btn btn-small" aria-expanded={catalogOpen()} aria-controls="welcome-provider-catalog" onClick={() => setCatalogOpen(!catalogOpen())}>
+          <IconPlus size={14} />{t("Legg til leverandør")}
+        </button>
+      </Row>
+    </Group>
+    <div id="welcome-provider-catalog" hidden={!catalogOpen()}>
+      <Show when={catalogOpen()}>{catalog()}</Show>
+    </div>
+  </>;
   return (
     <>
       <div hidden={!!connecting()}>
+        <Show when={!props.welcome} fallback={welcomeBody()}>
         <Page title={t("Modeller og leverandører")} intro={t("Velg standardmodell, administrer modellene dine og koble til leverandører på samme sted. Demo-modellen er alltid tilgjengelig uten nettverk.")}>
           <KeyringNote />
           <DictationSettings />
@@ -672,13 +747,9 @@ export function Providers(props: { active?: boolean } = {}) {
               return <ProviderCard provider={provider()} preset={presetFor(provider())} />;
             }}</For>
           </div>
-          <Suspense fallback={<p class="muted" role="status">{t("Henter leverandører…")}</p>}>
-            <Show when={catalogError()}>
-              <div class="provider-catalog-error" role="alert"><span>{t("Kunne ikke hente leverandører: {message}", { message: catalogError() })}</span><button type="button" class="btn btn-small" onClick={() => void refetch()}>{t("Prøv igjen")}</button></div>
-            </Show>
-            <Show when={named().length}><ProviderCatalog presets={named()} custom={presets()?.find((preset) => preset.id === "custom")} saved={saved()} active={props.active !== false && !connecting()} searchRef={(input) => { catalogSearch = input; }} onConnect={connect} /></Show>
-          </Suspense>
+          {catalog()}
         </Page>
+        </Show>
       </div>
       <Show when={connecting()} keyed>{(preset) => <ConnectView preset={preset} active={props.active} onClose={close} />}</Show>
     </>

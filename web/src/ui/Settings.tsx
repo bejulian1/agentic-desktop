@@ -35,6 +35,7 @@ import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
 import { IconPullRequest } from "./GitHubShared";
 import { permissionScope, permissionTitle } from "./permission-copy";
+import { welcomeView } from "../state/welcome";
 import "../styles/settings-polish.css";
 
 const PERMISSIONS = (): Array<{ id: PermissionMode; label: string; text: string; icon: Icon }> => [
@@ -43,7 +44,7 @@ const PERMISSIONS = (): Array<{ id: PermissionMode; label: string; text: string;
   { id: "full", label: t("Full tilgang"), text: t("Filendringer og kommandoer godkjennes automatisk. Beskyttede filer krever fortsatt godkjenning."), icon: IconShieldCheck },
 ];
 
-interface Section { id: string; label: string; icon: Icon; beta?: boolean }
+interface Section { id: string; label: string; icon: Icon }
 
 // Generelt is a gear and Utseende a palette: at 16 px a gear and a sun were two ray circles.
 const APP_SECTIONS = (): Section[] => [
@@ -52,7 +53,7 @@ const APP_SECTIONS = (): Section[] => [
   { id: "chat", label: t("Chat"), icon: IconChat }, // and this one from Chat
   { id: "appearance", label: t("Utseende"), icon: IconPalette },
   { id: "providers", label: t("Modeller og leverandører"), icon: IconCpu },
-  { id: "github", label: t("GitHub"), icon: IconPullRequest, beta: true }, // round 8, agent G
+  { id: "github", label: t("GitHub"), icon: IconPullRequest }, // round 8, agent G
   { id: "usage", label: t("Bruk"), icon: IconGauge },
   { id: "storage", label: t("Lagring"), icon: IconFolder },
   { id: "privacy", label: t("Personvern og data"), icon: IconShieldCheck },
@@ -338,7 +339,7 @@ export default function Settings() {
     page.querySelector<HTMLElement>(".settings-back")?.focus({ preventScroll: true });
     // Esc goes back to where you were, unless something on the page wants it first.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || welcomeView()) return;
       if (document.querySelector("dialog[open]") || page.querySelector(".popover")) return;
       event.preventDefault();
       close();
@@ -376,7 +377,7 @@ export default function Settings() {
   const NavItem = (item: Section) => (
     <Show when={visible(item)}>
       <button type="button" class="nav-item" aria-current={!searching() && section() === item.id ? "page" : undefined} onClick={() => open(item.id)}>
-        <item.icon size={16} /><span>{item.label}</span><Show when={item.beta}><span class="beta-badge nav-beta">{t("Beta")}</span></Show>
+        <item.icon size={16} /><span>{item.label}</span>
       </button>
     </Show>
   );

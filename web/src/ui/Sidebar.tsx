@@ -1,3 +1,4 @@
+import { GitHubNavigation } from "./GitHubNavigation";
 import { language, plural, t } from "../lib/i18n.ts";
 // The sidebar, from the top: the app name, search, notifications and ⋯ in one calm row; Chat and
 // Kode; the navigation (new thread, Artifacts, Skills); Festet, shown only when something is pinned;
@@ -43,7 +44,7 @@ import { threadMenuEntries } from "./ThreadMenu";
 import { hideHoverCard, hoverIn, hoverOut, suppressHoverCards } from "./HoverCard";
 import { openEditProject } from "./dialog-state";
 import { preloadSettings } from "./lazy-views";
-import { chatProjectPageId, closeProfile, openProfile, profileOpen } from "../state/nav";
+import { githubRoom, chatProjectPageId, closeProfile, openProfile, profileOpen } from "../state/nav";
 import { IconInfo, IconKeyboard, IconSun, IconTerminal, IconUser, IconPencil as IconEdit, IconPlusCircle as IconAddRun, IconPin as IconPinned, IconTrash as IconRemove } from "./icons";
 import { homeStats, loadHomeStats, runsFinished } from "../state/home";
 import { formatTokens } from "../lib/format";
@@ -335,7 +336,7 @@ function ProjectGroup(props: { project: Project; threads: Thread[]; activeIds: R
   ];
   const isCollapsed = () => props.headOnly || collapsed().includes(props.project.id);
   const pending = () => props.threads.reduce((sum, t) => sum + waitingCount(t), 0);
-  const selected = () => mode() === "code" && projectId() === props.project.id && !room() && !skillsOpen();
+  const selected = () => mode() === "code" && projectId() === props.project.id && !room() && !skillsOpen() && !githubRoom();
   let head!: HTMLDivElement;
   return (
     <div class="group" data-project={props.project.name}>
@@ -610,7 +611,7 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
   createEffect(() => { if (settingsOpen()) closeMenu(); });
   const key = () => `chat:${props.project.id}`;
   const isCollapsed = () => collapsed().includes(key());
-  const selected = () => mode() === "chat" && chatProjectPageId() === props.project.id && !room() && !skillsOpen() && !profileOpen();
+  const selected = () => mode() === "chat" && chatProjectPageId() === props.project.id && !room() && !skillsOpen() && !githubRoom() && !profileOpen();
   const open = () => {
     if (isCollapsed()) toggleCollapsed(key());
     openChatProject(props.project.id);
@@ -670,7 +671,7 @@ function ChatProjectGroup(props: { project: ChatProject; threads: Thread[]; acti
 // Denne datamaskinen (round 9): Kode threads that have no project folder, at the bottom in Kode.
 function LocalGroup(props: { threads: Thread[]; activeIds: ReadonlySet<string> }) {
   const isCollapsed = () => collapsed().includes(LOCAL_SCOPE);
-  const selected = () => mode() === "code" && projectId() === null && !room() && !skillsOpen();
+  const selected = () => mode() === "code" && projectId() === null && !room() && !skillsOpen() && !githubRoom();
   return (
     <div class="group local-group" data-testid="local-group">
       <div class="group-head" classList={{ active: selected() }}>
@@ -1122,6 +1123,7 @@ export function Sidebar() {
         >
           <IconSettings size={16} /><span class="sr-only">{t("Innstillinger for {mode}", { mode: inChat() ? t("Chat") : t("Kode") })}</span>
         </button>
+        <GitHubNavigation afterPick={afterPick} />
       </div>
       <div class="sidebar-resize" title={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)} />
     </aside>

@@ -25,7 +25,8 @@ import { markSeen, setVisibleCheck } from "../state/home";
 import type { PaneState } from "../state/grid";
 import { room } from "../state/artifacts";
 import { artifactBig, artifactPanel, artifactWidth, closeArtifactPanel } from "../state/artifact-panel";
-import { chatProjectPageId, closeChatProjectPage, closeProfile, loadFavicons, profileOpen } from "../state/nav";
+import { chatProjectPageId, closeChatProjectPage, closeGitHubRoom, closeProfile, githubRoom, loadFavicons, profileOpen } from "../state/nav";
+import { followGitHubMessageLink } from "../state/github";
 import { wireDownloads } from "../state/downloads";
 import { wireServers } from "../state/servers";
 import { on } from "../lib/socket";
@@ -33,6 +34,7 @@ import { SettingsView } from "./lazy-views";
 import { closeSkills, skillsOpen } from "../state/skills-workspace";
 import { studioOpen } from "../state/studio";
 import StudioWorkspace from "../studio/StudioWorkspace";
+import { openWelcome, welcomeView } from "../state/welcome";
 
 const UiModsDialogHost=lazy(()=>import("./UiModsDialog"));
 const ArtifactsRoom = lazy(() => import("./ArtifactsRoom"));
@@ -40,6 +42,8 @@ const ArtifactPanel = lazy(() => import("./ArtifactPanel")); // round 15, the fi
 const ProfilePage = lazy(() => import("./ProfilePage"));
 const SkillsRoom = lazy(() => import("./SkillsRoom"));
 const ChatProjectPage = lazy(() => import("./ChatProjectPage"));
+const GitHubRoom = lazy(() => import("./GitHubRoom"));
+const Welcome = lazy(() => import("./Welcome"));
 
 export function ExpiredScreen() {
   return (
@@ -66,6 +70,7 @@ const Nordlys = lazy(() => import("./Nordlys"));
 function Shortcuts() {
   const [quiet, setQuiet] = createSignal(false);
   const onKey = (event: KeyboardEvent) => {
+    if (welcomeView()) return;
     handleShortcut(event);
     if (!quiet()) onQuietWord(event, () => setQuiet(true));
   };
@@ -79,6 +84,8 @@ function Shortcuts() {
 }
 
 export function App() {
+  document.addEventListener("click", followGitHubMessageLink);
+  onCleanup(() => document.removeEventListener("click", followGitHubMessageLink));
   const [skillsVisited, setSkillsVisited] = createSignal(false);
   createEffect(() => { if (skillsOpen()) setSkillsVisited(true); });
   const chatProjectPage = createMemo(() => mode() === "chat" ? app.chatProjects[chatProjectPageId() ?? ""] : undefined);
@@ -106,7 +113,7 @@ export function App() {
   // A thread that finishes in a pane on screen is not news.
   setVisibleCheck((id) => {
     const key = scope();
-    return !!key && !chatProjectPage() && !room() && !profileOpen() && !skillsOpen() && !settingsOpen() && gridFor(key).panes().some((p) => p.threadId() === id);
+    return !!key && !chatProjectPage() && !room() && !profileOpen() && !skillsOpen() && !githubRoom() && !settingsOpen() && gridFor(key).panes().some((p) => p.threadId() === id);
   });
 
   // A project that is opened is read again, so a folder moved or deleted since shows (SPEC 21.2).
@@ -127,7 +134,7 @@ export function App() {
     if (room()) closeProfile();
     if (room() || profileOpen()) closeSkills();
   });
-  const away = () => !!room() || profileOpen() || skillsOpen();
+  const away = () => !!room() || profileOpen() || skillsOpen() || !!githubRoom();
   // Round 15 (SPEC 31.1): an open artifact has the right side, in Chat and in Kode. In Kode the tool
   // panel steps aside while it is open and comes back when it closes.
   const artifactShown = () => !away() && !chatProjectPage() && !!artifactPanel();
@@ -195,7 +202,7 @@ export function App() {
       class="app"
       classList={{ "sidebar-open": sidebarOpen(), "rail-open": !sidebarOpen() && railEnabled(), "panel-open": panelShown(), "panel-full": panelShown() && panelFull(), "artifact-open": artifactShown(), "artifact-big": artifactShown() && artifactBig() }}
       style={`--sidebar-w:${sidebarWidth()}px;--panel-w:${panelWidth()}px;--artifact-w:${artifactWidth()}px`}
-      inert={!!settingsOpen() || undefined}
+      inert={!!(settingsOpen() || welcomeView()) || undefined}
     >
       <UiModRoot threadId={threadId} mode={mode}/>
       <TopBar />
@@ -232,6 +239,9 @@ export function App() {
         <Show when={profileOpen() && !room()}>
           <Suspense><ProfilePage /></Suspense>
         </Show>
+        <Show when={githubRoom()?.kind} keyed>
+          {kind => <Suspense><GitHubRoom kind={kind} /></Suspense>}
+        </Show>
       </main>
       <Show when={panelShown()}>
         <RightPanel projectId={currentProject()?.id ?? null} threadId={threadId} />
@@ -247,13 +257,14 @@ export function App() {
 // Settings replace the whole window, so they sit beside the app rather than inside it. The app
 // stays mounted underneath, inert, so drafts and scroll positions are there when you come back.
 export function Shell() {
+  if (!app.settings.welcomeDone && !app.providers.some((provider) => provider.kind !== "mock") && !Object.keys(app.threads).length) {
+    openWelcome("welcome");
+  }
   return (
     <>
       <GlobalWallpaper/>
       <App />
-      <Show when={settingsOpen()}>
-        <Suspense><SettingsView /></Suspense>
-      </Show>
+      <SettingsAndWelcome />
       <Show when={modsOpen()}><Suspense><UiModsDialogHost/></Suspense></Show>
       <GlobalLayers />
     </>
@@ -263,9 +274,11 @@ export function Shell() {
 // A detached pane in its own window: the same Pane, without the rest of the app.
 export function SoloApp(props: { threadId: string }) {
   registerSoloWindow(props.threadId);
+  document.addEventListener("click", followGitHubMessageLink);
+  onCleanup(() => document.removeEventListener("click", followGitHubMessageLink));
   const [threadId, setThreadId] = createSignal<string | null>(props.threadId);
   const pane: PaneState = { id: `solo-${props.threadId}`, threadId, setThreadId };
-  const thread = createMemo(() => app.threads[props.threadId]);
+  const thread = createMemo(() => app.threads[threadId() ?? ""]);
   createEffect(() => {
     document.title = windowTitle(thread(), untitled(thread()));
   });
@@ -273,28 +286,47 @@ export function SoloApp(props: { threadId: string }) {
   return (
     <>
     <GlobalWallpaper/>
-    <UiModRoot threadId={()=>props.threadId} mode={()=>thread()?.mode??"chat"}/>
-    <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!settingsOpen() || undefined}>
+    <UiModRoot threadId={threadId} mode={()=>thread()?.mode??"chat"}/>
+    <div class="app solo" classList={{ "artifact-open": !githubRoom() && !!artifactPanel(), "artifact-big": !githubRoom() && !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!(settingsOpen() || welcomeView()) || undefined}>
       <main class="main">
         <OfflineBanner />
-        <div class="grid-area">
+        <div class="grid-area" hidden={!!githubRoom()}>
           <div class="grid-surface">
             <div class="pane" style="left:0;top:0;width:100%;height:100%">
               <Pane pane={pane} grid={null} projectId={thread()?.projectId ?? null} focused solo />
             </div>
           </div>
         </div>
+        <Show when={githubRoom()?.kind} keyed>
+          {kind => <Suspense><GitHubRoom kind={kind} onStart={next => {
+            closeGitHubRoom();
+            setThreadId(next.id);
+            registerSoloWindow(next.id);
+            history.replaceState(null, "", `/?rute=${encodeURIComponent(next.id)}`);
+          }} /></Suspense>}
+        </Show>
       </main>
-      <Show when={artifactPanel()}>
+      <Show when={!githubRoom() && artifactPanel()}>
         <Suspense fallback={<aside class="artifact-panel" aria-busy="true" />}><ArtifactPanel /></Suspense>
       </Show>
     </div>
-    <Show when={settingsOpen()}>
-      <Suspense><SettingsView /></Suspense>
-    </Show>
+    <SettingsAndWelcome />
     <Show when={modsOpen()}><Suspense><UiModsDialogHost/></Suspense></Show>
     <GlobalLayers />
     </>
   );
+}
+
+function SettingsAndWelcome() {
+  return <>
+    <Show when={settingsOpen()}>
+      <div hidden={!!welcomeView()}>
+        <Suspense><SettingsView /></Suspense>
+      </div>
+    </Show>
+    <Show when={welcomeView()} keyed>
+      {(view) => <Suspense fallback={<div class="welcome-window" aria-busy="true" />}><Welcome importOnly={view === "import"} /></Suspense>}
+    </Show>
+  </>;
 }
 

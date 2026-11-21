@@ -76,6 +76,8 @@ export function historyFrom(events: ThreadEventEnvelope[], restoreAttachments?: 
       const attached = event.attachments?.length ? `\n\n[Vedlegg: ${event.attachments.map((a) => a.label).join(", ")}]` : "";
       const restored = event.attachments?.length ? restoreAttachments?.(event.attachments) : undefined;
       order.push({ role: "user", text: `${from}${event.text}${attached}${restored?.text ? `\n\n${restored.text}` : ""}`, ...(restored?.images.length ? { images: restored.images } : {}) });
+    } else if (event.type === "history.answer") {
+      order.push({ role: "assistant", text: event.text });
     } else if (event.type === "text.delta") {
       if (!texts.has(event.messageId)) order.push({ role: "assistant", key: event.messageId });
       texts.set(event.messageId, (texts.get(event.messageId) ?? "") + event.text);
@@ -93,7 +95,7 @@ export function forkAt(store: Store, source: Thread, messageId: string, title: s
   const events = store.events(source.id, 0, Number.MAX_SAFE_INTEGER);
   let cut = -1;
   for (const { seq, event } of events) {
-    if ((event.type === "user.message" || event.type === "text.delta") && event.messageId === messageId) cut = seq;
+    if ((event.type === "user.message" || event.type === "text.delta" || event.type === "history.answer") && event.messageId === messageId) cut = seq;
   }
   if (cut < 0) throw new HttpError(404, "Fant ikke meldingen");
   const kept = events.filter((e) => e.seq <= cut);
