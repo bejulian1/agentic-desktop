@@ -94,6 +94,8 @@ export interface ToolContext {
   memories?: Memories;
   skillStore?: SkillStore;
   autoSkills?: AutoSkills;
+  applySkillEdit?: () => void;
+  suggestMemory?: (text: unknown, evidence: unknown, previous: unknown) => void;
   setPlan?: (text: string) => void;
   maxResultChars?: number; // smaller than MAX_RESULT_CHARS for models with a small context window
   web?: WebAccess; // round 13: web search and pages, when the thread has a way to search
@@ -812,7 +814,7 @@ function memoryApproval(ctx: ToolContext, scope: "global" | "project", title: st
   const mode = effectiveMode(ctx.project, ctx.thread);
   if (mode === "full" || (scope === "project" && mode === "accept-edits")) return undefined;
   const where = scope === "global"
-    ? "Globalt minne. Det gjelder alle prosjekter og settes inn i hver ny tråd, også i Chat."
+    ? "Globalt minne. Det gjelder alle prosjekter og settes inn i nye Kode-tråder."
     : `Minne for prosjektet ${ctx.project.name}, i .agentic/MEMORY.md.`;
   return { title: `${title} (${scope === "global" ? "globalt" : "prosjektet"})`, detail: `${where}\n\n«${text}»` };
 }
@@ -909,6 +911,49 @@ function proposedSkill(input: any): { name: string; description: string; body: s
   return { name, description, body, scope: input.scope === "project" ? "project" : "user" };
 }
 
+export const proposeChatMemory: Tool = {
+  kind: "read",
+  can: "suggest a lasting correction for the user to review",
+  def: {
+    name: "propose_chat_memory",
+    description: "Suggest one durable correction or convention the user taught you this turn. Quote their exact words as evidence. For a correction, copy the old saved note into previous. The user can edit, approve or dismiss after the turn. Skip one-off requests, logs, attachments and secrets.",
+    parameters: schema({ text: str("One short updated fact"), evidence: str("Exact quote from the user's current message"), previous: str("Exact old memory when replacing it") }, ["text", "evidence"]),
+  },
+  summary: () => "Foreslå et Chat-minne",
+  async run(input, ctx) {
+    if (!ctx.suggestMemory) return fail("Minneforslag er slått av.");
+    ctx.suggestMemory(input.text, input.evidence, input.previous);
+    return { text: "Forslaget vises for brukeren etter fullført tur. Det er ikke godkjent ennå." };
+  },
+};
+
+const editSkillTool: Tool = {
+  kind: "read",
+  can: "propose a targeted correction to a saved skill",
+  def: {
+    name: "propose_skill_edit",
+    description: "After checking a correction to an existing procedure, propose replacing one exact passage of an editable skill. Load the skill first. The user reviews the before/after change.",
+    parameters: schema({ name: str("Skill name"), before: str("Unique existing body passage"), after: str("Replacement passage") }, ["name","before","after"]),
+  },
+  summary: input => String(input.name ?? ""),
+  confirm(input, ctx) {
+    const skill = ctx.skills().find(item => item.name === input.name);
+    if (!skill || !ctx.skillStore || ctx.autoSkills === "off") return;
+    try {
+      ctx.applySkillEdit = ctx.skillStore.prepareEdit(skill, ctx.project.id, input.before, input.after);
+      const scope = skill.source === "user" ? "Brukerskill" : "Prosjektskill";
+      return { title: `Endre skillen ${skill.name}?`, detail: `${scope}: ${clip(skill.file, 350)}\n\nFør\n${input.before}\n\nEtter\n${input.after}` };
+    } catch (err) {
+      ctx.applySkillEdit = () => { throw err; };
+    }
+  },
+  async run(_input, ctx) {
+    if (!ctx.applySkillEdit) return fail("Fant ingen redigerbar skill i denne tråden.");
+    ctx.applySkillEdit();
+    return { text: "Den godkjente endringen er lagret i SKILL.md." };
+  },
+};
+
 const proposeSkillTool: Tool = {
   kind: "read",
   can: "save a reusable procedure as a new skill", def: {
@@ -970,6 +1015,7 @@ export const CODE_TOOLS: Tool[] = [
   forgetTool,
   proposeSkillTool,
   requestUserInputTool,
+  editSkillTool,
 ];
 
 export const TOOLS_BY_NAME = new Map(CODE_TOOLS.map((tool) => [tool.def.name, tool]));

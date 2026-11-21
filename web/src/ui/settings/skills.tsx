@@ -145,7 +145,7 @@ export function Skills() {
     <Show when={dragging()}><div class="skills-drop-hint" aria-hidden="true"><IconFolderOpen size={18} />Slipp .md-filer eller mapper for å importere dem som skills</div></Show>
     <Page title="Skills" intro={<>En skill er en mappe med en <code>SKILL.md</code>: navn, beskrivelse og instruksjoner. Agenten ser navnet og beskrivelsen, og leser resten når den trenger det.</>}>
       <Group title="Skills fra agenten">
-        <Row label="Når agenten foreslår en skill" text="Etter en oppgave den kan få bruk for igjen, kan agenten lagre fremgangsmåten som en skill. Skills fra agenten merkes «Laget av agenten».">
+        <Row label="Når agenten foreslår en skill" text="Etter en oppgave den kan få bruk for igjen, kan agenten lagre fremgangsmåten som en skill. Endringer i en eksisterende skill viser før og etter og krever godkjenning.">
           <Choice<AutoSkills>
             label="Når agenten foreslår en skill"
             value={app.settings.autoSkills ?? "ask"}

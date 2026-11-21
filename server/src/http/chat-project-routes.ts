@@ -60,6 +60,21 @@ export function chatProjectRoutes(route: Route, deps: ApiDeps): void {
     return project;
   };
 
+  const threadForReview = (id: string) => {
+    const thread = store.thread(id);
+    if (!thread || thread.mode !== "chat") throw new HttpError(404, "Fant ikke samtalen");
+    return thread;
+  };
+  route("GET", "/api/threads/:id/memory-proposals", ({ params }) => runner.memoryReview(threadForReview(params.id)));
+  route("POST", "/api/threads/:id/memory-proposals/:proposalId", ({ params, body }) => {
+    const thread = threadForReview(params.id);
+    if (body.action !== "dismiss" && body.action !== "apply") throw new HttpError(400, "Velg godkjenn eller avvis");
+    runner.resolveMemoryReview(thread, params.proposalId, body.action, body.text, body.previousId, body.previousText);
+    store.touchThread(thread.id);
+    threadChanged(thread.id);
+    return runner.memoryReview(thread);
+  });
+
   route("GET", "/api/chat-projects", () => store.chatProjects());
   route("GET", "/api/chat-projects/:id", ({ params }) => projectFor(params.id));
   route("POST", "/api/chat-projects", ({ body }) => {

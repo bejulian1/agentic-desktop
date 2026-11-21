@@ -1534,3 +1534,16 @@ export interface SessionInfo {
 // GET    /api/threads/:id/session                     SessionInfo
 // POST   /api/threads/:id/session/stop  { taskId }    stops a running task of the thread
 
+
+export interface ChatMemoryProposal {
+  id: string;
+  text: string;
+  previousId: string | null;
+  previousText: string | null;
+}
+
+export interface ChatMemoryReview {
+  scope: string;
+  proposals: ChatMemoryProposal[];
+  memories: ChatProjectMemory[];
+}

@@ -342,6 +342,36 @@ export class SkillStore {
     return this.detail(id);
   }
 
+  prepareEdit(skill: Skill, projectId: string, before: unknown, after: unknown): () => void {
+    if (skill.source === "app" || skill.outside || !skill.folder) throw new HttpError(403, "Velg en redigerbar bruker- eller prosjektskill.");
+    if (typeof before !== "string" || !before.trim() || typeof after !== "string" || before === after ||
+        Math.max(before.length, after.length) > 1200 || looksSecret(before) || looksSecret(after)) {
+      throw new HttpError(400, "Velg én kort tekstendring uten hemmeligheter.");
+    }
+    const id = skill.source === "user" ? `u:${skill.folder}` : `p:${projectId}:${skill.rootIndex}:${skill.folder}`;
+    const at = this.locate(id);
+    const source = lstatSync(at.file);
+    if (!source.isFile() || at.file !== skill.file) throw new HttpError(409, "Skillen er flyttet eller kan ikke redigeres.");
+    const original = readFileSync(at.file, "utf8");
+    const header = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(original)?.[0];
+    if (!header) throw new HttpError(409, "Skillens metadata er endret.");
+    const body = original.slice(header.length);
+    const newline = original.includes("\r\n") ? "\r\n" : "\n";
+    const needle = before.replace(/\r?\n/g, newline);
+    const position = body.indexOf(needle);
+    if (position < 0 || position !== body.lastIndexOf(needle)) throw new HttpError(409, "Den gamle teksten må finnes nøyaktig én gang i skillen.");
+    const updated = body.slice(0, position) + after.replace(/\r?\n/g, newline) + body.slice(position + needle.length);
+    checkSkillInput({name: skill.name, description: skill.description, body: updated});
+    return () => {
+      const current = this.locate(id);
+      const stat = lstatSync(current.file);
+      if (current.file !== at.file || !stat.isFile() || stat.dev !== source.dev || stat.ino !== source.ino || this.host.disabled().includes(current.dir) || readFileSync(current.file, "utf8") !== original) {
+        throw new HttpError(409, "Skillen er endret eller deaktivert. Les den på nytt.");
+      }
+      writeSkill(current, header + updated);
+    };
+  }
+
   private assertWritable(id: string): void {
     if (id.startsWith("a:")) throw new HttpError(403, "Appens skills kan bare leses. Lag en egen skill i prosjektet for å overstyre den.");
   }

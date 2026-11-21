@@ -606,3 +606,8 @@ button.pinned-item:hover { background: var(--hover); color: var(--text); }
 .message-receipt { display: flex; align-items: center; gap: 5px; align-self: flex-end; margin-top: 4px; color: var(--text-3); font-size: var(--text-xs); }
 .message-receipt[data-status="received"] { color: var(--accent-text); }
 .message-receipt[data-status="blocked"], .message-receipt[data-status="unsent"] { color: var(--warn); }
+
+.memory-review { width: calc(100% - 40px); max-width: calc(var(--content-max) - 40px); margin: 12px auto; padding: 14px 16px; display: grid; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); }
+.memory-review p { margin: 3px 0; overflow-wrap: anywhere; }
+.memory-review select { max-width: 100%; }
+.memory-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }

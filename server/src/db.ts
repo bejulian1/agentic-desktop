@@ -14,6 +14,7 @@ import type {
   ChatProject,
   ChatProjectMemory,
   ChatProjectMemoryMode,
+  ChatMemoryProposal,
   ChatTools,
   ChangedFile,
   SummaryTurnChanges,
@@ -59,6 +60,10 @@ CREATE TABLE IF NOT EXISTS threads (
   title TEXT NOT NULL, model_id TEXT, archived INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, usage TEXT,
   parent_thread_id TEXT, origin TEXT NOT NULL DEFAULT 'user', permission_cap TEXT);
+CREATE TABLE IF NOT EXISTS chat_memory_proposals (
+  id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+  context TEXT NOT NULL, text TEXT NOT NULL, previous_id TEXT, previous_text TEXT,
+  UNIQUE(thread_id, context, text));
 CREATE TABLE IF NOT EXISTS events (
   thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE, seq INTEGER NOT NULL,
   at INTEGER NOT NULL, event TEXT NOT NULL, PRIMARY KEY (thread_id, seq)) WITHOUT ROWID;
@@ -250,6 +255,15 @@ export class Store {
       this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
       this.db.exec(SCHEMA);
       this.migrate();
+      this.db.exec(`
+        CREATE TRIGGER IF NOT EXISTS discard_thread_memory_proposals AFTER UPDATE OF chat_context_revision ON threads
+        WHEN NEW.chat_context_revision <> OLD.chat_context_revision BEGIN
+          DELETE FROM chat_memory_proposals WHERE thread_id = NEW.id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS discard_project_memory_proposals AFTER UPDATE OF context_revision ON chat_projects
+        WHEN NEW.context_revision <> OLD.context_revision BEGIN
+          DELETE FROM chat_memory_proposals WHERE thread_id IN (SELECT id FROM threads WHERE chat_project_id = NEW.id);
+        END;`);
       this.q(`INSERT OR IGNORE INTO providers (id, kind, name) VALUES (?, 'mock', 'Demo')`).run(MOCK_PROVIDER_ID);
       this.q(`INSERT OR IGNORE INTO models (id, provider_id, name, model, context_window) VALUES (?, ?, 'Demo-modell (uten API)', 'mock', 200000)`)
         .run(MOCK_MODEL_ID, MOCK_PROVIDER_ID);
@@ -509,6 +523,21 @@ export class Store {
 
   setChatHistoryScope(threadId: string, scope: string): void {
     this.q("UPDATE threads SET chat_history_scope = ? WHERE id = ?").run(scope, threadId);
+  }
+
+  memoryProposals(threadId: string, context: string): ChatMemoryProposal[] {
+    return this.q("SELECT id, text, previous_id AS previousId, previous_text AS previousText FROM chat_memory_proposals WHERE thread_id = ? AND context = ? ORDER BY rowid").all(threadId, context) as unknown as ChatMemoryProposal[];
+  }
+
+  proposeMemory(threadId: string, context: string, text: string, old?: ChatProjectMemory): void {
+    this.q("DELETE FROM chat_memory_proposals WHERE thread_id = ? AND context <> ?").run(threadId, context);
+    if (this.memoryProposals(threadId, context).length >= 5) return;
+    this.q("INSERT OR IGNORE INTO chat_memory_proposals (id, thread_id, context, text, previous_id, previous_text) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(randomUUID(), threadId, context, text, old?.id ?? null, old?.text ?? null);
+  }
+
+  dismissMemoryProposal(threadId: string, id: string): void {
+    this.q("DELETE FROM chat_memory_proposals WHERE thread_id = ? AND id = ?").run(threadId, id);
   }
 
   chatProjectMemories(projectId: string): ChatProjectMemory[] {

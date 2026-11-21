@@ -51,6 +51,8 @@ For lokale modellservere bidro GPT 6.2 Sol med serverprofiler, oppdagelse av mod
 
 Codex implementerte modellsøk, godkjenning av leverandørbytte ved delegering og visning av tildelt modell på underagentkortene.
 
+Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrettede skill-endringer med godkjenning.
+
 ## Gemini – Google
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.

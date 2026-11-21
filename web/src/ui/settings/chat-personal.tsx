@@ -192,7 +192,7 @@ export function ChatPersonalSettings() {
           />
           <Toggle
             label="Oppdater minnet av seg selv"
-            text="Når du ber Chat huske noe, eller forteller hva du heter eller foretrekker, lagres det her. Nøkler, tokens og passord lagres aldri, og midlertidige chatter huskes ikke."
+            text="Chat kan lagre navn og uttalte preferanser. Varige rettelser vises i samtalen for gjennomgang. Midlertidige chatter er unntatt."
             checked={state()!.personal.autoMemory}
             onChange={(autoMemory) => void setPersonal({ autoMemory })}
           />

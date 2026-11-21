@@ -196,7 +196,7 @@ GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API com
 
 GPT 6.2 Astra implemented [dictation](docs/diktering.md) and [scheduled tasks](docs/planlagte-oppgaver.md) and removed nonfunctional controls.
 
-Codex also contributed inline charts and [model selection for Code helpers](docs/MODELLDELEGERING.md).
+Codex also contributed inline charts, [model selection for Code helpers](docs/MODELLDELEGERING.md), and [reviewable memory and skill suggestions](docs/MINNEFORSLAG.md).
 
 Crediting AI models describes development assistance only and implies no official endorsement or affiliation with Anthropic, OpenAI, or Google.
 

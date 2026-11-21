@@ -18,6 +18,7 @@ import { openThread } from "../state/navigate";
 import { registerJumper } from "../state/message-jump";
 import { confirmDialog, promptDialog } from "./dialogs";
 import type { Thread } from "../../../shared/protocol";
+import { MemoryReview } from "./MemoryReview";
 import { ResponseSelection } from "./ResponseSelection";
 
 // The pinned summary jumps to a chapter in the conversation of its pane (state/message-jump.ts).
@@ -753,6 +754,9 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
           <Show when={thread()?.forkedFrom && !forkStart() && props.model.chunks().length}><div class="row fork-end"><ForkDivider /></div></Show>
           <Show when={nowLine()}>{(activity) => <NowLine activity={activity()} onThread={props.onThread} />}</Show>
           <Show when={props.model.retry()} keyed>{(retry) => <RetryLine retry={retry} />}</Show>
+          <Show when={thread()?.mode === "chat" && !thread()?.temporary && thread()?.id} keyed>
+            {id => <MemoryReview threadId={id} updated={thread()!.updatedAt} running={thread()!.running} />}
+          </Show>
           <div ref={bottom} class="scroll-bottom" />
         </div>
       </div>

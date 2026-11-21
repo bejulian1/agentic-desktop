@@ -18,6 +18,7 @@ import type {
   AttachmentRef,
   ChatProject,
   ChatProjectMemory,
+  ChatMemoryReview,
   ModelConfig,
   Project,
   RunStatus,
@@ -32,7 +33,7 @@ import { LOCAL_PANEL, PathError } from "../paths.ts";
 import { ProviderError, type Block, type ImageData, type Message, type Provider, type StopReason, type ToolDef } from "../providers/types.ts";
 import { MAX_ATTACHMENTS, DEFAULT_MAX_STEPS_PER_TURN, agentSettingsOf, modelContextOf } from "../../../shared/protocol.ts";
 import { discoverSkills, renderSkill, SkillChanges, SkillStore, PROJECT_DIRS, type Skill } from "../skills.ts";
-import { captureMemories, cleanMemory, looksSecret, MAX_MEMORIES, memoryId, Memories } from "../memory.ts";
+import { correctionIn, relatedMemory, temporaryNote, captureMemories, cleanMemory, looksSecret, MAX_MEMORIES, memoryId, Memories } from "../memory.ts";
 import { HarnessStore, type UpgradeOp, type UpgradeProposal } from "./harness.ts";
 import { parseModelOps, proposeByRules, UPGRADE_SYSTEM, upgradeRequest, type UpgradeItem } from "./memory-upgrade.ts";
 import { coerceArgs, describeParams, resolveToolName } from "./args.ts";
@@ -60,7 +61,7 @@ import {
 import type { EventLog } from "./events.ts";
 import { FileState } from "./filestate.ts";
 import { decide, effectiveMode } from "./permissions.ts";
-import { abilities, CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
+import { abilities, CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, proposeChatMemory, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
 import { browserWeb, demoWeb, sourcesText, webFetchTool, webSearchTool, type WebAccess, type WebReader } from "./web.ts";
 import { chatToolsOf, modelAllowsTools, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
 import { localKindFor } from "../providers/presets.ts";
@@ -80,7 +81,7 @@ const MAX_OUTPUT_EVENT_CHARS = 1024 * 1024;
 const DOOM_LIMIT = 3;
 const MISTAKE_HINT_AT = 3; // invalid calls in a row before the error says to step back
 const MAX_CUT_CALLS = 2; // tool calls cut off by the output limit before the run stops
-const EDIT_TOOLS = new Set(["write_file", "edit_file"]);
+const EDIT_TOOLS = new Set(["write_file", "edit_file", "delete_file"]);
 // Files where a change is not worth a test run.
 const PROSE = /\.(md|markdown|mdx|txt|rst|adoc|csv|log|svg|png|jpe?g|gif|webp|ico)$/i;
 
@@ -138,6 +139,7 @@ interface ActiveRun {
   job: Job;
   pendingReceipts: string[]; // accepted messages awaiting a substantive provider response
   skillInstructions: string[];
+  suggestedMemory?: { text: string; sourceIndex: number; previous?: ChatProjectMemory };
   chatMemoryTexts: string[] | null; // accepted user messages actually consumed by this Chat turn
   contextKey: string;
   abort: AbortController;
@@ -616,7 +618,8 @@ export class Runner {
     if (!this.codeWeb(thread, model)) hidden.add("web_search");
     if (!skills.some((skill) => skill.mode !== "chat")) hidden.add("use_skill");
     if (!this.memoriesOn()) hidden.add("remember").add("forget");
-    if (this.autoSkills() === "off") hidden.add("propose_skill");
+    if (!skills.some(skill => skill.source !== "app" && !skill.outside && skill.mode !== "chat")) hidden.add("propose_skill_edit");
+    if (this.autoSkills() === "off") hidden.add("propose_skill").add("propose_skill_edit");
     if (thread.planMode) hidden.add("update_plan"); // plan mode answers with its plan as text
     // Denne datamaskinen is not a project in the store: no helper threads, task list or browser tab.
     if (project.id === LOCAL_PANEL) for (const tool of CODE_TOOLS) if (/^(?:thread_|task_|browser_)/.test(tool.def.name)) hidden.add(tool.def.name);
@@ -667,6 +670,7 @@ export class Runner {
     const tools = this.chatTools(thread);
     if (!tools) return [];
     const out: Tool[] = this.modTools(thread);
+    if (this.canSuggestMemory(thread)) out.push(proposeChatMemory);
     if (this.chatSkills(!!thread.chatProjectId).length) out.push(useSkillTool);
     const route = tools.web ? this.webRoute(thread, model) : null;
     if (route === "browser" || route === "demo") out.push(webSearchTool);
@@ -674,6 +678,76 @@ export class Runner {
     if (this.deps.chatWorkspace) out.push(...chatFileTools(this.deps.chatWorkspace, tools.documents, tools.python && this.deps.chatWorkspace.status().available));
     out.push(...this.mcpTools(thread), requestUserInputTool);
     return out;
+  }
+
+  private canSuggestMemory(thread: Thread): boolean {
+    if (thread.mode !== "chat" || thread.temporary || thread.projectId || this.chatTools(thread)?.memory === false) return false;
+    const project = this.chatProjectFor(thread);
+    if (thread.chatProjectId) return !!project?.autoMemory;
+    const personal = this.harness.state().chat;
+    return personal.autoMemory && personal.memories;
+  }
+
+  private reviewMemories(thread: Thread): ChatProjectMemory[] {
+    const project = this.chatProjectFor(thread);
+    return project ? this.chatProjectMemoryItems(project) : this.chatMemories.list("global").filter(item => !item.flagged);
+  }
+
+  memoryReview(thread: Thread): ChatMemoryReview {
+    const project = this.chatProjectFor(thread);
+    const scope = project?.memoryMode === "project" ? `Prosjektet ${project.name}` : "Alle samtaler med globale Chat-minner";
+    const proposals = !thread.archived && this.canSuggestMemory(thread) ? this.store.memoryProposals(thread.id, this.contextKey(thread)) : [];
+    return { scope, proposals, memories: proposals.length ? this.reviewMemories(thread) : [] };
+  }
+
+  resolveMemoryReview(thread: Thread, id: string, action: "apply" | "dismiss", text: unknown, previousId: unknown, previousText: unknown): void {
+    if (thread.running) throw new HttpError(409, "Vent til samtalen er ferdig før du behandler minneforslaget.");
+    const review = this.memoryReview(thread);
+    if (!review.proposals.some(p => p.id === id)) throw new HttpError(409, "Forslaget er utløpt eller behandlet.");
+    if (action === "apply") {
+      if (previousId !== null && (typeof previousId !== "string" || typeof previousText !== "string" || !review.memories.some(m => m.id === previousId && m.text === previousText))) {
+        throw new HttpError(409, "Det gamle minnet er endret. Velg på nytt hvilket minne som skal erstattes under Rediger.");
+      }
+      const updated = cleanMemory(text);
+      const project = this.chatProjectFor(thread);
+      if (project) this.saveChatProjectMemory(project, updated, previousId ?? undefined);
+      else if (typeof previousId === "string") this.chatMemories.update("global", undefined, previousId, updated);
+      else this.chatMemories.add("global", undefined, updated);
+    }
+    this.store.dismissMemoryProposal(thread.id, id);
+  }
+
+  private collectChatMemories(thread: Thread, active: ActiveRun): void {
+    const project = this.chatProjectFor(thread);
+    const items = this.reviewMemories(thread);
+    const messages = active.chatMemoryTexts ?? [];
+    const proposal = active.suggestedMemory?.sourceIndex === messages.length - 1 ? active.suggestedMemory : undefined;
+    const queue = (text: string, previous?: ChatProjectMemory) => {
+      if ((!previous || items.some(item => item.id === previous.id && item.text === previous.text)) && !items.some(item => item.text.toLowerCase() === text.toLowerCase())) {
+        this.store.proposeMemory(thread.id, active.contextKey, text, previous);
+      }
+    };
+    const related = (text: string) => {
+      const id = relatedMemory(text, items);
+      return items.find(item => item.id === id);
+    };
+    for (const [index, message] of messages.entries()) {
+      if (proposal?.sourceIndex === index) {
+        queue(proposal.text, proposal.previous ?? related(proposal.text));
+        continue;
+      }
+      const correction = correctionIn(message);
+      if (correction) {
+        queue(correction, related(correction));
+        continue;
+      }
+      for (const text of captureMemories(message)) {
+        const previous = related(text);
+        if (previous) queue(text, previous);
+        else if (project) this.saveChatProjectMemory(project, text);
+        else this.chatMemories.add("global", undefined, text);
+      }
+    }
   }
 
   private chatProjectFor(thread: Thread): ChatProject | undefined {
@@ -770,9 +844,10 @@ export class Runner {
       }).join("\n");
     }
     if (chat ? !this.harness.state().chat.memories || this.chatTools(thread)?.memory === false : !this.memoriesOn()) return "";
+    if (chat) return this.chatMemories.forPrompt(undefined).replace(/^About the user, for every project:\n/, "");
     let text = this.memorySnapshots.get(thread.id);
     if (text === undefined) {
-      text = chat ? this.chatMemories.forPrompt(undefined).replace(/^About the user, for every project:\n/, "") : this.memories.forPrompt(project);
+      text = this.memories.forPrompt(project);
       if (keep) this.memorySnapshots.set(thread.id, text);
     }
     return text;
@@ -1029,20 +1104,19 @@ export class Runner {
   // are cheap rules, and neither may stop anything.
   private afterTurn(thread: Thread, active: ActiveRun): void {
     try {
+      if (active.promptBlocked || thread.archived) return;
       this.assertRunContext(active);
       const project = this.projectOf(thread);
       const state = this.harness.state();
       const chatProject = this.chatProjectFor(thread);
-      const texts = active.chatMemoryTexts ?? [];
-      if (chatProject) {
-        if (chatProject.autoMemory && !thread.temporary && this.chatTools(thread)?.memory !== false) {
-          for (const text of texts) for (const memory of captureMemories(text)) this.saveChatProjectMemory(chatProject, memory);
+      if (this.canSuggestMemory(thread)) this.collectChatMemories(thread, active);
+      else if (this.isChat(thread, project) && !thread.temporary && !chatProject && state.chat.autoMemory && this.chatTools(thread)?.memory !== false) {
+        // Capture and use are independent personal settings. No old private notes are shown here.
+        for (const message of active.chatMemoryTexts ?? []) {
+          for (const text of captureMemories(message)) this.chatMemories.add("global", undefined, text);
         }
-        return; // global memory upgrade/personalisation never runs for a Chat project
       }
-      if (this.isChat(thread, project) && state.chat.autoMemory && !thread.temporary && this.chatTools(thread)?.memory !== false) {
-        for (const text of texts) for (const memory of captureMemories(text)) this.chatMemories.add("global", undefined, memory);
-      }
+      if (chatProject) return;
       // Memory upgrades are proposed per stored project; Denne datamaskinen has only the global ones.
       const stored = project && project.id !== LOCAL_PANEL ? project : undefined;
       if ((this.isChat(thread, project) || stored) && state.autoUpgrade && (state.lastUpgradeAt === null || Date.now() - state.lastUpgradeAt > AUTO_UPGRADE_EVERY_MS)) {
@@ -1228,8 +1302,10 @@ export class Runner {
     // Round 13 (SPEC 27.2): a chat with Nettsøk on, on a model with its own web search.
     const chat = this.isChat(thread, project);
     const webSearch = chat && this.chatTools(thread)?.web === true && this.webRoute(thread, model) === "provider";
-    const edited = new Set<string>(); // code files changed since the last command
-    let nudged = false;
+    const edited = new Set<string>();
+    const failedChecks = new Map<string, Set<string>>();
+    let needsCheck = false;
+    const nudges = new Set<"missing" | "failed">();
     let cutCalls = 0;
 
     for (let step = 0; step < maxStepsPerTurn; step++) {
@@ -1273,14 +1349,16 @@ export class Runner {
         if (await this.takeSteered(active)) continue;
         // Code changed and nothing run since: ask once for a check, when the project has one.
         const changed = [...edited].filter((file) => !PROSE.test(file));
-        if (!nudged && checks.length && changed.length && offered.has("run_command") && this.harness.state().parts.verify !== false) {
-          nudged = true;
+        const issue = failedChecks.size ? "failed" : "missing";
+        if ((needsCheck || failedChecks.size) && !nudges.has(issue) && step + 1 < maxStepsPerTurn && checks.length && changed.length && offered.has("run_command") && this.harness.state().parts.verify !== false) {
+          nudges.add(issue);
+          const state = failedChecks.size ? `Checks still failing: ${[...failedChecks.keys()].join(", ")}.` : "No successful project check has been recorded since the change.";
           this.store.appendMessage(threadId, {
             role: "user",
             content: [{
               type: "text",
-              text: `[Automatic reminder from Agentic Desktop, not from the user] You changed ${changed.slice(0, 5).join(", ")}${changed.length > 5 ? " and more" : ""} but ran nothing after. ` +
-                `Run the relevant check now (${checks.map((c) => `\`${c}\``).join(", ")}) and fix what fails, then give your summary again. If no check applies to this change, say so in one sentence.`,
+              text: `[Automatic reminder from Agentic Desktop, not from the user] You changed ${changed.slice(0, 5).join(", ")}${changed.length > 5 ? " and more" : ""}. ${state} ` +
+                `Run the relevant check now (${checks.map((c) => `\`${c}\``).join(", ")}) and fix what fails, or report the failed or unverified check explicitly. If you used a different relevant test, report its actual result.`,
             }],
           });
           continue;
@@ -1315,8 +1393,26 @@ export class Runner {
             content: [{ type: "tool_result", toolUseId: call.id, content: result.text, isError: result.isError, image: result.image }],
           });
           const name = this.toolName(call.name);
-          if (status === "done" && name && EDIT_TOOLS.has(name) && typeof (call.input as any)?.path === "string") edited.add((call.input as any).path);
-          if (name === "run_command" && (status === "done" || status === "error")) edited.clear();
+          const input = call.input as { path?: string; command?: string };
+          if (status === "done" && name && EDIT_TOOLS.has(name) && typeof input?.path === "string" && !PROSE.test(input.path)) {
+            edited.add(input.path);
+            needsCheck = true;
+          }
+          if (name === "run_command" && edited.size && typeof input?.command === "string") {
+            const command = input.command.trim();
+            // Exact project checks or an AND-chain of them. A shell fallback can mask failure.
+            const commands = command.split(/\s*&&\s*/);
+            if (commands.every(part => checks.includes(part))) {
+              if (status === "error") failedChecks.set(command, new Set(commands));
+              if (status === "done") {
+                for (const [failed, remaining] of failedChecks) {
+                  for (const part of commands) remaining.delete(part);
+                  if (!remaining.size) failedChecks.delete(failed);
+                }
+                needsCheck = false;
+              }
+            }
+          }
         });
         if (group.some((call) => this.toolName(call.name) === "request_user_input") && this.hasUserSteering(threadId)) {
           for (const call of calls.slice(j)) this.addToolResult(threadId, call.id, "Ikke kjørt: brukeren styrte turen. Vurder meldingen før du prøver igjen.", true);
@@ -1669,6 +1765,11 @@ export class Runner {
     }
     if (selected && this.hasUserSteering(threadId)) return finish("denied", { text: "Hjelperen ble ikke startet: brukeren styrte turen. Vurder den nye meldingen først.", isError: true });
     if (selected && destination(this.store.model(selected.id)) !== target) return finish("error", { text: "Modellen eller leverandøren er endret. Velg modell på nytt.", isError: true });
+    if (call.name === "propose_skill_edit") {
+      if (currentThread.archived || currentThread.planMode || this.autoSkills() === "off" || this.hasUserSteering(threadId)) {
+        return finish("denied", { text: "Skillen ble ikke endret. Turen, innstillingene eller brukerens instruksjoner har endret seg.", isError: true });
+      }
+    }
 
     try {
       // run_command stops itself and kills its group. Other tools, such as a page that never
@@ -1699,8 +1800,21 @@ export class Runner {
     const tool = (thread.mode === "chat" ? this.chatToolDefs(thread) : [requestUserInputTool,...this.modTools(thread)]).find((t) => t.def.name === call.name && offered.has(t.def.name));
     const input = tool && call.input && typeof call.input === "object" && !Array.isArray(call.input) ? coerceArgs(call.input, tool.def.parameters) : call.input;
     const web = call.name === "web_search" ? this.webAccess(this.webRoute(thread)) : this.deps.web ? browserWeb(this.deps.web, undefined) : undefined;
+    const suggestMemory = (raw: unknown, evidence: unknown, previous: unknown) => {
+      const text = cleanMemory(raw);
+      const sourceIndex = (active.chatMemoryTexts?.length ?? 0) - 1;
+      const message = typeof evidence === "string" && evidence.trim().length >= 4
+        && active.chatMemoryTexts?.[sourceIndex];
+      const current = this.store.thread(threadId);
+      if (!message || !message.includes(evidence as string) || looksSecret(message) || temporaryNote(message) || temporaryNote(text) || !current || !this.canSuggestMemory(current)) {
+        throw new Error("Forslaget må bygge på en varig rettelse i brukerens egen melding.");
+      }
+      const old = previous ? this.reviewMemories(current).find(item => item.text === previous) : undefined;
+      if (previous && !old) throw new Error("Det gamle minnet finnes ikke i denne samtalens minneområde.");
+      active.suggestedMemory = { text, sourceIndex, previous: old };
+    };
     const ctx = {
-      thread, runId, signal: abort.signal, output: this.outputWriter(active, call.id), web,
+      thread, runId, suggestMemory, signal: abort.signal, output: this.outputWriter(active, call.id), web,
       skills: () => this.chatSkills(!!thread.chatProjectId), maxResultChars: resultBudget(this.resolveModelSafe(thread)),
       requestUserInput: (input: unknown) => {
         if (this.hasUserSteering(threadId)) return Promise.resolve({ cancelled: true, answers: [] });

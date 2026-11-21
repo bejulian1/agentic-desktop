@@ -607,7 +607,7 @@ function toolGroups(tools: string[]): Array<[string, string[]]> {
     ["Kommandoer", (n) => n === "run_command"],
     ["Nett og nettleser", (n) => n.startsWith("browser_") || n.startsWith("web_")],
     ["Tråder og team", (n) => n.startsWith("thread_") || n.startsWith("task_")],
-    ["Plan, minner og skills", (n) => ["update_plan", "remember", "forget", "propose_skill", "use_skill"].includes(n)],
+    ["Plan, minner og skills", (n) => ["update_plan", "remember", "forget", "propose_skill", "propose_skill_edit", "propose_chat_memory", "use_skill"].includes(n)],
   ];
   const out: Array<[string, string[]]> = groups.map(([name, test]) => [name, tools.filter(test)]);
   const rest = tools.filter((t) => !groups.some(([, test]) => test(t)));

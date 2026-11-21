@@ -119,22 +119,45 @@ export function looksSecret(text: string): boolean {
 // or said about themselves, in the message they sent. Plain rules, so it works without a key and
 // never guesses. Each is one short sentence; anything that looks like a secret is left out.
 const CAPTURE: Array<[RegExp, (m: RegExpExecArray) => string]> = [
-  [/(?:^|[.!?]\s+)husk(?: på)?(?: at)?[:,]?\s+([^.!?\n]{4,200})/iu, (m) => m[1]],
-  [/(?:^|[.!?]\s+)remember(?: that)?[:,]?\s+([^.!?\n]{4,200})/iu, (m) => m[1]],
+  [/(?:^|[.!?]\s+)husk(?: på)?(?: at)?[:,]?\s+([^\n]+)/iu, (m) => m[1]],
+  [/(?:^|[.!?]\s+)remember(?: that)?[:,]?\s+([^\n]+)/iu, (m) => m[1]],
   [/\b(?:[Jj]eg heter|[Mm]itt navn er)\s+(\p{Lu}[\p{L}-]*(?:\s+\p{Lu}[\p{L}-]*){0,2})/u, (m) => `Brukeren heter ${m[1]}`],
   [/\b[Kk]all meg\s+(\p{L}[\p{L}-]*(?:\s+\p{Lu}[\p{L}-]*){0,2})/u, (m) => `Brukeren vil kalles ${m[1]}`],
   [/\b[Mm]y name is\s+(\p{Lu}[\p{L}-]*(?:\s+\p{Lu}[\p{L}-]*){0,2})/u, (m) => `The user's name is ${m[1]}`],
-  [/\bjeg (foretrekker|liker best|vil helst ha)\s+([^.!?\n]{3,160})/iu, (m) => `Brukeren ${m[1].toLowerCase()} ${m[2]}`],
-  [/\bI (?:prefer|always want)\s+([^.!?\n]{3,160})/u, (m) => `The user prefers ${m[1]}`],
+  [/\bjeg (foretrekker|liker best|vil helst ha)\s+([^\n]+)/iu, (m) => `Brukeren ${m[1].toLowerCase()} ${m[2]}`],
+  [/\bI (?:prefer|always want)\s+([^\n]+)/u, (m) => `The user prefers ${m[1]}`],
 ];
 
+// A dot in a path, hostname or version is not a sentence boundary.
+function sentence(text: string): string {
+  return text.trim().split(/[.!?]+(?:\s|$)/u, 1)[0].trim();
+}
+
+export function temporaryNote(text: string): boolean {
+  return /(?<![\p{L}\p{N}])(?:akkurat nå|i dag|denne gangen|denne oppgaven|midlertidig|right now|today|this time|for this (?:task|session)|temporarily|for now)(?![\p{L}\p{N}])/iu.test(text);
+}
+
+export function correctionIn(message: string): string | undefined {
+  const match = /^(?:nei|rettelse|korrigering|no|correction)[,:!.\s]+((?:bruk|husk|kjør|lagre|skriv|use|run|save|write|vi bruker|we use)\s+[^\n]+)/iu.exec(message.trim());
+  if (!match || looksSecret(message) || temporaryNote(message)) return;
+  try { return cleanMemory(sentence(match[1])); } catch { return; }
+}
+
+// Only preselect an unambiguous old note. The user may choose a different one.
+export function relatedMemory(text: string, items: Array<{id: string; text: string}>): string | undefined {
+  const topics = [/\b(?:npm|pnpm|yarn|bun)\b/i, /\b(?:heter|kalles|name is)\b/i];
+  const matches = items.filter(item => topics.some(topic => topic.test(text) && topic.test(item.text)));
+  return matches.length === 1 ? matches[0].id : undefined;
+}
+
 export function captureMemories(message: string): string[] {
+  if (looksSecret(message) || temporaryNote(message)) return [];
   const out: string[] = [];
   for (const [pattern, render] of CAPTURE) {
     const match = pattern.exec(message);
     if (!match) continue;
     try {
-      const text = cleanMemory(render(match).trim().replace(/^\p{Ll}/u, (c) => c.toLocaleUpperCase("nb")));
+      const text = cleanMemory(sentence(render(match)).replace(/^\p{Ll}/u, (c) => c.toLocaleUpperCase("nb")));
       if (!out.some((o) => o.toLowerCase() === text.toLowerCase())) out.push(text);
     } catch {
       // Too long, empty or a secret: not remembered.

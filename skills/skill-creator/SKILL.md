@@ -45,6 +45,8 @@ Use the `propose_skill` tool with `name`, `description`, `instructions` (the bod
 
 If `propose_skill` is not offered, the user has turned skills from the agent off. Describe the skill in your answer instead; do not write the file another way.
 
+When a verified correction changes an existing user or project procedure, load the skill and use `propose_skill_edit` with the smallest unique old passage and its replacement. The user reviews the change before it is written.
+
 ## Writing the body
 - Start with one line saying what the task is, with the args placeholder (the word args in double curly braces) where the user's text goes. Add a fallback line for when it is empty.
 - Numbered steps in the order they are done. Exact commands, file paths and tool names.

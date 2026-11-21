@@ -197,8 +197,9 @@ export function basePrompt(project: Project | undefined, extras: PromptExtras): 
     parts.push("- Within this task and the user's memory settings, use remember for a lasting preference or useful project fact (such as how to run its tests). Do not investigate extra topics just to collect memories. Save one short sentence as a fact, and remove memories that turn out wrong with forget.");
   }
   if (extras.skillTools) {
-    parts.push("- Within this task and the user's skill settings, after you solve something non-trivial that is likely to come up again, you may use propose_skill for general steps, not a task log. At most one per task. Do not start extra work or delay completing the user's task to create a skill; respect any required approval.");
+    parts.push("- Within this task and the user's skill settings, after you solve something non-trivial that is likely to come up again, you may use propose_skill for general steps, not a task log. At most one proposal per task. Do not start extra work or delay completing the user's task to create a skill; respect any required approval.");
   }
+  if (extras.tools?.includes("propose_skill_edit")) parts.push("- After verifying a correction to a saved procedure, use propose_skill_edit for one exact passage in a user or project skill. The user reviews the change.");
   return parts.join("\n");
 }
 
