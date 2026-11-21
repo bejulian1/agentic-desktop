@@ -28,7 +28,7 @@ function sidebar(h: Harness) {
 
 async function openSettings(h: Harness) {
   await h.page.getByTestId("settings-gear").click();
-  await h.page.getByRole("button", { name: /^GitHub(?: Beta)?$/ }).click();
+  await h.page.getByRole("button", { name: "GitHub", exact: true }).click();
 }
 
 flow("GitHub CLI: innlogging, sjekk igjen og frakobling i innstillingene", async h => {

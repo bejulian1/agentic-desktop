@@ -86,7 +86,6 @@ export function GitHubSettings() {
 
   return (
     <Page title="GitHub" intro={t("Se pull requests og issues fra prosjektene dine.")}>
-      <p class="beta-note github-beta-note"><span class="beta-badge">{t("Beta")}</span> {t("Bare lesing")}</p>
       <Group title={t("Konto")}>
         <Show when={status()?.connected}>
           <Row label={<Rich text={t("Tilkoblet som {login}")} parts={{ login: <span class="github-login">{status()!.login ?? t("ukjent konto")}</span> }} />} text={status()?.method === "gh" ? t("GitHub CLI") : status()!.name ? `${status()!.name}. ${scopeText(status()!)}` : scopeText(status()!)}>

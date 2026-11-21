@@ -1,5 +1,5 @@
 import { sourceText } from "../../../shared/i18n.ts";
-// Round 8 (agent G): GitHub (Beta), read only, and saving from the mini editor. Kept apart from
+// Round 8 (agent G): GitHub, read only, and saving from the mini editor. Kept apart from
 // api.ts so the round's agents do not edit the same lines.
 //
 // The GitHub token goes in, and only the account name comes out. Saving a file goes through the

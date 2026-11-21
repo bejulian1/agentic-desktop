@@ -1324,7 +1324,7 @@ export class Api {
     // Round 7: Chat. Edit a message and send it again, or make the last answer again.
     chatRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps, { thread: (id) => this.thread(id), assertFolder: (id) => this.assertFolder(id) });
 
-    // Round 8: GitHub (Beta, read only) and saving from the mini editor.
+    // Round 8: GitHub (read only) and saving from the mini editor.
     githubRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps, {
       project: (id) => this.project(id),
       settingsChanged: () => this.settingsChanged(),

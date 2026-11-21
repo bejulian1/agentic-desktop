@@ -1,4 +1,4 @@
-// Round 8 (agent G): colour themes, GitHub (Beta) against a local fake server, and the mini editor.
+// Round 8 (agent G): colour themes, GitHub against a local fake server, and the mini editor.
 // No request goes to github.com: AD_GITHUB_API points the server at the fake one, and the links
 // it builds point there too.
 import assert from "node:assert/strict";
@@ -85,7 +85,7 @@ flow("fargetemaer: forhåndsvisningen stemmer med temaet, hele appen følger med
   assert.match(String(bad), /400/);
 });
 
-flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle feil", async (h) => {
+flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", async (h) => {
   const { page } = h;
   mkdirSync(path.join(h.projectDir, ".git"), { recursive: true });
   writeFileSync(path.join(h.projectDir, ".git/HEAD"), "ref: refs/heads/main\n");
@@ -95,7 +95,7 @@ flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle f
   await openTool(page, "GitHub");
   await panel.getByText("acme/rakett").waitFor();
   await panel.getByText("Ikke koblet til GitHub").waitFor();
-  await panel.getByText("Beta", { exact: true }).waitFor();
+  assert.equal(await panel.getByText("Beta", { exact: true }).count(), 0);
   assert.ok(!(await loaded(page)).some((u) => u.includes("/MiniEditor-")), "editoren er ikke lastet");
 
   // Koble til opens Innstillinger → GitHub. A wrong token is refused with a clear message (a 400).

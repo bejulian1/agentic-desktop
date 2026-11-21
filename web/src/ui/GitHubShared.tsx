@@ -1,5 +1,5 @@
 import { language, t } from "../lib/i18n.ts";
-// Small pieces for GitHub (Beta) shared by the panel and Innstillinger (round 8, agent G). The icons
+// Small pieces for GitHub shared by the panel and Innstillinger (round 8, agent G). The icons
 // are plain line drawings of a pull request and an issue, not anyone's logo.
 import type { GitHubProject } from "../../../shared/protocol";
 

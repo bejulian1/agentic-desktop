@@ -1,4 +1,4 @@
-/* Round 8 (agent G): colour themes, the mini editor, GitHub (Beta) and the theme picker.
+/* Round 8 (agent G): colour themes, the mini editor, GitHub and the theme picker.
    Loaded last (main.tsx). Only tokens and new classes, so nothing here fights the other sheets.
 
    1. Colour themes. Each one sets the same tokens as :root in styles.css, so the whole app follows,
@@ -340,7 +340,7 @@ dialog.mini-editor:not([open]) { display: none; }
   .mini-status { gap: var(--space-2); padding: 0 var(--space-3); }
 }
 
-/* 6. GitHub (Beta): the panel (ui/GitHubPanel.tsx) and Innstillinger (ui/GitHubSettings.tsx) */
+/* 6. GitHub: the panel (ui/GitHubPanel.tsx) and Innstillinger (ui/GitHubSettings.tsx) */
 
 .github-panel { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; overflow: auto; padding: 0 var(--space-3) var(--space-4); }
 .github-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: 40px; background: var(--bg-panel); border-bottom: 1px solid var(--border); margin: 0 calc(-1 * var(--space-3)); padding: 0 var(--space-2) 0 var(--space-3); }
@@ -394,9 +394,6 @@ dialog.mini-editor:not([open]) { display: none; }
 .panel-tab[data-panel-tab="github"] { padding: 0 7px; }
 .panel-tab[data-panel-tab="github"] > span { display: none; }
 .panel-tab[data-panel-tab="github"] > .icon { display: block; }
-.nav-beta { margin-left: auto; }
-.github-beta-note { display: flex; align-items: baseline; gap: 8px; margin-top: 0; }
-.github-beta-note .beta-badge { margin-left: 0; flex: none; }
 .github-token-row { display: flex; gap: var(--space-2); }
 .github-token-row .input { flex: 1; min-width: 0; font-family: var(--font-mono); }
 .github-account-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
