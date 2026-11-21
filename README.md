@@ -14,6 +14,7 @@ Agentic Desktop is a local-first Linux desktop application (Electron + Node.js +
 
 ## Features
 
+- **Welcome and history import.** Set up models and bring local projects and conversations from Claude Code, Codex CLI, Gemini CLI, and Pi. [Norwegian guide](docs/VELKOMST-OG-IMPORT.md)
 - **[Kode Studio](docs/KODE-STUDIO.md):** Edit project files in tabs alongside the existing Code conversation, terminal, browser and diff. Studio keeps unsaved drafts when switching views and flags conflicting changes on disk.
 - **Model questions:** Chat and Code can ask for single or multiple selections and free-text answers using [question cards](docs/USER-QUESTIONS.md).
 - **Chat:** Streaming Markdown with code blocks, tables, and math; 8 personalities and 4 style controls ([Chat personalities](docs/CHAT-PERSONALITIES.md)); Chat projects with custom instructions and isolated or shared memories ([Chat projects](docs/CHAT-PROJECTS.md)); HTML and React (JSX/TSX) artifacts rendered in an isolated local sandbox with version history; downloadable documents (`.docx`, `.xlsx`, `.pptx`, Markdown, text, CSV, JSON) and optional sandboxed Python analysis via `bubblewrap` ([Files & Python in Chat](docs/CHAT-FILES.md)); plus `/btw` side questions, `/background` parallel sessions, and `/queue` / `/steer` delivery overrides ([Side questions & background sessions](docs/SIDE-QUESTIONS.md)).

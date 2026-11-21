@@ -19,6 +19,8 @@ export function canonicalSettingsPage(id: string): string {
 
 export const ENTRIES: Entry[] = [
   { page: "general", get label() { return t("Språk"); }, get words() { return t("language språk"); } },
+  { page: "general", get label() { return t("Velkomstskjerm"); } },
+  { page: "general", get label() { return t("Importer fra andre kodeapper"); } },
   { page: "code", get label() { return t("Fargetema for kode"); }, get words() { return t("lyst mørkt syntaks tema kodeutseende preview diff farger"); } },
   { page: "code", get label() { return t("Egen kodeskrift"); }, get words() { return t("font skrift monospace egendefinert"); } },
   { page: "code", get label() { return t("Standard samtalevisning"); }, get words() { return t("transkript normal tenkning detaljert verktøy trinn"); } },

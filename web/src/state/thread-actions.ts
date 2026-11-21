@@ -92,7 +92,7 @@ async function transcript(thread: Thread, format: "text" | "markdown" | "last"):
   for await (const page of threadEventPages(thread.id)) {
     for (const { event } of page) {
       if (event.type === "user.message") parts.push({ who: "user", text: event.text });
-      else if (event.type === "text.delta") {
+      else if (event.type === "text.delta" || event.type === "history.answer") {
         const answer = answers.get(event.messageId);
         if (answer) answer.text += event.text;
         else {

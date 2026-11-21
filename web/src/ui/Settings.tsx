@@ -36,6 +36,7 @@ import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
 import { IconPullRequest } from "./GitHubShared";
 import { permissionScope, permissionTitle } from "./permission-copy";
+import { welcomeView } from "../state/welcome";
 import "../styles/settings-polish.css";
 
 const PERMISSIONS = (): Array<{ id: PermissionMode; label: string; text: string; icon: Icon }> => [
@@ -363,7 +364,7 @@ export default function Settings() {
     page.querySelector<HTMLElement>(".settings-back")?.focus({ preventScroll: true });
     // Esc goes back to where you were, unless something on the page wants it first.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || welcomeView()) return;
       if (document.querySelector("dialog[open]") || page.querySelector(".popover")) return;
       event.preventDefault();
       close();

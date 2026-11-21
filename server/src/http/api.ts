@@ -78,6 +78,7 @@ import type { PreviewServer } from "../preview.ts";
 import { findImage, saveImage } from "../images.ts";
 import { saveTextUpload } from "../uploads.ts";
 import { makeFork } from "../agent/fork.ts";
+import { HistoryImporter } from "../history-import/index.ts";
 import { startBackgroundSession } from "../background-session.ts";
 import type { SideQuestions } from "../side-questions.ts";
 import type { ImportedCookies } from "../browser-cookies.ts";
@@ -449,6 +450,14 @@ export class Api {
       sections: store.sections(),
       keyring: secrets.status(),
     }));
+
+    const history = new HistoryImporter({
+      home: this.deps.homeDir ?? homedir(), dataDir, store, config: this.deps.config, threadChanged,
+      findModel: (name) => this.findModel(name),
+      projectChanged: (project) => publish({ type: "project.changed", project }),
+    });
+    this.route("POST", "/api/history-import/scan", () => history.scan());
+    this.route("POST", "/api/history-import", ({ body }) => history.apply(body.scanId, body.threads));
 
     // Round 14 (SPEC 30.1): where the keys are kept, and a new try after the keyring was locked or
     // missing. A locked keyring shows the system's own unlock dialog.
@@ -961,6 +970,10 @@ export class Api {
 
     this.route("PATCH", "/api/settings", ({ body }) => {
       const patch: Partial<Settings> = {};
+      if (body.welcomeDone !== undefined) {
+        if (typeof body.welcomeDone !== "boolean") throw new HttpError(400, "Bruk true/false.");
+        patch.welcomeDone = body.welcomeDone;
+      }
       if (body.dictation !== undefined) {
         const choice = body.dictation;
         if (choice !== null && (typeof choice?.providerId !== 'string' || store.provider(choice.providerId)?.kind !== 'openai-compatible' || typeof choice.model !== 'string' || !choice.model.trim() || choice.model.length > 200)) throw new HttpError(400, 'Velg en kompatibel leverandør og en talemodell.');
