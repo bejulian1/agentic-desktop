@@ -47,4 +47,11 @@ jobs:
           ln -s /usr/bin/python3 "$test_root/bin/python3"
           export PATH="$test_root/bin:$PATH"
           python3 -I -c "import gi; gi.require_version('Secret', '1'); from gi.repository import Secret"
-          npm run test:server
+          browser_tests=(server/test/browser-thread-tabs.test.ts server/test/browser.test.ts server/test/code-panels-tools.test.ts)
+          node --test --test-concurrency=1 "${browser_tests[@]}"
+          remaining=()
+          for test in server/test/*.test.ts; do
+            case " ${browser_tests[*]} " in *" $test "*) continue;; esac
+            remaining+=("$test")
+          done
+          node --test --test-concurrency=4 "${remaining[@]}"
