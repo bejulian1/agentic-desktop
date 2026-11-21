@@ -311,7 +311,7 @@ export function PinnedSummary(props: { thread?: Thread }) {
             </Show>
           </Section>
           <p class="pinned-stats">
-            {model()?.hasOlder() ? t("I lastet samtale: ") : ""}{plural(stats().messages, "{count} melding", "{count} meldinger")} · {t("{count} verktøykall", { count: stats().tools })} · {plural(results().length, "{count} fil endret", "{count} filer endret")}
+            {model()?.hasOlder() ? plural(stats().messages, "I lastet samtale: {count} melding", "I lastet samtale: {count} meldinger") : plural(stats().messages, "{count} melding", "{count} meldinger")} · {t("{count} verktøykall", { count: stats().tools })} · {plural(results().length, "{count} fil endret", "{count} filer endret")}
           </p>
           <Show when={stats().last}><p class="pinned-last"><span class="pinned-label">{t("Siste svar")}</span> {stats().last}</p></Show>
             </div>

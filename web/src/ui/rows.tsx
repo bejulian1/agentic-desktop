@@ -1,3 +1,4 @@
+import { Rich } from "./settings/parts";
 import { language, localizedFormat, plural, t } from "../lib/i18n";
 // One component per row kind. A finished row renders once and has no reactive work left. A live
 // row only reacts to its own rev signal.
@@ -416,7 +417,7 @@ function ThinkingCard(props: { row: ThinkingRow; model: string }) {
     <div class="row row-thinking row-premium" data-row="thinking" data-enter={enter(row.at)}>
       <div class="premium-card" classList={{ done: compact(), finishing: done() && !compact(), open: open() }} ref={watch} data-testid="thinking-card" role="group" aria-label={t("Forespørsel til {model}", { model: props.model })}>
         <div class="premium-main">
-          <div class="premium-title">{t("Forespørsel til")}{" "}<span class="premium-model">{props.model}</span></div>
+          <div class="premium-title"><Rich text={t("Forespørsel til {model}")} parts={{ model: <span class="premium-model">{props.model}</span> }} /></div>
           <Show
             when={!compact()}
             fallback={
@@ -558,13 +559,13 @@ export function describeApproval(row: Pick<ApprovalRow, "title" | "detail" | "to
   switch (tool) {
     case "write_file": {
       const lines = textLines(str(input.content));
-      return { verb: t("Vil skrive"), target: str(input.path), meta: plural(lines.length, "{count} linje", "{count} linjer"), lines: lines.map((text) => ({ kind: "add", text })), note };
+      return { verb: t("Vil skrive {target}"), target: str(input.path), meta: plural(lines.length, "{count} linje", "{count} linjer"), lines: lines.map((text) => ({ kind: "add", text })), note };
     }
     case "edit_file": {
       const del = str(input.old_string) ? textLines(str(input.old_string)) : [];
       const add = str(input.new_string) ? textLines(str(input.new_string)) : [];
       return {
-        verb: t("Vil endre"),
+        verb: t("Vil endre {target}"),
         target: str(input.path),
         meta: `+${add.length} −${del.length}`,
         lines: [...del.map((text) => ({ kind: "del" as const, text })), ...add.map((text) => ({ kind: "add" as const, text }))],
@@ -574,7 +575,7 @@ export function describeApproval(row: Pick<ApprovalRow, "title" | "detail" | "to
     case "run_command":
       return { verb: t("Vil kjøre en kommando"), command: str(input.command) || row.detail, note };
     case "browser_navigate":
-      return { verb: t("Vil åpne"), target: str(input.url), meta: t("i nettleseren"), note };
+      return { verb: t("Vil åpne {target} i nettleseren"), target: str(input.url), note };
     default: {
       const label = stepSentence({ tool, summary: row.title.slice(tool.length + 1).trim() });
       return { verb: t("Vil gjøre dette: {action}", { action: label[0].toLocaleLowerCase(language()) + label.slice(1) }), text: note ?? (row.detail ? approvalText(row.detail) : undefined) };
@@ -586,7 +587,7 @@ export function describeApproval(row: Pick<ApprovalRow, "title" | "detail" | "to
 function approvalSubject(row: ApprovalRow): string {
   const ask = describeApproval(row);
   if (ask.command) return ask.command;
-  if (!ask.target) return ask.verb;
+  if (ask.target === undefined) return ask.verb;
   if (row.tool === "write_file") return t("Skrive {target}", { target: ask.target });
   if (row.tool === "edit_file") return t("Endre {target}", { target: ask.target });
   return t("Åpne {target}", { target: ask.target });
@@ -651,8 +652,7 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
       <div class="approval-title">
         <IconWarn size={15} />
         <span class="approval-what">
-          {ask().verb}
-          <Show when={ask().target}>{" "}<span class="approval-target" title={ask().target}><span class="approval-dir">{target()[0]}</span><strong>{target()[1]}</strong></span></Show>
+          <Show when={ask().target !== undefined} fallback={ask().verb}><Rich text={ask().verb} parts={{ target: <span class="approval-target" title={ask().target}><span class="approval-dir">{target()[0]}</span><strong>{target()[1]}</strong></span> }} /></Show>
         </span>
         <Show when={ask().meta}><span class="approval-meta">{ask().meta}</span></Show>
       </div>
@@ -989,7 +989,7 @@ export function RetryLine(props: { retry: RetryState }) {
       <span class="spinner" aria-hidden="true" />
       <span class="retry-text">
         <Show when={left() > 0} fallback={<>{t("Prøver igjen nå")}</>}>
-          {t("Venter på leverandøren, prøver igjen")}{" "}<span aria-hidden="true">{t("om")}{" "}<span class="retry-left">{left()}</span> s</span><span class="sr-only">{t("om litt")}</span>
+          <span aria-hidden="true"><Rich text={t("Venter på leverandøren, prøver igjen om {seconds} s")} parts={{ seconds: <span class="retry-left">{left()}</span> }} /></span><span class="sr-only">{t("Venter på leverandøren, prøver igjen om litt")}</span>
         </Show>
       </span>
       <span class="retry-attempt">{t("(forsøk {attempt} av {max})", { attempt: props.retry.attempt, max: props.retry.maxAttempts })}</span>

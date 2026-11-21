@@ -1,3 +1,4 @@
+import { Rich } from "./settings/parts";
 import { localizedFormat, plural, t } from "../lib/i18n";
 import {ChatFileCards} from "./ChatFileCards";
 // Round 13 (SPEC 27.1): how a Kode turn reads. Each step is one line with an icon for its kind, a
@@ -56,10 +57,10 @@ export const facts = (row: ToolRow): StepFacts => ({ tool: row.tool, summary: ro
 
 // The target of a step: a path that opens in the mini editor, a command or pattern in the code font,
 // or a search and a name in «».
-function StepTarget(props: { row: ToolRow; target: string; mono: boolean; quoted: boolean }) {
+function StepTarget(props: { row: ToolRow; target: string; mono: boolean }) {
   const path = () => (props.mono ? toolPath(props.row) : null);
   return (
-    <Show when={path()} fallback={<span class="step-target" classList={{ mono: props.mono }}>{props.quoted ? `«${props.target}»` : props.target}</span>}>
+    <Show when={path()} fallback={<span class="step-target" classList={{ mono: props.mono }}>{props.target}</span>}>
       <PathLink path={path()!} />
     </Show>
   );
@@ -159,8 +160,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
         <span class="step-icon" data-kind={kind()}>{icon()({ size: 14 })}</span>
         {/* Chat has no now-line, so a step that runs there shimmers itself (SPEC 23.10, 27.2). */}
         <span class="step-text" classList={{ "status-text": !!props.chat, shimmer: !!props.chat && busy() }} ref={observeWhile(() => !!props.chat && busy())}>
-          <span class="step-verb">{words().verb}</span>
-          <Show when={words().target}>{" "}<StepTarget row={row} target={words().target} mono={words().mono} quoted={words().quoted} /></Show>
+          <span class="step-verb"><Rich text={words().phrase} parts={{ target: <StepTarget row={row} target={words().target} mono={words().mono} /> }} /></span>
           <Show when={props.chat && busy()}>…</Show>
         </span>
         <Show when={busy() && lastLine()}><span class="tool-tail">{lastLine()}</span></Show>

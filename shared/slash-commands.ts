@@ -49,7 +49,7 @@ export const BUILTIN_COMMANDS: CommandInfo[] = [
   { name: "settings", aliases: ["innstillinger"], description: "Åpne innstillingene for aktiv modus", kind: "builtin", group: "app" },
   { name: "config", aliases: ["konfigurasjon"], description: "Åpne innstillingene for modellinstruksjoner og kontekst", kind: "builtin", group: "app" },
   { name: "shortcuts", aliases: ["hurtigtaster"], description: "Vis konfigurerte hurtigtaster", kind: "builtin", group: "app" },
-  { name: "theme", aliases: ["skin", "tema"], args: "[lys|mørk|system]", description: "Velg appens fargetema", kind: "builtin", group: "app" },
+  { name: "theme", aliases: ["skin", "tema"], args: "[light|dark|system]", description: "Velg appens fargetema", kind: "builtin", group: "app" },
   { name: "version", aliases: ["versjon"], description: "Vis appversjon og byggnummer", kind: "builtin", group: "app" },
   { name: "artifacts", description: "Åpne rommet for lagrede Artifacts", kind: "builtin", group: "app" },
   ...THREAD_SLASH_COMMANDS,

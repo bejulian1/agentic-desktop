@@ -422,7 +422,7 @@ export class Api {
     this.route("PUT","/api/ui-mods/preferences",({body})=>this.deps.uiMods?.preferences(body));
     this.route("PUT","/api/ui-mods/library/:id",({body,params})=>{if(params.id!==body.id)throw new HttpError(400,"ID må stemme med adressen.");return this.deps.uiMods?.save(body);});
     this.route("DELETE","/api/ui-mods/library/:id",({params})=>this.deps.uiMods?.remove(params.id));
-    this.route("POST","/api/ui-mods/threads/:id/consent",({params,body})=>{if(typeof body.allowed!=="boolean")throw new HttpError(400,"Bruk sann/usann.");this.deps.uiMods?.consent(params.id,body.allowed);return this.deps.uiMods?.snapshot();});
+    this.route("POST","/api/ui-mods/threads/:id/consent",({params,body})=>{if(typeof body.allowed!=="boolean")throw new HttpError(400,"Bruk true/false.");this.deps.uiMods?.consent(params.id,body.allowed);return this.deps.uiMods?.snapshot();});
     this.route("PUT","/api/ui-mods/threads/:id",({params,body})=>{if(body.modId!==null&&typeof body.modId!=="string")throw new HttpError(400,"Velg et tema eller standard.");return this.deps.uiMods?.select(params.id,body.modId);});
     if (this.deps.mcp) mcpRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps.mcp);
     if (this.deps.hooks) hooksRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps.hooks);

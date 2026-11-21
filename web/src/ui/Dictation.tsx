@@ -13,9 +13,9 @@ export function DictationSettings() {
   const [model, setModel] = createSignal('');
   createEffect(() => { const chosen = target(); setProvider(chosen?.providerId ?? ''); setModel(chosen?.model ?? ''); });
   return <Group title={t("Diktering")}><Row label={t("Tale til tekst")} text={t("Lyd sendes bare til leverandøren du velger. Den må støtte /audio/transcriptions.")}>
-    <label>{t("Leverandør ")}<select class="input" aria-label={t("Taleleverandør")} value={providerId()} onChange={event => { setProvider(event.currentTarget.value); setModel(defaultSpeechModel(app.providers.find(item => item.id === providerId()))); }}>
+    <label>{t("Leverandør")}{" "}<select class="input" aria-label={t("Taleleverandør")} value={providerId()} onChange={event => { setProvider(event.currentTarget.value); setModel(defaultSpeechModel(app.providers.find(item => item.id === providerId()))); }}>
       <option value="">{t("Av")}</option><For each={app.providers.filter(item => item.kind === 'openai-compatible' && item.baseUrl)}>{item => <option value={item.id} selected={providerId() === item.id}>{item.name}</option>}</For></select></label>
-    <Show when={providerId()}><label>{t("Talemodell ")}<input class="input" value={model()} maxLength={200} onInput={event => setModel(event.currentTarget.value)} /></label></Show>
+    <Show when={providerId()}><label>{t("Talemodell")}{" "}<input class="input" value={model()} maxLength={200} onInput={event => setModel(event.currentTarget.value)} /></label></Show>
     <button class="btn btn-small" disabled={!!providerId() && !model().trim()} onClick={() => saveSettings({ dictation: providerId() ? { providerId: providerId(), model: model().trim() } : null }).catch(report)}>{t("Lagre diktering")}</button>
   </Row></Group>;
 }

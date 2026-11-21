@@ -16,7 +16,7 @@ function cell(v:any):any {
   if(f.length>2000||/[\[\]|\\]/.test(f)||/\b(?:WEBSERVICE|HYPERLINK|RTD|EXEC|CALL|REGISTER|PY)\s*\(/i.test(f))throw new HttpError(400,'Eksterne koblinger og aktive regnearkfunksjoner støttes ikke.');
   return {formula:f,...(typeof v.result==='number'&&Number.isFinite(v.result)?{result:v.result}:{})};
  }
- throw new HttpError(400,'Regnearkceller må være tekst, tall, sann/usann, null eller en eksplisitt formel.');
+ throw new HttpError(400,'Regnearkceller må være tekst, tall, true/false, null eller en eksplisitt formel.');
 }
 export async function createDocument(input:any):Promise<{name:string;mime:string;data:Buffer}> {
  if(!input||typeof input!=='object'||Array.isArray(input)||JSON.stringify(input).length>250000)throw new HttpError(400,'Dokumentinnholdet er for stort eller ugyldig.');

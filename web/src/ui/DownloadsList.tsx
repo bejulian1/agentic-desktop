@@ -1,3 +1,4 @@
+import { Rich } from "./settings/parts";
 // The Browser panel's downloads: a list with progress, the reason when one stopped, Kopier stien
 // (shows and copies the path; the app never opens a file manager or a file), Fjern fra lista (also
 // while it runs: it is stopped first) and, after asking, Slett filen. And the row for the folder in
@@ -139,7 +140,7 @@ export function DownloadDirRow() {
       <div class="setting-text">
         <strong>{t("Nedlastingsmappe")}</strong>
         <span class="muted">{t("Filer du laster ned i Nettleser-panelet havner her. Mappen lages ved første nedlasting, og ingenting åpnes eller kjøres av seg selv.")}</span>
-        <span class="download-dir-path"><bdo dir="ltr">{current()}</bdo>{app.settings.downloadDir ? "" : t(" (standard)")}</span>
+        <span class="download-dir-path"><Rich text={app.settings.downloadDir ? "{value}" : t("{value} (standard)")} parts={{ value: <bdo dir="ltr">{current()}</bdo> }} /></span>
       </div>
       <div class="setting-control">
         <button

@@ -85,7 +85,7 @@ Vindustittelen er «Jobber… · tittel» eller «Venter på deg · tittel» nå
 ## Når du lager et nytt verktøy
 
 1. Velg en type fra tabellen. Lag en ny type bare hvis ingen passer, og gi den et eget ikon.
-2. Legg verbene inn i `VERBS` i `step-words.ts`, i preteritum og presens.
+2. Legg hele fraser inn i `VERBS` i `step-words.ts`, i preteritum og presens. Bruk `{target}` for sti, navn eller annet innhold, slik at oversetterne kan flytte det i setningen.
 3. La `summary` i serveren gi det som står etter verbet: en sti, et mønster, en kommando eller et navn. Ikke et helt utsagn.
 4. Gi resultatet en kort form i `resultOf` hvis det finnes en naturlig: et antall, en kode eller linjer inn og ut.
 5. Sjekk at steget leses greit i én linje på 360 px.

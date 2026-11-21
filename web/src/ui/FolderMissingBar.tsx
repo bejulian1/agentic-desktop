@@ -1,3 +1,4 @@
+import { Rich } from "./settings/parts";
 // Round 14 (SPEC 30.5): the project's folder is moved, renamed or deleted. The message field gives
 // its place to a calm bar of the same height and shape, with one short text and two ways on:
 // connect the project to the folder again (it goes on with the same threads, and the field comes
@@ -63,7 +64,7 @@ export function FolderMissingBar(props: { project: Project; onRelinked?: () => v
       <p class="folder-bar-text">
         <span class="folder-bar-icon" aria-hidden="true"><IconWarn size={15} /></span>
         <span>
-          {t("Fant ikke mappen")}{" "}<bdo dir="ltr" class="folder-bar-path" title={props.project.path}>{homeShort(props.project.path)}</bdo>{t(". Den er flyttet, har fått nytt navn eller er slettet.")}
+          <Rich text={t("Fant ikke mappen {path}. Den er flyttet, har fått nytt navn eller er slettet.")} parts={{ path: <bdo dir="ltr" class="folder-bar-path" title={props.project.path}>{homeShort(props.project.path)}</bdo> }} />
         </span>
       </p>
       <div class="folder-bar-foot">

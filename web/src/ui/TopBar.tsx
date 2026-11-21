@@ -140,7 +140,7 @@ function ThreadTitle() {
               <dl class="title-card-facts" data-testid="title-details">
                 <dt>{t("Modell")}</dt><dd>{modelName(itemThread().modelId)} · {effort()}</dd>
                 <Show when={itemThread().mode === "code" && itemThread().projectId}>
-                  <dt>{t("Tillatelser")}</dt><dd>{PERMISSION_LABELS()[app.projects[itemThread().projectId!]?.permissionMode ?? "ask"]}{itemThread().permissionCap ? t(" (høyst {permission})", { permission: PERMISSION_LABELS()[itemThread().permissionCap!] }) : ""}</dd>
+                  <dt>{t("Tillatelser")}</dt><dd>{itemThread().permissionCap ? t("{mode} (høyst {permission})", { mode: PERMISSION_LABELS()[app.projects[itemThread().projectId!]?.permissionMode ?? "ask"], permission: PERMISSION_LABELS()[itemThread().permissionCap!] }) : PERMISSION_LABELS()[app.projects[itemThread().projectId!]?.permissionMode ?? "ask"]}</dd>
                 </Show>
                 <dt>{t("Prosjekt")}</dt><dd>{itemThread().projectId ? app.projects[itemThread().projectId!]?.name ?? "–" : itemThread().chatProjectId ? app.chatProjects[itemThread().chatProjectId!]?.name ?? "–" : t("Ingen (Chat)")}</dd>
                 <Show when={itemThread().forkedFrom}>

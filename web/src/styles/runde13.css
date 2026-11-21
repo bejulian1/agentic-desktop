@@ -17,8 +17,8 @@
 }
 .step-head:hover .step-icon, .run-head:hover .step-icon { background: transparent; }
 .step-text { display: inline-flex; align-items: baseline; gap: 0; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
-.step-verb { flex: none; color: var(--text-2); }
-.step-target { min-width: 0; margin-left: 0.3em; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.step-verb { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.step-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
 .step-target.mono, .step-text .tool-file { font: var(--text-xs) var(--font-mono); color: var(--text); }
 .row-thinking.step .step-text { display: block; text-overflow: ellipsis; }
 .step-head:hover .step-verb, .run-head:hover .step-verb, .step-head:hover .step-target { color: var(--text); }

@@ -30,7 +30,7 @@ function openSessionTool(tool: "browser" | "terminal"): CodeSlashAction {
   return ({ projectId, arg }) => {
     const option = arg.trim().toLowerCase();
     if (option) {
-      if (option !== "ny" && option !== "new") return toast(t("Bruk /{tool} eller /{toolValue} ny.", { tool, toolValue: tool }), "info");
+      if (option !== "ny" && option !== "new") return toast(t("Bruk {command} eller {newCommand}.", { command: `/${tool}`, newCommand: `/${tool} new` }), "info");
       if (tool === "browser") requestBrowserTab(false);
       else requestTerminalSession(projectId ?? LOCAL_SCOPE);
     }

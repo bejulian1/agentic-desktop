@@ -1,3 +1,4 @@
+import { Rich } from "./settings/parts";
 // The Agent and Kilder tabs of Rediger prosjekt (EditProject.tsx): the default model, the
 // permission mode and the project's own instructions, and where each setting comes from. There is
 // no separate dialog any more; openProjectSettings opens Rediger prosjekt on the Agent tab.
@@ -91,7 +92,7 @@ export function SourcesTab(props: { config: ProjectConfig | undefined }) {
               </tbody>
             </table>
           </Show>
-          <p class="muted small">{t("Fra")} <code>settings.json</code> {t("i")} <code>{c().global.dir}</code> {t("og i")} <code>.agentic/</code>{t(". Prosjektet går foran.")}</p>
+          <p class="muted small"><Rich text={t("Innstillingene leses fra {file} i {globalDir} og {projectDir}. Prosjektet går foran.")} parts={{ file: <code>settings.json</code>, globalDir: <code>{c().global.dir}</code>, projectDir: <code>.agentic/</code> }} /></p>
           <p class="muted small">{t("Modellen leser: {files}.", { files: c().instructionFiles.join(", ") || t("ingen instruksjonsfiler ennå") })}</p>
           <Show when={c().project.settingsError}><p class="form-error">{c().project.settingsError}</p></Show>
         </div>

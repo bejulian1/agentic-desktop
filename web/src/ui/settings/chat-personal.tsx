@@ -12,7 +12,7 @@ import { del, get, post, put } from "../../lib/api";
 import { report, toast } from "../../state/app";
 import { confirmDialog } from "../dialogs";
 import { IconPencil, IconPlus, IconReset, IconTrash } from "../icons";
-import { Group, Row, Segmented, SkeletonRows, Toggle } from "./parts";
+import { Rich, Group, Row, Segmented, SkeletonRows, Toggle } from "./parts";
 import { Select } from "../Select";
 import { UpgradeView } from "./memory-upgrade";
 
@@ -271,7 +271,7 @@ export function ChatPersonalSettings() {
           </Show>
         </Group>
         <p class="muted small memory-files">
-          {t("Chat-minnene er vanlige linjer i")}{" "}<code>{state()!.file}</code>{t(". Velg Kode over for å administrere Kode-minnene separat.")}
+          <Rich text={t("Chat-minnene er vanlige linjer i {file}. Velg Kode over for å administrere Kode-minnene separat.")} parts={{ file: <code>{state()!.file}</code> }} />
         </p>
       </Show>
     </section>

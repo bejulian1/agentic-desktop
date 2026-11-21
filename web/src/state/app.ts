@@ -266,9 +266,13 @@ export const sortedProjects = createMemo(() => Object.values(app.projects).filte
 export const sectionsFor = (m: Mode) => Object.values(app.sections).filter((s): s is SidebarSection => !!s && s.mode === m).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
 export const sortedChatProjects = createMemo(() => Object.values(app.chatProjects).filter(Boolean).sort((a, b) => b.lastUsedAt - a.lastUsedAt));
 
+export function modelDisplayName(model: ModelConfig): string {
+  return model.id === "mock-demo" ? t("Demo-modell (uten API)") : model.name;
+}
+
 export function modelName(id: string | null | undefined): string {
-  const model = app.models.find((m) => m.id === (id ?? app.settings.defaultModelId));
-  return model?.name ?? t("Ingen modell");
+  const model = modelFor(id);
+  return model ? modelDisplayName(model) : t("Ingen modell");
 }
 
 export function modelFor(id: string | null | undefined): ModelConfig | undefined {

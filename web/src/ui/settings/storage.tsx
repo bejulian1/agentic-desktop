@@ -208,7 +208,7 @@ export function StoragePage() {
                 <Show when={closesBrowser() && activeDownloads() > 0}>
                   <p class="storage-warning" role="alert" data-testid="storage-download-warning">
                     <IconAlert size={15} />
-                    <span>{plural(activeDownloads(), "En nedlasting pågår i Nettleser-panelet. Den avbrytes når nettleseren lukkes, og den halve filen slettes. Vent til den er ferdig hvis du trenger filen.", "{count} nedlastinger pågår i Nettleser-panelet. Den avbrytes når nettleseren lukkes, og den halve filen slettes. Vent til den er ferdig hvis du trenger filen.")}</span>
+                    <span>{plural(activeDownloads(), "En nedlasting pågår i Nettleser-panelet. Den avbrytes når nettleseren lukkes, og den halve filen slettes. Vent til den er ferdig hvis du trenger filen.", "{count} nedlastinger pågår i Nettleser-panelet. De avbrytes når nettleseren lukkes, og de ufullstendige filene slettes. Vent til nedlastingene er ferdige hvis du trenger filene.")}</span>
                   </p>
                 </Show>
                 <p class="muted">{t("Det kan ikke angres. Frigjør omtrent {size}.", { size: formatBytes(estimate()) })}</p>

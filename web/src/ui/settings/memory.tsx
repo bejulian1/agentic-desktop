@@ -9,7 +9,7 @@ import { del, get, patch, post, put } from "../../lib/api";
 import { app, mode as activeMode, report, settingsOpen, toast } from "../../state/app";
 import { confirmDialog } from "../dialogs";
 import { IconAlert, IconPencil, IconPlus, IconSearch, IconSpark, IconTrash } from "../icons";
-import { Group, Page, Row, save, Segmented, SkeletonRows, Toggle } from "./parts";
+import { Rich, Group, Page, Row, save, Segmented, SkeletonRows, Toggle } from "./parts";
 import { UpgradeView } from "./memory-upgrade";
 import { ChatPersonalSettings } from "./chat-personal";
 
@@ -96,7 +96,7 @@ export function Memories(props: { target?: string | null }) {
     const ok = await confirmDialog({
       title: t("Slette alle Kode-minner?"),
       text: plural(count,
-        "Ett minne, globale og i alle Kode-prosjekter, slettes fra MEMORY.md-filene. Det kan ikke angres. Chat-minnene og annen tekst i filene blir stående.",
+        "Ett Kode-minne slettes fra MEMORY.md-filen der det er lagret. Det kan ikke angres. Chat-minnene og annen tekst i filene blir stående.",
         "Alle {count} minnene, globale og i alle Kode-prosjekter, slettes fra MEMORY.md-filene. Det kan ikke angres. Chat-minnene og annen tekst i filene blir stående."),
       confirm: t("Slett alle"),
       danger: true,
@@ -284,7 +284,7 @@ export function Memories(props: { target?: string | null }) {
         </Show>
       </Group>
       <p class="muted small memory-files">
-        {t("Minnene er vanlige linjer i")} <code>{list()?.global.file ?? "MEMORY.md"}</code> {t("(globale) og i")} <code>.agentic/MEMORY.md</code> {t("i hvert prosjekt. Du kan også endre filene i en editor. Nye tråder får de nyeste minnene, opptil omtrent 3000 tegn, og prosjektets minner først.")}
+        <Rich text={t("Globale minner lagres som tekstlinjer i {globalFile}, og prosjektminner i {projectFile}. Du kan også endre filene i en editor. Nye tråder får de nyeste minnene, opptil omtrent 3000 tegn, og prosjektets minner først.")} parts={{ globalFile: <code>{list()?.global.file ?? "MEMORY.md"}</code>, projectFile: <code>.agentic/MEMORY.md</code> }} />
       </p>
       </section>
     </Page>

@@ -18,10 +18,9 @@ export interface StepFacts {
 }
 
 export interface StepWords {
-  verb: string; // «Leste», or «Leser» while it runs
+  phrase: string;
   target: string; // the file, pattern, command, address or name; may be empty
   mono: boolean; // a path or a command, shown in the code font
-  quoted: boolean; // a search or a name, shown in «»
   result: string; // «42 linjer», «exit 0», «+12 −3»; empty when there is nothing short to say
 }
 
@@ -135,50 +134,48 @@ function resultOf(s: StepFacts): string {
 // [past, present]: «Leste», «Leser».
 const VERBS: Partial<Record<string, string[]>> = {
   get request_user_input() { return [t("Spurte deg"), t("Venter på svaret ditt")]; },
-  get ui_mod() { return [t("Tilpasset"), t("Tilpasser")]; },
-  get create_document() { return [t("Laget fil"), t("Lager fil")]; },
+  get ui_mod() { return [t("Tilpasset utseendet"), t("Tilpasser utseendet")]; },
+  get create_document() { return [t("Laget fil {target}"), t("Lager fil {target}")]; },
   get run_python() { return [t("Kjørte Python"), t("Kjører Python")]; },
   get list_chat_files() { return [t("Viste Chat-filer"), t("Ser på Chat-filer")]; },
-  get read_file() { return [t("Leste"), t("Leser")]; },
-  get list_dir() { return [t("Så i"), t("Ser i")]; },
-  get glob() { return [t("Fant filer"), t("Finner filer")]; },
-  get search() { return [t("Søkte etter"), t("Søker etter")]; },
-  get web_search() { return [t("Søkte på nettet etter"), t("Søker på nettet etter")]; },
-  get web_fetch() { return [t("Leste nettsiden"), t("Leser nettsiden")]; },
-  get browser_navigate() { return [t("Åpnet"), t("Åpner")]; },
+  get read_file() { return [t("Leste {target}"), t("Leser {target}")]; },
+  get list_dir() { return [t("Så i {target}"), t("Ser i {target}")]; },
+  get glob() { return [t("Fant filer: {target}"), t("Finner filer: {target}")]; },
+  get search() { return [t("Søkte etter {target}"), t("Søker etter {target}")]; },
+  get web_search() { return [t("Søkte på nettet etter «{target}»"), t("Søker på nettet etter «{target}»")]; },
+  get web_fetch() { return [t("Leste nettsiden {target}"), t("Leser nettsiden {target}")]; },
+  get browser_navigate() { return [t("Åpnet {target}"), t("Åpner {target}")]; },
   get browser_snapshot() { return [t("Leste siden"), t("Leser siden")]; },
-  get browser_click() { return [t("Klikket på"), t("Klikker på")]; },
-  get browser_type() { return [t("Skrev i"), t("Skriver i")]; },
+  get browser_click() { return [t("Klikket på «{target}»"), t("Klikker på «{target}»")]; },
+  get browser_type() { return [t("Skrev i «{target}»"), t("Skriver i «{target}»")]; },
   get browser_screenshot() { return [t("Tok et skjermbilde"), t("Tar et skjermbilde")]; },
   get browser_console() { return [t("Leste konsollen"), t("Leser konsollen")]; },
-  get run_command() { return [t("Kjørte"), t("Kjører")]; },
-  get edit_file() { return [t("Endret"), t("Endrer")]; },
-  get delete_file() { return [t("Slettet"), t("Sletter")]; },
-  get thread_create() { return [t("Startet underagenten"), t("Starter underagenten")]; },
+  get run_command() { return [t("Kjørte {target}"), t("Kjører {target}")]; },
+  get edit_file() { return [t("Endret {target}"), t("Endrer {target}")]; },
+  get delete_file() { return [t("Slettet {target}"), t("Sletter {target}")]; },
+  get thread_create() { return [t("Startet underagenten «{target}»"), t("Starter underagenten «{target}»")]; },
   get thread_send() { return [t("Sendte en melding"), t("Sender en melding")]; },
   get thread_wait() { return [t("Ventet på underagenten"), t("Venter på underagenten")]; },
   get thread_read() { return [t("Leste en tråd"), t("Leser en tråd")]; },
-  get thread_models() { return [t("Søkte etter modeller"), t("Søker etter modeller")]; },
+  get thread_models() { return [t("Søkte etter modeller: {target}"), t("Søker etter modeller: {target}")]; },
   get thread_list() { return [t("Så på trådene"), t("Ser på trådene")]; },
   get task_list() { return [t("Leste oppgavelisten"), t("Leser oppgavelisten")]; },
-  get task_add() { return [t("La til oppgaven"), t("Legger til oppgaven")]; },
-  get task_update() { return [t("Oppdaterte oppgaven"), t("Oppdaterer oppgaven")]; },
-  get remember() { return [t("Lagret et minne"), t("Lagrer et minne")]; },
-  get forget() { return [t("Glemte et minne"), t("Glemmer et minne")]; },
+  get task_add() { return [t("La til oppgaven «{target}»"), t("Legger til oppgaven «{target}»")]; },
+  get task_update() { return [t("Oppdaterte oppgavestatus: {target}"), t("Oppdaterer oppgavestatus: {target}")]; },
+  get remember() { return [t("Lagret et minne «{target}»"), t("Lagrer et minne «{target}»")]; },
+  get forget() { return [t("Glemte et minne «{target}»"), t("Glemmer et minne «{target}»")]; },
   get update_plan() { return [t("Oppdaterte planen"), t("Oppdaterer planen")]; },
-  get use_skill() { return [t("Brukte skillen"), t("Bruker skillen")]; },
-  get propose_skill() { return [t("Foreslo skillen"), t("Foreslår skillen")]; },
+  get use_skill() { return [t("Brukte skillen {target}"), t("Bruker skillen {target}")]; },
+  get propose_skill() { return [t("Foreslo skillen {target}"), t("Foreslår skillen {target}")]; },
 };
 
-function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolean } {
-  const plain = (target: string) => ({ target, mono: false, quoted: false });
-  const quoted = (target: string) => ({ target, mono: false, quoted: !!target });
-  const mono = (target: string) => ({ target, mono: !!target, quoted: false });
+function targetOf(s: StepFacts): { target: string; mono: boolean } {
+  const plain = (target: string) => ({ target, mono: false });
+  const mono = (target: string) => ({ target, mono: !!target });
   switch (s.tool) {
     case "request_user_input":
-      return plain("");
     case "ui_mod":
-      return plain(t("utseendet"));
+      return plain("");
     case "create_document":
       return plain(s.summary);
     case "run_python":
@@ -190,19 +187,19 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
     case "delete_file":
       return mono(summaryPath(s.summary));
     case "list_dir":
-      return !s.summary || s.summary === "." || s.summary === "./" ? plain(t("prosjektmappen")) : mono(s.summary);
+      return !s.summary || s.summary === "." || s.summary === "./" ? plain("") : mono(s.summary);
     case "glob":
     case "search":
     case "run_command":
       return mono(s.summary);
     case "web_search":
-      return quoted(s.summary);
+      return plain(s.summary);
     case "web_fetch":
     case "browser_navigate":
       return plain(hostAndPath(s.summary));
     case "browser_click":
     case "browser_type":
-      return quoted(s.summary);
+      return plain(s.summary);
     case "browser_snapshot":
     case "browser_screenshot":
     case "browser_console":
@@ -216,10 +213,10 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
     case "task_add":
     case "remember":
     case "forget":
-      return quoted(s.summary);
+      return plain(s.summary);
     case "task_update": {
       const status = field(s.input, "status");
-      return plain(status === "todo" ? t("som til å gjøre") : status === "doing" ? t("som påbegynt") : status === "done" ? t("som ferdig") : "");
+      return plain(status === "todo" ? t("Til å gjøre") : status === "doing" ? t("Påbegynt") : status === "done" ? t("Ferdig") : "");
     }
     case "use_skill":
     case "propose_skill":
@@ -234,18 +231,19 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
 export function describeStep(s: StepFacts): StepWords {
   const running = isRunning(s.status);
   const where = targetOf(s);
-  let verb: string;
-  if (s.tool === "write_file") verb = running ? (isNewFile(s) ? t("Oppretter") : t("Skriver")) : isNewFile(s) ? t("Opprettet") : t("Skrev om");
-  else if (s.tool === "web_search" && !s.summary) verb = running ? t("Søker på nettet") : t("Søkte på nettet");
-  else verb = (VERBS[s.tool] ?? [s.tool, s.tool])[running ? 1 : 0];
-  return { verb, ...where, result: running ? "" : resultOf(s) };
+  let phrase: string;
+  if (s.tool === "write_file") phrase = running ? (isNewFile(s) ? t("Oppretter {target}") : t("Skriver {target}")) : isNewFile(s) ? t("Opprettet {target}") : t("Skrev om {target}");
+  else if (s.tool === "web_search" && !s.summary) phrase = running ? t("Søker på nettet") : t("Søkte på nettet");
+  else if (s.tool === "list_dir" && !where.target) phrase = running ? t("Ser i prosjektmappen") : t("Så i prosjektmappen");
+  else phrase = VERBS[s.tool]?.[running ? 1 : 0] ?? (where.target ? t("{tool}: {target}", { tool: s.tool }) : s.tool);
+  if (!where.target && phrase.includes("{target}")) phrase = running ? t("Bruker {tool}", { tool: s.tool }) : t("Brukte {tool}", { tool: s.tool });
+  return { phrase, ...where, result: running ? "" : resultOf(s) };
 }
 
 // «Leste src/app.ts», as one line of plain text, for titles and the now-line.
 export function stepSentence(s: StepFacts): string {
-  const w = describeStep(s);
-  const target = w.quoted ? t("«{target}»", { target: w.target }) : w.target;
-  return target ? t("{verb} {target}", { verb: w.verb, target }) : w.verb;
+  const { phrase, target } = describeStep(s);
+  return phrase.replaceAll("{target}", () => target);
 }
 
 // The line over several steps of the same kind in a row: «Leste 6 filer», «Kjørte 3 kommandoer».

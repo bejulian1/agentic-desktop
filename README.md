@@ -2,19 +2,15 @@
 
 [Norsk versjon (README.nb.md)](README.nb.md) · [Download latest release](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Changelog](CHANGELOG.md) · [Credits](CREDITS.md)
 
-> Norwegian Bokmål is the source language. Settings → General → Language switches the translated screens live. English covers the first set of screens; ten more languages have starter catalogs. Untranslated text stays in Norwegian.
+> Norwegian Bokmål is the source language. Settings → General → Language switches the translated screens live. All eleven translation catalogs cover the UI; user content stays in its original language.
 
 Agentic Desktop is a local-first Linux desktop application (Electron + Node.js + SolidJS) for chatting and coding with large language models using **your own API keys** or local models. Talk to models in **Chat**, or hand them a folder in **Code** (`Kode`) where the agent can read and edit files, run terminal commands, and inspect what it builds in an integrated browser. Conversations, projects, and settings are stored locally in SQLite—no Agentic Desktop account, no telemetry, and a built-in demo model lets you explore the interface and tools without an API key.
 
-| Code & changes | Chat project | React artifacts |
+| Chat workspace | Code workspace | Appearance settings |
 | --- | --- | --- |
-| [![Code and diff](docs/bilder/kode.png)](docs/bilder/kode.png) | [![Chat project](docs/bilder/chat-prosjekt.png)](docs/bilder/chat-prosjekt.png) | [![React preview](docs/bilder/artifact-react.png)](docs/bilder/artifact-react.png) |
+| [![Chat workspace](docs/bilder/en/chat.png)](docs/bilder/en/chat.png) | [![Code workspace](docs/bilder/en/kode.png)](docs/bilder/en/kode.png) | [![Appearance settings](docs/bilder/en/appearance.png)](docs/bilder/en/appearance.png) |
 
-*Click any screenshot for full size.*
-
-![Read receipts in Code](docs/bilder/lesestatus.png)
-
-*Main screenshots show v0.21.0; feature screenshots below show v0.21.1–v0.29.x. All screenshots use the demo/test models and temporary data.*
+*Click a screenshot for full size. These views use temporary demo data.*
 
 ## Features
 
@@ -27,46 +23,11 @@ Agentic Desktop is a local-first Linux desktop application (Electron + Node.js +
 - **MCP servers:** Built-in Model Context Protocol client supporting **stdio** and **Streamable HTTP** (`2025-11-25` and earlier), presets for GitHub and Playwright, secrets stored in the system keyring, per-tool approval, and up to 60 MCP tools per turn ([MCP servers](docs/MCP.md)).
 - **Hooks:** Run your own shell commands on `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, and `Stop` using a Claude Code-compatible JSON stdin/stdout contract, managed globally in Settings ([Hooks](docs/HOOKS.md)).
 - **Commands and skills:** Type `/` for the active mode's commands and skills, `$` for skills only, or `/help` (alias `/commands`) for a searchable guide. Chat and Code share commands such as `/new`, `/sessions`, `/find`, and `/fork`; Code also has `/worktree` and project panel commands. There are 24 built-in skills for Code, seven of which also work in Chat: `/excel`, `/word`, `/powerpoint`, `/data-files`, `/source-brief`, `/action-items`, and `/analyze-data`. Code-only examples include `/debug`, `/benchmark`, and `/ci-triage`. Add custom skills in a Code project's `.agentic/skills/` or in `~/.config/agentic-desktop/skills/` for Code and ordinary Chat ([Command and skill guide](docs/SLASH-SKILLS.md)).
-- **Inline charts:** Request a bar or line chart in Chat or Code. Charts render locally and do not require enabling Python or Artifacts ([example](docs/bilder/diagram-i-chat.png)).
+- **Inline charts:** Request a bar or line chart in Chat or Code. Charts render locally and do not require enabling Python or Artifacts.
 - **Providers including local models:** Built-in presets for **OpenRouter**, **abliteration.ai**, **Anthropic**, **OpenAI**, and any **OpenAI-compatible** endpoint—including local models via **Ollama** and **LM Studio** without an API key—plus the built-in **Demo model** (no network or API key required).
 - **Themes & visual mods:** Light and dark modes, custom global wallpaper with opacity/blur and three glass styles, and per-conversation declarative visual mods (built-in Aurora, Starry Sky, and Ocean presets, or model-authored pixel-art and color themes with per-conversation consent and WCAG contrast validation) ([Themes & visual mods](docs/UI-MODS.md)).
 
-### Feature Previews
-
-| Side questions (`/btw`, `/background`) | Slash-skills in Code | Chat personality & style |
-| --- | --- | --- |
-| [![Side questions](docs/bilder/sidesporsmal.png)](docs/bilder/sidesporsmal.png) | [![Skills menu](docs/bilder/skills-meny.png)](docs/bilder/skills-meny.png) | [![Chat personality](docs/bilder/chat-personlighet.png)](docs/bilder/chat-personlighet.png) |
-
-| MCP servers | Hooks | Glass styles over backgrounds |
-| --- | --- | --- |
-| [![MCP servers](docs/bilder/mcp-servere.png)](docs/bilder/mcp-servere.png) | [![Hooks](docs/bilder/hooks.png)](docs/bilder/hooks.png) | [![Glass styles](docs/bilder/glass-valg.png)](docs/bilder/glass-valg.png) |
-
-| Global wallpaper | Appearance settings | Glass & Aurora theme |
-| --- | --- | --- |
-| [![Global wallpaper](docs/bilder/bakgrunn-chat.png)](docs/bilder/bakgrunn-chat.png) | [![Background settings](docs/bilder/bakgrunn-innstillinger.png)](docs/bilder/bakgrunn-innstillinger.png) | [![Aurora in Chat](docs/bilder/glass-nordlys.png)](docs/bilder/glass-nordlys.png) |
-
-| Aurora mod in Code | Mod library | Per-conversation consent |
-| --- | --- | --- |
-| [![Aurora and clock mod](docs/bilder/mods-nordlys.png)](docs/bilder/mods-nordlys.png) | [![Theme and mod library](docs/bilder/mods-bibliotek.png)](docs/bilder/mods-bibliotek.png) | [![Enable mods consent](docs/bilder/mods-samtykke.png)](docs/bilder/mods-samtykke.png) |
-
-| Chat files | Chat tools | Token calendar |
-| --- | --- | --- |
-| [![Downloadable Excel file](docs/bilder/chat-filer.png)](docs/bilder/chat-filer.png) | [![Chat tools](docs/bilder/chat-verktoy.png)](docs/bilder/chat-verktoy.png) | [![Token calendar](docs/bilder/tokenkalender.png)](docs/bilder/tokenkalender.png) |
-
-<details>
-<summary>More screenshots: Chat, artifacts, side panel, and settings</summary>
-
-- ![Inline title editing](docs/bilder/navn-topplinje.png)
-- ![Centered model switch indicator](docs/bilder/modellbytte.png)
-- ![Resume conversations with mode icons](docs/bilder/fortsett.png)
-- ![Chat mode with code example](docs/bilder/chat.png)
-- ![Chat project settings](docs/bilder/chat-prosjekt-innstillinger.png)
-- ![Artifact source code](docs/bilder/artifact-kode.png)
-- ![Side panel tab bar and tool start page](docs/bilder/sidepanel.png)
-- ![Code appearance settings](docs/bilder/innstillinger-kode.png)
-- ![Glass prompt bar](docs/bilder/promptbar-glass.png)
-
-</details>
+More feature screenshots are available in the [Norwegian gallery](README.nb.md).
 
 ## Install
 
@@ -197,7 +158,7 @@ GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API com
 
 GPT 6.2 Astra implemented [dictation](docs/diktering.md) and [scheduled tasks](docs/planlagte-oppgaver.md) and removed nonfunctional controls.
 
-Claude Fable 5.2 made the settings, Git, and GitHub views translatable. Codex converted the composer, agent views, side panels, and shell, integrated the UI changes, and tested English rendering and responsive controls.
+Claude Fable 5.2 made the settings, Git, and GitHub views translatable. Codex converted the composer, agent views, side panels, and shell, tested English rendering and responsive controls, and updated the eleven catalogs for whole-sentence translations.
 
 Codex also contributed the [i18n foundation and contributor guide](docs/I18N.md), inline charts, [model selection for Code helpers](docs/MODELLDELEGERING.md), and [reviewable memory and skill suggestions](docs/MINNEFORSLAG.md).
 

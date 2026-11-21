@@ -32,9 +32,10 @@
 /* D3. The message field's bottom row: Innsats keeps its whole word, and the model's name gives way
    first. */
 .composer-foot .popover-anchor.effort-anchor { flex: none; }
+.effort-chip-short { display: none; }
 @container (max-width: 520px) {
-  .effort-chip-verb { display: none; }
-  .effort-chip-noun { text-transform: capitalize; }
+  .effort-chip-full { display: none; }
+  .effort-chip-short { display: inline; }
 }
 
 /* D7. Durations on steps are text, so they get the quiet text colour that holds AA, not --text-4. */

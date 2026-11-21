@@ -1,3 +1,4 @@
+import { Rich } from "./settings/parts";
 import { t } from "../lib/i18n";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { createProject, setMode, setProjectId } from "../state/app";
@@ -126,7 +127,7 @@ function FolderTrustDialog(props: { path: string; busy: boolean; error: string; 
       <button type="button" class="icon-button project-trust-close" aria-label={t("Lukk")} disabled={props.busy} onClick={props.onCancel}><IconClose size={15} /></button>
       <h2 id="project-trust-title">{t("Stoler du på denne mappen?")}</h2>
       <p class="project-trust-path">{props.path}</p>
-      <p id="project-trust-description">{t("Agentic Desktop kan la modeller lese og redigere filer og kjøre kommandoer her, innenfor tillatelsene dine. Instruksjoner i")} <code>AGENTS.md</code> {t("og innstillinger i")} <code>.agentic</code> {t("kan påvirke oppførselen. Fortsett bare hvis du stoler på innholdet.")}</p>
+      <p id="project-trust-description"><Rich text={t("Agentic Desktop kan la modeller lese og redigere filer og kjøre kommandoer her, innenfor tillatelsene dine. Instruksjoner i {file} og innstillinger i {dir} kan påvirke oppførselen. Fortsett bare hvis du stoler på innholdet.")} parts={{ file: <code>AGENTS.md</code>, dir: <code>.agentic</code> }} /></p>
       <p class="project-trust-permissions">{t("Dette endrer ikke tillatelsene dine.")}</p>
       <Show when={props.error}><p class="form-error" role="alert">{props.error}</p></Show>
       <div class="project-trust-actions">

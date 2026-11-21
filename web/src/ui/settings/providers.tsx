@@ -281,7 +281,7 @@ function ModelFetcher(props: { provider: ProviderConfig; onDone: () => void; onM
                     <input type="checkbox" checked={picked().has(m.id) || known().has(m.id)} disabled={known().has(m.id) || (picked().size >= 200 && !picked().has(m.id))} onChange={() => toggle(m.id)} />
                     <span class="fetch-id">{m.id}</span>
                     <span class="muted" title={m.contextSource === "api" ? t("Fra leverandøren") : m.contextSource === "table" ? t("Fra en innebygd tabell") : t("Standardverdi, kan endres")}>
-                      {formatTokens(m.contextWindow)}{m.contextSource === "default" ? t(" (standard)") : ""}
+                      {m.contextSource === "default" ? t("{value} (standard)", { value: formatTokens(m.contextWindow) }) : formatTokens(m.contextWindow)}
                     </span>
                     <Show when={props.provider.localKind}><span class="muted fetch-tools">{m.supportsTools ? t("Verktøy på") : t("Verktøy av")}</span></Show>
                   </label>

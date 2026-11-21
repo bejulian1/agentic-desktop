@@ -8,7 +8,7 @@ import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
 import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
-import { app, scopeOf, LOCAL_SCOPE, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
+import { app, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
 import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
@@ -495,7 +495,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
     for (const provider of app.providers) {
       const models = app.models.filter((m) => {
         if (m.providerId !== provider.id) return false;
-        const hay = `${m.name} ${m.model} ${provider.name}`.toLowerCase();
+        const hay = `${modelDisplayName(m)} ${m.model} ${provider.name}`.toLowerCase();
         return words.every((w) => hay.includes(w));
       });
       if (models.length) out.push({ name: provider.name, localKind: provider.localKind, models });
@@ -587,12 +587,12 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
                     class="menu-item model-option"
                     classList={{ active: active() === model.id }}
                     aria-selected={props.chosen === model.id}
-                    title={model.model === "mock" ? model.name : `${model.name} (${model.model})`}
+                    title={model.model === "mock" ? modelDisplayName(model) : `${model.name} (${model.model})`}
                     onPointerMove={() => active() !== model.id && setActive(model.id)}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => props.onPick(model.id)}
                   >
-                    <span class="menu-name">{model.name}</span>
+                    <span class="menu-name">{modelDisplayName(model)}</span>
                     <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? t("Verktøy på") : t("Verktøy av")}</span></Show>
                     <span class="menu-check"><Show when={props.chosen === model.id}><IconCheck size={14} /></Show></span>
                   </button>
@@ -1342,7 +1342,7 @@ export function Composer(props: {
             case "light": case "lys": return actions.theme("light");
             case "dark": case "mørk": return actions.theme("dark");
             case "system": return actions.theme("system");
-            default: return toast(t("Bruk /theme lys, /theme mørk eller /theme system."), "info");
+            default: return toast(t("Bruk {light}, {dark} eller {system}.", { light: "/theme light", dark: "/theme dark", system: "/theme system" }), "info");
           }
         }
         case "babysit": {
@@ -1387,8 +1387,8 @@ export function Composer(props: {
         case "model": {
           const query = arg.toLowerCase();
           if (!query) { setModelOpen(true); break; }
-          const exact = app.models.filter(m => [m.id, m.name, m.model].some(value => value.toLowerCase() === query));
-          const matches = exact.length ? exact : app.models.filter(m => m.name.toLowerCase().includes(query));
+          const exact = app.models.filter(m => [m.id, m.name, m.model, modelDisplayName(m)].some(value => value.toLowerCase() === query));
+          const matches = exact.length ? exact : app.models.filter(m => modelDisplayName(m).toLowerCase().includes(query));
           if (matches.length === 1) await setModel(matches[0].id);
           else {
             toast(matches.length ? t("Flere modeller passer «{arg}». Velg en i listen.", { arg }) : t("Fant ingen modell som heter «{arg}».", { arg }), "info");
@@ -2435,7 +2435,7 @@ export function Composer(props: {
                     setEffortOpen(true);
                   }}
                 >
-                  <span class="effort-chip-label"><Show when={effortLabel(chosenEffort())} fallback={<><span class="effort-chip-verb">{t("Velg ")}</span><span class="effort-chip-noun">{t("innsats")}</span></>}>{effortChip()}</Show></span><IconChevronDown size={12} />
+                  <span class="effort-chip-label"><Show when={effortLabel(chosenEffort())} fallback={<><span class="effort-chip-full">{t("Velg innsats")}</span><span class="effort-chip-short">{t("Innsats")}</span></>}>{effortChip()}</Show></span><IconChevronDown size={12} />
                 </button>
               }
             >

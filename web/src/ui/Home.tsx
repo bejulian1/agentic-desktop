@@ -276,7 +276,7 @@ function TokenHistory() {
         {(s) => (
           <div class="home-tokens-body">
             <div class="home-tokens-figures">
-              <span class="home-tokens-total" data-testid="home-tokens-total">{t("{tokens}{unit}", { tokens: formatTokens(s().totalTokens) }).split(/(\{unit\})/).map(part => part === "{unit}" ? <small>{t(" tokens")}</small> : part)}</span>
+              <span class="home-tokens-total" data-testid="home-tokens-total">{t("{tokens} tokens").split(/(\{tokens\})/).map(part => part === "{tokens}" ? formatTokens(s().totalTokens) : <small>{part}</small>)}</span>
               <span class="home-tokens-meta">{plural(s().activeDays, "{count} aktiv dag · rekke {streak} d", "{count} aktive dager · rekke {streak} d", { streak: s().currentStreak })}</span>
             </div>
             <div class="heat-wrap"><HeatMap heat={s().heat} /></div>

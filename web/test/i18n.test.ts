@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { pluralKey, resolveLanguage, translate } from "../../shared/i18n.ts";
-import english from "../src/locales/en.json" with { type: "json" };
-import { flow, openProject, openTool } from "./harness.ts";
+import { flow, openProject, openTool, send } from "./harness.ts";
 
 test("system language matching, fallback, placeholders and plurals", () => {
   for (const locale of ["nb-NO", "nn-NO", "no"]) assert.equal(resolveLanguage(undefined, [locale]), "nb");
@@ -34,14 +33,23 @@ flow("changing language updates settings and navigation without a reload and sur
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
 });
 
+flow("Japanese file steps place the path before the verb in the row and tooltip", async (harness) => {
+  const { page } = harness;
+  await openProject(harness);
+  await harness.api("PATCH", "/api/settings", { language: "ja" });
+  await page.locator('html[lang="ja"]').waitFor();
+  await send(page, "feil");
+  const head = page.locator('.row-tool[data-tool="read_file"][data-status="error"] .step-head');
+  const label = "finnes-ikke.txt を読み取りました";
+  await head.getByText(label, { exact: true }).waitFor();
+  assert.equal(await head.getAttribute("title"), label);
+  assert.equal(await head.locator(".tool-file").textContent(), "finnes-ikke.txt");
+});
+
 flow("English composer, settings and side panel retain responsive controls", async (harness) => {
   const { page } = harness;
   await openProject(harness);
   await openTool(page, "Oversikt");
-  await page.route(/\/assets\/en-[^/]+\.js$/, route => route.fulfill({
-    contentType: "application/javascript",
-    body: `export default ${JSON.stringify({ ...english, Melding: "Message", Snakkeboble: "Speech bubble" })};`,
-  }));
   await page.getByTestId("settings-gear").click();
   await page.locator(".settings-nav").getByRole("button", { name: "Generelt", exact: true }).click();
   await page.getByRole("button", { name: "Språk", exact: true }).click();
@@ -52,6 +60,10 @@ flow("English composer, settings and side panel retain responsive controls", asy
   await page.getByTestId("app-icon-cards").getByRole("radio", { name: "Speech bubble", exact: true }).waitFor();
   await page.getByRole("button", { name: "Back to the app", exact: true }).click();
   await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
+  await page.getByTestId("model-button").getByText("Demo model (no API)").waitFor();
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("/theme invalid");
+  await page.keyboard.press("Enter");
+  await page.getByText("Use /theme light, /theme dark, or /theme system.", { exact: true }).waitFor();
   await page.locator(".right-panel").getByRole("tab", { name: "Overview", exact: true }).waitFor();
   const split = page.locator('[data-action="split-down"]');
   assert.equal(await split.getAttribute("aria-label"), "Split down");

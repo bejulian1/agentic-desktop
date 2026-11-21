@@ -155,7 +155,7 @@ export function validateHook(input: unknown, id: string): HookConfig {
   if (matcher.length > MAX_HOOK_MATCHER || /[\x00-\x1f]/.test(matcher)) throw new HttpError(400, "Ugyldig verktøyfilter.");
   const timeout = body.timeoutSeconds === undefined ? HOOK_TIMEOUT_DEFAULT : body.timeoutSeconds;
   if (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout < 1 || timeout > HOOK_TIMEOUT_MAX) throw new HttpError(400, `Tidsgrensen må være et helt antall sekunder fra 1 til ${HOOK_TIMEOUT_MAX}.`);
-  if (body.enabled !== undefined && typeof body.enabled !== "boolean") throw new HttpError(400, "Bruk sann/usann for på/av.");
+  if (body.enabled !== undefined && typeof body.enabled !== "boolean") throw new HttpError(400, "Bruk true/false for på/av.");
   const modes = body.modes === undefined ? ["code", "chat"] : body.modes;
   if (!Array.isArray(modes) || !modes.length || modes.some((m) => m !== "code" && m !== "chat")) throw new HttpError(400, "Velg Kode, Chat eller begge.");
   return {

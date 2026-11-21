@@ -93,6 +93,10 @@ User arguments are substituted verbatim into {{args}}.
 - Built-in skills currently use Norwegian descriptions (for the UI menu) and English instructions (for the model).
 - See [docs/SLASH-SKILLS.md](docs/SLASH-SKILLS.md) for the full specification.
 
+## UI translations
+
+Write whole Bokmål phrases, then add their translations to all 11 catalogs in extractor order. Remove replaced keys and run `npm run i18n:check -- --strict`. Ask in a draft PR for help with languages you do not know; all catalogs must be complete before merge. See [the translation guide](docs/I18N.md).
+
 ## Branch and Pull Request Flow
 
 1. Create a feature or fix branch from `main` (for example `feat/my-feature`, `fix/bug-name`, or `docs/topic`). Fork first if you have private fork access and are not working directly in the repository.

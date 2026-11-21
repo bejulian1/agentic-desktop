@@ -382,7 +382,7 @@ function StackPanelView(props: {
       style={props.style}
       onPointerDown={() => setFocusedTool(props.tool)}
     >
-      <header class="stack-head" onPointerDown={(e) => props.onMoveStart(e)} onDblClick={(e) => !(e.target as HTMLElement).closest(t("button, [role=tab], .stack-tabs")) && toggleMaximized(props.tool)} title={tabbed ? undefined : t("Dra for å flytte panelet. Dobbeltklikk for å maksimere.")}>
+      <header class="stack-head" onPointerDown={(e) => props.onMoveStart(e)} onDblClick={(e) => !(e.target as HTMLElement).closest("button, [role=tab], .stack-tabs") && toggleMaximized(props.tool)} title={tabbed ? undefined : t("Dra for å flytte panelet. Dobbeltklikk for å maksimere.")}>
         <span class="stack-title" title={tabbed ? t("{tool}: dra for å flytte", { tool: tool.label }) : undefined}>
           <tool.icon size={14} />
           <Show when={!tabbed}><span class="stack-name">{tool.label}</span></Show>

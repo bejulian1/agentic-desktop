@@ -15,7 +15,7 @@ import { IconPlay } from "../icons";
 import { ThemePicker } from "../ThemePicker";
 import { AppIconPicker } from "../AppIconPicker";
 import { permissionScope, permissionTitle } from "../permission-copy";
-import { Choice, Group, Page, Row, save, Segmented, Toggle } from "./parts";
+import { Choice, Group, Page, Rich, Row, save, Segmented, Toggle } from "./parts";
 
 const THEMES = (): Array<{ value: ThemeSetting; label: string }> => [
   { value: "light", label: t("Lys") },
@@ -330,7 +330,7 @@ export function Privacy() {
       </Group>
       <Group title={t("Lagret på denne maskinen")}>
         <Row label={t("API-nøkler og GitHub-token")} text={app.keyring?.legacy ? t("En nøkkelfil fra en eldre versjon finnes fortsatt. Se Modeller og leverandører for status og flytting til nøkkelringen.") : app.keyring?.store === "pending" || !app.keyring ? t("Kontrollerer nøkkelringen. Se Modeller og leverandører for lagringsstatus.") : app.keyring?.store === "session" ? t("Bare i minnet til appen lukkes, fordi nøkkelringen ikke kan brukes nå. Aldri i klartekst på disken. De sendes aldri til nettleseren og skrives aldri til logger.") : t("Kryptert i systemets nøkkelring (GNOME-nøkkelringen), ikke i noen fil i datamappen. De sendes aldri til nettleseren og skrives aldri til logger.")} />
-        <Row label={t("Instruksjoner og settings.json")} text={<>{t("I")} <code>{config()?.dir ?? "…"}</code>.</>} />
+        <Row label={t("Instruksjoner og settings.json")} text={<Rich text={t("I {dir}.")} parts={{ dir: <code>{config()?.dir ?? "…"}</code> }} />} />
       </Group>
       <Group title={t("Slett data")}>
         <Row label={t("Arkiverte tråder")} text={plural(archived().length, "{count} arkivert tråd. Slettes for godt, med historikken.", "{count} arkiverte tråder. Slettes for godt, med historikken.")}>

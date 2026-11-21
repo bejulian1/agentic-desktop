@@ -45,34 +45,6 @@ export function toolPath(row: ToolRow): string | null {
   return path && !path.includes("\n") ? path : null;
 }
 
-const VERBS: Record<string, string> = {
-  get read_file() { return t("Leste"); },
-  get write_file() { return t("Skrev"); },
-  get edit_file() { return t("Redigerte"); },
-};
-
-// "Leste src/app.ts" in a tool row, where the path opens the mini editor. The row's own button
-// still folds the details out everywhere else; this is a span, so there is no button in a button,
-// and the keyboard has "Åpne i editor" in the folded-out details (ToolOpenButton).
-export function ToolLabel(props: { row: ToolRow; fallback: string }) {
-  const path = toolPath(props.row);
-  if (!path) return <>{props.fallback}</>;
-  const open = (event: MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const target = event.currentTarget as HTMLElement;
-    const { threadId, projectId } = paneContext(target);
-    if (!projectId) return;
-    openMiniEditor({ kind: "file", projectId, path, threadId, source: target.closest(".row") });
-  };
-  return (
-    <>
-      {VERBS[props.row.tool]}{" "}
-      <span class="tool-file" title={t("Åpne {path} i mini-editoren", { path })} onClick={open} onPointerEnter={preloadMiniEditor}>{path}</span>
-    </>
-  );
-}
-
 // Round 13 (SPEC 27.1): the path alone, for a step that writes its own verb.
 export function PathLink(props: { path: string }) {
   const open = (event: MouseEvent) => {
