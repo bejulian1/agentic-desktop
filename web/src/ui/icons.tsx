@@ -127,3 +127,7 @@ export const IconThought = (p: P) => <Svg {...p} name="thought"><path d="M4.75 9
 // and in from them.
 export const IconExpand = (p: P) => <Svg {...p}><path d="M9.5 2.75h3.75V6.5M13.25 2.75 9.25 6.75M6.5 13.25H2.75V9.5M2.75 13.25l4-4" /></Svg>;
 export const IconCollapse = (p: P) => <Svg {...p}><path d="M13.25 6.5H9.5V2.75M9.5 6.5l3.75-3.75M2.75 9.5H6.5v3.75M6.5 9.5l-3.75 3.75" /></Svg>;
+
+export const IconIssue = (p: P) => (
+  <Svg {...p}><circle cx="8" cy="8" r="5.75" /><circle cx="8" cy="8" r="1.25" fill="currentColor" stroke="none" /></Svg>
+);

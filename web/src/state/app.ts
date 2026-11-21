@@ -26,7 +26,7 @@ import { ApiError, del, get, offlineMessage, patch, post } from "../lib/api";
 import { connection, on, startSocket } from "../lib/socket";
 import { setTheme } from "../lib/theme";
 import { closeArtifacts, setArtifacts, wireArtifactEvents } from "./artifacts";
-import { beginNavigation, closeChatProjectPage, closeProfile } from "./nav";
+import { beginNavigation, closeChatProjectPage, closeGitHubRoom, closeProfile } from "./nav";
 import { applyLook, applyStartMode } from "./look";
 
 interface AppState {
@@ -140,6 +140,7 @@ export function setMode(next: Mode): void {
   beginNavigation();
   batch(() => {
     closeChatProjectPage();
+    closeGitHubRoom();
     closeSkills();
     closeArtifacts();
     closeProfile();

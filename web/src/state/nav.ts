@@ -3,6 +3,10 @@
 // imports state/app.ts, so app.ts can close the profile page when the mode changes.
 import { createSignal } from "solid-js";
 import { get } from "../lib/api";
+import type { GitHubKind, GitHubReference } from "../../../shared/protocol";
+
+export const [githubRoom, setGitHubRoom] = createSignal<{ kind: GitHubKind; projectId?: string; detail: GitHubReference | null } | null>(null);
+export const closeGitHubRoom = () => setGitHubRoom(null);
 
 // Any explicit mode/page/thread navigation supersedes a thread still loading. Keeping this
 // generation here lets app.ts cancel it without importing the thread/grid navigation module.
@@ -31,6 +35,7 @@ export function closeChatProjectPage(): void {
 const [profileOpen, setProfileOpen] = createSignal(false);
 export { profileOpen };
 export function openProfile(): void {
+  closeGitHubRoom();
   setProfileOpen(true);
 }
 export function closeProfile(): void {

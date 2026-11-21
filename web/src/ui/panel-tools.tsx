@@ -16,7 +16,6 @@ export interface PanelTool {
   keys?: string; // a shortcut id
   tip: string;
   needsProject?: boolean;
-  beta?: boolean;
 }
 
 // Round 12 (SPEC 26.2): Økt first, the thread in focus: environment, context, connections and what
@@ -29,7 +28,7 @@ export const PANEL_TOOLS: PanelTool[] = [
   { id: "terminal", get label() { return t("Terminal"); }, icon: IconTerminal, keys: "panel.terminal", get tip() { return t("Terminal i prosjektmappen, eller i hjemmemappen uten prosjekt"); } },
   { id: "browser", get label() { return t("Nettleser"); }, icon: IconGlobe, keys: "panel.browser", get tip() { return t("Nettleser: siden agenten og Playtest bruker"); } },
   { id: "team", get label() { return t("Team"); }, icon: IconUsers, keys: "panel.team", get tip() { return t("Team: den delte oppgavelisten"); } },
-  { id: "github", get label() { return t("GitHub"); }, icon: IconPullRequest, get tip() { return t("GitHub (Beta): pull requests og issues for prosjektets repo"); }, beta: true },
+  { id: "github", get label() { return t("GitHub"); }, icon: IconPullRequest, get tip() { return t("Pull requests og issues for prosjektets repo"); } },
 ];
 
 export const toolById = (id: PanelTab) => PANEL_TOOLS.find((t) => t.id === id)!;

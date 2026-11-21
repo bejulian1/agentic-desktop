@@ -261,6 +261,9 @@ export function modelAllowsTools(model?: Pick<ModelConfig, "supportsTools">, loc
 }
 
 export interface Settings {
+  githubAuth?: "gh" | "token" | null;
+  githubOpenLinks?: boolean;
+  githubViews?: GitHubView[];
   language?: import("./i18n.ts").LanguageSetting;
   welcomeDone?: boolean;
   dictation?: { providerId: string; model: string } | null;
@@ -1207,9 +1210,88 @@ export type GitHubErrorCode = "bad-token" | "rate-limit" | "not-found" | "offlin
 
 export interface GitHubStatus {
   connected: boolean;
+  method?: "gh" | "token";
   login?: string; // the account the token belongs to
   name?: string | null;
   scopes?: string | null; // X-OAuth-Scopes for a classic token, null for a fine-grained one
+}
+
+export type GitHubCliStatus =
+  | { state: "missing" | "signed-out" | "unavailable" }
+  | { state: "signed-in"; login: string };
+
+export type GitHubKind = "pull" | "issues";
+export type GitHubState = "open" | "closed" | "merged" | "draft";
+export type GitHubSort = "updated" | "newest" | "oldest" | "comments";
+export type GitHubInvolvement = "any" | "author" | "assignee" | "mentions" | "review-requested";
+
+export interface GitHubFilters {
+  search: string;
+  sort: GitHubSort;
+  state: "open" | "closed" | "all" | "merged";
+  involvement: GitHubInvolvement;
+  label: string;
+  projectId: string;
+}
+
+export interface GitHubView {
+  id: string;
+  name: string;
+  kind: GitHubKind;
+  filters: GitHubFilters;
+}
+
+export interface GitHubReference {
+  repo: string;
+  kind: GitHubKind;
+  number: number;
+}
+
+export interface GitHubScope {
+  id: string;
+  name: string;
+  repo: string;
+}
+
+export interface GitHubRow extends GitHubItem, GitHubReference {
+  state: GitHubState;
+  avatarId: number | null;
+  checks: PullWatchStatus["checks"];
+}
+
+export interface GitHubDetail extends GitHubRow {
+  projectIds: string[];
+  assignees: string[];
+  body: string;
+  pull?: {
+    base: string;
+    head: string;
+    review: PullWatchStatus["review"];
+    checks: Array<{ name: string; status: string }>;
+  };
+}
+
+export interface GitHubComment {
+  id: string;
+  author: string | null;
+  avatarId: number | null;
+  createdAt: string;
+  body: string;
+  review?: string;
+  path?: string;
+}
+
+export interface GitHubFile {
+  name: string;
+  previousName?: string;
+  additions: number;
+  deletions: number;
+  patch: string | null;
+}
+
+export interface GitHubPage<T> {
+  items: T[];
+  next: string | null;
 }
 
 // Read from .git/config, never by running git.

@@ -28,6 +28,7 @@ export function startServer(dataDir: string, options: { port?: number; mockDelay
       HOME: options.home ?? dataDir, // No skills or shell setup from the real home folder.
       XDG_CONFIG_HOME: path.join(options.home ?? dataDir, ".config"), // Never the user's ~/.config/agentic-desktop.
       XDG_DATA_HOME: path.join(options.home ?? dataDir, ".local/share"),
+      GH_CONFIG_DIR: path.join(options.home ?? dataDir, ".config/gh"),
       AD_DATA_DIR: dataDir,
       AD_PORT: String(options.port ?? 0),
       AD_MOCK_DELAY_MS: String(options.mockDelayMs ?? 1),

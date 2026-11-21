@@ -45,6 +45,7 @@ import type { McpServers } from "../mcp/manager.ts";
 import { chatRoutes } from "./chat-routes.ts";
 import { chatProjectRoutes } from "./chat-project-routes.ts";
 import { githubRoutes } from "./github-routes.ts";
+import type { GitHub } from "../github.ts";
 import { runde12Routes, runde12Settings } from "./runde12-routes.ts";
 import { chatToolsFromBody, runde13Settings } from "./runde13-routes.ts";
 import { Storage, storageRoutes } from "../storage.ts";
@@ -115,6 +116,7 @@ interface Route {
 export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
+  github: GitHub;
   uiMods?:UiMods;
   hooks?: Hooks; // Innstillinger → Hooks (hooks-routes.ts)
   mcp?: McpServers; // Innstillinger → MCP-servere (mcp-routes.ts)
@@ -970,6 +972,10 @@ export class Api {
 
     this.route("PATCH", "/api/settings", ({ body }) => {
       const patch: Partial<Settings> = {};
+      if (body.githubOpenLinks !== undefined) {
+        if (typeof body.githubOpenLinks !== "boolean") throw new HttpError(400, "Velg om GitHub-lenker skal åpnes i appen.");
+        patch.githubOpenLinks = body.githubOpenLinks;
+      }
       if (body.welcomeDone !== undefined) {
         if (typeof body.welcomeDone !== "boolean") throw new HttpError(400, "Bruk true/false.");
         patch.welcomeDone = body.welcomeDone;
@@ -1331,9 +1337,10 @@ export class Api {
     // Round 7: Chat. Edit a message and send it again, or make the last answer again.
     chatRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps, { thread: (id) => this.thread(id), assertFolder: (id) => this.assertFolder(id) });
 
-    // Round 8: GitHub (Beta, read only) and saving from the mini editor.
+    // Round 8: GitHub (read only) and saving from the mini editor.
     githubRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps, {
       project: (id) => this.project(id),
+      settingsChanged: () => this.settingsChanged(),
       filesChanged: (projectId, paths) => {
         this.invalidateFiles(projectId);
         this.deps.publish({ type: "project.files-changed", projectId, paths });

@@ -400,7 +400,7 @@ flow("skjult sidefane som en tynn ikonrad: rekkefølge, markering, tips, valget 
   const box = (await rail.boundingBox())!;
   assert.ok(Math.abs(box.width - 48) <= 1, `48 px bred: ${box.width}`);
   const names = await rail.getByRole("button").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
-  assert.deepEqual(names, ["Vis sidefanen", "Chat", "Kode", "Studio", "Ny tråd", "Søk i tråder", "Artifacts", "Skills", "Prosjekt: Demo", "Varsler", "Innstillinger", "Profil"]);
+  assert.deepEqual(names, ["Vis sidefanen", "Chat", "Kode", "Studio", "Ny tråd", "Søk i tråder", "Artifacts", "Skills", "Prosjekt: Demo", "Varsler", "Innstillinger", "Pull requests", "Issues", "Profil"]);
   // The mode and the open project are marked; the mode switch is not also in the top bar.
   await rail.getByRole("button", { name: "Kode", pressed: true }).waitFor();
   assert.equal(await rail.getByRole("button", { name: "Prosjekt: Demo" }).getAttribute("aria-current"), "page");

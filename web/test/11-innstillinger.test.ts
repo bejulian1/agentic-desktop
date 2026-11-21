@@ -6,7 +6,7 @@ import { descendants, flow, openPanel, openProject, ROOT, threadItem, waitFor, o
 flow("Om viser versjon, byggnummer, byggdato og Code Pro, og menyen i Innstillinger viser det samme", async (h) => {
   const { page } = h;
   const version = JSON.parse(readFileSync(path.join(ROOT, "version.json"), "utf8"));
-  const built = JSON.parse(readFileSync(path.join(ROOT, "web/dist/build-info.json"), "utf8"));
+  const built = JSON.parse(readFileSync(path.join(process.env.AD_WEB_DIST ?? path.join(ROOT, "web/dist"), "build-info.json"), "utf8"));
   // SPEC 21.6: not under Profil in the sidebar any more, only in Innstillinger.
   await page.locator(".sidebar .profile-button").waitFor();
   assert.equal(await page.getByTestId("version").count(), 0, "ikke i sidefanen");

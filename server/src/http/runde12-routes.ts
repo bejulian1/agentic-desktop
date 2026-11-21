@@ -74,6 +74,7 @@ export function runde12Routes(route: Route, deps: ApiDeps, h: { thread: (id: str
   const ended = new EndedServers();
   const sessionDeps = () => ({
     ended,
+    github: deps.github,
     store: deps.store,
     runner: deps.runner,
     secrets: deps.secrets,

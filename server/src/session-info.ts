@@ -10,7 +10,7 @@ import type { Runner } from "./agent/runner.ts";
 import type { ImportedCookies } from "./browser-cookies.ts";
 import type { Store } from "./db.ts";
 import { HttpError } from "./errors.ts";
-import { GitHub } from "./github.ts";
+import type { GitHub } from "./github.ts";
 import { DEFAULT_CONTEXT_WINDOW } from "./providers/presets.ts";
 import { apiKeyFor } from "./providers/index.ts";
 import type { Secrets } from "./secrets.ts";
@@ -18,6 +18,7 @@ import type { Servers } from "./servers.ts";
 import type { Terminals } from "./terminal.ts";
 
 export interface SessionDeps {
+  github: GitHub;
   store: Store;
   runner: Runner;
   secrets: Secrets;
@@ -123,8 +124,7 @@ function connections(deps: SessionDeps, thread: Thread, project: Project | undef
       status: keyed || local ? "ok" : "warn",
     });
   }
-  // Only the stored token is looked at; GitHub itself is not asked from here.
-  const github = new GitHub(secrets).status();
+  const github = deps.github.status();
   if (github.connected) out.push({ id: "github", kind: "github", label: "GitHub", ...(github.login ? displayDetail(sourceText("Tilkoblet som {login}"), { login: github.login }) : displayDetail(sourceText("Tilkoblet"))), status: "ok" });
   // The Browser panel is a tool in Kode threads with a project.
   if (thread.mode === "code" && project && deps.browser) {

@@ -1,3 +1,4 @@
+import { GitHubNavigation } from "./GitHubNavigation";
 import { t } from "../lib/i18n";
 import { studioOpen } from "../state/studio";
 // Round 10 (SPEC 23.9): the sidebar, hidden, as a thin row of icons about 48 px wide. From the top:
@@ -12,7 +13,7 @@ import { app, listed, mode, projectId, setMode, setProjectId, setSettingsOpen, s
 import { actions, focusedThread } from "../state/actions";
 import { skillsOpen } from "../state/skills-workspace";
 import { openArtifacts, room } from "../state/artifacts";
-import { chatProjectPageId, closeProfile } from "../state/nav";
+import { githubRoom, chatProjectPageId, closeProfile } from "../state/nav";
 import { openChatProject, openThread } from "../state/navigate";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { enterMode, enterStudio } from "./ModeSwitch";
@@ -78,7 +79,7 @@ export function SidebarRail() {
                 class="icon-button rail-button rail-project"
                 aria-label={t("Prosjekt: {name}", { name: project.name })}
                 title={project.pinned ? t("{name} (festet)", { name: project.name }) : project.name}
-                aria-current={chatProjectPageId() === project.id && !room() && !skillsOpen() ? "page" : undefined}
+                aria-current={chatProjectPageId() === project.id && !room() && !skillsOpen() && !githubRoom() ? "page" : undefined}
                 onClick={() => openChatProject(project.id)}
               >
                 <ChatProjectGlyph project={project} size={16} />
@@ -95,7 +96,7 @@ export function SidebarRail() {
                 class="icon-button rail-button rail-project"
                 aria-label={t("Prosjekt: {name}", { name: project.name })}
                 title={project.pinned ? t("{name} (festet)", { name: project.name }) : project.name}
-                aria-current={code() && projectId() === project.id && !room() && !skillsOpen() ? "page" : undefined}
+                aria-current={code() && projectId() === project.id && !room() && !skillsOpen() && !githubRoom() ? "page" : undefined}
                 onClick={() => openProject(project.id)}
               >
                 <ProjectGlyph project={project} size={16} />
@@ -107,6 +108,7 @@ export function SidebarRail() {
       <div class="rail-group rail-foot">
         <Notifications rail />
         <button type="button" class="icon-button rail-button" aria-label={t("Innstillinger")} title={tip(t("Innstillinger for {mode}", { mode: code() ? t("Kode") : t("Chat") }), "settings.open")} onClick={() => setSettingsOpen(code() ? "code" : "chat")} onPointerEnter={preloadSettings} onFocus={preloadSettings}><IconSettings size={16} /></button>
+        <GitHubNavigation rail />
         <ProfileMenu rail />
       </div>
     </nav>
