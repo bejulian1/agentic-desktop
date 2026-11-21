@@ -75,7 +75,7 @@ To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiens
 
 ## Om GitHubs Contributors-graf
 
-README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Historikken er ikke omskrevet for å endre statistikken. Da repoet ble offentlig, ble bare prosjekteierens private e-postadresse i to eldre commits byttet til GitHubs noreply-adresse. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
+README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Historikken er ikke omskrevet for å endre statistikken. Da repoet ble offentlig, ble prosjekteierens private e-postadresse i to eldre commits byttet til GitHubs noreply-adresse, og tre falske Stripe-lignende testnøkler ble delt opp så GitHubs hemmelighetsskanner ikke tar dem for ekte. Ellers er innholdet likt. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
 
 Verktøyene oppføres som AI-assistanse, ikke som mennesker, prosjekteiere eller garantister. Krediteringen innebærer ingen offisiell støtte eller tilknytning til Anthropic, OpenAI eller Google. Lisensvilkår endres ikke av denne filen.
 
