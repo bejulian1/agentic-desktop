@@ -25,7 +25,7 @@ flow("/, @ og ! i meldingsfeltet, med en skill", async (h) => {
   for (const name of ["/new", "/mode", "/model", "/compact", "/undo", "/playtest", "/vscode", "/help", "/hils"]) {
     await menu.getByText(name, { exact: true }).waitFor();
   }
-  await page.keyboard.type("hi");
+  await page.keyboard.type("hils");
   await waitFor(async () => (await menu.locator(".menu-item").count()) === 1, "menyen filtreres mens du skriver");
   await page.keyboard.press("Escape");
   await waitFor(async () => (await menu.count()) === 0, "Escape lukker menyen");

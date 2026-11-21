@@ -93,8 +93,9 @@ flow("serveren går ned og kommer tilbake", async (h) => {
   const { page } = h;
   // Everything a dead server makes the browser log is expected here.
   h.allow(/ERR_CONNECTION_REFUSED|WebSocket connection|Failed to load resource|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE/);
+  const replies = page.locator('.pane-inner.focused .row-text').filter({ hasText: "Dette er demo-modellen" });
   await send(page, "hjelp");
-  await page.getByText("Dette er demo-modellen").waitFor();
+  await replies.waitFor();
   const threadId = await page.locator(".pane-inner.focused").getAttribute("data-thread-id");
 
   await page.getByRole("textbox", { name: "Melding", exact: true }).fill("et utkast som ikke må gå tapt");
@@ -103,7 +104,7 @@ flow("serveren går ned og kommer tilbake", async (h) => {
   await page.getByTestId("offline-banner").waitFor();
   await page.locator('[data-testid="connection"][data-state="offline"]').waitFor();
   assert.equal(await page.getByRole("textbox", { name: "Melding", exact: true }).inputValue(), "et utkast som ikke må gå tapt", "utkastet er der fortsatt");
-  assert.ok(await page.getByText("Dette er demo-modellen").isVisible(), "samtalen står");
+  assert.ok(await replies.isVisible(), "samtalen står");
 
   // Sending while down keeps the text. The banner says what happened; no toast repeats it over
   // the panel (round 8).
@@ -122,10 +123,10 @@ flow("serveren går ned og kommer tilbake", async (h) => {
   // Pasting the new link into the same tab is enough.
   await page.evaluate((hash) => { location.hash = hash; }, new URL(again.link).hash);
   await page.waitForSelector(".app");
-  await page.locator(`[data-thread-id="${threadId}"]`).getByText("Dette er demo-modellen").waitFor();
+  await page.locator(`[data-thread-id="${threadId}"] .row-text`).filter({ hasText: "Dette er demo-modellen" }).waitFor();
   await page.locator('[data-testid="connection"][data-state="online"]').waitFor();
   await send(page, "hjelp");
-  await waitFor(async () => (await page.getByText("Dette er demo-modellen").count()) === 2, "appen virker igjen");
+  await waitFor(async () => (await replies.count()) === 2, "appen virker igjen");
 }, { port: 0 });
 
 flow("tilkoblingen faller ut og kommer tilbake uten tap", async (h) => {

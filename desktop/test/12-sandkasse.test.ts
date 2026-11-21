@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { test } from "node:test";
 import type { ElectronApplication, Page } from "playwright-core";
-import { closeAll, launch, sandbox, sandboxWorks, waitFor, type Running } from "./helpers.ts";
+import { closeAll, launch, ROOT, sandbox, sandboxWorks, waitFor, type Running } from "./helpers.ts";
 import { restricted } from "./gnome.ts";
-import { profileLoaded } from "../sandbox.ts";
+import { profileLoaded, shellWord } from "../sandbox.ts";
 
 function site(): Promise<{ url: string; server: Server }> {
   const server = createServer((_req, res) => {
@@ -66,7 +66,7 @@ test("uten sandkassen: Om sier det rolig, og nettleserpanelet bruker serverens C
     if (restricted() && !profileLoaded()) {
       assert.match(await note.innerText(), /Chromium-sandkassen er av fordi AppArmor-profilen for Agentic Desktop mangler\. Nettleserpanelet bruker derfor Chrome, med sin egen sandkasse\./);
       const command = await note.locator("code").innerText();
-      assert.match(command, /^sudo install -m 644 .*desktop\/apparmor\/agentic-desktop' \/etc\/apparmor\.d\/agentic-desktop && sudo apparmor_parser -r \/etc\/apparmor\.d\/agentic-desktop$/);
+      assert.equal(command, `sudo install -m 644 ${shellWord(`${ROOT}/desktop/apparmor/agentic-desktop`)} /etc/apparmor.d/agentic-desktop && sudo apparmor_parser -r /etc/apparmor.d/agentic-desktop`);
       await note.getByRole("button", { name: "Kopier" }).click();
       await page.locator(".toast", { hasText: "Kommandoen er kopiert." }).waitFor();
       assert.equal(await page.evaluate(() => navigator.clipboard.readText()), command);
