@@ -2,6 +2,7 @@
 // the current value and a chevron, and the same floating menu as the rest of the app, with a check
 // on the current one. Arrows, Enter and Esc work, and Esc gives focus back to the button.
 import { createEffect, createSignal, Show } from "solid-js";
+import { t } from "../lib/i18n";
 import { ContextMenu, type MenuAnchor } from "./ContextMenu";
 import { IconChevronDown } from "./icons";
 
@@ -38,7 +39,7 @@ export function Select<T extends string | number | null>(props: {
         data-value={String(props.value)}
         onClick={(e) => active() && setAnchor(anchor() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}
       >
-        <span class="select-value">{current()?.label ?? "Velg"}</span>
+        <span class="select-value">{current()?.label ?? t("Velg")}</span>
         <IconChevronDown size={13} />
       </button>
       <Show when={active() && anchor()}>

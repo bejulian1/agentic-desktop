@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import {effectiveUiMod,uiMods} from "../state/ui-mods";
 import {modVariables} from "../lib/ui-mod-theme";
 import {UiModBand} from "./UiModBand";
@@ -130,7 +131,7 @@ export function Pane(props: {
           fallback={
             <input
               class="input rename"
-              aria-label="Nytt navn"
+              aria-label={t("Nytt navn")}
               value={thread()?.title ?? ""}
               ref={(el) => setTimeout(() => el.select())}
               onBlur={(e) => commitRename(e.currentTarget)}
@@ -144,12 +145,12 @@ export function Pane(props: {
           <span class="pane-title" classList={{ empty: untitled(thread()) }} title={untitled(thread()) ? undefined : thread()!.title} onDblClick={() => !untitled(thread()) && setRenaming(true)}>{untitled(thread()) ? <span class="sr-only">{EMPTY_THREAD_NAME}</span> : thread()!.title}</span>
         </Show>
         <Show when={parent()}>
-          <button type="button" class="origin-tag" title={`Laget av ${parent()!.title}`} onClick={() => showThread(parent()!.id)}>
+          <button type="button" class="origin-tag" title={t("Laget av {title}", { title: parent()!.title })} onClick={() => showThread(parent()!.id)}>
             <IconBranch size={12} /><span>{parent()!.title}</span>
           </button>
         </Show>
         <Show when={!parent() && forkSource(thread())}>
-          <button type="button" class="origin-tag" title={`Gaffel av ${forkSourceTitle(thread()!)}. Trykk for å åpne den.`} onClick={() => void openForkSource(thread()!)}>
+          <button type="button" class="origin-tag" title={t("Gaffel av {title}. Trykk for å åpne den.", { title: forkSourceTitle(thread()!) })} onClick={() => void openForkSource(thread()!)}>
             <IconBranch size={12} /><span>{forkSourceTitle(thread()!)}</span>
           </button>
         </Show>
@@ -161,7 +162,7 @@ export function Pane(props: {
             pane with focus. A pane has its own head only when there are several, and then only
             Lukk ruten, which belongs to this pane. */}
         <Show when={props.grid && props.grid.count() > 1}>
-          <button type="button" class="icon-button pane-action" title="Lukk ruten" aria-label="Lukk ruten" onClick={() => props.grid!.close(props.pane.id)}><IconClose size={15} /></button>
+          <button type="button" class="icon-button pane-action" title={t("Lukk ruten")} aria-label={t("Lukk ruten")} onClick={() => props.grid!.close(props.pane.id)}><IconClose size={15} /></button>
         </Show>
         <Show when={props.solo && threadId()}>
           <button
@@ -173,9 +174,7 @@ export function Pane(props: {
               closeDetachedWindow(id);
               window.close();
             }}
-          >
-            Legg tilbake
-          </button>
+          >{t("Legg tilbake")}</button>
         </Show>
       </header>
       <div class="pane-body">
@@ -192,7 +191,7 @@ export function Pane(props: {
         </Show>
       </div>
       <div class="pane-foot">
-      <Show when={mod()?.widgets.length}><UiModBand mod={mod()!} workspace={props.projectId?app.projects[props.projectId]?.name??"Prosjekt":props.code?"Denne datamaskinen":"Chat"} usage={()=>model()?.usage()??null}/></Show>
+      <Show when={mod()?.widgets.length}><UiModBand mod={mod()!} workspace={props.projectId?app.projects[props.projectId]?.name??t("Prosjekt"):props.code?t("Denne datamaskinen"):t("Chat")} usage={()=>model()?.usage()??null}/></Show>
       {/* Round 14 (SPEC 30.5): a missing folder replaces the message field (FolderMissingBar in Composer). */}
       <Show when={questions().length}>
         <div class="approval-dock" data-testid="question-dock"><For each={questions()}>{(row) => <UserQuestionCard row={row}/>}</For></div>

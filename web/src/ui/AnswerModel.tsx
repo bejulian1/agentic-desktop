@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import type { AnswerModel } from "../../../shared/protocol";
 import { app, settingsOpen } from "../state/app";
@@ -10,7 +11,7 @@ export function answerModelInfo(snapshot?: AnswerModel) {
   const model = snapshot && app.models.find(model => model.id === snapshot.modelId);
   const provider = app.providers.find(provider => provider.id === (snapshot?.providerId ?? model?.providerId));
   return {
-    name: snapshot?.modelName ?? model?.name ?? "Ukjent modell",
+    name: snapshot?.modelName ?? model?.name ?? t("Ukjent modell"),
     provider: snapshot?.providerName ?? provider?.name,
     model: snapshot?.model ?? model?.model,
     known: !!(snapshot?.modelName || model),
@@ -31,16 +32,18 @@ export function AnswerModelButton(props: { model?: AnswerModel }) {
   });
   const info = () => answerModelInfo(props.model);
   const title = () => info().known
-    ? `Svar fra ${info().name}${info().provider ? ` · ${info().provider}` : ""}`
-    : "Modellinformasjon er ikke lagret for dette svaret";
+    ? info().provider
+      ? t("Svar fra {name} · {provider}", { name: info().name, provider: info().provider! })
+      : t("Svar fra {name}", { name: info().name })
+    : t("Modellinformasjon er ikke lagret for dette svaret");
   return <Popover open={open()} onClose={() => setOpen(false)} fixed portal stable returnFocus class="answer-model-anchor" panelClass="answer-model-popover"
-    trigger={<button ref={trigger} type="button" class="msg-action answer-model-button" title={title()} aria-label="Modell som laget svaret" aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconCpu size={14} /></button>}>
-    <section class="answer-model-card" role="dialog" aria-label="Modell som laget svaret" data-testid="answer-model-info">
-      <span class="muted small">Dette svaret ble laget av</span>
+    trigger={<button ref={trigger} type="button" class="msg-action answer-model-button" title={title()} aria-label={t("Modell som laget svaret")} aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconCpu size={14} /></button>}>
+    <section class="answer-model-card" role="dialog" aria-label={t("Modell som laget svaret")} data-testid="answer-model-info">
+      <span class="muted small">{t("Dette svaret ble laget av")}</span>
       <strong>{info().name}</strong>
       <Show when={info().provider}>{provider => <span>{provider()}</span>}</Show>
       <Show when={info().model}>{model => <code>{model()}</code>}</Show>
-      <Show when={!info().known}><span class="muted small">Den eldre samtaleloggen mangler modellinformasjon.</span></Show>
+      <Show when={!info().known}><span class="muted small">{t("Den eldre samtaleloggen mangler modellinformasjon.")}</span></Show>
     </section>
   </Popover>;
 }

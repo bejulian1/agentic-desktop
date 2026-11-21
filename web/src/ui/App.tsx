@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import {GlobalWallpaper} from './GlobalWallpaper';
 import {UiModRoot} from "./UiModRoot";
 import {modsOpen} from "../state/ui-mods";
@@ -42,10 +43,10 @@ const ChatProjectPage = lazy(() => import("./ChatProjectPage"));
 
 export function ExpiredScreen() {
   return (
-    <div class="expired" role="alertdialog" aria-label="Økten er utløpt">
+    <div class="expired" role="alertdialog" aria-label={t("Økten er utløpt")}>
       <div class="expired-card">
-        <h1>Åpne lenken fra terminalen</h1>
-        <p>Serveren har startet på nytt, eller så er du ikke logget inn. Lenken er ny for hver kjøring, og den står i terminalen der du startet appen. Trådene dine er lagret.</p>
+        <h1>{t("Åpne lenken fra terminalen")}</h1>
+        <p>{t("Serveren har startet på nytt, eller så er du ikke logget inn. Lenken er ny for hver kjøring, og den står i terminalen der du startet appen. Trådene dine er lagret.")}</p>
       </div>
     </div>
   );
@@ -54,7 +55,7 @@ export function ExpiredScreen() {
 function OfflineBanner() {
   return (
     <Show when={connection() === "offline"}>
-      <div class="banner" role="status" data-testid="offline-banner">Mistet kontakten med serveren. Prøver igjen…</div>
+      <div class="banner" role="status" data-testid="offline-banner">{t("Mistet kontakten med serveren. Prøver igjen…")}</div>
     </Show>
   );
 }
@@ -144,7 +145,8 @@ export function App() {
   // When the banner says the connection is gone, a toast that says the same goes.
   createEffect(() => {
     if (connection() !== "offline") return;
-    for (const t of untrack(toasts)) if (t.text === "Får ikke kontakt med serveren") dismissToast(t.id);
+    const offline = t("Får ikke kontakt med serveren");
+    for (const item of untrack(toasts)) if (item.text === offline || item.text === "Får ikke kontakt med serveren") dismissToast(item.id);
   });
   // Toasts sit at the top right of the conversation, left of the panel when it is open, so they
   // never cover the panel's tabs or a message field (styles/nav.css reads this).
@@ -203,7 +205,7 @@ export function App() {
       </Show>
       <Show when={sidebarOpen()}>
         <Sidebar />
-        <button type="button" class="scrim" aria-label="Lukk sidefanen" onClick={() => setSidebarOpen(false)} />
+        <button type="button" class="scrim" aria-label={t("Lukk sidefanen")} onClick={() => setSidebarOpen(false)} />
       </Show>
       <main class="main">
         <OfflineBanner />

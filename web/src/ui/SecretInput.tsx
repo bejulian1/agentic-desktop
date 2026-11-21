@@ -1,6 +1,7 @@
 // Round 14 (SPEC 30.1): the field for an API key or a token. Dots while you type, with an eye that
 // shows and hides the text, and no autofill, spell checking or capitalisation. The text is shown
 // only while the eye is on, and the field hides it again when it is emptied (after saving).
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, type JSX } from "solid-js";
 import { IconEye, IconEyeOff } from "./icons";
 
@@ -42,9 +43,9 @@ export function SecretInput(props: {
       <button
         type="button"
         class="secret-eye"
-        aria-label={shown() ? "Skjul teksten" : "Vis teksten"}
+        aria-label={shown() ? t("Skjul teksten") : t("Vis teksten")}
         aria-pressed={shown()}
-        title={shown() ? "Skjul teksten" : "Vis teksten"}
+        title={shown() ? t("Skjul teksten") : t("Vis teksten")}
         // Keeps the focus and the caret in the field.
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setShown(!shown())}

@@ -1,5 +1,6 @@
 // The message field. The textarea is uncontrolled, so typing costs what typing costs in a plain
 // textarea: nothing reactive runs on a keystroke unless the word under the caret starts with / or @.
+import { language, t } from "../lib/i18n";
 import { Dictation } from './Dictation';
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import type { Accessor } from "solid-js";
@@ -45,7 +46,7 @@ import { COMMAND_GROUPS, commandGroup, commandUnavailable, visibleCommands } fro
 import { codeSlashActions } from "./slash-code";
 import { threadSlashActions } from "./slash-thread";
 import { babysit } from "./babysit";
-import { CommandList } from "./CommandList";
+import { CommandList, InlineCopy } from "./CommandList";
 import type { ConversationTools } from "./Conversation";
 import { openArtifacts } from "../state/artifacts";
 import { startTemporaryChat } from "./ChatTools";
@@ -75,12 +76,12 @@ interface InfoCard {
 }
 
 export const EFFORTS: Array<{ id: ReasoningEffort; label: string }> = [
-  { id: "none", label: "Ingen" },
-  { id: "low", label: "Lav" },
-  { id: "medium", label: "Middels" },
-  { id: "high", label: "Høy" },
-  { id: "xhigh", label: "Ekstra høy" },
-  { id: "max", label: "Maks" },
+  { id: "none", get label() { return t("Ingen"); } },
+  { id: "low", get label() { return t("Lav"); } },
+  { id: "medium", get label() { return t("Middels"); } },
+  { id: "high", get label() { return t("Høy"); } },
+  { id: "xhigh", get label() { return t("Ekstra høy"); } },
+  { id: "max", get label() { return t("Maks"); } },
 ];
 
 // An icon per command, by what it is about: the thread, the model, the project or the agent.
@@ -136,7 +137,7 @@ function mergeDraft(current: Draft, failed: Draft): Draft {
   if (!current.text && !current.chips.length && !current.skill) return failed;
   const text = failed.skill && !/^[/$]/.test(failed.text.trimStart())
     ? `/${failed.skill}${failed.text ? ` ${failed.text}` : ""}` : failed.text;
-  toast("Meldingen ble ikke sendt. Ny tekst er bevart, og den usendte teksten er lagt under utkastet.", "info");
+  toast(t("Meldingen ble ikke sendt. Ny tekst er bevart, og den usendte teksten er lagt under utkastet."), "info");
   return {
     text: [current.text, text].filter(Boolean).join("\n\n"),
     chips: [...current.chips, ...failed.chips.filter((chip) => !current.chips.some((item) => item.key === chip.key))],
@@ -157,18 +158,18 @@ function restoreSentDraft(key: string, failed: Draft): void {
 // Browser panel. The field with that key (the thread's id, or the empty pane's) takes them, now or
 // when it mounts. The text goes under what is already typed, and nothing is sent.
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-const LIMIT_TEXT = `Du kan legge ved maks ${MAX_ATTACHMENTS} bilder og filer per melding.`;
+const limitText = () => t("Du kan legge ved maks {max} bilder og filer per melding.", { max: MAX_ATTACHMENTS });
 
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-    reader.onerror = () => reject(reader.error ?? new Error("Kunne ikke lese filen"));
+    reader.onerror = () => reject(reader.error ?? new Error(t("Kunne ikke lese filen")));
     reader.readAsDataURL(file);
   });
 }
 
-const LOCAL_TEXT = "Appen og verktøyene kjører på denne maskinen: i prosjektmappen når du har valgt en, ellers i hjemmemappen din, der agenten kan lese filer og kjøre kommandoer med de vanlige godkjenningene. Modellforespørsler går til den valgte leverandøren eller endepunktet. Du kan ikke velge en annen vert over SSH eller i skyen ennå.";
+const localText = () => t("Appen og verktøyene kjører på denne maskinen: i prosjektmappen når du har valgt en, ellers i hjemmemappen din, der agenten kan lese filer og kjøre kommandoer med de vanlige godkjenningene. Modellforespørsler går til den valgte leverandøren eller endepunktet. Du kan ikke velge en annen vert over SSH eller i skyen ennå.");
 
 // The picker opened from somewhere without a field of its own (Vis alle prosjekter on the start page).
 export const NO_PROJECT_KEY = "no-project";
@@ -240,11 +241,11 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
         return score === null ? [] : [{ project, score }];
       });
       hits.sort((a, b) => a.score - b.score || b.project.lastUsedAt - a.project.lastUsedAt);
-      return [{ title: hits.length === 1 ? "1 treff" : `${hits.length} treff`, projects: hits.map((h) => h.project) }];
+      return [{ title: t("{count} treff", { count: hits.length }), projects: hits.map((h) => h.project) }];
     }
-    if (all.length < PICKER_SECTIONS_FROM) return all.length ? [{ title: "Nylige", projects: all }] : [];
+    if (all.length < PICKER_SECTIONS_FROM) return all.length ? [{ title: t("Nylige"), projects: all }] : [];
     const byName = [...all].sort((a, b) => a.name.localeCompare(b.name, "nb", { sensitivity: "base" }));
-    return [{ title: "Nylige", projects: all.slice(0, PICKER_RECENT) }, { title: "Alle prosjekter", projects: byName }];
+    return [{ title: t("Nylige"), projects: all.slice(0, PICKER_RECENT) }, { title: t("Alle prosjekter"), projects: byName }];
   });
   const entries = createMemo<PickerEntry[]>(() => [
     ...sections().flatMap((s) => s.projects.map((project) => ({ kind: "project" as const, project }))),
@@ -301,13 +302,13 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
     if (selected() !== index) setSelected(index);
   };
   return (
-    <div class="project-picker" role="dialog" aria-label="Velg prosjekt" data-testid="project-picker-menu" onFocusOut={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) props.onDone(); }}>
+    <div class="project-picker" role="dialog" aria-label={t("Velg prosjekt")} data-testid="project-picker-menu" onFocusOut={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) props.onDone(); }}>
       <label class="picker-search">
         <IconSearch size={14} />
         <input
           class="search-input"
-          placeholder="Søk på navn eller sti"
-          aria-label="Søk i prosjekter"
+          placeholder={t("Søk på navn eller sti")}
+          aria-label={t("Søk i prosjekter")}
           role="combobox"
           aria-expanded="true"
           aria-controls={`project-list-${props.paneKey}`}
@@ -320,13 +321,13 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
           onKeyDown={onKey}
         />
       </label>
-      <div class="menu-list picker-list" role="listbox" id={`project-list-${props.paneKey}`} aria-label="Prosjekter" ref={list}>
+      <div class="menu-list picker-list" role="listbox" id={`project-list-${props.paneKey}`} aria-label={t("Prosjekter")} ref={list}>
         <Show
           when={sections().length && sections()[0].projects.length}
           fallback={
             <div class="menu-empty picker-empty">
-              <Show when={q()} fallback={<>Ingen prosjekter ennå. Velg en mappe med Nytt prosjekt.</>}>
-                Ingen prosjekter med «{query().trim()}» i navnet eller stien.
+              <Show when={q()} fallback={<>{t("Ingen prosjekter ennå. Velg en mappe med Nytt prosjekt.")}</>}>
+                {t("Ingen prosjekter med «{query}» i navnet eller stien.", { query: query().trim() })}
               </Show>
             </div>
           }
@@ -346,7 +347,7 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
                         tabindex="-1"
                         aria-selected={project.id === props.current}
                         aria-disabled={project.folderMissing ? "true" : undefined}
-                        title={project.folderMissing ? `Fant ikke ${project.path}. Åpne en tråd i prosjektet for å velge mappen på nytt.` : project.path}
+                        title={project.folderMissing ? t("Fant ikke {path}. Åpne en tråd i prosjektet for å velge mappen på nytt.", { path: project.path }) : project.path}
                         id={optionId(index())}
                         classList={{ selected: selected() === index(), missing: !!project.folderMissing }}
                         onPointerMove={() => hover(index())}
@@ -356,7 +357,7 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
                         <span class="menu-stack">
                           <span class="menu-name">{project.name}</span>
                           <Show when={project.folderMissing} fallback={<span class="picker-path">{shortPath(project.path)}</span>}>
-                            <span class="picker-path picker-missing" data-testid="picker-missing"><IconWarn size={12} />Mappen mangler</span>
+                            <span class="picker-path picker-missing" data-testid="picker-missing"><IconWarn size={12} />{t("Mappen mangler")}</span>
                           </Show>
                         </span>
                         <span class="menu-check"><Show when={project.id === props.current}><IconCheck size={14} /></Show></span>
@@ -371,10 +372,10 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
       </div>
       <div class="menu-sep" role="separator" />
       <button type="button" class="menu-item" tabindex="-1" id={optionId(entries().length - 2)} classList={{ selected: selected() === entries().length - 2 }} onPointerMove={() => hover(entries().length - 2)} onClick={() => run({ kind: "new" })}>
-        <IconPlus size={14} /><span class="menu-name">Nytt prosjekt</span>
+        <IconPlus size={14} /><span class="menu-name">{t("Nytt prosjekt")}</span>
       </button>
       <button type="button" class="menu-item" tabindex="-1" id={optionId(entries().length - 1)} classList={{ selected: selected() === entries().length - 1 }} onPointerMove={() => hover(entries().length - 1)} onClick={() => run({ kind: "none" })}>
-        <IconMonitor size={14} /><span class="menu-stack"><span class="menu-name">Ikke jobb i et prosjekt</span><span class="picker-path">Denne datamaskinen, uten mappe og verktøy</span></span>
+        <IconMonitor size={14} /><span class="menu-stack"><span class="menu-name">{t("Ikke jobb i et prosjekt")}</span><span class="picker-path">{t("Denne datamaskinen, uten mappe og verktøy")}</span></span>
         <span class="menu-check"><Show when={!props.current}><IconCheck size={14} /></Show></span>
       </button>
     </div>
@@ -399,24 +400,25 @@ function ContextRing(props: { threadId: () => string | null; modelId: Accessor<s
   // An empty thread has used nothing, and an open grey ring there reads as loading.
   return (
     <Show when={usage()}>
-    <span class="context-ring" tabindex="0" role="img" aria-label={`Kontekst ${percent()} % brukt`} data-testid="context-ring" data-level={percent() >= 85 ? "high" : percent() >= 60 ? "mid" : "low"}>
+    <span class="context-ring" tabindex="0" role="img" aria-label={t("Kontekst {percent} % brukt", { percent: percent() })} data-testid="context-ring" data-level={percent() >= 85 ? "high" : percent() >= 60 ? "mid" : "low"}>
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
         <circle cx="9" cy="9" r={R} class="ring-track" />
         <circle cx="9" cy="9" r={R} class="ring-fill" stroke-dasharray={`${(percent() / 100) * C} ${C}`} transform="rotate(-90 9 9)" />
       </svg>
       <span class="ring-pop" role="tooltip">
-        <strong>Kontekst {percent()} %</strong>
-        <span>{usage() ? `${formatTokens(usage()!.contextTokens)} av ${formatTokens(window_())} tokens` : `0 av ${formatTokens(window_())} tokens`}</span>
+        <strong>{t("Kontekst {percent} %", { percent: percent() })}</strong>
+        <span>{usage() ? t("{used} av {total} tokens", { used: formatTokens(usage()!.contextTokens), total: formatTokens(window_()) }) : t("0 av {total} tokens", { total: formatTokens(window_()) })}</span>
         <Show when={usage()}>
-          <span>{formatTokens(usage()!.inputTokens)} inn, {formatTokens(usage()!.outputTokens)} ut</span>
-          <Show when={usage()!.costUsd !== null}><span>Kostnad {formatCost(usage()!.costUsd!)}</span></Show>
+          <span>{t("{input} inn, {output} ut", { input: formatTokens(usage()!.inputTokens), output: formatTokens(usage()!.outputTokens) })}</span>
+          <Show when={usage()!.costUsd !== null}><span>{t("Kostnad {cost}", { cost: formatCost(usage()!.costUsd!) })}</span></Show>
         </Show>
-        <Show when={projectUsage()}>
+        <Show when={projectUsage()}>{project =>
           <span class="ring-project" data-testid="project-usage">
-            Prosjekt: {formatTokens(projectUsage()!.inputTokens + projectUsage()!.outputTokens)} tokens
-            <Show when={projectUsage()!.costUsd !== null}>, {formatCost(projectUsage()!.costUsd!)}</Show>
+            {project().costUsd === null
+              ? t("Prosjekt: {tokens} tokens", { tokens: formatTokens(project().inputTokens + project().outputTokens) })
+              : t("Prosjekt: {tokens} tokens, {cost}", { tokens: formatTokens(project().inputTokens + project().outputTokens), cost: formatCost(project().costUsd!) })}
           </span>
-        </Show>
+        }</Show>
       </span>
     </span>
     </Show>
@@ -452,25 +454,25 @@ function FolderPicker(props: { projectId: string; onPick: (item: MentionItem) =>
     } else if (e.key === "Backspace" && !query()) props.onBack();
   };
   return (
-    <div class="attach-folders" role="dialog" aria-label="Legg til mappe">
+    <div class="attach-folders" role="dialog" aria-label={t("Legg til mappe")}>
       <div class="folder-head">
-        <button type="button" class="icon-button" title="Tilbake til menyen" aria-label="Tilbake" onClick={props.onBack}><IconBack size={14} /></button>
-        <span>Legg til mappe</span>
+        <button type="button" class="icon-button" title={t("Tilbake til menyen")} aria-label={t("Tilbake")} onClick={props.onBack}><IconBack size={14} /></button>
+        <span>{t("Legg til mappe")}</span>
       </div>
       <label class="picker-search">
         <IconSearch size={14} />
-        <input class="search-input" placeholder="Søk i mapper" aria-label="Søk i mapper" ref={(el) => requestAnimationFrame(() => el.focus())} onInput={(e) => setQuery(e.currentTarget.value)} onKeyDown={onKey} />
+        <input class="search-input" placeholder={t("Søk i mapper")} aria-label={t("Søk i mapper")} ref={(el) => requestAnimationFrame(() => el.focus())} onInput={(e) => setQuery(e.currentTarget.value)} onKeyDown={onKey} />
       </label>
-      <div class="menu-list" role="listbox" aria-label="Mapper">
-        <For each={items()} fallback={<div class="menu-empty">Ingen mapper{query() ? " med det navnet" : ""}</div>}>
+      <div class="menu-list" role="listbox" aria-label={t("Mapper")}>
+        <For each={items()} fallback={<div class="menu-empty">{query() ? t("Ingen mapper med det navnet") : t("Ingen mapper")}</div>}>
           {(item, index) => (
-            <button type="button" role="option" class="menu-item" classList={{ selected: index() === selected() }} aria-selected={index() === selected()} title={`Legg ved en oversikt over ${item.label}`} onClick={() => props.onPick(item)}>
+            <button type="button" role="option" class="menu-item" classList={{ selected: index() === selected() }} aria-selected={index() === selected()} title={t("Legg ved en oversikt over {folder}", { folder: item.label })} onClick={() => props.onPick(item)}>
               <IconFolder size={14} /><span class="menu-name">{item.label}</span>
             </button>
           )}
         </For>
       </div>
-      <p class="folder-note">Modellen får en oversikt over mappen, ikke innholdet i filene.</p>
+      <p class="folder-note">{t("Modellen får en oversikt over mappen, ikke innholdet i filene.")}</p>
     </div>
   );
 }
@@ -533,19 +535,19 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   createEffect(on(query, reveal, { defer: true }));
   return (
     <div class="model-menu" data-testid="model-menu">
-      <div class="model-heading">Velg modell</div>
+      <div class="model-heading">{t("Velg modell")}</div>
       <label class="model-search">
         <IconSearch size={14} />
         <input
           ref={search}
           type="text"
           role="combobox"
-          aria-label="Søk etter modeller"
+          aria-label={t("Søk etter modeller")}
           aria-expanded="true"
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={active() ? optionId(active()!) : undefined}
-          placeholder="Søk etter modeller"
+          placeholder={t("Søk etter modeller")}
           spellcheck={false}
           autocomplete="off"
           value={query()}
@@ -570,11 +572,11 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
           }}
         />
       </label>
-      <div class="model-list" role="listbox" aria-label="Modeller" id={listId} ref={list}>
-        <For each={groups()} fallback={<p class="model-none">Ingen modeller passer «{query().trim()}».</p>}>
+      <div class="model-list" role="listbox" aria-label={t("Modeller")} id={listId} ref={list}>
+        <For each={groups()} fallback={<p class="model-none">{t("Ingen modeller passer «{query}».", { query: query().trim() })}</p>}>
           {(group) => (
-            <div role="group" aria-label={group.localKind ? `${group.name} (lokal)` : group.name} class="model-group">
-              <div class="model-group-head" aria-hidden="true"><span>{group.name}</span><Show when={group.localKind}><span class="model-source">Lokal</span></Show></div>
+            <div role="group" aria-label={group.localKind ? t("{name} (lokal)", { name: group.name }) : group.name} class="model-group">
+              <div class="model-group-head" aria-hidden="true"><span>{group.name}</span><Show when={group.localKind}><span class="model-source">{t("Lokal")}</span></Show></div>
               <For each={group.models}>
                 {(model) => (
                   <button
@@ -591,7 +593,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
                     onClick={() => props.onPick(model.id)}
                   >
                     <span class="menu-name">{model.name}</span>
-                    <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? "Verktøy på" : "Verktøy av"}</span></Show>
+                    <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? t("Verktøy på") : t("Verktøy av")}</span></Show>
                     <span class="menu-check"><Show when={props.chosen === model.id}><IconCheck size={14} /></Show></span>
                   </button>
                 )}
@@ -601,7 +603,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
         </For>
       </div>
       <div class="model-foot">
-        <button type="button" class="menu-item model-manage" onMouseDown={(e) => e.preventDefault()} onClick={props.onManage}><IconSliders size={15} /><span class="menu-name">Administrer modeller</span></button>
+        <button type="button" class="menu-item model-manage" onMouseDown={(e) => e.preventDefault()} onClick={props.onManage}><IconSliders size={15} /><span class="menu-name">{t("Administrer modeller")}</span></button>
       </div>
     </div>
   );
@@ -649,7 +651,7 @@ function EffortPicker(props: {
     if (p !== null) return effortLabel(props.steps[p]);
     if (props.chosen) return effortLabel(props.chosen);
     const fallback = effortLabel(props.modelDefault);
-    return fallback ? `Standard (${fallback.toLowerCase()})` : "Modellens standard";
+    return fallback ? t("Standard ({effort})", { effort: fallback.toLocaleLowerCase(language()) }) : t("Modellens standard");
   };
   const fraction = () => (last() > 0 ? position() / last() : 0);
   let track!: HTMLDivElement;
@@ -703,13 +705,13 @@ function EffortPicker(props: {
     if (next !== now || standard() || position() % 1) commit(next);
   };
   return (
-    <div class="effort-pop" data-testid="effort-picker" role="dialog" aria-label="Innsats">
+    <div class="effort-pop" data-testid="effort-picker" role="dialog" aria-label={t("Innsats")}>
       <div class="effort-head">
-        <button type="button" class="effort-mid" title="Velg en annen modell" aria-label={`Velg modell. Nåværende modell: ${props.modelName}`} onClick={props.onModel}>
+        <button type="button" class="effort-mid" title={t("Velg en annen modell")} aria-label={t("Velg modell. Nåværende modell: {model}", { model: props.modelName })} onClick={props.onModel}>
           <span class="effort-level" data-testid="effort-name" classList={{ standard: standard() }}>{name()}</span>
           <span class="effort-model"><span class="effort-model-name">{props.modelName}</span><IconChevron size={12} /></span>
         </button>
-        <button type="button" class="icon-button effort-reset" title="Tilbake til modellens standard" aria-label="Tilbake til modellens standard" disabled={props.chosen === null} onClick={() => { setPreview(null); props.onPick(null); }}>
+        <button type="button" class="icon-button effort-reset" title={t("Tilbake til modellens standard")} aria-label={t("Tilbake til modellens standard")} disabled={props.chosen === null} onClick={() => { setPreview(null); props.onPick(null); }}>
           <IconReset size={15} />
         </button>
       </div>
@@ -719,7 +721,7 @@ function EffortPicker(props: {
         classList={{ dragging: preview() !== null, standard: standard(), unset: unset() }}
         role="slider"
         tabindex="0"
-        aria-label="Innsats"
+        aria-label={t("Innsats")}
         aria-valuemin={0}
         aria-valuemax={last()}
         aria-valuenow={position()}
@@ -890,7 +892,7 @@ export function Composer(props: {
     return model ? effortSteps(provider?.kind, model, provider?.baseUrl) : [];
   });
   // «Høy», or «Velg innsats» while the model's own standard is used.
-  const effortChip = () => effortLabel(chosenEffort()) || "Velg innsats";
+  const effortChip = () => effortLabel(chosenEffort()) || t("Velg innsats");
   const setEffort = (value: ReasoningEffort | null, close = true) => {
     if (close) setEffortOpen(false);
     const id = props.threadId();
@@ -980,7 +982,7 @@ export function Composer(props: {
         try {
           await patch(`/api/threads/${id}/queue/${encodeURIComponent(q.messageId)}`, { steer });
         } catch (error) {
-          if (error instanceof ApiError && error.status === 404) toast("En melding forlot køen før valget kunne endres.", "info");
+          if (error instanceof ApiError && error.status === 404) toast(t("En melding forlot køen før valget kunne endres."), "info");
           else throw error;
         }
       }
@@ -1025,7 +1027,7 @@ export function Composer(props: {
       await targetGrid.loaded;
       const original = targetGrid.paneWith(id);
       if (!original || !targetGrid.split(original.id, "right", moved.thread.id)) await openThread(moved.thread);
-      toast("Meldingen er flyttet fra køen til et utkast i sidesamtalen.", "info");
+      toast(t("Meldingen er flyttet fra køen til et utkast i sidesamtalen."), "info");
     } catch (error) { report(error); }
     finally { setQueueAction(null); }
   };
@@ -1035,11 +1037,11 @@ export function Composer(props: {
     if (!menu || !item) return [];
     const disabled = !!queueAction();
     return [
-      { label: "Rediger melding", icon: IconPencil, disabled: disabled || item.editable === false, title: item.editable === false ? "Flytt skills, gjennomganger og skallkommandoer til en sidesamtale for å redigere dem" : "Endre teksten uten å endre plassen i køen", run: () => { setQueueEdit({ threadId: menu.threadId, messageId: menu.messageId, text: item.text }); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".queue-editor textarea")?.focus()); } },
-      { label: "Flytt til sidesamtale", icon: IconSplitRight, disabled, title: "Ta meldingen ut av køen og legg tekst og vedlegg i et usendt utkast i en ny sidesamtale", run: () => moveToSide(menu.threadId, menu.messageId) },
-      { label: "Fjern fra køen", icon: IconTrash, disabled, run: () => removeOne(menu.threadId, menu.messageId) },
+      { label: t("Rediger melding"), icon: IconPencil, disabled: disabled || item.editable === false, title: item.editable === false ? t("Flytt skills, gjennomganger og skallkommandoer til en sidesamtale for å redigere dem") : t("Endre teksten uten å endre plassen i køen"), run: () => { setQueueEdit({ threadId: menu.threadId, messageId: menu.messageId, text: item.text }); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".queue-editor textarea")?.focus()); } },
+      { label: t("Flytt til sidesamtale"), icon: IconSplitRight, disabled, title: t("Ta meldingen ut av køen og legg tekst og vedlegg i et usendt utkast i en ny sidesamtale"), run: () => moveToSide(menu.threadId, menu.messageId) },
+      { label: t("Fjern fra køen"), icon: IconTrash, disabled, run: () => removeOne(menu.threadId, menu.messageId) },
       "sep",
-      { label: busyMode() === "queue" ? "Slå av kø" : "Slå på kø", icon: IconSend, disabled: busySaving(), title: "Gjelder nye meldinger i Chat og Kode og dine ventende meldinger i denne tråden", run: () => setBusyMode(busyMode() === "queue" ? "steer" : "queue") },
+      { label: busyMode() === "queue" ? t("Slå av kø") : t("Slå på kø"), icon: IconSend, disabled: busySaving(), title: t("Gjelder nye meldinger i Chat og Kode og dine ventende meldinger i denne tråden"), run: () => setBusyMode(busyMode() === "queue" ? "steer" : "queue") },
     ];
   };
   const insertTrigger = (char: string) => {
@@ -1243,17 +1245,17 @@ export function Composer(props: {
     const window_ = model?.contextWindow ?? 0;
     const provider = app.providers.find((p) => p.id === model?.providerId);
     setInfo({
-      title: "Status",
+      title: t("Status"),
       rows: [
-        ["Tråd-ID", current?.id ?? "Ingen ennå. Den lages når du sender første melding."],
-        ["Modell", `${model?.name ?? "Ingen"}${provider ? ` (${provider.name})` : ""}`],
-        ["Kontekst", usage && window_ ? `${formatTokens(usage.contextTokens)} av ${formatTokens(window_)} tokens (${Math.round((usage.contextTokens / window_) * 100)} %)` : `0 av ${formatTokens(window_)} tokens`],
-        ["Tokens", usage ? `${formatTokens(usage.inputTokens)} inn, ${formatTokens(usage.outputTokens)} ut` : "Ingen ennå"],
-        ["Kostnad", usage?.costUsd != null ? formatCost(usage.costUsd) : "Ingen pris satt"],
-        ["Tenkning", EFFORTS.find((e) => e.id === current?.reasoning)?.label ?? "Modellens standard"],
-        [inChatProject() ? "Instruksjoner" : "Personlighet", inChatProject() ? "Prosjektets egne instruksjoner" : personalities().find((p) => p.id === personality())?.label ?? "Standard"],
-        ["Planmodus", current?.planMode ? "På" : "Av"],
-        ["Grenser", provider?.kind === "mock" ? "Demo-modellen har ingen grenser" : "Leverandøren rapporterer ikke grenser til appen ennå"],
+        [t("Tråd-ID"), current?.id ?? t("Ingen ennå. Den lages når du sender første melding.")],
+        [t("Modell"), provider ? t("{model} ({provider})", { model: model?.name ?? t("Ingen"), provider: provider.name }) : model?.name ?? t("Ingen")],
+        [t("Kontekst"), usage && window_ ? t("{used} av {total} tokens ({percent} %)", { used: formatTokens(usage.contextTokens), total: formatTokens(window_), percent: Math.round((usage.contextTokens / window_) * 100) }) : t("0 av {total} tokens", { total: formatTokens(window_) })],
+        [t("Tokens"), usage ? t("{input} inn, {output} ut", { input: formatTokens(usage.inputTokens), output: formatTokens(usage.outputTokens) }) : t("Ingen ennå")],
+        [t("Kostnad"), usage?.costUsd != null ? formatCost(usage.costUsd) : t("Ingen pris satt")],
+        [t("Tenkning"), effortLabel(current?.reasoning) || t("Modellens standard")],
+        [inChatProject() ? t("Instruksjoner") : t("Personlighet"), inChatProject() ? t("Prosjektets egne instruksjoner") : personalities().find((p) => p.id === personality())?.label ?? t("Standard")],
+        [t("Planmodus"), current?.planMode ? t("På") : t("Av")],
+        [t("Grenser"), provider?.kind === "mock" ? t("Demo-modellen har ingen grenser") : t("Leverandøren rapporterer ikke grenser til appen ennå")],
       ],
     });
   };
@@ -1266,15 +1268,15 @@ export function Composer(props: {
     const current = props.threadId();
     const pane = (current && grid.paneWith(current)?.id) || grid.focused();
     if (!grid.split(pane, "right", created.id)) {
-      toast("Det er ikke plass til flere ruter. Sidesamtalen ligger i sidefanen.", "info");
+      toast(t("Det er ikke plass til flere ruter. Sidesamtalen ligger i sidefanen."), "info");
     }
     if (chatProjectPageId() && inChatProject()) await openThread(created);
   };
 
   const setPlan = async (next: boolean) => {
-    if (running()) return toast("Vent til kjøringen er ferdig, eller stopp den før du endrer planmodus.", "info");
+    if (running()) return toast(t("Vent til kjøringen er ferdig, eller stopp den før du endrer planmodus."), "info");
     await patchThread({ planMode: next });
-    toast(next ? "Planmodus er på. Modellen planlegger uten å endre filer." : "Planmodus er av.", "info");
+    toast(next ? t("Planmodus er på. Modellen planlegger uten å endre filer.") : t("Planmodus er av."), "info");
   };
 
   const runBuiltin = async (command: CommandInfo, args = "") => {
@@ -1295,13 +1297,13 @@ export function Composer(props: {
           break;
         case "find": {
           const tools = props.conversationTools?.();
-          if (!tools) return toast("Start en samtale for å søke i meldingene.", "info");
+          if (!tools) return toast(t("Start en samtale for å søke i meldingene."), "info");
           tools.search();
           break;
         }
         case "retry": {
           const tools = props.conversationTools?.();
-          if (!tools) return toast("Det finnes ikke et svar å prøve på nytt.", "info");
+          if (!tools) return toast(t("Det finnes ikke et svar å prøve på nytt."), "info");
           await tools.retryLast();
           break;
         }
@@ -1331,7 +1333,7 @@ export function Composer(props: {
           break;
         case "version": {
           const build = app.build;
-          setInfo({ title: "Agentic Desktop", rows: [["Versjon", build?.version ?? "Ukjent"], ["Bygg", String(build?.build ?? "Ukjent")]] });
+          setInfo({ title: "Agentic Desktop", rows: [[t("Versjon"), build?.version ?? t("Ukjent")], [t("Bygg"), String(build?.build ?? t("Ukjent"))]] });
           break;
         }
         case "theme": {
@@ -1340,7 +1342,7 @@ export function Composer(props: {
             case "light": case "lys": return actions.theme("light");
             case "dark": case "mørk": return actions.theme("dark");
             case "system": return actions.theme("system");
-            default: return toast("Bruk /theme lys, /theme mørk eller /theme system.", "info");
+            default: return toast(t("Bruk /theme lys, /theme mørk eller /theme system."), "info");
           }
         }
         case "babysit": {
@@ -1351,16 +1353,19 @@ export function Composer(props: {
         case "busy": {
           const value = arg.toLowerCase();
           if (value === "queue" || value === "steer") return await setBusyMode(value);
-          if (value && value !== "status") return toast("Bruk /busy queue eller /busy steer.", "info");
-          return setInfo({ title: "Meldinger under kjøring", text: busyMode() === "queue"
-            ? "Kø er standard i nye sendinger. /steer kan sende én melding ved neste steg."
-            : "Straks er standard i nye sendinger. /queue kan legge én melding bak den aktive turen." });
+          if (value && value !== "status") return toast(t("Bruk /busy queue eller /busy steer."), "info");
+          return setInfo({ title: t("Meldinger under kjøring"), text: busyMode() === "queue"
+            ? t("Kø er standard i nye sendinger. /steer kan sende én melding ved neste steg.")
+            : t("Straks er standard i nye sendinger. /queue kan legge én melding bak den aktive turen.") });
         }
         case "queue": {
           const items = id ? (await get<QueueSnapshot>(`/api/threads/${encodeURIComponent(id)}/queue`)).items : [];
           if (!textarea.isConnected || props.threadId() !== id) return;
-          setInfo({ title: "Kø", ...(!items.length ? { text: "Ingen meldinger venter i denne tråden." } : {
-            rows: items.map((item, index) => [String(index + 1), `${item.steer ? "Straks · " : ""}${item.text || "Melding med vedlegg"}`]),
+          setInfo({ title: t("Kø"), ...(!items.length ? { text: t("Ingen meldinger venter i denne tråden.") } : {
+            rows: items.map((item, index) => {
+              const message = item.text || t("Melding med vedlegg");
+              return [String(index + 1), item.steer ? t("Straks · {message}", { message }) : message];
+            }),
           }) });
           break;
         }
@@ -1386,22 +1391,22 @@ export function Composer(props: {
           const matches = exact.length ? exact : app.models.filter(m => m.name.toLowerCase().includes(query));
           if (matches.length === 1) await setModel(matches[0].id);
           else {
-            toast(matches.length ? `Flere modeller passer «${arg}». Velg en i listen.` : `Fant ingen modell som heter «${arg}».`, "info");
+            toast(matches.length ? t("Flere modeller passer «{arg}». Velg en i listen.", { arg }) : t("Fant ingen modell som heter «{arg}».", { arg }), "info");
             setModelOpen(true);
           }
           break;
         }
         case "reasoning": {
-          const level = EFFORTS.find((e) => e.id === arg.toLowerCase() || e.label.toLowerCase() === arg.toLowerCase());
+          const level = EFFORTS.find((e) => e.id === arg.toLowerCase() || ARG_WORDS[e.id] === arg.toLowerCase());
           const apply = async (value: ReasoningEffort | null) => {
             await patchThread({ reasoning: value });
-            toast(value ? `Tenkning: ${EFFORTS.find((e) => e.id === value)!.label}.` : "Tenkning: modellens standard.", "info");
+            toast(value ? t("Tenkning: {effort}.", { effort: EFFORTS.find((e) => e.id === value)!.label }) : t("Tenkning: modellens standard."), "info");
           };
           if (level) await apply(level.id);
           else {
             setPicker({
-              title: "Tenkning",
-              items: [{ id: "", label: "Modellens standard", selected: !thread()?.reasoning }, ...EFFORTS.map((e) => ({ id: e.id, label: e.label, detail: e.id, selected: thread()?.reasoning === e.id }))],
+              title: t("Tenkning"),
+              items: [{ id: "", label: t("Modellens standard"), selected: !thread()?.reasoning }, ...EFFORTS.map((e) => ({ id: e.id, label: e.label, detail: e.id, selected: thread()?.reasoning === e.id }))],
               pick: (value) => void apply((value || null) as ReasoningEffort | null).catch(report),
             });
           }
@@ -1415,19 +1420,21 @@ export function Composer(props: {
           break;
         case "stop":
           if (id) await post(`/api/threads/${id}/stop`);
-          else toast("Ingen aktiv samtale å stoppe.", "info");
+          else toast(t("Ingen aktiv samtale å stoppe."), "info");
           break;
         case "context": {
-          if (!id) return toast("Start en samtale for å se kontekstfordelingen.", "info");
+          if (!id) return toast(t("Start en samtale for å se kontekstfordelingen."), "info");
           const usage = await get<ContextUsage>(`/api/threads/${id}/context`);
           if (props.threadId() !== id) return;
-          setInfo({ title: "Kontekst", rows: [
-            ["Brukt", `${formatTokens(usage.usedTokens)} av ${formatTokens(usage.contextWindow)} tokens${usage.measured ? " (leverandørmåling)" : " (anslag)"}`],
-            ["Samtale", `${formatTokens(usage.parts.messages)} tokens`],
-            ["Systeminstruksjoner", `${formatTokens(usage.parts.system)} tokens`],
-            ["Verktøydefinisjoner", `${formatTokens(usage.parts.tools)} tokens · ${usage.tools} verktøy`],
-            ["Komprimeringsreserve", `${formatTokens(usage.parts.compactBuffer)} tokens`],
-            ["Ledig", `${formatTokens(usage.parts.free)} tokens`],
+          setInfo({ title: t("Kontekst"), rows: [
+            [t("Brukt"), usage.measured
+              ? t("{used} av {total} tokens (leverandørmåling)", { used: formatTokens(usage.usedTokens), total: formatTokens(usage.contextWindow) })
+              : t("{used} av {total} tokens (anslag)", { used: formatTokens(usage.usedTokens), total: formatTokens(usage.contextWindow) })],
+            [t("Samtale"), t("{tokens} tokens", { tokens: formatTokens(usage.parts.messages) })],
+            [t("Systeminstruksjoner"), t("{tokens} tokens", { tokens: formatTokens(usage.parts.system) })],
+            [t("Verktøydefinisjoner"), t("{tokens} tokens · {tools} verktøy", { tokens: formatTokens(usage.parts.tools), tools: usage.tools })],
+            [t("Komprimeringsreserve"), t("{tokens} tokens", { tokens: formatTokens(usage.parts.compactBuffer) })],
+            [t("Ledig"), t("{tokens} tokens", { tokens: formatTokens(usage.parts.free) })],
           ] });
           break;
         }
@@ -1435,26 +1442,26 @@ export function Composer(props: {
           showStatus();
           break;
         case "compact":
-          if (!id) return toast("Tråden er tom.", "info");
+          if (!id) return toast(t("Tråden er tom."), "info");
           await post(`/api/threads/${id}/compact`);
           break;
         case "fork":
-          if (!id) return toast("Tråden er tom.", "info");
-          if (running()) return toast("Vent til svaret er ferdig, eller stopp det før du forgrener tråden.", "info");
+          if (!id) return toast(t("Tråden er tom."), "info");
+          if (running()) return toast(t("Vent til svaret er ferdig, eller stopp det før du forgrener tråden."), "info");
           await forkThread(id);
           break;
         case "goal":
           if (arg) {
             await patchThread({ goal: arg });
-            toast("Målet er satt.", "info");
-          } else if (thread()?.goal) setInfo({ title: "Mål", text: `${thread()!.goal}\n\nSkriv /goal med en ny tekst for å bytte det, eller fjern det i det festede sammendraget.` });
-          else toast("Skriv målet etter kommandoen, for eksempel /goal Lag en kalkulator.", "info");
+            toast(t("Målet er satt."), "info");
+          } else if (thread()?.goal) setInfo({ title: t("Mål"), text: t("{goal}\n\nSkriv /goal med en ny tekst for å bytte det, eller fjern det i det festede sammendraget.", { goal: thread()!.goal! }) });
+          else toast(t("Skriv målet etter kommandoen, for eksempel /goal Lag en kalkulator."), "info");
           break;
         case "plan": {
           const value = arg.toLowerCase();
-          if (value === "status") return setInfo({ title: "Planmodus", text: thread()?.planMode ? "På." : "Av." });
+          if (value === "status") return setInfo({ title: t("Planmodus"), text: thread()?.planMode ? t("På.") : t("Av.") });
           if (!value || value === "on" || value === "off") return await setPlan(value ? value === "on" : !thread()?.planMode);
-          return toast("Bruk /plan on, /plan off eller /plan status.", "info");
+          return toast(t("Bruk /plan on, /plan off eller /plan status."), "info");
         }
         case "worktree":
           if (props.projectId) openGitWorkspace(props.projectId, true);
@@ -1464,8 +1471,8 @@ export function Composer(props: {
           break;
         case "project":
           setPicker({
-            title: "Prosjekt for nye tråder",
-            items: [...sortedProjects().map((p) => ({ id: p.id, label: p.name, detail: p.path, selected: p.id === props.projectId })), { id: "", label: "Velg en mappe…" }],
+            title: t("Prosjekt for nye tråder"),
+            items: [...sortedProjects().map((p) => ({ id: p.id, label: p.name, detail: p.path, selected: p.id === props.projectId })), { id: "", label: t("Velg en mappe…") }],
             pick: (value) => {
               if (!value) return setFolderPickerOpen(true);
               setProjectId(value);
@@ -1483,13 +1490,13 @@ export function Composer(props: {
           const found = personalities().find((p) => p.id === arg.toLowerCase() || p.label.toLowerCase() === arg.toLowerCase());
           const apply = async (value: string) => {
             await patchThread({ personality: value });
-            toast(`Personlighet: ${personalities().find((p) => p.id === value)!.label}.`, "info");
+            toast(t("Personlighet: {personality}.", { personality: personalities().find((p) => p.id === value)!.label }), "info");
           };
           if (found) await apply(found.id);
           else {
             setPicker({
-              title: "Personlighet",
-              items: personalities().map((p) => ({ id: p.id, label: p.label, detail: !kode() && p.id === "standard" ? "Følger standardvalget i Chat-personalisering" : p.text ?? (p.prompt || "Ingen ekstra stil"), selected: personality() === p.id })),
+              title: t("Personlighet"),
+              items: personalities().map((p) => ({ id: p.id, label: p.label, detail: !kode() && p.id === "standard" ? t("Følger standardvalget i Chat-personalisering") : p.text ?? (p.prompt || t("Ingen ekstra stil")), selected: personality() === p.id })),
               pick: (value) => void apply(value).catch(report),
             });
           }
@@ -1502,14 +1509,14 @@ export function Composer(props: {
           if (!props.projectId) break;
           if (arg.toLowerCase() === "stop") await stopPlaytest(props.projectId);
           else if (!arg || arg.toLowerCase() === "start") await startPlaytest(props.projectId);
-          else toast("Bruk /playtest start eller /playtest stop.", "info");
+          else toast(t("Bruk /playtest start eller /playtest stop."), "info");
           break;
         case "vscode":
           if (props.projectId) await openVscode(props.projectId);
           break;
         case "review":
         case "review-changes":
-          if (!id) return toast("Tråden har ingen endringer å gjennomgå ennå.", "info");
+          if (!id) return toast(t("Tråden har ingen endringer å gjennomgå ennå."), "info");
           await post(`/api/threads/${id}/messages`, { text: arg, review: true });
           break;
         case "storage":
@@ -1527,7 +1534,7 @@ export function Composer(props: {
           if (!commands().length) loadCommands();
           break;
         default:
-          toast(`Kommandoen /${name} er ikke tilgjengelig.`);
+          toast(t("Kommandoen /{name} er ikke tilgjengelig.", { name }));
       }
     } catch (err) {
       report(err);
@@ -1563,14 +1570,14 @@ export function Composer(props: {
   const addImages = async (files: File[]) => {
     for (const file of files) {
       if (!IMAGE_TYPES.includes(file.type)) {
-        toast(`${file.name || "Filen"} er ikke et bilde. Bare PNG, JPEG, WebP og GIF lastes opp her. Filer i prosjektet legger du ved med @.`, "info");
+        toast(t("{file} er ikke et bilde. Bare PNG, JPEG, WebP og GIF lastes opp her. Filer i prosjektet legger du ved med @.", { file: file.name || t("Filen") }), "info");
         continue;
       }
       if (file.size > MAX_IMAGE_BYTES) {
-        toast(`${file.name || "Bildet"} er for stort. Maks ${MAX_IMAGE_BYTES / 1024 / 1024} MB per bilde.`, "info");
+        toast(t("{file} er for stort. Maks {max} MB per bilde.", { file: file.name || t("Bildet"), max: MAX_IMAGE_BYTES / 1024 / 1024 }), "info");
         continue;
       }
-      if (atLimit()) return toast(LIMIT_TEXT, "info");
+      if (atLimit()) return toast(limitText(), "info");
       setUploading((n) => n + 1);
       try {
         const data = await readBase64(file);
@@ -1597,10 +1604,10 @@ export function Composer(props: {
       }
       const name = file.name || "fil";
       if (file.size > MAX_TEXT_UPLOAD_BYTES) {
-        toast(`${name} er for stor. Maks ${MAX_TEXT_UPLOAD_BYTES / 1024} kB per tekstfil.`, "info");
+        toast(t("{file} er for stor. Maks {max} kB per tekstfil.", { file: name, max: MAX_TEXT_UPLOAD_BYTES / 1024 }), "info");
         continue;
       }
-      if (atLimit()) return toast(LIMIT_TEXT, "info");
+      if (atLimit()) return toast(limitText(), "info");
       setUploading((n) => n + 1);
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
@@ -1609,7 +1616,7 @@ export function Composer(props: {
           if (bytes.subarray(0, 8192).includes(0)) throw new Error("binær");
           text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
         } catch {
-          toast(`${name} er ikke en tekstfil, så den ble ikke lagt ved. Bilder legger du ved med Bilder.`, "info");
+          toast(t("{file} er ikke en tekstfil, så den ble ikke lagt ved. Bilder legger du ved med Bilder.", { file: name }), "info");
           continue;
         }
         const { id } = await post<{ id: string }>("/api/uploads", { name, text });
@@ -1626,7 +1633,7 @@ export function Composer(props: {
     closeAttach();
     textarea.focus();
     if (chips().some((c) => c.key === item.path)) return;
-    if (atLimit()) return toast(LIMIT_TEXT, "info");
+    if (atLimit()) return toast(limitText(), "info");
     setChips([...chips(), { kind: "dir", path: item.path!, label: item.label, key: item.path! }]);
   };
 
@@ -1656,7 +1663,7 @@ export function Composer(props: {
     setMenu(null);
     if (atLimit()) {
       replaceWord(current.start, current.end, "");
-      return toast(LIMIT_TEXT, "info");
+      return toast(limitText(), "info");
     }
     const key = item.threadId ?? item.path ?? item.label;
     if (!chips().some((c) => c.key === key)) {
@@ -1692,9 +1699,11 @@ export function Composer(props: {
 
   const runSideCommand = async (name: "btw" | "background", args: string, raw: string, sourceChips: Chip[]) => {
     const id = props.threadId();
-    if (!args.trim()) return toast(`Skriv ${name === "btw" ? "spørsmålet" : "oppgaven"} etter /${name}. Utkastet er beholdt.`, "info");
-    if (!id) return toast(`/${name} bruker konteksten fra en samtale. Start samtalen først. Utkastet er beholdt.`, "info");
-    if (sourceChips.length) return toast(`/${name} bruker samtalekonteksten. Fjern nye vedlegg før du sender denne kommandoen.`, "info");
+    if (!args.trim()) return toast(name === "btw"
+      ? t("Skriv spørsmålet etter /btw. Utkastet er beholdt.")
+      : t("Skriv oppgaven etter /background. Utkastet er beholdt."), "info");
+    if (!id) return toast(t("/{name} bruker konteksten fra en samtale. Start samtalen først. Utkastet er beholdt.", { name }), "info");
+    if (sourceChips.length) return toast(t("/{name} bruker samtalekonteksten. Fjern nye vedlegg før du sender denne kommandoen.", { name }), "info");
     const source = sideScope();
     const sourceDraftKey = draftKey();
     let acceptedRevision: number | undefined;
@@ -1717,12 +1726,12 @@ export function Composer(props: {
     setBackgroundStarting(true);
     try {
       const result = await post<{ thread: Thread }>(`/api/threads/${id}/background`, { text: args });
-      if (!result?.thread?.id) throw new Error("Serveren returnerte ingen bakgrunnsøkt.");
+      if (!result?.thread?.id) throw new Error(t("Serveren returnerte ingen bakgrunnsøkt."));
       const created = result.thread;
       if (!app.threads[created.id]) setApp("threads", created.id, created);
       accepted();
       if (sideAlive && sideScope() === source) setBackgrounds((list) => [created, ...list.filter((item) => item.id !== created.id)].slice(0, 8));
-      toast("Bakgrunnsøkten er startet. Du kan fortsette her.", "info", { label: "Åpne", run: () => void openThread(app.threads[created.id] ?? created) });
+      toast(t("Bakgrunnsøkten er startet. Du kan fortsette her."), "info", { label: t("Åpne"), run: () => void openThread(app.threads[created.id] ?? created) });
     } catch (err) { report(err); }
     finally { if (backgroundRequest === request) setBackgroundStarting(false); }
   };
@@ -1766,11 +1775,11 @@ export function Composer(props: {
     const sourceKey = draftKey();
     const raw = textarea.value;
     const text = raw.trim();
-    if (uploading()) return toast("Vent til bildene er lastet opp.", "info");
+    if (uploading()) return toast(t("Vent til bildene er lastet opp."), "info");
     const startingChips = chips();
     const startingSkill = skill();
     const attachments = startingChips.map(chipRef);
-    if (attachments.length > MAX_ATTACHMENTS) return toast(LIMIT_TEXT, "info");
+    if (attachments.length > MAX_ATTACHMENTS) return toast(limitText(), "info");
     let usedSkill = skill();
     let body: Record<string, unknown>;
     let deliveryOverride: boolean | undefined;
@@ -1778,7 +1787,7 @@ export function Composer(props: {
     if (kode() && !usedSkill && text.startsWith("!")) {
       const shell = text.slice(1).trim();
       if (!shell) return;
-      if (!props.projectId) return toast("! krever Kode-modus og et prosjekt.");
+      if (!props.projectId) return toast(t("! krever Kode-modus og et prosjekt."));
       body = { text: "", shell };
     } else if (!usedSkill && /^[/$]\S+/.test(text)) {
       // Consume the command and one separator, retaining the user's remaining spaces/newlines.
@@ -1793,7 +1802,7 @@ export function Composer(props: {
         let found: CommandInfo[] | null;
         try { found = await loadCommands(); } finally { setResolvingCommand(false); }
         if (!commandsAlive || textarea.value !== raw || chips() !== startingChips || skill() !== startingSkill) return;
-        if (!found) return toast("Kunne ikke hente kommandoene. Utkastet er beholdt.");
+        if (!found) return toast(t("Kunne ikke hente kommandoene. Utkastet er beholdt."));
         available = found;
       }
       const known = findCommand(word, available, text.startsWith("$"));
@@ -1804,13 +1813,13 @@ export function Composer(props: {
       if (known?.kind === "builtin") {
         const name = known.name;
         const arg = args.trim();
-        if (!known.args && arg) return toast(`Bruk /${name} uten argumenter. Utkastet er beholdt.`, "info");
+        if (!known.args && arg) return toast(t("Bruk /{name} uten argumenter. Utkastet er beholdt.", { name }), "info");
         if (name === "btw" || name === "background") return runSideCommand(name, args, raw, startingChips);
         const hasArgSeparator = invocation?.[2] !== undefined || invocation?.[3] !== undefined;
         const listQueue = name === "queue" && (arg.toLowerCase() === "list" || !hasArgSeparator);
         if ((name === "queue" && !listQueue) || name === "steer") {
           if (name === "queue" && /^add(?:\s|$)/i.test(arg)) args = args.trimStart().replace(/^add(?:[ \t]|\r?\n)?/i, "");
-          if (!args.trim()) return toast(`Skriv meldingen etter /${name}. Utkastet er beholdt.`, "info");
+          if (!args.trim()) return toast(t("Skriv meldingen etter /{name}. Utkastet er beholdt.", { name }), "info");
           body = { text: args, attachments };
           deliveryOverride = name === "steer";
         } else {
@@ -1823,7 +1832,7 @@ export function Composer(props: {
       } else body = { text, attachments };
     } else {
       if (!text && !usedSkill && !attachments.length) return;
-      if (!text && attachments.length && !usedSkill) return toast("Skriv en melding til vedleggene.", "info");
+      if (!text && attachments.length && !usedSkill) return toast(t("Skriv en melding til vedleggene."), "info");
       body = { text: usedSkill ? raw : text, attachments, ...(usedSkill ? { skill: usedSkill } : {}) };
     }
 
@@ -2048,35 +2057,35 @@ export function Composer(props: {
   return (
     <div class="composer-wrap">
       <BtwPanel controller={btw}/>
-      <Show when={backgroundStarting()}><div class="background-starting" role="status">Starter bakgrunnsøkt…</div></Show>
-      <Show when={visibleBackgrounds().length}><div class="background-sessions" aria-label="Bakgrunnsøkter" data-testid="background-sessions"><For each={visibleBackgrounds()}>{(snapshot) => {
+      <Show when={backgroundStarting()}><div class="background-starting" role="status">{t("Starter bakgrunnsøkt…")}</div></Show>
+      <Show when={visibleBackgrounds().length}><div class="background-sessions" aria-label={t("Bakgrunnsøkter")} data-testid="background-sessions"><For each={visibleBackgrounds()}>{(snapshot) => {
         const child = () => app.threads[snapshot.id] ?? snapshot;
-        return <button type="button" class="background-session" aria-label={`Åpne bakgrunnsøkt: ${child().title}`} onClick={() => void openThread(child())}><IconBranch size={14}/><span>{child().title}</span><small>{STATE_LABEL[threadState(child())] || "Ferdig"}</small></button>;
+        return <button type="button" class="background-session" aria-label={t("Åpne bakgrunnsøkt: {title}", { title: child().title })} onClick={() => void openThread(child())}><IconBranch size={14}/><span>{child().title}</span><small>{STATE_LABEL[threadState(child())] || t("Ferdig")}</small></button>;
       }}</For></div></Show>
       <Show when={queued().length || running() || queueEdit()}>
         <div class="queue" data-testid="queue">
           <div class="queue-header">
-            <span class="queue-label">{queued().length ? queued().every((q) => q.steer) ? "Sendes inn i turen" : `${queued().length} i kø` : "Nye meldinger"}</span>
-            <div class="queue-switch" role="group" aria-label="Meldinger mens agenten jobber" data-testid="busy-switch">
-              <button type="button" disabled={busySaving()} aria-pressed={busyMode() === "queue"} aria-label="Legg i kø" title="Legg i kø: meldinger venter til turen er ferdig" onClick={() => void setBusyMode("queue")}>Kø</button>
-              <button type="button" disabled={busySaving()} aria-pressed={busyMode() === "steer"} aria-label="Send med en gang" title="Send med en gang: ved neste steg mellom verktøykall" onClick={() => void setBusyMode("steer")}>Straks</button>
+            <span class="queue-label">{queued().length ? queued().every((q) => q.steer) ? t("Sendes inn i turen") : t("{count} i kø", { count: queued().length }) : t("Nye meldinger")}</span>
+            <div class="queue-switch" role="group" aria-label={t("Meldinger mens agenten jobber")} data-testid="busy-switch">
+              <button type="button" disabled={busySaving()} aria-pressed={busyMode() === "queue"} aria-label={t("Legg i kø")} title={t("Legg i kø: meldinger venter til turen er ferdig")} onClick={() => void setBusyMode("queue")}>{t("Kø")}</button>
+              <button type="button" disabled={busySaving()} aria-pressed={busyMode() === "steer"} aria-label={t("Send med en gang")} title={t("Send med en gang: ved neste steg mellom verktøykall")} onClick={() => void setBusyMode("steer")}>{t("Straks")}</button>
             </div>
           </div>
           <For each={queued()}>{(q) => <div class="queue-entry" data-message-id={q.messageId}>
-            <span class="queue-item" classList={{ steer: !!q.steer }} title={q.steer ? `Går inn i turen ved neste steg: ${q.text}` : q.text}>{q.text}<Show when={q.attachments?.length}><span class="queue-attachments"> · {q.attachments!.length} vedlegg</span></Show></span>
+            <span class="queue-item" classList={{ steer: !!q.steer }} title={q.steer ? t("Går inn i turen ved neste steg: {message}", { message: q.text }) : q.text}>{q.text}<Show when={q.attachments?.length}><span class="queue-attachments"> · {t("{count} vedlegg", { count: q.attachments!.length })}</span></Show></span>
             <Show when={!q.from}>
-              <Show when={!q.steer && q.steerable !== false}><button type="button" class="queue-now" disabled={!!queueAction()} title="Send akkurat denne inn i turen som kjører, ved neste steg" aria-label={`Send «${q.text}» med en gang`} onClick={() => void steerOne(q.messageId)}><IconSend size={12} /></button></Show>
-              <button type="button" class="queue-now" disabled={!!queueAction()} aria-label={`Fjern «${q.text}» fra køen`} title="Fjern fra køen" onClick={() => { const id = props.threadId(); if (id) void removeOne(id, q.messageId); }}><IconTrash size={12} /></button>
-              <button type="button" class="queue-now" disabled={!!queueAction()} aria-label={`Valg for kømeldingen «${q.text}»`} aria-haspopup="menu" aria-expanded={queueMenu()?.messageId === q.messageId} onClick={(event) => { const id = props.threadId(); if (id) setQueueMenu({ threadId: id, messageId: q.messageId, anchor: { x: 0, y: 0, rect: event.currentTarget.getBoundingClientRect() } }); }}><IconDots size={14} /></button>
+              <Show when={!q.steer && q.steerable !== false}><button type="button" class="queue-now" disabled={!!queueAction()} title={t("Send akkurat denne inn i turen som kjører, ved neste steg")} aria-label={t("Send «{message}» med en gang", { message: q.text })} onClick={() => void steerOne(q.messageId)}><IconSend size={12} /></button></Show>
+              <button type="button" class="queue-now" disabled={!!queueAction()} aria-label={t("Fjern «{message}» fra køen", { message: q.text })} title={t("Fjern fra køen")} onClick={() => { const id = props.threadId(); if (id) void removeOne(id, q.messageId); }}><IconTrash size={12} /></button>
+              <button type="button" class="queue-now" disabled={!!queueAction()} aria-label={t("Valg for kømeldingen «{message}»", { message: q.text })} aria-haspopup="menu" aria-expanded={queueMenu()?.messageId === q.messageId} onClick={(event) => { const id = props.threadId(); if (id) setQueueMenu({ threadId: id, messageId: q.messageId, anchor: { x: 0, y: 0, rect: event.currentTarget.getBoundingClientRect() } }); }}><IconDots size={14} /></button>
             </Show>
           </div>}</For>
           <Show when={queueEdit()}>{(edit) => <div class="queue-editor">
-            <label>Rediger kømelding<textarea aria-label="Rediger kømelding" value={edit().text} maxLength={200000} disabled={!!queueAction()} onInput={(event) => setQueueEdit({ ...edit(), text: event.currentTarget.value })} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setQueueEdit(null); } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void saveQueueEdit(); } }} /></label>
-            <div><button type="button" class="btn btn-small" disabled={!!queueAction() || !edit().text.trim()} onClick={() => void saveQueueEdit()}>Lagre melding</button><button type="button" class="btn btn-small" disabled={!!queueAction()} onClick={() => setQueueEdit(null)}>Avbryt</button></div>
+            <label>{t("Rediger kømelding")}<textarea aria-label={t("Rediger kømelding")} value={edit().text} maxLength={200000} disabled={!!queueAction()} onInput={(event) => setQueueEdit({ ...edit(), text: event.currentTarget.value })} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setQueueEdit(null); } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void saveQueueEdit(); } }} /></label>
+            <div><button type="button" class="btn btn-small" disabled={!!queueAction() || !edit().text.trim()} onClick={() => void saveQueueEdit()}>{t("Lagre melding")}</button><button type="button" class="btn btn-small" disabled={!!queueAction()} onClick={() => setQueueEdit(null)}>{t("Avbryt")}</button></div>
           </div>}</Show>
         </div>
       </Show>
-      <Show when={!settingsOpen() && queueMenu()}>{(menu) => <ContextMenu anchor={menu().anchor} label="Kømelding" entries={queueEntries()} onClose={() => setQueueMenu(null)} />}</Show>
+      <Show when={!settingsOpen() && queueMenu()}>{(menu) => <ContextMenu anchor={menu().anchor} label={t("Kømelding")} entries={queueEntries()} onClose={() => setQueueMenu(null)} />}</Show>
       <Show when={kode()}>
       <div class="composer-context">
         <Popover
@@ -2085,20 +2094,20 @@ export function Composer(props: {
           open={pickerOpen()}
           onClose={projectPicker.close}
           trigger={
-            <button type="button" class="context-chip" data-testid="project-picker" ref={projectChip} aria-haspopup="dialog" aria-expanded={pickerOpen()} title={project()?.path ?? "Velg prosjekt"} onPointerDown={(event) => { if (pickerOpen()) event.preventDefault(); }} onClick={(event) => { const closing = pickerOpen(); projectPicker.toggle(); if (closing) event.currentTarget.focus({ preventScroll: true }); }} onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); projectPicker.show(); } }}>
+            <button type="button" class="context-chip" data-testid="project-picker" ref={projectChip} aria-haspopup="dialog" aria-expanded={pickerOpen()} title={project()?.path ?? t("Velg prosjekt")} onPointerDown={(event) => { if (pickerOpen()) event.preventDefault(); }} onClick={(event) => { const closing = pickerOpen(); projectPicker.toggle(); if (closing) event.currentTarget.focus({ preventScroll: true }); }} onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); projectPicker.show(); } }}>
               <Show when={project()} fallback={<IconFolder size={15} />}><ProjectGlyph project={project()!} size={15} /></Show>
-              <span>{project()?.name ?? "Velg prosjekt"}</span>
+              <span>{project()?.name ?? t("Velg prosjekt")}</span>
             </button>
           }
         >
           <ProjectPicker current={props.projectId} paneKey={props.paneKey} onDone={projectPicker.close} onCancel={() => { projectPicker.close(); projectChip?.focus({ preventScroll: true }); }} />
         </Popover>
         <Show when={project()}>{(current) => <ProjectEnvironmentPicker project={current()} paneKey={props.paneKey} />}</Show>
-        <button type="button" class="context-chip" title="Kjører på denne maskinen" onClick={() => setInfo({ title: "Lokal", text: LOCAL_TEXT })}>
-          <IconLaptop size={15} /><span>Lokal</span>
+        <button type="button" class="context-chip" title={t("Kjører på denne maskinen")} onClick={() => setInfo({ title: t("Lokal"), text: localText() })}>
+          <IconLaptop size={15} /><span>{t("Lokal")}</span>
         </button>
         <Show when={project() && branch()}>
-          <span class="context-chip static" data-testid="branch" title={branchInfo()?.detached ? "Ingen gren, HEAD peker på en commit. Lest fra .git/HEAD." : "Gjeldende gren. Bruk prosjektets tannhjul for grener og arbeidstrær."}>
+          <span class="context-chip static" data-testid="branch" title={branchInfo()?.detached ? t("Ingen gren, HEAD peker på en commit. Lest fra .git/HEAD.") : t("Gjeldende gren. Bruk prosjektets tannhjul for grener og arbeidstrær.")}>
             <IconBranch size={15} /><span>{branch()}</span>
           </span>
         </Show>
@@ -2127,15 +2136,15 @@ export function Composer(props: {
         }}
       >
         <Show when={menu()}>
-          <div ref={slashMenu} id={menuId} class="slash-menu" role={hasSuggestions() ? "listbox" : undefined} aria-label="Kommandoer, skills og vedlegg" data-testid="composer-menu">
+          <div ref={slashMenu} id={menuId} class="slash-menu" role={hasSuggestions() ? "listbox" : undefined} aria-label={t("Kommandoer, skills og vedlegg")} data-testid="composer-menu">
             <Show when={hasSuggestions() && itemCount() > 0}>
-              <div class="menu-heading" aria-hidden="true"><kbd>Tab</kbd> fullfører · <kbd>↑↓</kbd> velger · <kbd>Esc</kbd> lukker</div>
+              <div class="menu-heading" aria-hidden="true"><InlineCopy text={t("{tab} fullfører · {arrows} velger · {escape} lukker")} parts={{ tab: <kbd>Tab</kbd>, arrows: <kbd>↑↓</kbd>, escape: <kbd>Esc</kbd> }} /></div>
             </Show>
             <Show when={menu()!.kind === "command" || menu()!.kind === "skill"}>
-              <div class="menu-heading">{menu()!.kind === "skill" ? "Skills" : "Kommandoer"}</div>
+              <div class="menu-heading">{menu()!.kind === "skill" ? t("Skills") : t("Kommandoer")}</div>
               <For each={commandItems()} fallback={<div class="menu-empty">{menu()!.kind === "skill"
-                ? "Ingen skills funnet."
-                : exactCommandRestriction(menu()!.query.toLowerCase()) ?? "Ingen treff"}</div>}>
+                ? t("Ingen skills funnet.")
+                : exactCommandRestriction(menu()!.query.toLowerCase()) ?? t("Ingen treff")}</div>}>
                 {(item, index) => (
                   <>
                   <Show when={!menu()!.query && (index() === 0 || commandGroup(commandItems()[index() - 1]) !== commandGroup(item))}>
@@ -2159,14 +2168,14 @@ export function Composer(props: {
                     <span class="menu-name">{menu()!.kind === "skill" ? "$" : "/"}{item.name}</span>
                     <Show when={item.args && index() === selected()}><span class="menu-args">{item.kind === "skill" ? item.args : argsText(item.args!)}</span></Show>
                     <span class="menu-desc">{item.description}</span>
-                    <Show when={item.kind === "skill"}><span class="menu-tag">{item.source === "project" ? "prosjekt" : item.source === "app" ? "app" : "skill"}</span></Show>
+                    <Show when={item.kind === "skill"}><span class="menu-tag">{item.source === "project" ? t("prosjekt") : item.source === "app" ? t("app") : t("skill")}</span></Show>
                   </button>
                   </>
                 )}
               </For>
             </Show>
             <Show when={menu()!.kind === "mention"}>
-              <For each={mentions()} fallback={<div class="menu-empty">Ingen treff</div>}>
+              <For each={mentions()} fallback={<div class="menu-empty">{t("Ingen treff")}</div>}>
                 {(item, index) => (
                   <button
                     type="button"
@@ -2181,7 +2190,7 @@ export function Composer(props: {
                   >
                     {item.kind === "thread" ? <IconBranch size={14} /> : item.kind === "dir" ? <IconFolder size={14} /> : <IconFile size={14} />}
                     <span class="menu-name">{item.label}</span>
-                    <Show when={item.kind === "thread"}><span class="menu-tag">{item.running ? "kjører" : "tråd"}</span></Show>
+                    <Show when={item.kind === "thread"}><span class="menu-tag">{item.running ? t("kjører") : t("tråd")}</span></Show>
                   </button>
                 )}
               </For>
@@ -2189,13 +2198,13 @@ export function Composer(props: {
             <Show when={menu()!.kind === "shell"}>
               <div class="menu-item static">
                 <IconTerminal size={14} />
-                <span class="menu-desc">{props.projectId ? "Kjør kommandoen i prosjektmappen, med vanlige tillatelser" : "! krever Kode-modus og et prosjekt"}</span>
+                <span class="menu-desc">{props.projectId ? t("Kjør kommandoen i prosjektmappen, med vanlige tillatelser") : t("! krever Kode-modus og et prosjekt")}</span>
               </div>
             </Show>
           </div>
         </Show>
         <Show when={chips().length || skill() || uploading()}>
-          <div class="chips composer-attachments" role="region" aria-label="Vedleggsrad" tabindex="0" data-testid="attachment-strip" title="Rull bortover for å se alle vedlegg"
+          <div class="chips composer-attachments" role="region" aria-label={t("Vedleggsrad")} tabindex="0" data-testid="attachment-strip" title={t("Rull bortover for å se alle vedlegg")}
             onKeyDown={(event) => {
               if (event.target !== event.currentTarget) return;
               const row = event.currentTarget;
@@ -2211,7 +2220,7 @@ export function Composer(props: {
             } }}>
             <Show when={skill()}>
               <span class="chip chip-skill"><IconSpark size={12} />/{skill()}
-                <button type="button" class="chip-x" title="Fjern skillen" aria-label="Fjern skill" onClick={() => setSkill(null)}><IconClose size={11} /></button>
+                <button type="button" class="chip-x" title={t("Fjern skillen")} aria-label={t("Fjern skill")} onClick={() => setSkill(null)}><IconClose size={11} /></button>
               </span>
             </Show>
             <For each={chips()}>
@@ -2222,36 +2231,38 @@ export function Composer(props: {
                   fallback={
                     <span class="chip-wrap">
                       <AttachmentChip attachment={chipAttachment(chip)} />
-                      <button type="button" class="chip-x" title="Fjern vedlegget" aria-label="Fjern vedlegg" onClick={() => setChips(chips().filter((c) => c.key !== chip.key))}><IconClose size={11} /></button>
+                      <button type="button" class="chip-x" title={t("Fjern vedlegget")} aria-label={t("Fjern vedlegg")} onClick={() => setChips(chips().filter((c) => c.key !== chip.key))}><IconClose size={11} /></button>
                     </span>
                   }
                 >
                   {(image) => (
                     <span class="chip-image" data-testid="image-chip" title={image.label}>
-                      <button type="button" class="chip-image-view" title={`Vis ${image.label} i full størrelse`} aria-label={`Vis ${image.label}`} onClick={() => showImage(imageUrl(image.imageId), image.label)}>
+                      <button type="button" class="chip-image-view" title={t("Vis {label} i full størrelse", { label: image.label })} aria-label={t("Vis {label}", { label: image.label })} onClick={() => showImage(imageUrl(image.imageId), image.label)}>
                         <img src={imageUrl(image.imageId)} alt={image.label} />
                       </button>
-                      <button type="button" class="chip-image-x" title="Fjern bildet fra meldingen" aria-label="Fjern bildet" onClick={() => setChips(chips().filter((c) => c.key !== chip.key))}><IconClose size={10} /></button>
+                      <button type="button" class="chip-image-x" title={t("Fjern bildet fra meldingen")} aria-label={t("Fjern bildet")} onClick={() => setChips(chips().filter((c) => c.key !== chip.key))}><IconClose size={10} /></button>
                     </span>
                   )}
                 </Show>
               )}
             </For>
             <Show when={uploading()}>
-              <span class="chip chip-uploading"><span class="spinner" />Laster opp {uploading() === 1 ? "1 vedlegg" : `${uploading()} vedlegg`}</span>
+              <span class="chip chip-uploading"><span class="spinner" />{t("Laster opp {count} vedlegg", { count: uploading() })}</span>
             </Show>
           </div>
         </Show>
         <Show when={chips().length >= MAX_ATTACHMENTS}>
-          <div class="attach-limit" role="status" data-testid="attach-limit">{LIMIT_TEXT} Fjern et vedlegg for å legge til et nytt.</div>
+          <div class="attach-limit" role="status" data-testid="attach-limit">{t("Du kan legge ved maks {max} bilder og filer per melding. Fjern et vedlegg for å legge til et nytt.", { max: MAX_ATTACHMENTS })}</div>
         </Show>
         <div class="composer-input">
           <textarea
             ref={textarea}
             rows={1}
-            placeholder={locked() ? "Mappen mangler. Velg mappen på nytt for å skrive her." : kode() ? "" : enterNewline() ? `Spør om hva som helst (${displayKeys("Mod+Enter")} sender)` : "Spør om hva som helst"}
-            aria-placeholder={locked() ? undefined : kode() ? `Spør om hva som helst. / for kommandoer, @ for filer, $ for skills.${enterNewline() ? ` ${displayKeys("Mod+Enter")} sender.` : ""}` : undefined}
-            aria-label="Melding"
+            placeholder={locked() ? t("Mappen mangler. Velg mappen på nytt for å skrive her.") : kode() ? "" : enterNewline() ? t("Spør om hva som helst ({shortcut} sender)", { shortcut: displayKeys("Mod+Enter") }) : t("Spør om hva som helst")}
+            aria-placeholder={locked() || !kode() ? undefined : enterNewline()
+              ? t("Spør om hva som helst. / for kommandoer, @ for filer, $ for skills. {shortcut} sender.", { shortcut: displayKeys("Mod+Enter") })
+              : t("Spør om hva som helst. / for kommandoer, @ for filer, $ for skills.")}
+            aria-label={t("Melding")}
             aria-autocomplete="list"
             aria-describedby={completion() ? `${menuId}-completion-status` : undefined}
             aria-controls={hasSuggestions() ? menuId : undefined}
@@ -2286,18 +2297,18 @@ export function Composer(props: {
           />
           <Show when={completion()}>
             <div ref={completionOverlay} class="composer-completion" aria-hidden="true" data-testid="prompt-completion"><span class="composer-completion-prefix">{completionPrefix()}</span><span data-testid="prompt-completion-suffix">{completion()}</span></div>
-            <span id={`${menuId}-completion-status`} class="sr-only" role="status">Forslag: {completion()}. Trykk Tab for å sette inn, eller Escape for å avvise.</span>
+            <span id={`${menuId}-completion-status`} class="sr-only" role="status">{t("Forslag: {suggestion}. Trykk Tab for å sette inn, eller Escape for å avvise.", { suggestion: completion() ?? "" })}</span>
           </Show>
           {/* The three helpers and what they do (SPEC 21.1). In a narrow pane the words go first,
               then the keys, so the line never wraps. */}
           <Show when={kode() && !hasText() && !locked()}>
             <div class="composer-hint" aria-hidden="true" data-testid="composer-hint">
-              <span class="hint-main">Spør om hva som helst</span>
-              <span class="hint-key"><kbd>/</kbd><span class="hint-word">kommandoer</span></span>
-              <span class="hint-key"><kbd>@</kbd><span class="hint-word">filer</span></span>
-              <span class="hint-key"><kbd>$</kbd><span class="hint-word">skills</span></span>
+              <span class="hint-main">{t("Spør om hva som helst")}</span>
+              <span class="hint-key"><kbd>/</kbd><span class="hint-word">{t("kommandoer")}</span></span>
+              <span class="hint-key"><kbd>@</kbd><span class="hint-word">{t("filer")}</span></span>
+              <span class="hint-key"><kbd>$</kbd><span class="hint-word">{t("skills")}</span></span>
               <Show when={enterNewline()}>
-                <span class="hint-key hint-send"><kbd>{displayKeys("Mod+Enter")}</kbd><span class="hint-word">sender</span></span>
+                <span class="hint-key hint-send"><kbd>{displayKeys("Mod+Enter")}</kbd><span class="hint-word">{t("sender")}</span></span>
               </Show>
             </div>
           </Show>
@@ -2339,8 +2350,8 @@ export function Composer(props: {
               <button
                 type="button"
                 class="foot-icon"
-                title={`Legg til kommandoer, en mappe, filer eller bilder (maks ${MAX_ATTACHMENTS} vedlegg)`}
-                aria-label="Legg ved"
+                title={t("Legg til kommandoer, en mappe, filer eller bilder (maks {max} vedlegg)", { max: MAX_ATTACHMENTS })}
+                aria-label={t("Legg ved")}
                 aria-haspopup="menu"
                 aria-expanded={attachOpen()}
                 onClick={() => (attachOpen() ? closeAttach() : setAttachOpen(true))}
@@ -2362,28 +2373,28 @@ export function Composer(props: {
               <div
                 class="menu-list attach-menu"
                 role="menu"
-                aria-label="Legg ved"
+                aria-label={t("Legg ved")}
                 ref={(el) => {
                   attachMenu = el;
                   requestAnimationFrame(() => el.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus());
                 }}
                 onKeyDown={menuKeys}
               >
-                <button type="button" role="menuitem" class="menu-item" title={inChatProject() ? "Åpne listen over /-kommandoer" : "Åpne listen over /-kommandoer og skills"} onClick={() => { closeAttach(); insertTrigger("/"); }}>
-                  <IconCode size={15} /><span class="menu-name">Skråstrekkommandoer</span><kbd class="menu-keys">/</kbd>
+                <button type="button" role="menuitem" class="menu-item" title={inChatProject() ? t("Åpne listen over /-kommandoer") : t("Åpne listen over /-kommandoer og skills")} onClick={() => { closeAttach(); insertTrigger("/"); }}>
+                  <IconCode size={15} /><span class="menu-name">{t("Skråstrekkommandoer")}</span><kbd class="menu-keys">/</kbd>
                 </button>
                 <Show when={kode()}>
-                  <button type="button" role="menuitem" class="menu-item" disabled={!props.projectId || atLimit()} title={!props.projectId ? "Krever et prosjekt" : atLimit() ? LIMIT_TEXT : "Gi modellen en oversikt over en mappe i prosjektet"} onClick={() => setAttachView("folders")}>
-                    <IconFolder size={15} /><span class="menu-name">Legg til mappe</span><kbd class="menu-keys">@</kbd>
+                  <button type="button" role="menuitem" class="menu-item" disabled={!props.projectId || atLimit()} title={!props.projectId ? t("Krever et prosjekt") : atLimit() ? limitText() : t("Gi modellen en oversikt over en mappe i prosjektet")} onClick={() => setAttachView("folders")}>
+                    <IconFolder size={15} /><span class="menu-name">{t("Legg til mappe")}</span><kbd class="menu-keys">@</kbd>
                   </button>
                 </Show>
-                <button type="button" role="menuitem" class="menu-item" disabled={atLimit()} title={atLimit() ? LIMIT_TEXT : `Tekstfiler fra maskinen, maks ${MAX_TEXT_UPLOAD_BYTES / 1024} kB per fil`} onClick={() => { closeAttach(); textInput.click(); }}>
-                  <IconFile size={15} /><span class="menu-name">Legg til filer</span>
+                <button type="button" role="menuitem" class="menu-item" disabled={atLimit()} title={atLimit() ? limitText() : t("Tekstfiler fra maskinen, maks {max} kB per fil", { max: MAX_TEXT_UPLOAD_BYTES / 1024 })} onClick={() => { closeAttach(); textInput.click(); }}>
+                  <IconFile size={15} /><span class="menu-name">{t("Legg til filer")}</span>
                 </button>
-                <button type="button" role="menuitem" class="menu-item" disabled={atLimit()} title={atLimit() ? LIMIT_TEXT : "PNG, JPEG, WebP eller GIF, maks 3 MB per bilde"} onClick={() => { closeAttach(); fileInput.click(); }}>
-                  <IconImage size={15} /><span class="menu-name">Bilder</span>
+                <button type="button" role="menuitem" class="menu-item" disabled={atLimit()} title={atLimit() ? limitText() : t("PNG, JPEG, WebP eller GIF, maks 3 MB per bilde")} onClick={() => { closeAttach(); fileInput.click(); }}>
+                  <IconImage size={15} /><span class="menu-name">{t("Bilder")}</span>
                 </button>
-                <div class="menu-foot">{chips().length} av {MAX_ATTACHMENTS} vedlegg</div>
+                <div class="menu-foot">{t("{count} av {max} vedlegg", { count: chips().length, max: MAX_ATTACHMENTS })}</div>
               </div>
             </Show>
           </Popover>
@@ -2394,7 +2405,7 @@ export function Composer(props: {
             <ChatToolButton state={chatTools} chatProject={chatProject()} open={toolsOpen} setOpen={setToolsOpen} />
           </Show>
           <Show when={kode() && thread()?.planMode}>
-            <button type="button" class="pill pill-accent" title="Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av." onClick={() => void setPlan(false).catch(report)}><IconList size={12} />Plan</button>
+            <button type="button" class="pill pill-accent" title={t("Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av.")} onClick={() => void setPlan(false).catch(report)}><IconList size={12} />{t("Plan")}</button>
           </Show>
           <span class="composer-spacer" />
           <Show when={steps().length}>
@@ -2413,7 +2424,7 @@ export function Composer(props: {
                   class="foot-chip effort-chip"
                   data-testid="effort-button"
                   data-chosen={chosenEffort() ? "" : undefined}
-                  title="Innsats: hvor mye modellen tenker før den svarer"
+                  title={t("Innsats: hvor mye modellen tenker før den svarer")}
                   aria-haspopup="dialog"
                   aria-expanded={effortOpen()}
                   onClick={() => { setModelOpen(false); setEffortOpen(!effortOpen()); }}
@@ -2424,7 +2435,7 @@ export function Composer(props: {
                     setEffortOpen(true);
                   }}
                 >
-                  <span class="effort-chip-label"><Show when={effortLabel(chosenEffort())} fallback={<><span class="effort-chip-verb">Velg </span><span class="effort-chip-noun">innsats</span></>}>{effortChip()}</Show></span><IconChevronDown size={12} />
+                  <span class="effort-chip-label"><Show when={effortLabel(chosenEffort())} fallback={<><span class="effort-chip-verb">{t("Velg ")}</span><span class="effort-chip-noun">{t("innsats")}</span></>}>{effortChip()}</Show></span><IconChevronDown size={12} />
                 </button>
               }
             >
@@ -2447,7 +2458,7 @@ export function Composer(props: {
             portal
             returnFocus
             trigger={
-              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={`${modelName(modelId())}: velg modell`} aria-label={`Velg modell: ${modelName(modelId())}`} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }} onKeyDown={(event) => {
+              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={t("{model}: velg modell", { model: modelName(modelId()) })} aria-label={t("Velg modell: {model}", { model: modelName(modelId()) })} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }} onKeyDown={(event) => {
                 if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
                 event.preventDefault();
                 setEffortOpen(false);
@@ -2464,25 +2475,25 @@ export function Composer(props: {
             />
           </Popover>
           <ContextRing threadId={props.threadId} modelId={modelId} projectId={props.projectId} />
-          <Dictation draft={draftKey()} disabled={locked()} error={text => setInfo({ title: 'Diktering', text })} insert={text => { textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end'); onInput(); textarea.focus(); }} />
+          <Dictation draft={draftKey()} disabled={locked()} error={text => setInfo({ title: t("Diktering"), text })} insert={text => { textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end'); onInput(); textarea.focus(); }} />
           <Show when={running()}>
-            <button type="button" class="send-button stop" title="Stopp kjøringen" aria-label="Stopp" onClick={stop}><IconStop size={14} /></button>
+            <button type="button" class="send-button stop" title={t("Stopp kjøringen")} aria-label={t("Stopp")} onClick={stop}><IconStop size={14} /></button>
           </Show>
           <Show when={!running() || hasText()}>
-            <button type="submit" class="send-button" title={`Send meldingen (${displayKeys(sendKeys())})`} data-keys={displayKeys(sendKeys())} aria-label="Send" disabled={locked() || (!hasText() && !skill())}><IconSend /></button>
+            <button type="submit" class="send-button" title={t("Send meldingen ({shortcut})", { shortcut: displayKeys(sendKeys()) })} data-keys={displayKeys(sendKeys())} aria-label={t("Send")} disabled={locked() || (!hasText() && !skill())}><IconSend /></button>
           </Show>
         </div>
       </form>
       <Show when={helpQuery() !== null}>
-        <div class="help-card" role="dialog" aria-label="Hjelp" onKeyDown={(event) => {
+        <div class="help-card" role="dialog" aria-label={t("Hjelp")} onKeyDown={(event) => {
           if (event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();
           setHelpQuery(null);
           textarea.focus();
         }}>
-          <div class="help-head"><strong>Kommandoer og skills</strong>
-            <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => { setHelpQuery(null); textarea.focus(); }}><IconClose size={14} /></button>
+          <div class="help-head"><strong>{t("Kommandoer og skills")}</strong>
+            <button type="button" class="icon-button" title={t("Lukk")} aria-label={t("Lukk")} onClick={() => { setHelpQuery(null); textarea.focus(); }}><IconClose size={14} /></button>
           </div>
           <CommandList commands={availableCommands()} initialQuery={helpQuery() ?? ""} focusSearch />
         </div>
@@ -2491,7 +2502,7 @@ export function Composer(props: {
         {(current) => (
           <div class="help-card picker-card" role="dialog" aria-label={current.title}>
             <div class="help-head"><strong>{current.title}</strong>
-              <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setPicker(null)}><IconClose size={14} /></button>
+              <button type="button" class="icon-button" title={t("Lukk")} aria-label={t("Lukk")} onClick={() => setPicker(null)}><IconClose size={14} /></button>
             </div>
             <div class="menu-list" role="listbox" aria-label={current.title}>
               <For each={current.items}>
@@ -2512,7 +2523,7 @@ export function Composer(props: {
           <div class="help-card info-card" role="dialog" aria-label={card.title} data-testid="info-card">
             <div class="help-head">
               <strong>{card.title}</strong>
-              <button type="button" class="icon-button" title="Lukk" aria-label="Lukk" onClick={() => setInfo(null)}><IconClose size={14} /></button>
+              <button type="button" class="icon-button" title={t("Lukk")} aria-label={t("Lukk")} onClick={() => setInfo(null)}><IconClose size={14} /></button>
             </div>
             <Show when={card.link}>{link => (
               <a class="link-button" href={link().url} target="_blank" rel="noopener noreferrer">{link().label}</a>

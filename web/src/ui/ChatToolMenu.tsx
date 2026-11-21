@@ -1,3 +1,5 @@
+import { t } from "../lib/i18n";
+import { InlineCopy } from "./CommandList";
 import {setModsOpen} from '../state/ui-mods';
 // Round 13 (SPEC 27.2): the tools of a chat. A button by + opens a small menu with a switch per
 // tool. Its switches show the active choices without extra chips in the message field.
@@ -56,51 +58,53 @@ interface ToolInfo {
 }
 
 const TOOLS: ToolInfo[] = [
-  { id: "web", name: "Nettsøk", icon: IconGlobe },
-  { id: "fetch", name: "Les nettsider", icon: IconLink }, // a link: it reads the address you paste (SPEC 28)
-  { id: "documents", name: "Lag filer", icon: IconFilePlus },
-  { id: "python", name: "Python-analyse", icon: IconTerminal },
-  { id: "artifacts", name: "Artifacts", icon: IconArtifact },
-  { id: "memory", name: "Minne", icon: IconBookmark },
+  { id: "web", get name() { return t("Nettsøk"); }, icon: IconGlobe },
+  { id: "fetch", get name() { return t("Les nettsider"); }, icon: IconLink }, // a link: it reads the address you paste (SPEC 28)
+  { id: "documents", get name() { return t("Lag filer"); }, icon: IconFilePlus },
+  { id: "python", get name() { return t("Python-analyse"); }, icon: IconTerminal },
+  { id: "artifacts", get name() { return t("Artifacts"); }, icon: IconArtifact },
+  { id: "memory", get name() { return t("Minne"); }, icon: IconBookmark },
 ];
 
 const ROUTE_TEXT: Record<WebSearchRoute, string> = {
-  provider: "Med leverandørens eget nettsøk",
-  browser: "Appens nettleser søker på søkesiden din",
-  demo: "Demo-kilder, tydelig merket",
+  get provider() { return t("Med leverandørens eget nettsøk"); },
+  get browser() { return t("Appens nettleser søker på søkesiden din"); },
+  get demo() { return t("Demo-kilder, tydelig merket"); },
 };
 
 export function ChatToolButton(props: { state: ChatToolState; chatProject?: ChatProject; open: Accessor<boolean>; setOpen: (open: boolean) => void }) {
   const { open, setOpen } = props;
   // Read when the menu opens: whether Chat memories are on, and whether new ones are saved.
   const [personal] = createResource(() => open() && !props.chatProject, () => get<ChatPersonalState>("/api/chat-personal").catch(() => null));
-  const [python] = createResource(() => open(), () => get<{available:boolean;reason:string}>("/api/chat-workspace/status").catch(() => ({available:false,reason:"Kunne ikke kontrollere Python."})));
+  const [python] = createResource(() => open(), () => get<{available:boolean;reason:string}>("/api/chat-workspace/status").catch(() => ({available:false,reason:t("Kunne ikke kontrollere Python.")})));
   const memoriesOff = () => personal()?.personal.memories === false;
   const requiresTools = (id: ChatToolId) => id !== "memory" && id !== "artifacts";
   const anyOn = () => CHAT_TOOL_IDS.some((id) => props.state.tools()[id] && (!requiresTools(id) || props.state.toolsAllowed()));
   let menu: HTMLDivElement | undefined;
 
   const describe = (id: ChatToolId): { text: string; off?: string } => {
-    if (requiresTools(id) && !props.state.toolsAllowed()) return { text: "", off: "Verktøykall er slått av for denne modellen." };
+    if (requiresTools(id) && !props.state.toolsAllowed()) return { text: "", off: t("Verktøykall er slått av for denne modellen.") };
     switch (id) {
       case "web": {
         const route = props.state.route();
-        return route ? { text: ROUTE_TEXT[route] } : { text: "", off: `${props.state.model()} har ikke eget nettsøk, og ingen søkeside er satt opp i Innstillinger → Chat` };
+        return route ? { text: ROUTE_TEXT[route] } : { text: "", off: t("{model} har ikke eget nettsøk, og ingen søkeside er satt opp i Innstillinger → Chat", { model: props.state.model() }) };
       }
-      case "documents": return {text:"Nedlastbare Word-, Excel-, PowerPoint- og tekstfiler"};
-      case "python": return python()?.available ? {text:"Isolert kodekjøring · uten nettverk · standardbiblioteket"} : {text:"",off:python()?.reason??"Kontrollerer isolert Python…"};
+      case "documents": return {text:t("Nedlastbare Word-, Excel-, PowerPoint- og tekstfiler")};
+      case "python": return python()?.available ? {text:t("Isolert kodekjøring · uten nettverk · standardbiblioteket")} : {text:"",off:python()?.reason??t("Kontrollerer isolert Python…")};
       case "fetch":
-        return { text: "Leser en adresse du limer inn" };
+        return { text: t("Leser en adresse du limer inn") };
       case "artifacts":
-        return { text: "Små HTML-programmer i chatten" };
+        return { text: t("Små HTML-programmer i chatten") };
       case "memory":
-        if (props.state.temporary()) return { text: "", off: "Midlertidige chatter bruker ikke lagrede minner." };
+        if (props.state.temporary()) return { text: "", off: t("Midlertidige chatter bruker ikke lagrede minner.") };
         if (props.chatProject) {
-          const scope = props.chatProject.memoryMode === "shared" ? "globale Chat-minner" : "prosjektets egne minner";
-          return { text: props.chatProject.autoMemory ? `Bruker og oppdaterer ${scope}` : `Bruker ${scope}. Nye minner lagres bare manuelt.` };
+          const shared = props.chatProject.memoryMode === "shared";
+          return { text: props.chatProject.autoMemory
+            ? shared ? t("Bruker og oppdaterer globale Chat-minner") : t("Bruker og oppdaterer prosjektets egne minner")
+            : shared ? t("Bruker globale Chat-minner. Nye minner lagres bare manuelt.") : t("Bruker prosjektets egne minner. Nye minner lagres bare manuelt.") };
         }
-        if (memoriesOff()) return { text: "", off: "Slått av i Chat-personalisering" };
-        return { text: personal()?.personal.autoMemory ? "Bruker og oppdaterer Chat-minnene" : "Bruker Chat-minnene dine" };
+        if (memoriesOff()) return { text: "", off: t("Slått av i Chat-personalisering") };
+        return { text: personal()?.personal.autoMemory ? t("Bruker og oppdaterer Chat-minnene") : t("Bruker Chat-minnene dine") };
     }
   };
 
@@ -122,8 +126,8 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
           class="foot-icon tools-button"
           data-on={anyOn() ? "" : undefined}
           data-testid="chat-tools-button"
-          title="Verktøy for denne chatten: nettsøk, filer, Python, artifacts og minne"
-          aria-label="Verktøy"
+          title={t("Verktøy for denne chatten: nettsøk, filer, Python, artifacts og minne")}
+          aria-label={t("Verktøy")}
           aria-haspopup="menu"
           aria-expanded={open()}
           onClick={() => setOpen(!open())}
@@ -135,14 +139,14 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
       <div
         class="menu-list chat-tools-menu"
         role="menu"
-        aria-label="Verktøy"
+        aria-label={t("Verktøy")}
         ref={(el) => {
           menu = el;
           requestAnimationFrame(() => el.querySelector<HTMLElement>('[role="menuitemcheckbox"]:not([aria-disabled="true"])')?.focus());
         }}
         onKeyDown={keys}
       >
-        <div class="menu-heading">Verktøy i denne chatten</div>
+        <div class="menu-heading">{t("Verktøy i denne chatten")}</div>
         <For each={TOOLS}>
           {(tool) => {
             const info = createMemo(() => describe(tool.id));
@@ -170,10 +174,12 @@ export function ChatToolButton(props: { state: ChatToolState; chatProject?: Chat
             );
           }}
         </For>
-        <button type="button" role="menuitem" class="menu-item menu-item-tall chat-tool-item" onClick={()=>{setOpen(false);setModsOpen(true);}}><IconPalette size={15}/><span class="menu-stack"><span class="menu-name">Tema og bakgrunn</span><span class="menu-desc">Farger, animerte motiver og egne mods for Chat</span></span></button>
+        <button type="button" role="menuitem" class="menu-item menu-item-tall chat-tool-item" onClick={()=>{setOpen(false);setModsOpen(true);}}><IconPalette size={15}/><span class="menu-stack"><span class="menu-name">{t("Tema og bakgrunn")}</span><span class="menu-desc">{t("Farger, animerte motiver og egne mods for Chat")}</span></span></button>
         <div class="chat-tools-foot">
-          {props.chatProject ? "Gjelder denne chatten. Minnevalg og instruksjoner endres i Rediger prosjekt. Standard for øvrige verktøy: " : "Gjelder denne chatten. Standard for nye chatter: "}
-          <button type="button" onClick={() => { setOpen(false); setSettingsOpen("chat"); }}>Innstillinger → Chat</button>
+          <InlineCopy text={props.chatProject
+            ? t("Gjelder denne chatten. Minnevalg og instruksjoner endres i Rediger prosjekt. Standard for øvrige verktøy: {settings}")
+            : t("Gjelder denne chatten. Standard for nye chatter: {settings}")}
+            parts={{ settings: <button type="button" onClick={() => { setOpen(false); setSettingsOpen("chat"); }}>{t("Innstillinger → Chat")}</button> }} />
         </div>
       </div>
     </Popover>

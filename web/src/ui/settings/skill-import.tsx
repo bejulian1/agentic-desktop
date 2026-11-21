@@ -2,6 +2,7 @@
 // drag them in. The files are read here and sent as text; the server checks each one and says what
 // is wrong per file. A name that is taken asks: replace, keep both or skip. Nothing is written
 // before «Importer».
+import { plural, t } from "../../lib/i18n";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { SkillImportFile, SkillImportResult, SkillImportRow } from "../../../../shared/protocol";
 import { post } from "../../lib/api";
@@ -66,24 +67,29 @@ async function readAll(picked: Picked[], folder: boolean): Promise<Local> {
   for (const { file, path } of chosen) {
     const label = path || file.name;
     if (file.size > MAX_FILE_BYTES) {
-      local.push({ key: `local-${local.length}`, file: label, name: "", description: "", status: "invalid", error: `Fila er for stor (${Math.round(file.size / 1024)} KB, maks ${MAX_FILE_BYTES / 1024} KB).` });
+      local.push({ key: `local-${local.length}`, file: label, name: "", description: "", status: "invalid", error: t("Fila er for stor ({size} KB, maks {max} KB).", { size: Math.round(file.size / 1024), max: MAX_FILE_BYTES / 1024 }) });
       continue;
     }
     total += file.size;
     if (total > MAX_TOTAL) {
-      local.push({ key: `local-${local.length}`, file: label, name: "", description: "", status: "invalid", error: "For mye på én gang. Importer resten i en ny runde." });
+      local.push({ key: `local-${local.length}`, file: label, name: "", description: "", status: "invalid", error: t("For mye på én gang. Importer resten i en ny runde.") });
       continue;
     }
     try {
       sent.push({ name: file.name, ...(path ? { path } : {}), text: /\.md$/i.test(file.name) ? await file.text() : "" });
     } catch {
-      local.push({ key: `local-${local.length}`, file: label, name: "", description: "", status: "invalid", error: "Fila kunne ikke leses." });
+      local.push({ key: `local-${local.length}`, file: label, name: "", description: "", status: "invalid", error: t("Fila kunne ikke leses.") });
     }
   }
   return { sent, local };
 }
 
-const STATUS: Record<SkillImportRow["status"], string> = { ok: "Klar", conflict: "Navnet er tatt", invalid: "Ugyldig", ignored: "Hoppes over" };
+const STATUS: Record<SkillImportRow["status"], string> = {
+  get ok() { return t("Klar"); },
+  get conflict() { return t("Navnet er tatt"); },
+  get invalid() { return t("Ugyldig"); },
+  get ignored() { return t("Hoppes over"); },
+};
 
 export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose: (imported: boolean) => void; active?: boolean }) {
   const [target, setTarget] = createSignal("user");
@@ -141,10 +147,11 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
       const { results } = await post<{ results: SkillImportResult[] }>("/api/skills/import", { files: files(), ...body(), decisions: decisions(), enabled: enabled() });
       const made = results.filter((r) => r.status === "created" || r.status === "replaced").length;
       const failed = results.filter((r) => r.status === "error" && rows()?.find((row) => row.key === r.key)?.status !== "invalid");
-      toast(
-        `${made === 1 ? "Én skill er importert" : `${made} skills er importert`}.${failed.length ? ` ${failed.length} feilet: ${failed.map((f) => `${f.file} (${f.message})`).join(", ")}` : ""}`,
-        failed.length ? "error" : "info",
-      );
+      const imported = plural(made, "Én skill er importert.", "{count} skills er importert.");
+      if (failed.length) {
+        const failures = failed.map((f) => `${f.file} (${f.message})`).join(", ");
+        toast(t("{imported} {count} feilet: {failures}", { imported, count: failed.length, failures }), "error");
+      } else toast(imported, "info");
       props.onClose(made > 0);
     } catch (err) {
       report(err);
@@ -157,14 +164,14 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
     <div class="skill-import" data-testid="skill-import">
       <div class="setting skill-import-head">
         <div class="setting-text">
-          <strong>Importer skills</strong>
+          <strong>{t("Importer skills")}</strong>
           <span class="muted">
-            <Show when={rows()} fallback="Leser filene…">
+            <Show when={rows()} fallback={t("Leser filene…")}>
               {[
-                `${counts().ok} klare`,
-                counts().conflict ? `${counts().conflict} med navn som er tatt` : "",
-                counts().bad ? `${counts().bad} ugyldige` : "",
-                counts().ignored ? `${counts().ignored} hoppes over` : "",
+                t("{count} klare", { count: counts().ok }),
+                counts().conflict ? t("{count} med navn som er tatt", { count: counts().conflict }) : "",
+                counts().bad ? t("{count} ugyldige", { count: counts().bad }) : "",
+                counts().ignored ? t("{count} hoppes over", { count: counts().ignored }) : "",
               ].filter(Boolean).join(" · ")}
             </Show>
           </span>
@@ -172,9 +179,9 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
         <div class="setting-control">
           <Select<string>
             active={props.active}
-            label="Importer til"
+            label={t("Importer til")}
             value={target()}
-            options={[{ value: "user", label: "Dine skills" }, ...projects().map((p) => ({ value: p.id, label: `Prosjektet ${p.name}` }))]}
+            options={[{ value: "user", label: t("Dine skills") }, ...projects().map((p) => ({ value: p.id, label: t("Prosjektet {name}", { name: p.name }) }))]}
             onChange={(value) => {
               setTarget(value);
               void check();
@@ -183,7 +190,7 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
         </div>
       </div>
       <Show when={rows()?.length}>
-        <ul class="import-list" aria-label="Filer som importeres">
+        <ul class="import-list" aria-label={t("Filer som importeres")}>
           <For each={rows()!}>
             {(row) => (
               <li class={`setting import-row import-${row.status}`} data-file={row.file}>
@@ -197,7 +204,7 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
                   </strong>
                   <Show when={row.description}><span class="muted">{row.description}</span></Show>
                   <Show when={row.error}><span class={row.status === "invalid" ? "import-error" : "muted"}>{row.error}</span></Show>
-                  <Show when={row.status === "conflict"}><span class="muted">Finnes i {row.conflictWith}.</span></Show>
+                  <Show when={row.status === "conflict"}><span class="muted">{t("Finnes i {path}.", { path: row.conflictWith ?? "" })}</span></Show>
                   <Show when={row.note}><span class="muted">{row.note}</span></Show>
                   <span class="muted skill-path" title={row.file}><IconFolderOpen size={11} /> {row.file}</span>
                 </div>
@@ -206,12 +213,12 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
                     <Show when={row.status === "conflict"}>
                       <Select<Decision>
                         active={props.active}
-                        label={`Hva skal skje med ${row.name}`}
+                        label={t("Hva skal skje med {name}", { name: row.name })}
                         value={decisions()[row.key] ?? "skip"}
                         options={[
-                          { value: "replace", label: row.conflictId ? "Erstatt" : "Erstatt den første" },
-                          { value: "both", label: `Behold begge (${row.suggested})` },
-                          { value: "skip", label: "Hopp over" },
+                          { value: "replace", label: row.conflictId ? t("Erstatt") : t("Erstatt den første") },
+                          { value: "both", label: t("Behold begge ({suggested})", { suggested: String(row.suggested) }) },
+                          { value: "skip", label: t("Hopp over") },
                         ]}
                         onChange={(value) => setDecisions({ ...decisions(), [row.key]: value })}
                       />
@@ -220,8 +227,8 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
                       type="checkbox"
                       role="switch"
                       class="switch"
-                      aria-label={`Slå på ${row.name} etter import`}
-                      title="På etter import"
+                      aria-label={t("Slå på {name} etter import", { name: row.name })}
+                      title={t("På etter import")}
                       checked={enabled()[row.key] !== false && !(row.status === "conflict" && (decisions()[row.key] ?? "skip") === "skip")}
                       disabled={row.status === "conflict" && decisions()[row.key] === "skip"}
                       onChange={(e) => setEnabled({ ...enabled(), [row.key]: e.currentTarget.checked })}
@@ -234,9 +241,9 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
         </ul>
       </Show>
       <div class="form-actions skill-import-actions">
-        <button type="button" class="btn btn-small" onClick={() => props.onClose(false)}>Avbryt</button>
+        <button type="button" class="btn btn-small" onClick={() => props.onClose(false)}>{t("Avbryt")}</button>
         <button type="button" class="btn btn-small btn-primary" disabled={busy() || !willImport()} onClick={() => void run()}>
-          {willImport() === 1 ? "Importer 1 skill" : `Importer ${willImport()} skills`}
+          {plural(willImport(), "Importer {count} skill", "Importer {count} skills")}
         </button>
       </div>
     </div>

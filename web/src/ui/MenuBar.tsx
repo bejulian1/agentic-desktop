@@ -1,5 +1,6 @@
 // The app's menus behind one small icon at the top left: Fil, Rediger, Vis, Gå and Hjelp, each a
 // submenu that opens on hover. Every item runs a real action; there are no dead entries.
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { app, currentProject, mode, panelOpen, pinnedSummary, setSettingsOpen, sidebarOpen, toast } from "../state/app";
 import { actions, focusedThreadId } from "../state/actions";
@@ -33,7 +34,7 @@ const paste = async () => {
   try {
     document.execCommand("insertText", false, await navigator.clipboard.readText());
   } catch {
-    toast("Nettleseren slapp ikke til utklippstavlen. Bruk Ctrl+V.");
+    toast(t("Nettleseren slapp ikke til utklippstavlen. Bruk Ctrl+V."));
   }
 };
 
@@ -60,96 +61,96 @@ const zoomStep = (dir: 1 | -1) => () => {
   const index = ZOOMS.indexOf(zoom());
   setZoom(ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, index + dir))]);
 };
-const fullscreen = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => toast("Fullskjerm er ikke tillatt her."));
+const fullscreen = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => toast(t("Fullskjerm er ikke tillatt her.")));
 
 const MENUS: Array<{ id: string; label: string; items: Item[] }> = [
   {
     id: "file",
-    label: "Fil",
+    get label() { return t("Fil"); },
     items: [
-      { label: "Ny tråd", run: actions.newThread, keys: "thread.new" },
-      { label: "Ny chat uten prosjekt", run: actions.newChat },
-      { label: "Ny rute", run: actions.newPane, keys: "pane.new" },
+      { get label() { return t("Ny tråd"); }, run: actions.newThread, keys: "thread.new" },
+      { get label() { return t("Ny chat uten prosjekt"); }, run: actions.newChat },
+      { get label() { return t("Ny rute"); }, run: actions.newPane, keys: "pane.new" },
       "sep",
-      { label: "Åpne mappe…", run: actions.openFolder, keys: "folder.open" },
-      { label: "Lag AGENTS.md", run: actions.init, disabled: () => !code() },
+      { get label() { return t("Åpne mappe…"); }, run: actions.openFolder, keys: "folder.open" },
+      { get label() { return t("Lag AGENTS.md"); }, run: actions.init, disabled: () => !code() },
       "sep",
-      { label: "Arkiverte tråder…", run: () => setSettingsOpen("archived") },
-      { label: "Innstillinger…", run: () => actions.settings(), keys: "settings.open" },
+      { get label() { return t("Arkiverte tråder…"); }, run: () => setSettingsOpen("archived") },
+      { get label() { return t("Innstillinger…"); }, run: () => actions.settings(), keys: "settings.open" },
     ],
   },
   {
     id: "edit",
-    label: "Rediger",
+    get label() { return t("Rediger"); },
     items: [
-      { label: "Angre", run: edit("undo") },
-      { label: "Gjør om", run: edit("redo") },
+      { get label() { return t("Angre"); }, run: edit("undo") },
+      { get label() { return t("Gjør om"); }, run: edit("redo") },
       "sep",
-      { label: "Klipp ut", run: edit("cut") },
-      { label: "Kopier", run: edit("copy") },
-      { label: "Lim inn", run: paste },
-      { label: "Merk alt", run: edit("selectAll") },
+      { get label() { return t("Klipp ut"); }, run: edit("cut") },
+      { get label() { return t("Kopier"); }, run: edit("copy") },
+      { get label() { return t("Lim inn"); }, run: paste },
+      { get label() { return t("Merk alt"); }, run: edit("selectAll") },
       "sep",
-      { label: "Søk i tråder", run: actions.searchThreads, keys: "thread.search" },
-      { label: "Gi tråden nytt navn…", run: actions.rename, disabled: noThread },
-      { label: "Lag gaffel av tråden", run: actions.fork, disabled: noThread },
+      { get label() { return t("Søk i tråder"); }, run: actions.searchThreads, keys: "thread.search" },
+      { get label() { return t("Gi tråden nytt navn…"); }, run: actions.rename, disabled: noThread },
+      { get label() { return t("Lag gaffel av tråden"); }, run: actions.fork, disabled: noThread },
       "sep",
-      { label: "Komprimer konteksten", run: actions.compact, disabled: noThread },
-      { label: "Angre siste tur", run: actions.undo, disabled: () => noThread() || !code() },
-      { label: "Stopp tråden", run: actions.stop, disabled: () => !app.threads[focusedThreadId() ?? ""]?.running },
+      { get label() { return t("Komprimer konteksten"); }, run: actions.compact, disabled: noThread },
+      { get label() { return t("Angre siste tur"); }, run: actions.undo, disabled: () => noThread() || !code() },
+      { get label() { return t("Stopp tråden"); }, run: actions.stop, disabled: () => !app.threads[focusedThreadId() ?? ""]?.running },
     ],
   },
   {
     id: "view",
-    label: "Vis",
+    get label() { return t("Vis"); },
     items: [
-      { label: "Chat", run: () => enterMode("chat"), checked: () => mode() === "chat" },
-      { label: "Kode", run: () => enterMode("code"), checked: () => mode() === "code" && !studioOpen(), keys: "view.mode" },
-      { label: "Kode Studio", run: enterStudio, checked: () => mode() === "code" && studioOpen() },
+      { get label() { return t("Chat"); }, run: () => enterMode("chat"), checked: () => mode() === "chat" },
+      { get label() { return t("Kode"); }, run: () => enterMode("code"), checked: () => mode() === "code" && !studioOpen(), keys: "view.mode" },
+      { get label() { return t("Kode Studio"); }, run: enterStudio, checked: () => mode() === "code" && studioOpen() },
       "sep",
-      { label: "Sidefane", run: actions.toggleSidebar, checked: sidebarOpen, keys: "view.sidebar" },
-      { label: "Sidepanel", run: actions.togglePanel, checked: () => mode() === "code" && (studioOpen() ? studioAgentOpen() : panelOpen()), keys: "view.panel", disabled: () => mode() !== "code" },
-      { label: "Festet sammendrag", run: actions.toggleSummary, checked: pinnedSummary, keys: "view.summary" },
+      { get label() { return t("Sidefane"); }, run: actions.toggleSidebar, checked: sidebarOpen, keys: "view.sidebar" },
+      { get label() { return t("Sidepanel"); }, run: actions.togglePanel, checked: () => mode() === "code" && (studioOpen() ? studioAgentOpen() : panelOpen()), keys: "view.panel", disabled: () => mode() !== "code" },
+      { get label() { return t("Festet sammendrag"); }, run: actions.toggleSummary, checked: pinnedSummary, keys: "view.summary" },
       "sep",
-      { label: "Filer", run: () => actions.showTab("files"), disabled: () => !code() },
-      { label: "Endringer", run: () => actions.showTab("changes"), disabled: () => !code() },
-      { label: "Terminal", run: () => actions.showTab("terminal"), disabled: () => !code() },
-      { label: "Nettleser", run: () => actions.showTab("browser"), disabled: () => !code() },
-      { label: "Team", run: () => actions.showTab("team"), disabled: () => !code() },
+      { get label() { return t("Filer"); }, run: () => actions.showTab("files"), disabled: () => !code() },
+      { get label() { return t("Endringer"); }, run: () => actions.showTab("changes"), disabled: () => !code() },
+      { get label() { return t("Terminal"); }, run: () => actions.showTab("terminal"), disabled: () => !code() },
+      { get label() { return t("Nettleser"); }, run: () => actions.showTab("browser"), disabled: () => !code() },
+      { get label() { return t("Team"); }, run: () => actions.showTab("team"), disabled: () => !code() },
       "sep",
-      { label: "Zoom inn", run: zoomStep(1), disabled: () => zoom() === ZOOMS.at(-1) },
-      { label: "Zoom ut", run: zoomStep(-1), disabled: () => zoom() === ZOOMS[0] },
-      { label: "Faktisk størrelse", run: () => setZoom(1), checked: () => zoom() === 1 },
-      { label: "Fullskjerm", run: fullscreen },
+      { get label() { return t("Zoom inn"); }, run: zoomStep(1), disabled: () => zoom() === ZOOMS.at(-1) },
+      { get label() { return t("Zoom ut"); }, run: zoomStep(-1), disabled: () => zoom() === ZOOMS[0] },
+      { get label() { return t("Faktisk størrelse"); }, run: () => setZoom(1), checked: () => zoom() === 1 },
+      { get label() { return t("Fullskjerm"); }, run: fullscreen },
       "sep",
-      { label: "Lyst tema", run: () => actions.theme("light"), checked: () => app.settings.theme === "light" },
-      { label: "Mørkt tema", run: () => actions.theme("dark"), checked: () => app.settings.theme === "dark" },
-      { label: "Følg systemet", run: () => actions.theme("system"), checked: () => app.settings.theme === "system" },
+      { get label() { return t("Lyst tema"); }, run: () => actions.theme("light"), checked: () => app.settings.theme === "light" },
+      { get label() { return t("Mørkt tema"); }, run: () => actions.theme("dark"), checked: () => app.settings.theme === "dark" },
+      { get label() { return t("Følg systemet"); }, run: () => actions.theme("system"), checked: () => app.settings.theme === "system" },
     ],
   },
   {
     id: "go",
-    label: "Gå",
+    get label() { return t("Gå"); },
     items: [
-      { label: "Kommandopalett…", run: () => openPalette(), keys: "palette.open" },
+      { get label() { return t("Kommandopalett…"); }, run: () => openPalette(), keys: "palette.open" },
       "sep",
-      { label: "Forrige tråd", run: actions.back, keys: "thread.back", disabled: () => !actions.canGoBack() },
-      { label: "Neste tråd", run: actions.forward, keys: "thread.forward", disabled: () => !actions.canGoForward() },
+      { get label() { return t("Forrige tråd"); }, run: actions.back, keys: "thread.back", disabled: () => !actions.canGoBack() },
+      { get label() { return t("Neste tråd"); }, run: actions.forward, keys: "thread.forward", disabled: () => !actions.canGoForward() },
       "sep",
-      { label: "Artifacts", run: () => openArtifacts() },
-      { label: "Skills", run: actions.skills },
-      { label: "Planlagt", run: actions.scheduled },
-      { label: "Profil", run: () => { closeArtifacts(); openProfile(); } },
+      { get label() { return t("Artifacts"); }, run: () => openArtifacts() },
+      { get label() { return t("Skills"); }, run: actions.skills },
+      { get label() { return t("Planlagt"); }, run: actions.scheduled },
+      { get label() { return t("Profil"); }, run: () => { closeArtifacts(); openProfile(); } },
     ],
   },
   {
     id: "help",
-    label: "Hjelp",
+    get label() { return t("Hjelp"); },
     items: [
-      { label: "Hurtigtaster", run: actions.shortcuts, keys: "help.shortcuts" },
-      { label: "Kommandoer", run: actions.commands },
+      { get label() { return t("Hurtigtaster"); }, run: actions.shortcuts, keys: "help.shortcuts" },
+      { get label() { return t("Kommandoer"); }, run: actions.commands },
       "sep",
-      { label: "Om Agentic Desktop", run: actions.about },
+      { get label() { return t("Om Agentic Desktop"); }, run: actions.about },
     ],
   },
 ];
@@ -211,8 +212,8 @@ export function MainMenu() {
       <button
         type="button"
         class="icon-button"
-        title="Meny: Fil, Rediger, Vis, Gå og Hjelp"
-        aria-label="Meny"
+        title={t("Meny: Fil, Rediger, Vis, Gå og Hjelp")}
+        aria-label={t("Meny")}
         aria-haspopup="menu"
         aria-expanded={open()}
         onPointerDown={() => {
@@ -223,7 +224,7 @@ export function MainMenu() {
         <IconMenu />
       </button>
       <Show when={open()}>
-        <div class="popover main-menu-drop" role="menu" aria-label="Meny">
+        <div class="popover main-menu-drop" role="menu" aria-label={t("Meny")}>
           <For each={MENUS}>
             {(menu) => (
               <div class="submenu-entry" onPointerEnter={() => setSub(menu.id)}>

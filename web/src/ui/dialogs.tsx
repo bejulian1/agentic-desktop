@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { Scheduled } from './Scheduled';
 import { createResource, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { ApiError, get, post } from "../lib/api";
@@ -15,7 +16,7 @@ import { chatProjectDialog, chromeImportOpen, cookieDialog, editing, gitWorkspac
 import { chatProjectPageId, palette } from "../state/nav";
 import { peekGrid } from "../state/grid";
 import { visibleCommands } from "../../../shared/slash-commands";
-import { CommandList } from "./CommandList";
+import { CommandList, InlineCopy } from "./CommandList";
 import { IconClose, IconFolder, IconChevron, IconBack, IconSearch } from "./icons";
 
 interface Confirm {
@@ -47,7 +48,7 @@ function ConfirmHost() {
             <h2 id="confirm-dialog-title">{c().title}</h2>
             <p id="confirm-dialog-text">{c().text}</p>
             <div class="dialog-actions">
-              <button type="button" class="btn" onClick={() => close(false)}>Avbryt</button>
+              <button type="button" class="btn" onClick={() => close(false)}>{t("Avbryt")}</button>
               <button type="button" class="btn" classList={{ "btn-danger": c().danger, "btn-primary": !c().danger }} onClick={() => close(true)}>{c().confirm}</button>
             </div>
           </dialog>
@@ -90,7 +91,7 @@ function PromptHost() {
               <h2>{p().title}</h2>
               <input ref={input} class="input prompt-input" value={p().value} aria-label={p().title} />
               <div class="dialog-actions">
-                <button type="button" class="btn" onClick={() => close(null)}>Avbryt</button>
+                <button type="button" class="btn" onClick={() => close(null)}>{t("Avbryt")}</button>
                 <button type="submit" class="btn btn-primary">{p().confirm}</button>
               </div>
             </form>
@@ -108,14 +109,20 @@ export { infoDialog, setInfoDialog };
 
 // One grid for the whole list, so the keys line up in one column from the first group to the last.
 function ShortcutTable() {
-  const groups = [...new Set(SHORTCUTS.map((s) => s.group))];
+  const groups = {
+    get Tråder() { return t("Tråder"); },
+    get Vindu() { return t("Vindu"); },
+    get Visning() { return t("Visning"); },
+    get Panel() { return t("Panel"); },
+  };
+  const groupOrder = [...new Set(SHORTCUTS.map((s) => s.group))];
   return (
     <>
       <div class="shortcut-grid">
-        <For each={groups}>
+        <For each={groupOrder}>
           {(group) => (
             <>
-              <h3 class="info-group">{group}</h3>
+              <h3 class="info-group">{groups[group]}</h3>
               <For each={SHORTCUTS.filter((s) => s.group === group)}>
                 {(s) => <><span class="shortcut-label">{s.label}</span><span class="shortcut-keys"><kbd>{displayKeys(keysFor(s.id))}</kbd></span></>}
               </For>
@@ -124,7 +131,7 @@ function ShortcutTable() {
         </For>
       </div>
       <p class="info-foot">
-        <button type="button" class="link-button" onClick={() => { setInfoDialog(null); setSettingsOpen("shortcuts"); }}>Endre hurtigtastene i Innstillinger</button>
+        <button type="button" class="link-button" onClick={() => { setInfoDialog(null); setSettingsOpen("shortcuts"); }}>{t("Endre hurtigtastene i Innstillinger")}</button>
       </p>
     </>
   );
@@ -144,7 +151,7 @@ function CommandTable() {
   );
   return (
     <Show when={!commands.loading} fallback={<SkeletonLines />}>
-      <Show when={commands()} fallback={<p>Kunne ikke hente kommandoene.</p>}>
+      <Show when={commands()} fallback={<p>{t("Kunne ikke hente kommandoene.")}</p>}>
         {entries => <CommandList commands={visibleCommands(entries(), { code: code(), project: !!project(), chatProject: chatProject(), detached: new URLSearchParams(location.search).has("rute") })} />}
       </Show>
     </Show>
@@ -158,11 +165,13 @@ function SkillList() {
   const skills = () => (commands() ?? []).filter((c) => c.kind === "skill");
   return (
     <>
-      <p class="info-lead">Skills er mapper med en <code>SKILL.md</code>. Hver skill blir en <code>/kommando</code> og kan brukes med <code>$</code> i meldingsfeltet. {project() ? `Viser skills for ${project()!.name} og dine egne.` : "Viser dine egne. Velg et prosjekt i Kode for å se prosjektets."}</p>
+      <p class="info-lead"><InlineCopy text={t("Skills er mapper med en {file}. Hver skill blir en {command} og kan brukes med {key} i meldingsfeltet.")}
+        parts={{ file: <code>SKILL.md</code>, command: <code>/kommando</code>, key: <code>$</code> }} /> {project() ? t("Viser skills for {name} og dine egne.", { name: project()!.name }) : t("Viser dine egne. Velg et prosjekt i Kode for å se prosjektets.")}</p>
       <Show when={commands()} fallback={<SkeletonLines />}>
         <dl class="key-list commands">
-          <For each={skills()} fallback={<><dt class="muted">Ingen skills</dt><dd>Legg dem i <code>.agentic/skills/</code> i prosjektet eller i <code>~/.config/agentic-desktop/skills/</code>.</dd></>}>
-            {(c) => <><dt><code>${c.name}</code></dt><dd>{c.description}<span class="muted"> · {c.source === "project" ? "prosjekt" : "global"}</span></dd></>}
+          <For each={skills()} fallback={<><dt class="muted">{t("Ingen skills")}</dt><dd><InlineCopy text={t("Legg dem i {projectDir} i prosjektet eller i {userDir}.")}
+            parts={{ projectDir: <code>.agentic/skills/</code>, userDir: <code>~/.config/agentic-desktop/skills/</code> }} /></dd></>}>
+            {(c) => <><dt><code>${c.name}</code></dt><dd>{c.description}<span class="muted"> · {c.source === "project" ? t("prosjekt") : t("global")}</span></dd></>}
           </For>
         </dl>
       </Show>
@@ -181,7 +190,7 @@ function Inline(props: { text: string }) {
 export function SkeletonLines(props: { count?: number }) {
   return (
     <div class="skeleton-lines" role="status">
-      <span class="sr-only">Henter…</span>
+      <span class="sr-only">{t("Henter…")}</span>
       <For each={Array.from({ length: props.count ?? 4 })}>{() => <span class="skeleton skeleton-line" aria-hidden="true" />}</For>
     </div>
   );
@@ -236,17 +245,17 @@ function ReleaseHistory() {
     <div class="release-history">
       <div class="release-search">
         <IconSearch size={14} />
-        <input type="search" class="release-search-input" aria-label="Søk i versjonsloggen" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} placeholder="Søk etter versjon eller funksjon" />
-        <Show when={history()}><span class="release-count muted" role="status">{query().trim() ? `${entries().length} av ${all().length}` : `${all().length} versjoner`}</span></Show>
+        <input type="search" class="release-search-input" aria-label={t("Søk i versjonsloggen")} value={query()} onInput={(e) => setQuery(e.currentTarget.value)} placeholder={t("Søk etter versjon eller funksjon")} />
+        <Show when={history()}><span class="release-count muted" role="status">{query().trim() ? t("{shown} av {total}", { shown: entries().length, total: all().length }) : t("{count} versjoner", { count: all().length })}</span></Show>
       </div>
       <Show when={history.loading}><SkeletonLines count={8} /></Show>
       <Show when={history.error}>
-        <p role="alert">Kunne ikke hente versjonsloggen.</p>
-        <button type="button" class="btn" onClick={() => void Promise.resolve(refetch()).catch(() => undefined)}>Prøv igjen</button>
+        <p role="alert">{t("Kunne ikke hente versjonsloggen.")}</p>
+        <button type="button" class="btn" onClick={() => void Promise.resolve(refetch()).catch(() => undefined)}>{t("Prøv igjen")}</button>
       </Show>
       <Show when={history()}>
-        <ol class="release-list" aria-label="Versjoner, nyeste først">
-          <For each={entries()} fallback={<li class="muted release-empty">Ingen versjoner passer søket.</li>}>
+        <ol class="release-list" aria-label={t("Versjoner, nyeste først")}>
+          <For each={entries()} fallback={<li class="muted release-empty">{t("Ingen versjoner passer søket.")}</li>}>
             {(entry) => {
               // A version can have several entries (0.9.0 had bygg 28–30): only the newest is marked.
               const isCurrent = () => !!entry.version && entry.version === current() && all().find((e) => e.version === entry.version) === entry;
@@ -254,9 +263,9 @@ function ReleaseHistory() {
                 <li class="release-entry" data-version={entry.version ?? undefined}>
                   <header class="release-head">
                     <span class="release-version" classList={{ round: !entry.version }}>{entry.version ?? entry.name.split(":")[0]}</span>
-                    <Show when={isCurrent()}><span class="release-current">Denne versjonen</span></Show>
+                    <Show when={isCurrent()}><span class="release-current">{t("Denne versjonen")}</span></Show>
                     <span class="release-meta muted">
-                      {[entry.date, entry.build ? `bygg ${entry.build}` : null].filter(Boolean).join(" · ")}
+                      {[entry.date, entry.build ? t("bygg {build}", { build: entry.build }) : null].filter(Boolean).join(" · ")}
                     </span>
                   </header>
                   <h3 class="release-name">{entry.version ? entry.name : entry.name.replace(/^[^:]+:\s*/, "")}</h3>
@@ -267,7 +276,9 @@ function ReleaseHistory() {
           </For>
         </ol>
         <Show when={!query().trim() && first()}>
-          {(f) => <p class="release-end muted">Her begynte det: {f().name.replace(/^[^:]+:\s*/, "")}{f().date ? `, ${f().date}` : ""}.</p>}
+          {(f) => <p class="release-end muted">{f().date
+            ? t("Her begynte det: {name}, {date}.", { name: f().name.replace(/^[^:]+:\s*/, ""), date: f().date! })
+            : t("Her begynte det: {name}.", { name: f().name.replace(/^[^:]+:\s*/, "") })}</p>}
         </Show>
       </Show>
     </div>
@@ -279,7 +290,7 @@ function WhatsNew() {
   return (
     <Show when={news()} fallback={<SkeletonLines />}>
       {(n) => (
-        <For each={n().entries} fallback={<p class="muted">Fant ingen endringslogg.</p>}>
+        <For each={n().entries} fallback={<p class="muted">{t("Fant ingen endringslogg.")}</p>}>
           {(entry) => (
             <section class="whatsnew-entry">
               <h3 class="info-group">{entry.title}</h3>
@@ -294,7 +305,14 @@ function WhatsNew() {
   );
 }
 
-const INFO_TITLES: Record<InfoKind, string> = { shortcuts: "Hurtigtaster", commands: "Kommandoer", skills: "Skills", scheduled: "Planlagt", whatsnew: "Hva er nytt", releases: "Versjonslogg" };
+const INFO_TITLES: Record<InfoKind, string> = {
+  get shortcuts() { return t("Hurtigtaster"); },
+  get commands() { return t("Kommandoer"); },
+  get skills() { return t("Skills"); },
+  get scheduled() { return t("Planlagt"); },
+  get whatsnew() { return t("Hva er nytt"); },
+  get releases() { return t("Versjonslogg"); },
+};
 
 function InfoHost() {
   return (
@@ -302,12 +320,12 @@ function InfoHost() {
       {(kind) => {
         let dialog!: HTMLDialogElement;
         onMount(() => dialog.showModal());
-        const title = INFO_TITLES[kind];
+        const title = () => INFO_TITLES[kind];
         return (
-          <dialog ref={dialog} class="dialog info-dialog" classList={{ "release-dialog": kind === "releases" }} aria-label={title} onCancel={() => setInfoDialog(null)} onKeyDown={event => { if (kind === "releases" && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setInfoDialog(null); } }}>
+          <dialog ref={dialog} class="dialog info-dialog" classList={{ "release-dialog": kind === "releases" }} aria-label={title()} onCancel={() => setInfoDialog(null)} onKeyDown={event => { if (kind === "releases" && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setInfoDialog(null); } }}>
             <div class="dialog-head">
-              <h2>{title}</h2>
-              <button type="button" class="icon-button" aria-label="Lukk" onClick={() => setInfoDialog(null)}><IconClose size={15} /></button>
+              <h2>{title()}</h2>
+              <button type="button" class="icon-button" aria-label={t("Lukk")} onClick={() => setInfoDialog(null)}><IconClose size={15} /></button>
             </div>
             <div class="info-body">{kind === "shortcuts" ? <ShortcutTable /> : kind === "commands" ? <CommandTable /> : kind === "skills" ? <SkillList /> : kind === "whatsnew" ? <WhatsNew /> : kind === "releases" ? <ReleaseHistory /> : <Scheduled />}</div>
           </dialog>
@@ -387,7 +405,7 @@ function FolderPicker() {
       setParent(result.parent);
       setDirs(result.dirs);
     } catch (err) {
-      const missing = "Fant ikke mappen. Velg en mappe som finnes.";
+      const missing = t("Fant ikke mappen. Velg en mappe som finnes.");
       setError(err instanceof ApiError && err.status === 404 ? missing : (err as Error).message);
       setDirs([]);
     }
@@ -401,17 +419,17 @@ function FolderPicker() {
   });
 
   return (
-    <dialog ref={dialog} class="dialog folder-picker" aria-label="Velg mappe" onCancel={(event) => { event.preventDefault(); closePicker(null); }}>
+    <dialog ref={dialog} class="dialog folder-picker" aria-label={t("Velg mappe")} onCancel={(event) => { event.preventDefault(); closePicker(null); }}>
       <div class="dialog-head">
-        <h2>{pickTitle() ?? "Velg mappe"}</h2>
-        <button type="button" class="icon-button" aria-label="Lukk" onClick={() => closePicker(null)}><IconClose size={15} /></button>
+        <h2>{pickTitle() ?? t("Velg mappe")}</h2>
+        <button type="button" class="icon-button" aria-label={t("Lukk")} onClick={() => closePicker(null)}><IconClose size={15} /></button>
       </div>
       <form class="path-row" onSubmit={(e) => { e.preventDefault(); void browse(typed(), true); }}>
-        <button type="button" class="icon-button" aria-label="Opp en mappe" disabled={!parent()} onClick={() => browse(parent()!, true)}><IconBack size={15} /></button>
-        <input class="input" aria-label="Sti" value={typed()} spellcheck={false} onFocus={() => { typedByHand = true; }} onInput={(e) => { typedByHand = true; setTyped(e.currentTarget.value); }} />
+        <button type="button" class="icon-button" aria-label={t("Opp en mappe")} disabled={!parent()} onClick={() => browse(parent()!, true)}><IconBack size={15} /></button>
+        <input class="input" aria-label={t("Sti")} value={typed()} spellcheck={false} onFocus={() => { typedByHand = true; }} onInput={(e) => { typedByHand = true; setTyped(e.currentTarget.value); }} />
       </form>
       <div class="folder-list" role="list">
-        <For each={dirs()} fallback={<div class="muted folder-empty">Ingen undermapper</div>}>
+        <For each={dirs()} fallback={<div class="muted folder-empty">{t("Ingen undermapper")}</div>}>
           {(dir) => (
             <button type="button" class="folder-item" onClick={() => browse(dir.path, true)}>
               <IconFolder size={15} /><span>{dir.name}</span><IconChevron size={12} />
@@ -421,8 +439,8 @@ function FolderPicker() {
       </div>
       <Show when={error()}><p class="form-error" role="alert">{error()}</p></Show>
       <div class="dialog-actions">
-        <button type="button" class="btn" onClick={() => closePicker(null)}>Avbryt</button>
-        <button type="button" class="btn btn-primary" disabled={!typed().trim() && !current()} onClick={choose}>Velg denne mappen</button>
+        <button type="button" class="btn" onClick={() => closePicker(null)}>{t("Avbryt")}</button>
+        <button type="button" class="btn btn-primary" disabled={!typed().trim() && !current()} onClick={choose}>{t("Velg denne mappen")}</button>
       </div>
     </dialog>
   );
@@ -448,18 +466,18 @@ function Toasts() {
   return (
     <div class="toasts" role="status" aria-live="polite">
       <For each={toasts()}>
-        {(t) => {
+        {(item) => {
           let el: HTMLDivElement | undefined;
           onCleanup(() => leave(el));
           return (
-          <div ref={el} class="toast" classList={{ error: t.kind === "error" }}>
-            <span>{t.text}</span>
-            <Show when={t.action}>
+          <div ref={el} class="toast" classList={{ error: item.kind === "error" }}>
+            <span>{item.text}</span>
+            <Show when={item.action}>
               {(action) => (
-                <button type="button" class="btn btn-small toast-action" onClick={() => { dismissToast(t.id); action().run(); }}>{action().label}</button>
+                <button type="button" class="btn btn-small toast-action" onClick={() => { dismissToast(item.id); action().run(); }}>{action().label}</button>
               )}
             </Show>
-            <button type="button" class="icon-button" aria-label="Lukk" onClick={() => dismissToast(t.id)}><IconClose size={13} /></button>
+            <button type="button" class="icon-button" aria-label={t("Lukk")} onClick={() => dismissToast(item.id)}><IconClose size={13} /></button>
           </div>
           );
         }}

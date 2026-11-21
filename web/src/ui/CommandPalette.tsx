@@ -1,6 +1,7 @@
 // The command palette (Ctrl+K): one field for actions, chats, files in the project and the text of
 // messages. Tabs narrow it down, and Tab moves between them. The arrows pick, Enter runs and Esc
 // closes. Chats and text use the thread search, files the same list as @ in the message field.
+import { language, t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import type { MentionItem, Project, Thread } from "../../../shared/protocol";
 import { get } from "../lib/api";
@@ -21,11 +22,11 @@ import { IconCookie, IconPencil } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 
 const TABS: Array<{ id: PaletteTab; label: string }> = [
-  { id: "all", label: "Alle" },
-  { id: "actions", label: "Handlinger" },
-  { id: "chats", label: "Tråder" },
-  { id: "files", label: "Filer" },
-  { id: "text", label: "Tekst" },
+  { id: "all", get label() { return t("Alle"); } },
+  { id: "actions", get label() { return t("Handlinger"); } },
+  { id: "chats", get label() { return t("Tråder"); } },
+  { id: "files", get label() { return t("Filer"); } },
+  { id: "text", get label() { return t("Tekst"); } },
 ];
 
 interface Item {
@@ -57,43 +58,43 @@ interface ActionDef {
 }
 
 const ACTIONS = (): ActionDef[] => [
-  { label: "Ny tråd", icon: IconCompose, keys: "thread.new", quick: true, run: actions.newThread },
-  { label: "Ny tråd i Chat", words: "chat uten prosjekt", icon: IconChat, run: actions.newChat },
-  { label: "Åpne mappe", words: "prosjekt", icon: IconFolder, keys: "folder.open", quick: true, run: actions.openFolder },
-  { label: "Innstillinger", icon: IconSettings, keys: "settings.open", quick: true, run: () => actions.settings() },
-  { label: mode() === "chat" ? "Bytt til Kode" : studioOpen() ? "Bytt til Chat" : "Bytt til Kode Studio", words: "modus chat kode studio", icon: mode() === "chat" ? IconCode : studioOpen() ? IconChat : IconStudio, keys: "view.mode", quick: true, run: actions.toggleMode },
-  { label: "Åpne Kode Studio", words: "studio editor arbeidsflate filer", icon: IconStudio, when: () => !(mode() === "code" && studioOpen()), run: enterStudio },
-  { label: "Bytt til vanlig Kode", words: "kode samtale panel", icon: IconCode, when: () => mode() === "code" && studioOpen(), run: () => enterMode("code") },
-  { label: "Ny rute", icon: IconSplitRight, keys: "pane.new", run: actions.newPane },
-  { label: "Søk i tråder", icon: IconSearch, keys: "thread.search", run: actions.searchThreads },
-  { label: "Vis eller skjul sidefanen", icon: IconSidebar, keys: "view.sidebar", run: actions.toggleSidebar },
-  { label: "Vis eller skjul panelet", icon: IconPanel, keys: "view.panel", run: actions.togglePanel },
-  { label: "Festet sammendrag", icon: IconPin, keys: "view.summary", run: actions.toggleSummary },
-  { label: "Ny fane i nettleseren", words: "nettleser fane browser", icon: IconGlobe, keys: "browser.newTab", run: () => { actions.showTab("browser"); requestBrowserTab(false); } },
-  { label: "Importer bokmerker fra Chrome", words: "nettleser chrome chromium bokmerker historikk import", icon: IconBookmark, run: openChromeImport },
-  { label: "Importer informasjonskapsler", words: "nettleser cookies innlogget logg inn chrome chromium firefox import", icon: IconCookie, run: openCookieImport }, // round 12
-  { label: "Gi tråden nytt navn", icon: IconPencil, keys: "thread.rename", when: () => !!focusedThread(), run: actions.rename },
-  { label: "Lag gaffel av tråden", words: "gaffel forgrening forgren fork kopier", icon: IconBranch, when: () => !!focusedThread(), run: actions.fork },
-  { label: "Profil", words: "statistikk tokens", icon: IconUser, run: () => { closeArtifacts(); openProfile(); } },
-  { label: "Artifacts", icon: IconArtifact, run: () => openArtifacts() },
-  { label: "Skills", icon: IconSpark, run: actions.skills },
-  { label: "Planlagte oppgaver", words: "planlagt", icon: IconClock, run: actions.scheduled },
-  { label: "Arkiverte tråder", icon: IconArchive, run: () => setSettingsOpen("archived") },
-  { label: "Lyst tema", words: "tema", icon: IconSun, run: () => actions.theme("light") },
-  { label: "Mørkt tema", words: "tema", icon: IconSun, run: () => actions.theme("dark") },
-  { label: "Følg systemets tema", words: "tema", icon: IconSun, run: () => actions.theme("system") },
+  { label: t("Ny tråd"), icon: IconCompose, keys: "thread.new", quick: true, run: actions.newThread },
+  { label: t("Ny tråd i Chat"), words: t("chat uten prosjekt"), icon: IconChat, run: actions.newChat },
+  { label: t("Åpne mappe"), words: "prosjekt", icon: IconFolder, keys: "folder.open", quick: true, run: actions.openFolder },
+  { label: t("Innstillinger"), icon: IconSettings, keys: "settings.open", quick: true, run: () => actions.settings() },
+  { label: mode() === "chat" ? t("Bytt til Kode") : studioOpen() ? t("Bytt til Chat") : t("Bytt til Kode Studio"), words: t("modus chat kode studio"), icon: mode() === "chat" ? IconCode : studioOpen() ? IconChat : IconStudio, keys: "view.mode", quick: true, run: actions.toggleMode },
+  { label: t("Åpne Kode Studio"), words: t("studio editor arbeidsflate filer"), icon: IconStudio, when: () => !(mode() === "code" && studioOpen()), run: enterStudio },
+  { label: t("Bytt til vanlig Kode"), words: t("kode samtale panel"), icon: IconCode, when: () => mode() === "code" && studioOpen(), run: () => enterMode("code") },
+  { label: t("Ny rute"), icon: IconSplitRight, keys: "pane.new", run: actions.newPane },
+  { label: t("Søk i tråder"), icon: IconSearch, keys: "thread.search", run: actions.searchThreads },
+  { label: t("Vis eller skjul sidefanen"), icon: IconSidebar, keys: "view.sidebar", run: actions.toggleSidebar },
+  { label: t("Vis eller skjul panelet"), icon: IconPanel, keys: "view.panel", run: actions.togglePanel },
+  { label: t("Festet sammendrag"), icon: IconPin, keys: "view.summary", run: actions.toggleSummary },
+  { label: t("Ny fane i nettleseren"), words: t("nettleser fane browser"), icon: IconGlobe, keys: "browser.newTab", run: () => { actions.showTab("browser"); requestBrowserTab(false); } },
+  { label: t("Importer bokmerker fra Chrome"), words: t("nettleser chrome chromium bokmerker historikk import"), icon: IconBookmark, run: openChromeImport },
+  { label: t("Importer informasjonskapsler"), words: t("nettleser cookies innlogget logg inn chrome chromium firefox import"), icon: IconCookie, run: openCookieImport }, // round 12
+  { label: t("Gi tråden nytt navn"), icon: IconPencil, keys: "thread.rename", when: () => !!focusedThread(), run: actions.rename },
+  { label: t("Lag gaffel av tråden"), words: t("gaffel forgrening forgren fork kopier"), icon: IconBranch, when: () => !!focusedThread(), run: actions.fork },
+  { label: t("Profil"), words: t("statistikk tokens"), icon: IconUser, run: () => { closeArtifacts(); openProfile(); } },
+  { label: t("Artifacts"), icon: IconArtifact, run: () => openArtifacts() },
+  { label: t("Skills"), icon: IconSpark, run: actions.skills },
+  { label: t("Planlagte oppgaver"), words: "planlagt", icon: IconClock, run: actions.scheduled },
+  { label: t("Arkiverte tråder"), icon: IconArchive, run: () => setSettingsOpen("archived") },
+  { label: t("Lyst tema"), words: "tema", icon: IconSun, run: () => actions.theme("light") },
+  { label: t("Mørkt tema"), words: "tema", icon: IconSun, run: () => actions.theme("dark") },
+  { label: t("Følg systemets tema"), words: "tema", icon: IconSun, run: () => actions.theme("system") },
   {
-    label: app.settings.sidebarLayout === "smart" ? "Bruk vanlig sidefane" : "Bruk smart sidefane",
-    words: "sidefane layout",
+    label: app.settings.sidebarLayout === "smart" ? t("Bruk vanlig sidefane") : t("Bruk smart sidefane"),
+    words: t("sidefane layout"),
     icon: IconSidebar,
     run: () => saveSettings({ sidebarLayout: app.settings.sidebarLayout === "smart" ? "standard" : "smart" }).catch(report),
   },
-  { label: "Hurtigtaster", icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts },
-  { label: "Kommandoer", icon: IconHelp, run: actions.commands },
-  { label: "Om Agentic Desktop", icon: IconInfo, run: actions.about },
+  { label: t("Hurtigtaster"), icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts },
+  { label: t("Kommandoer"), icon: IconHelp, run: actions.commands },
+  { label: t("Om Agentic Desktop"), icon: IconInfo, run: actions.about },
 ];
 
-const norm = (s: string) => s.toLocaleLowerCase("nb");
+const norm = (s: string) => s.toLocaleLowerCase(language());
 function matches(text: string, query: string): boolean {
   const hay = norm(text);
   return norm(query).split(/\s+/).filter(Boolean).every((word) => hay.includes(word));
@@ -102,7 +103,7 @@ function matches(text: string, query: string): boolean {
 const basename = (p: string) => p.split("/").pop() || p;
 
 function projectName(thread: Thread): string {
-  return thread.projectId ? app.projects[thread.projectId]?.name ?? "" : "Chat";
+  return thread.projectId ? app.projects[thread.projectId]?.name ?? "" : t("Chat");
 }
 
 function threadItem(thread: Thread, detail?: string): Item {
@@ -180,13 +181,13 @@ function Palette(props: { initial: PaletteTab; initialQuery: string }) {
       .sort((a, b) => b.updatedAt - a.updatedAt),
   );
 
-  const actionItems = (defs: ActionDef[]): Item[] =>
-    defs.map((a) => ({ key: `a:${a.label}`, icon: icon(a.icon), label: a.label, keys: a.keys, run: a.run }));
+  const actionItems = (defs: Array<ActionDef & { index: number }>): Item[] =>
+    defs.map((a) => ({ key: `a:${a.index}`, icon: icon(a.icon), label: a.label, keys: a.keys, run: a.run }));
 
   const sections = createMemo<Section[]>(() => {
     const q = query().trim();
-    const t = tab();
-    const defs = ACTIONS().filter((a) => !a.when || a.when());
+    const selectedTab = tab();
+    const defs = ACTIONS().map((action, index) => ({ ...action, index })).filter((a) => !a.when || a.when());
     const matchedActions = q ? defs.filter((a) => matches(`${a.label} ${a.words ?? ""}`, q)) : defs;
     const project = fileProject();
     const recent = recentFiles()
@@ -196,39 +197,39 @@ function Palette(props: { initial: PaletteTab; initialQuery: string }) {
     const serverThreads = found()?.query === q ? found()!.threads : [];
     const fileHits = files()?.query === q && project ? files()!.items.map((i) => fileItem(project, i.path!)) : [];
 
-    if (t === "actions") return [{ title: "Handlinger", items: actionItems(matchedActions), note: matchedActions.length ? undefined : "Ingen handlinger passer" }];
-    if (t === "chats") {
-      if (!q) return [{ title: "Nylige tråder", items: recentThreads().slice(0, 30).map((th) => threadItem(th)) }];
-      return [{ title: "Tråder", items: serverThreads.map((th) => threadItem(th)), note: found()?.query === q && !serverThreads.length ? "Ingen tråder funnet" : undefined }];
+    if (selectedTab === "actions") return [{ title: t("Handlinger"), items: actionItems(matchedActions), note: matchedActions.length ? undefined : t("Ingen handlinger passer") }];
+    if (selectedTab === "chats") {
+      if (!q) return [{ title: t("Nylige tråder"), items: recentThreads().slice(0, 30).map((th) => threadItem(th)) }];
+      return [{ title: t("Tråder"), items: serverThreads.map((th) => threadItem(th)), note: found()?.query === q && !serverThreads.length ? t("Ingen tråder funnet") : undefined }];
     }
-    if (t === "files") {
-      if (!project) return [{ title: "Filer", items: [], note: "Åpne et prosjekt for å søke i filene" }];
+    if (selectedTab === "files") {
+      if (!project) return [{ title: t("Filer"), items: [], note: t("Åpne et prosjekt for å søke i filene") }];
       const shown = q ? fileHits : [...recent.filter((r) => r.key.startsWith(`f:${project.id}:`)), ...fileHits.filter((f) => !recent.some((r) => r.key === f.key))];
-      return [{ title: `Filer i ${project.name}`, items: shown.slice(0, 40), note: files() && !shown.length ? "Ingen filer funnet" : undefined }];
+      return [{ title: t("Filer i {name}", { name: project.name }), items: shown.slice(0, 40), note: files() && !shown.length ? t("Ingen filer funnet") : undefined }];
     }
-    if (t === "text") {
-      if (!q) return [{ title: "Tekst", items: [], note: "Skriv for å søke i teksten i alle tråder" }];
+    if (selectedTab === "text") {
+      if (!q) return [{ title: t("Tekst"), items: [], note: t("Skriv for å søke i teksten i alle tråder") }];
       // The search matches titles and messages. Here only those found by their text count.
       const byText = serverThreads.filter((th) => !matches(th.title, q));
-      const list = (byText.length ? byText : serverThreads).map((th) => threadItem(th, `Treff i meldingene · ${relativeTime(th.updatedAt)}`));
-      return [{ title: "Treff i meldingene", items: list, note: found()?.query === q && !list.length ? "Ingen treff" : undefined }];
+      const list = (byText.length ? byText : serverThreads).map((th) => threadItem(th, t("Treff i meldingene · {time}", { time: relativeTime(th.updatedAt) })));
+      return [{ title: t("Treff i meldingene"), items: list, note: found()?.query === q && !list.length ? t("Ingen treff") : undefined }];
     }
     // Alle
     if (!q) {
       return [
-        { title: "Hurtighandlinger", items: actionItems(defs.filter((a) => a.quick)) },
-        { title: "Nylige tråder", items: recentThreads().slice(0, 5).map((th) => threadItem(th)) },
-        { title: "Nylig åpnet", items: recent },
+        { title: t("Hurtighandlinger"), items: actionItems(defs.filter((a) => a.quick)) },
+        { title: t("Nylige tråder"), items: recentThreads().slice(0, 5).map((th) => threadItem(th)) },
+        { title: t("Nylig åpnet"), items: recent },
       ].filter((s) => s.items.length);
     }
     const localThreads = recentThreads().filter((th) => matches(th.title, q));
     const threads = [...localThreads, ...serverThreads.filter((th) => !localThreads.some((l) => l.id === th.id))].slice(0, 8);
     const out = [
-      { title: "Handlinger", items: actionItems(matchedActions.slice(0, 6)) },
-      { title: "Tråder", items: threads.map((th) => threadItem(th)) },
-      { title: "Filer", items: fileHits.slice(0, 6) },
+      { title: t("Handlinger"), items: actionItems(matchedActions.slice(0, 6)) },
+      { title: t("Tråder"), items: threads.map((th) => threadItem(th)) },
+      { title: t("Filer"), items: fileHits.slice(0, 6) },
     ].filter((s) => s.items.length);
-    return out.length ? out : [{ title: "Ingen treff", items: [], note: "Prøv en annen fane, eller et annet ord" }];
+    return out.length ? out : [{ title: t("Ingen treff"), items: [], note: t("Prøv en annen fane, eller et annet ord") }];
   });
 
   const flat = createMemo(() => sections().flatMap((s) => s.items));
@@ -264,27 +265,27 @@ function Palette(props: { initial: PaletteTab; initialQuery: string }) {
   };
 
   return (
-    <dialog ref={dialog} class="dialog palette" aria-label="Kommandopalett" onCancel={closePalette} onKeyDown={onKey} onClick={(e) => e.target === dialog && closePalette()}>
-      <div class="palette-tabs" role="tablist" aria-label="Hva du søker i">
+    <dialog ref={dialog} class="dialog palette" aria-label={t("Kommandopalett")} onCancel={closePalette} onKeyDown={onKey} onClick={(e) => e.target === dialog && closePalette()}>
+      <div class="palette-tabs" role="tablist" aria-label={t("Hva du søker i")}>
         <For each={TABS}>
           {(x) => (
             <button type="button" role="tab" class="palette-tab" aria-selected={tab() === x.id} tabindex="-1" onClick={() => { setTab(x.id); input.focus(); }}>{x.label}</button>
           )}
         </For>
-        <kbd class="palette-tab-hint" title="Tab bytter fane">Tab</kbd>
+        <kbd class="palette-tab-hint" title={t("Tab bytter fane")}>Tab</kbd>
       </div>
       <input
         ref={input}
         class="palette-input"
-        placeholder={tab() === "files" ? "Søk etter filer" : tab() === "actions" ? "Søk etter en handling" : tab() === "text" ? "Søk i meldingene" : "Søk i tråder eller kjør en kommando"}
-        aria-label="Søk i paletten"
+        placeholder={tab() === "files" ? t("Søk etter filer") : tab() === "actions" ? t("Søk etter en handling") : tab() === "text" ? t("Søk i meldingene") : t("Søk i tråder eller kjør en kommando")}
+        aria-label={t("Søk i paletten")}
         aria-controls="palette-list"
         aria-activedescendant={flat().length ? `palette-item-${selected()}` : undefined}
         spellcheck={false}
         value={query()}
         onInput={(e) => setQuery(e.currentTarget.value)}
       />
-      <div ref={list} class="palette-list" id="palette-list" role="listbox" aria-label="Treff">
+      <div ref={list} class="palette-list" id="palette-list" role="listbox" aria-label={t("Treff")}>
         <For each={sections()}>
           {(section) => (
             <div class="palette-section" role="group" aria-label={section.title}>

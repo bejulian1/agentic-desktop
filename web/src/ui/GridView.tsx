@@ -2,6 +2,7 @@
 // (a pane added, closed, moved, split or swapped) animates with FLIP: the panes are laid out at their
 // new place at once, and a transform from the old place back to none runs on the compositor. Nothing
 // animates width, height, top or left, and a splitter that is being dragged does not animate at all.
+import { t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, Index, onCleanup, Show, type Accessor } from "solid-js";
 import { app, EMPTY_THREAD_NAME, untitled } from "../state/app";
 import { dragging, dropPreview, dropTarget } from "../state/drag";
@@ -52,10 +53,10 @@ function DetachedBar(props: { grid: Grid }) {
             return (
               <div class="detached-item">
                 <IconDetach size={13} />
-                <span class="detached-title">{app.threads[entry.threadId]?.title ?? "Tråd"}</span>
-                <span class="muted">{open() ? "i eget vindu" : "vinduet er lukket"}</span>
+                <span class="detached-title">{app.threads[entry.threadId]?.title ?? t("Tråd")}</span>
+                <span class="muted">{open() ? t("i eget vindu") : t("vinduet er lukket")}</span>
                 <Show when={!open()}>
-                  <button type="button" class="btn btn-small" onClick={() => openDetachedWindow(entry)}>Åpne</button>
+                  <button type="button" class="btn btn-small" onClick={() => openDetachedWindow(entry)}>{t("Åpne")}</button>
                 </Show>
                 <button
                   type="button"
@@ -64,9 +65,7 @@ function DetachedBar(props: { grid: Grid }) {
                     closeDetachedWindow(entry.threadId);
                     props.grid.reattach(entry.id);
                   }}
-                >
-                  Hent tilbake
-                </button>
+                >{t("Hent tilbake")}</button>
               </div>
             );
           }}
@@ -213,7 +212,7 @@ function Splitter(props: { grid: Grid; handle: Accessor<Handle>; size: () => Siz
       onPointerLeave={() => setHover(false)}
       role="separator"
       tabIndex={0}
-      aria-label="Endre størrelsen på rutene"
+      aria-label={t("Endre størrelsen på rutene")}
       aria-orientation={row() ? "vertical" : "horizontal"}
       aria-valuemin={0}
       aria-valuemax={100}

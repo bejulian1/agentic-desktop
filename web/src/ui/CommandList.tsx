@@ -1,6 +1,14 @@
-import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { t } from "../lib/i18n";
+import { createEffect, createMemo, createSignal, For, onMount, Show, type JSX } from "solid-js";
 import type { CommandInfo } from "../../../shared/protocol";
 import { COMMAND_GROUPS, commandGroup } from "../../../shared/slash-commands";
+
+export function InlineCopy(props: { text: string; parts: Record<string, JSX.Element> }) {
+  return <For each={props.text.split(/(\{\w+\})/g)}>{part => {
+    const slot = part.slice(1, -1);
+    return part.startsWith("{") && Object.hasOwn(props.parts, slot) ? props.parts[slot] : part;
+  }}</For>;
+}
 
 export function CommandList(props: { commands: CommandInfo[]; initialQuery?: string; focusSearch?: boolean }) {
   const [query, setQuery] = createSignal(props.initialQuery ?? "");
@@ -22,12 +30,12 @@ export function CommandList(props: { commands: CommandInfo[]; initialQuery?: str
   }));
   return (
     <div class="command-guide">
-      <input ref={input} type="search" class="input command-guide-search" aria-label="Søk i kommandoer og skills"
-        placeholder="Søk etter navn, alias, argument eller handling" value={query()} onInput={event => setQuery(event.currentTarget.value)} />
+      <input ref={input} type="search" class="input command-guide-search" aria-label={t("Søk i kommandoer og skills")}
+        placeholder={t("Søk etter navn, alias, argument eller handling")} value={query()} onInput={event => setQuery(event.currentTarget.value)} />
       <Show when={!query().trim()}>
-        <p class="muted">Skriv <kbd>$</kbd> i meldingsfeltet for bare skills.</p>
+        <p class="muted"><InlineCopy text={t("Skriv {key} i meldingsfeltet for bare skills.")} parts={{ key: <kbd>$</kbd> }} /></p>
       </Show>
-      <For each={groups()} fallback={<p role="status" class="muted">Ingen kommandoer eller skills funnet.</p>}>
+      <For each={groups()} fallback={<p role="status" class="muted">{t("Ingen kommandoer eller skills funnet.")}</p>}>
         {group => (
           <section class="command-guide-section">
             <h3>{group.label}</h3>
@@ -40,8 +48,8 @@ export function CommandList(props: { commands: CommandInfo[]; initialQuery?: str
                     </dt>
                     <dd>
                       {command.description}
-                      <Show when={command.aliases?.length}><div class="muted">Også {command.aliases!.map(alias => `/${alias}`).join(", ")}</div></Show>
-                      <Show when={command.slashReserved}><div class="muted">Bruk $ for denne skillen. Skråstrek-navnet tilhører en innebygd kommando.</div></Show>
+                      <Show when={command.aliases?.length}><div class="muted">{t("Også {aliases}", { aliases: command.aliases!.map(alias => `/${alias}`).join(", ") })}</div></Show>
+                      <Show when={command.slashReserved}><div class="muted">{t("Bruk $ for denne skillen. Skråstrek-navnet tilhører en innebygd kommando.")}</div></Show>
                     </dd>
                   </>
                 )}
