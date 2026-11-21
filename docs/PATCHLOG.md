@@ -4,6 +4,48 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.0.0: Åpen kildekode, elleve nye språk og Kode Studio (21. november 2026, bygg 80)
+
+Første offentlige utgivelse. Agentic Desktop er nå åpen kildekode under MIT-lisensen, appen finnes på tolv språk, og alle åpne issues og pull requests fra 0.29-serien er rettet og flettet inn.
+
+**Språk**
+
+- **Tolv språk:** norsk bokmål (kildespråket), engelsk, svensk, dansk, tysk, nederlandsk, fransk, italiensk, spansk, brasiliansk portugisisk, japansk og forenklet kinesisk. Velg under **Innstillinger → Generelt → Språk**, eller la appen følge systemspråket. Byttet skjer med en gang, uten omstart.
+- **Hele appen er oversatt:** meldingsfelt og kommandoer, agentsteg og godkjenninger, innstillinger, Git og GitHub, sidepaneler, navigasjon og menyene i Electron-skallet, til sammen rundt 4 400 tekster per språk. Det modellen får og skriver, oversettes ikke; den svarer på språket du skriver på.
+- **For bidragsytere:** `npm run i18n:extract` og `npm run i18n:check` holder katalogene i orden, og CI stopper en endring som mangler oversettelser. Se [Oversette Agentic Desktop](I18N.md).
+
+**Nytt i Kode og Chat**
+
+- **[Kode Studio](KODE-STUDIO.md):** rediger prosjektfiler i faner ved siden av Kode-samtalen, terminalen, nettleseren og endringene. Ulagrede utkast beholdes når du bytter visning, og endringer på disken som kolliderer med dine, blir flagget.
+- **Spørrekort:** modellen kan stille spørsmål med ett eller flere valg og fritekst i Chat og Kode ([Spørsmål fra modellen](USER-QUESTIONS.md)).
+- **Lærer av rettelsene dine:** når du retter modellen, kan Chat og Kode foreslå et minne eller en endring i en skill, som du godkjenner først.
+- **Delegering på tvers av leverandører:** en kodeagent kan gi deloppgaver til hvilken som helst konfigurert modell, med godkjenning når leverandøren byttes. Underagentkortet viser modellen som fikk oppgaven.
+- **Diagrammer i svaret:** be om et stolpe- eller linjediagram i Chat eller Kode, så tegnes det lokalt i meldingen.
+- **Diktering og planlagte oppgaver:** snakk inn meldingen med valgt taleleverandør, og la Chat- og Kode-tråder kjøre på faste tidspunkter.
+- **Én katalog for modeller:** leverandører og lokale modellservere (Ollama, LM Studio og andre) settes opp på samme sted, med søk, maskinvarebaserte anbefalinger og modellsøk.
+- **Søkbar kommandoguide:** `/help` viser alle kommandoer og skills for modusen du er i. Fem nye skills: kildearbeid, oppfølging fra møtenotater, dataanalyse, ytelsesmåling og CI-diagnose.
+
+**Rettet**
+
+- Styring, tillatelser og Stopp gjelder før agentens neste handling, også midt i en rekke verktøykall.
+- Modellvalget og riktig tråds utkast beholdes når en melding sendes mens en annen tråd jobber.
+- Tillatelser og Angre virker likt på Denne datamaskinen som i et prosjekt.
+- Datamappen reserveres for én server om gangen, så to instanser ikke skriver til samme database.
+- Samtalen lastes på nytt når en gjenkobling har gått glipp av en omskriving.
+- Nettleserpanelet kan åpne siden du ser på i standardnettleseren.
+
+**Fjernet: det som bare så ut til å virke**
+
+- Spilltesting i nettleserpanelet og spillinnstillingen, skrivebordsstyring med en Installer-knapp som ikke virket, SSH-verter med bare ett mulig valg og den deaktiverte arbeidstre-velgeren på Kode-startsiden. Vanlige Git-arbeidstrær og Playtest for web er som før.
+- Ingen kommandoer eller innstillinger er lenger merket demo. Demo-modellen, som lar deg prøve appen uten API-nøkkel, er beholdt, og nettkildene den lager er fortsatt tydelig merket.
+
+**Åpen kildekode**
+
+- README på engelsk (norsk i README.nb.md), MIT-lisens, retningslinjer for bidrag, adferdsregler, sikkerhetsrutiner, maler for issues og pull requests, og CI som kjører typekontroll, servertester og oversettelsessjekk på hver pull request.
+- Testene og testskriptene ligger nå i repoet.
+
+Kontrollert med typekontroll av server, web og Electron, 601 servertester, hele UI-suiten (341 forløp, blant dem engelsk språkbytte og responsiv layout), 55 kontroller av den ferdigpakkede appen og streng oversettelsessjekk: 0 manglende av 4 379 tekster i hvert av de elleve språkene. Oversettelsene er laget av språkmodeller og lest gjennom i utvalg, ikke av morsmålsbrukere, så meld gjerne fra om ord som skurrer. Testene bruker isolerte data og lokale testmodeller; ekte leverandørmodeller er ikke prøvd i denne runden.
+
 ## 0.29.1: Denne datamaskinen, lesestatus og bedre agentsamarbeid (18. november 2026, bygg 79)
 
 Første utgivelse i 0.29-serien. Den samler arbeidet på Denne datamaskinen og endringene fra «Lesestatus og robust agentsamarbeid» (PR #2), som ble tatt inn i `main` samtidig.

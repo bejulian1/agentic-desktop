@@ -2,7 +2,9 @@
 
 ## Brukerens instruks
 
-Brukeren ga 14. november 2026 stående tillatelse til å committe og pushe alle nye, ferdigtestede versjoner til det private repoet `bejulian1/agentic-desktop`, med oppdatert versjons-/byggnummer og en tilhørende GitHub Release. Det trengs ikke en ny bekreftelse for hver versjon. Tillatelsen gjelder publisering til dette eksisterende private repoet, ikke endring av synlighet, omskriving av historikk eller andre repoer.
+Brukeren ga 14. november 2026 stående tillatelse til å committe og pushe alle nye, ferdigtestede versjoner til repoet `bejulian1/agentic-desktop`, med oppdatert versjons-/byggnummer og en tilhørende GitHub Release. Det trengs ikke en ny bekreftelse for hver versjon. Tillatelsen gjelder publisering til dette repoet, ikke endring av synlighet, omskriving av historikk eller andre repoer.
+
+Brukeren valgte 21. november 2026 å gjøre appen til åpen kildekode. `bejulian1/agentic-desktop` er siden da et offentlig repo med samme historikk, der eierens private e-postadresse i to eldre commits er byttet til GitHubs noreply-adresse. Det tidligere private repoet heter nå `bejulian1/agentic-desktop-private` og beholdes som privat kopi av den opprinnelige historikken; nye versjoner publiseres bare i det offentlige repoet. Alt som pushes er offentlig: hold personlige stier, e-postadresser og andre persondata ute av commits, meldinger og utgivelser.
 
 Brukeren gjentok og utvidet dette 15. november 2026: alle nye versjoner kan committes til repoet med versjonsendring, publiseres som Release, og den installerte appen på brukerens PC kan oppdateres samtidig (`npm run install-local` fra den kontrollerte pakken). Ta sikkerhetskopi av data og innstillinger til `~/.local/share/agentic-desktop-backups/` først, og bytt ikke ut appen mens den kjører.
 
@@ -13,7 +15,7 @@ Brukeren gjentok og utvidet dette 15. november 2026: alle nye versjoner kan comm
 3. Oppdater `docs/PATCHLOG.md`, aktuell status/README og skjermbilder når grensesnittet har endret seg. Behold `CHANGELOG.md` som inngang til den fullstendige versjonsloggen og GitHub Releases.
 4. Bygg og kontroller installasjonsfilene som faktisk skal utgis. Versjon og bygg i servermetadata, web-metadata og pakken skal samsvare.
 5. Gå gjennom publiseringssettet. Ta med appkode, nødvendige byggeskript, brukerdokumentasjon og utvalgte bilder i `docs/bilder/`. Hold testpakker, interne kontrollnotater, brukerdata, nøkler, logger, node_modules og lokale byggeartefakter utenfor Git-commiten. Ikke fjern andre utvikleres arbeid.
-6. Commit og push normalt til repoets standardgren etter kontroll av siste fjernstatus. Ikke force-push, omskriv publisert historikk eller flytt eksisterende versjonstagger. Behold privatstatus. Bruk et midlertidig checkout hvis lokal Git-metadata er skrivebeskyttet eller checkoutet har arbeid som ikke skal publiseres.
+6. Commit og push normalt til repoets standardgren etter kontroll av siste fjernstatus. Ikke force-push, omskriv publisert historikk eller flytt eksisterende versjonstagger. Ikke endre repoets synlighet. Bruk et midlertidig checkout hvis lokal Git-metadata er skrivebeskyttet eller checkoutet har arbeid som ikke skal publiseres.
 7. Opprett `v<versjon>` på den kontrollerte kildecommiten. Publiser en GitHub Release med forståelige versjonsnotater, AppImage, deb, SHA256SUMS, full versjonslogg og RELEASEINFO.json. Metadataene skal inneholde riktig versjon, bygg, plattform og kildecommit. Last gjerne opp som utkast først; verifiser filstørrelser og SHA-256 før publisering.
 8. Bekreft at fjerncommiten, utgivelsen og vedleggene stemmer. Oppsummer versjon, bygg, kontroll og lenke til Release.
 

@@ -16,6 +16,8 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 
 *Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2/v0.26.0/v0.28.0. Alle bruker demo og midlertidige data.*
 
+**v1.0.0:** første offentlige utgivelse, nå åpen kildekode under MIT-lisensen. Appen finnes på tolv språk (velg under Innstillinger → Generelt → Språk), og nytt er blant annet Kode Studio, spørrekort fra modellen, diagrammer i svaret, diktering, planlagte oppgaver og én katalog for modeller og lokale modellservere. Se [versjonsloggen](docs/PATCHLOG.md).
+
 **v0.29:** uten valgt prosjekt jobber agenten på «Denne datamaskinen», med hjemmemappen som arbeidsmappe og de vanlige godkjenningene. Kode-meldinger får lesestatus, underagenter kommuniserer bedre begge veier, foreldrekjeden beholdes i sidefanen, og `/agents`, `/diff`, `/context` og `/stop` er nye snarveier. Se [instanser og lesestatus](docs/AGENT-COLLABORATION.md).
 
 **v0.28.0:** `/btw` gir et midlertidig sidesvar uten verktøy eller historikk; `/background` starter en egen bakgrunnsøkt mens hovedsamtalen fortsetter. `/queue` og `/steer` velger levering for én melding. Se [kommandoene](docs/SIDE-QUESTIONS.md).

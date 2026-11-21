@@ -44,7 +44,7 @@ test("pakket Chat laster innebygd Excel-skill og lager nedlastbar Office-fil", a
       return response.json();
     }, { method, url, body });
     const catalog = await api("GET", "/api/commands?mode=chat");
-    assert.deepEqual(catalog.filter((c: any) => c.kind === "skill").map((c: any) => c.name), ["data-files", "excel", "powerpoint", "word"]);
+    assert.deepEqual(catalog.filter((c: any) => c.kind === "skill").map((c: any) => c.name), ["action-items", "analyze-data", "data-files", "excel", "powerpoint", "source-brief", "word"]);
     const provider = await api("POST", "/api/providers", { kind: "openai-compatible", name: "Lokalt", baseUrl: `http://127.0.0.1:${(fake.address() as any).port}/v1` });
     const model = await api("POST", "/api/models", { providerId: provider.id, name: "Skill-test", model: "fake", contextWindow: 64000 });
     const thread = await api("POST", "/api/threads", { mode: "chat", modelId: model.id });

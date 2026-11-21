@@ -41,8 +41,10 @@ test("pakket app kjører transient btw og separat bakgrunn uten å endre kildehi
       return response.json();
     }, { method, url, body });
     const info = await api("GET", "/api/bootstrap");
-    assert.equal(info.build.version, "0.28.0");
-    assert.equal(info.build.build, 77);
+    // The packaged app reports the version and build it was packaged from.
+    const packaged = JSON.parse(readFileSync(path.join(import.meta.dirname, "../../version.json"), "utf8"));
+    assert.equal(info.build.version, packaged.version);
+    assert.equal(info.build.build, packaged.build);
     const catalog = await api("GET", "/api/commands?mode=chat");
     for (const name of ["btw", "background", "queue", "steer"]) assert.ok(catalog.some((c: any) => c.name === name));
     const provider = await api("POST", "/api/providers", { kind: "openai-compatible", name: "Lokalt", baseUrl: `http://127.0.0.1:${(fake.address() as any).port}/v1` });

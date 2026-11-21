@@ -152,13 +152,14 @@ The project owner credits the following AI models for development assistance (se
 - **OpenAI GPT 6.1 Sol** — used with Codex and sub-agents for ongoing feature development, reviews, and fixes (including v0.11.0–v0.24.0, v0.27.0–v0.29.0, agent communication, and parent chains).
 - **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff.
 - **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
-- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action.
+- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action; **Gemini 4 Neon** finished Kode Studio.
+- **Anthropic Claude Opus 5.5** — also coordinated the 1.0.0 release with Claude Code: distributing issues, pull requests and translations across sub-agents, reviewing and merging their work, and the open-source switch, release and packaging.
 
 GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API compatibility, setup, and local model discovery and recommendations.
 
 GPT 6.2 Astra implemented [dictation](docs/diktering.md) and [scheduled tasks](docs/planlagte-oppgaver.md) and removed nonfunctional controls.
 
-Claude Fable 5.2 made the settings, Git, and GitHub views translatable. Codex converted the composer, agent views, side panels, and shell, tested English rendering and responsive controls, and updated the eleven catalogs for whole-sentence translations.
+Translations for 1.0.0: GPT 6.2 Sol translated English, Swedish, Danish, Japanese, and Simplified Chinese; Claude Fable 5.2 translated German, Dutch, French, Italian, Spanish, and Brazilian Portuguese. Claude Fable 5.2 also made the settings, Git, and GitHub views translatable. Codex converted the composer, agent views, side panels, and shell, tested English rendering and responsive controls, and updated the eleven catalogs for whole-sentence translations.
 
 Codex also contributed the [i18n foundation and contributor guide](docs/I18N.md), inline charts, [model selection for Code helpers](docs/MODELLDELEGERING.md), and [reviewable memory and skill suggestions](docs/MINNEFORSLAG.md).
 

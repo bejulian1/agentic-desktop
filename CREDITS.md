@@ -12,6 +12,7 @@ Prosjekteieren krediterer disse modellene for AI-assistanse i utviklingen:
 | OpenAI | GPT 6.1 Sol |
 | OpenAI | GPT 6.2 Sol og GPT 6.2 Astra |
 | Anthropic | Claude Fable 5.2 |
+| Google | Gemini 4 Neon |
 
 ## Claude Code – Anthropic
 
@@ -57,14 +58,27 @@ Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrette
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.
 
+## Språk og 1.0.0
+
 Codex (GPT 6.2 Astra) implementerte språkvalget, katalogverktøyene og de første oversatte flatene i nettgrensesnittet og Electron. Codex gjorde også meldingsfeltet, agentvisningene, sidepanelene og skallet oversettbare, integrerte endringene og testet språkbytte og responsiv layout. Claude Fable 5.2 gjorde blant annet innstillingene, Git- og GitHub-visningene oversettbare og la til `Rich` for setninger med innebygde elementer. Codex rettet senere oppdelte kildesetninger, oppdaterte de elleve katalogene og laget de engelske README-bildene.
+
+Katalogene for de elleve språkene ble oversatt av underagenter, hvert språk lest gjennom i utvalg før fletting:
+
+| Språk | Modell |
+|---|---|
+| Engelsk, svensk, dansk, japansk og forenklet kinesisk | GPT 6.2 Sol (Codex) |
+| Tysk, nederlandsk, fransk, italiensk, spansk og brasiliansk portugisisk | Claude Fable 5.2 (Claude Code) |
+
+To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiensk, men stoppet på kvotegrensen før de hadde levert noe, så det arbeidet ble gjort på nytt av Fable 5.2. GPT 6.2 Astra flettet de fire konverteringsgruppene og oversettelsene, ryddet tekst ingen gruppe eide og la inn den strenge oversettelsessjekken i CI.
+
+**Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
 
 ## Om GitHubs Contributors-graf
 
-README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Eksisterende historikk er ikke omskrevet for å endre statistikken. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
+README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Historikken er ikke omskrevet for å endre statistikken. Da repoet ble offentlig, ble bare prosjekteierens private e-postadresse i to eldre commits byttet til GitHubs noreply-adresse. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
 
 Verktøyene oppføres som AI-assistanse, ikke som mennesker, prosjekteiere eller garantister. Krediteringen innebærer ingen offisiell støtte eller tilknytning til Anthropic, OpenAI eller Google. Lisensvilkår endres ikke av denne filen.
 
 ## Kode Studio
 
-Codex og underagenter utformet og implementerte det opprinnelige grunnlaget for Kode Studio (filfaner, CodeMirror-editor, direkte prosjektfilovervåking, konflikthåndtering og gjenbruk av kodeagent/verktøy). Gemini fullførte funksjonen etter rebase mot v0.29.1, delte språklasteren med eksisterende editor, koblet Filer-panelet og kommandopaletten til Studio, rettet terminal- og manglende-mappe-håndtering, forbedret tastaturnavigasjon, søk og konfliktreparasjon, samt la til server- og UI-tester.
+Codex og underagenter utformet og implementerte det opprinnelige grunnlaget for Kode Studio (filfaner, CodeMirror-editor, direkte prosjektfilovervåking, konflikthåndtering og gjenbruk av kodeagent/verktøy). Gemini 4 Neon fullførte funksjonen etter rebase mot v0.29.1, delte språklasteren med eksisterende editor, koblet Filer-panelet og kommandopaletten til Studio, rettet terminal- og manglende-mappe-håndtering, forbedret tastaturnavigasjon, søk og konfliktreparasjon, samt la til server- og UI-tester.
