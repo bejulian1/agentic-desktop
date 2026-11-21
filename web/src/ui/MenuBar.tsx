@@ -7,7 +7,8 @@ import { closeArtifacts, openArtifacts } from "../state/artifacts";
 import { openPalette, openProfile } from "../state/nav";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { IconCheck, IconChevron, IconMenu } from "./icons";
-import { enterMode } from "./ModeSwitch";
+import { enterMode, enterStudio } from "./ModeSwitch";
+import { studioOpen, studioAgentOpen } from "../state/studio";
 
 type Item =
   | { label: string; run: () => unknown; keys?: string; checked?: () => boolean; disabled?: () => boolean }
@@ -20,6 +21,11 @@ const noThread = () => !focusedThreadId();
 let lastFocus: HTMLElement | null = null;
 const edit = (command: string) => () => {
   lastFocus?.focus();
+  if ((command === "undo" || command === "redo") && lastFocus?.closest("[data-testid=studio-editor]")) {
+    const key = command === "undo" ? "z" : "y";
+    lastFocus.dispatchEvent(new KeyboardEvent("keydown", { key, code: key === "z" ? "KeyZ" : "KeyY", ctrlKey: true, bubbles: true, cancelable: true }));
+    return;
+  }
   document.execCommand(command);
 };
 const paste = async () => {
@@ -98,10 +104,11 @@ const MENUS: Array<{ id: string; label: string; items: Item[] }> = [
     label: "Vis",
     items: [
       { label: "Chat", run: () => enterMode("chat"), checked: () => mode() === "chat" },
-      { label: "Kode", run: () => enterMode("code"), checked: () => mode() === "code", keys: "view.mode" },
+      { label: "Kode", run: () => enterMode("code"), checked: () => mode() === "code" && !studioOpen(), keys: "view.mode" },
+      { label: "Kode Studio", run: enterStudio, checked: () => mode() === "code" && studioOpen() },
       "sep",
       { label: "Sidefane", run: actions.toggleSidebar, checked: sidebarOpen, keys: "view.sidebar" },
-      { label: "Sidepanel", run: actions.togglePanel, checked: () => mode() === "code" && panelOpen(), keys: "view.panel", disabled: () => mode() !== "code" },
+      { label: "Sidepanel", run: actions.togglePanel, checked: () => mode() === "code" && (studioOpen() ? studioAgentOpen() : panelOpen()), keys: "view.panel", disabled: () => mode() !== "code" },
       { label: "Festet sammendrag", run: actions.toggleSummary, checked: pinnedSummary, keys: "view.summary" },
       "sep",
       { label: "Filer", run: () => actions.showTab("files"), disabled: () => !code() },

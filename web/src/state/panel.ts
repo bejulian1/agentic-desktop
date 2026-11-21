@@ -3,6 +3,7 @@ import { batch, createSignal } from "solid-js";
 import { app, currentProject, LOCAL_SCOPE, panelOpen, setPanelOpen } from "./app";
 import { addToStack, removeFromStack, stacking, stackTools } from "./stack";
 import { artifactPanel, closeArtifactPanel } from "./artifact-panel";
+import { studioOpen, setStudioOpen, setStudioTool } from "./studio";
 
 // Round 12 (SPEC 26.2): "session" is Økt.
 export type PanelTab = "files" | "changes" | "terminal" | "browser" | "team" | "overview" | "github" | "session";
@@ -30,6 +31,17 @@ export function rememberPanelTool(tab: PanelTab): void {
 }
 
 export function showPanel(tab: PanelTab): void {
+  if (studioOpen()) {
+    if (tab === "terminal" || tab === "browser" || tab === "changes") {
+      setStudioTool(tab);
+      return;
+    }
+    if (tab === "files") {
+      setStudioTool(null);
+      return;
+    }
+    setStudioOpen(false);
+  }
   batch(() => {
   // Round 15: an open artifact has the right side; a tool asked for takes it back.
   closeArtifactPanel();

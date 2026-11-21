@@ -37,6 +37,8 @@ export const IconSend = (p: P) => <Svg {...p}><path d="M8 13V3.5M3.75 7.5 8 3.25
 export const IconMenu = (p: P) => <Svg {...p}><path d="M2.75 4.5h10.5M2.75 8h10.5M2.75 11.5h10.5" /></Svg>;
 export const IconChat = (p: P) => <Svg {...p}><path d="M8 2.5c3.3 0 5.75 2.1 5.75 4.9S11.3 12.3 8 12.3c-.65 0-1.3-.08-1.9-.24L3 13.5l.6-2.6C2.75 10 2.25 8.75 2.25 7.4 2.25 4.6 4.7 2.5 8 2.5Z" /></Svg>;
 export const IconCode = (p: P) =><Svg {...p}><path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5" /></Svg>;
+// Kode Studio: a workspace split into explorer, editor and agent columns.
+export const IconStudio = (p: P) => <Svg {...p}><rect x="2" y="2.75" width="12" height="10.5" rx="1.75" /><path d="M5.5 2.75v10.5M10.5 2.75v10.5M5.5 9.75h5" /></Svg>;
 export const IconSplitRight = (p: P) => <Svg {...p}><rect x="2" y="3" width="12" height="10" rx="1.75" /><path d="M8 3v10" /></Svg>;
 export const IconSplitDown = (p: P) => <Svg {...p}><rect x="2" y="3" width="12" height="10" rx="1.75" /><path d="M2 8h12" /></Svg>;
 export const IconDetach = (p: P) => <Svg {...p}><path d="M9.5 2.5h4v4M13.5 2.5 8 8M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" /></Svg>;

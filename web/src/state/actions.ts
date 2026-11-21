@@ -1,3 +1,4 @@
+import { studioOpen, setStudioOpen, studioAgentOpen, setStudioAgentOpen } from "./studio";
 // What the menu bar, the shortcuts and the commands do. One place, so they cannot drift apart.
 import type { Thread } from "../../../shared/protocol";
 import { post } from "../lib/api";
@@ -52,10 +53,15 @@ export const actions = {
   // Kode: the panel, with or without a project. Chat has none (SPEC 24.5).
   togglePanel: () => {
     if (mode() !== "code") return toast("Sidepanelet med verktøy finnes i Kode.", "info");
+    if (studioOpen()) return setStudioAgentOpen(!studioAgentOpen());
     togglePanel();
   },
   toggleSummary: () => setPinnedSummary(!pinnedSummary()),
-  toggleMode: () => setMode(mode() === "code" ? "chat" : "code"),
+  toggleMode: () => {
+    if (mode() === "chat") { setStudioOpen(false); setMode("code"); }
+    else if (!studioOpen()) { setMode("code"); setStudioOpen(true); }
+    else { setStudioOpen(false); setMode("chat"); }
+  },
   showTab: (tab: PanelTab) => {
     if (mode() !== "code") return toast("Sidepanelet med verktøy finnes i Kode.", "info");
     showPanel(tab);

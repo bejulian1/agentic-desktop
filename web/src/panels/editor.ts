@@ -4,7 +4,7 @@ import { EditorView, highlightSpecialChars, lineNumbers } from "@codemirror/view
 import { syntaxHighlighting } from "@codemirror/language";
 import { classHighlighter } from "@lezer/highlight";
 
-async function languageFor(path: string): Promise<Extension> {
+export async function languageFor(path: string): Promise<Extension> {
   const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
   switch (ext) {
     case "js": case "mjs": case "cjs": case "jsx":
@@ -15,9 +15,9 @@ async function languageFor(path: string): Promise<Extension> {
       return (await import("@codemirror/lang-javascript")).javascript({ typescript: true, jsx: true });
     case "html": case "htm": case "svg": case "xml":
       return (await import("@codemirror/lang-html")).html();
-    case "css":
+    case "css": case "scss":
       return (await import("@codemirror/lang-css")).css();
-    case "json":
+    case "json": case "jsonc":
       return (await import("@codemirror/lang-json")).json();
     case "md": case "markdown":
       return (await import("@codemirror/lang-markdown")).markdown();

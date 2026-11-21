@@ -69,8 +69,45 @@ export function githubRoutes(route: Route, deps: ApiDeps, h: { project: (id: str
     return editable(project, String(query.get("path") ?? ""), deps.dataDir);
   });
 
+  // Studio creates a new ordinary text file only; existing files use the hash-checked PUT.
+  route("POST", "/api/projects/:id/file", async ({ params, body }) => {
+    const project = h.project(params.id);
+    assertExpectedProjectPath(body?.projectPath, project);
+    if (project.folderMissing) throw new HttpError(409, "Prosjektmappen mangler. Velg mappen på nytt.");
+    if (typeof body?.path !== "string" || !body.path) throw new HttpError(400, "path mangler");
+    if (typeof body.text !== "string") throw new HttpError(400, "text mangler");
+    if (Buffer.byteLength(body.text) > MAX_TEXT_FILE) throw new HttpError(413, "Filen er for stor til å opprettes fra editoren.");
+    if (looksBinary(Buffer.from(body.text))) throw new HttpError(400, "Opprett en vanlig tekstfil.");
+    const { abs, rel } = guardPath(project.path, body.path, deps.dataDir);
+    if (rel === "." || rel.split(/[\\/]/).some((part) => part === ".git" || part === "node_modules") || isProtectedPath(rel)) {
+      throw new HttpError(403, "Denne filen kan ikke opprettes fra editoren.");
+    }
+    await deps.runner.files.exclusive(abs, async () => {
+      assertExpectedProjectPath(project.path, h.project(project.id));
+      // Revalidate after waiting for a model write. O_EXCL is the final no-overwrite gate,
+      // including an existing symlink or a file created by another window in the meantime.
+      if (guardPath(project.path, body.path, deps.dataDir).abs !== abs) throw new HttpError(409, "Filstien er endret. Åpne mappen på nytt.");
+      let handle;
+      try {
+        handle = await open(abs, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW, 0o666);
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "EEXIST") throw new HttpError(409, "Filen finnes allerede. Åpne den i stedet.");
+        if (code === "ENOENT") throw new HttpError(400, "Foreldremappen finnes ikke. Opprett mappen først.");
+        if (code === "EISDIR") throw new HttpError(400, "Stien er en mappe, ikke en fil.");
+        if (code === "ENOTDIR") throw new HttpError(400, "En del av stien er ikke en mappe.");
+        throw err;
+      }
+      try { await handle.writeFile(body.text, "utf8"); }
+      finally { await handle.close(); }
+    });
+    h.filesChanged(project.id, [rel]);
+    return editable(project, rel, deps.dataDir);
+  });
+
   route("PUT", "/api/projects/:id/file", async ({ params, body }) => {
     const project = h.project(params.id);
+    assertExpectedProjectPath(body?.projectPath, project);
     if (typeof body?.path !== "string" || !body.path) throw new HttpError(400, "path mangler");
     if (typeof body.text !== "string") throw new HttpError(400, "text mangler");
     const { abs, rel } = guardPath(project.path, body.path, deps.dataDir);
@@ -78,6 +115,8 @@ export function githubRoutes(route: Route, deps: ApiDeps, h: { project: (id: str
     const text: string = body.text;
     if (Buffer.byteLength(text) > MAX_TEXT_FILE) throw new HttpError(413, "Filen er for stor til å lagres fra editoren.");
     await deps.runner.files.exclusive(abs, async () => {
+      assertExpectedProjectPath(project.path, h.project(project.id));
+      if (guardPath(project.path, body.path, deps.dataDir).abs !== abs) throw new HttpError(409, "Filstien er endret. Åpne filen på nytt.");
       let current: Buffer;
       try {
         current = await readFile(abs);
@@ -133,4 +172,11 @@ async function writeNoFollow(abs: string, content: string): Promise<void> {
   } finally {
     await handle.close();
   }
+}
+
+
+function assertExpectedProjectPath(expected: unknown, project: Project): void {
+  if (expected === undefined) return; // Older mini-editor callers do not bind a workspace root.
+  if (typeof expected !== "string") throw new HttpError(400, "projectPath må være en sti.");
+  if (expected !== project.path) throw new HttpError(409, "Prosjektmappen er endret. Åpne filen fra den nye mappen før du lagrer.", { code: "project-moved" });
 }

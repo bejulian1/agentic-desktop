@@ -1,5 +1,6 @@
 import {setModsOpen} from "../state/ui-mods";
 import {IconPalette} from "./icons";
+import {studioOpen} from "../state/studio";
 // The top of the window. Left: the menu, the sidebar button, and back and forward, small and
 // quiet, in the column they belong to: past the row of icons when the sidebar is that row, and with
 // no sidebar button then, since the row has its own (SPEC 24.1). Middle: Chat and Kode, only when the
@@ -31,7 +32,7 @@ import { room } from "../state/artifacts";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import {
   IconArchive, IconBack, IconBranch, IconChat, IconChevron, IconChevronDown, IconClose, IconCode, IconLaptop, IconDetach, IconDots, IconDownload, IconForward, IconKeyboard, IconPanel, IconPanelAdd,
-  IconPin, IconPlay, IconSearch, IconSidebar, IconSplitDown, IconSplitRight, IconStop, IconTerminal,
+  IconPin, IconPlay, IconSearch, IconSidebar, IconSplitDown, IconSplitRight, IconStop, IconStudio, IconTerminal,
 } from "./icons";
 import { MainMenu } from "./MenuBar";
 import { WindowControls } from "./WindowControls";
@@ -359,7 +360,7 @@ const SEPARATE: Array<{ id: "session" | "terminal" | "changes" | "browser" | "fi
 // a narrow window Hver for seg takes too much room, so it is Samlet there.
 function PanelButtons() {
   const separate = () => app.settings.panelButtons === "separate" && !narrow();
-  const code = () => mode() === "code";
+  const code = () => mode() === "code" && !studioOpen();
   return (
     <div class="topbar-group panel-buttons" role="group" aria-label="Panelknapper" data-style={separate() ? "separate" : "together"}>
       <MoreMenu />
@@ -504,7 +505,9 @@ function StartCrumb() {
     <Show when={show()}>
       <nav class="topbar-crumb" aria-label="Hvor du er" data-testid="topbar-crumb">
         <span class="crumb-mode">
-          <Show when={mode() === "code"} fallback={<><IconChat size={14} />Chat</>}><IconCode size={14} />Kode</Show>
+          <Show when={mode() === "code"} fallback={<><IconChat size={14} />Chat</>}>
+            <Show when={studioOpen()} fallback={<><IconCode size={14} />Kode</>}><IconStudio size={14} />Kode Studio</Show>
+          </Show>
         </span>
         <Show when={mode() === "code"}>
           <span class="crumb-sep" aria-hidden="true"><IconChevron size={11} /></span>

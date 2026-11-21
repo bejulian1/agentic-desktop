@@ -466,8 +466,8 @@ function createWindow(): BrowserWindow {
       defaultId: 1,
       cancelId: 1,
       title: PRODUCT,
-      message: "En tråd kjører fortsatt.",
-      detail: "Kjøringen stopper når appen avsluttes.",
+      message: "Vil du avslutte Agentic Desktop?",
+      detail: "Du kan ha ulagrede endringer eller en tråd som fortsatt kjører. Lagre arbeidet før du avslutter. Aktive kjøringer stoppes ved avslutning.",
     });
     if (choice === 0) event.preventDefault();
     else quitting = false;

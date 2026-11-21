@@ -62,3 +62,7 @@ Gemini bidro med den første implementeringen av reservasjon av datamappen, gjen
 README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Eksisterende historikk er ikke omskrevet for å endre statistikken. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.
 
 Verktøyene oppføres som AI-assistanse, ikke som mennesker, prosjekteiere eller garantister. Krediteringen innebærer ingen offisiell støtte eller tilknytning til Anthropic, OpenAI eller Google. Lisensvilkår endres ikke av denne filen.
+
+## Kode Studio
+
+Codex og underagenter utformet og implementerte det opprinnelige grunnlaget for Kode Studio (filfaner, CodeMirror-editor, direkte prosjektfilovervåking, konflikthåndtering og gjenbruk av kodeagent/verktøy). Gemini fullførte funksjonen etter rebase mot v0.29.1, delte språklasteren med eksisterende editor, koblet Filer-panelet og kommandopaletten til Studio, rettet terminal- og manglende-mappe-håndtering, forbedret tastaturnavigasjon, søk og konfliktreparasjon, samt la til server- og UI-tester.

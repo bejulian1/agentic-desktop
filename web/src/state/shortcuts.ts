@@ -20,7 +20,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "view.sidebar", label: "Vis eller skjul sidefanen", group: "Visning", keys: "Mod+B" },
   { id: "view.panel", label: "Vis eller skjul panelet", group: "Visning", keys: "Mod+Shift+B" },
   { id: "view.summary", label: "Festet sammendrag", group: "Visning", keys: "Mod+Shift+S" },
-  { id: "view.mode", label: "Bytt mellom Chat og Kode", group: "Visning", keys: "Mod+Shift+M" },
+  { id: "view.mode", label: "Bytt mellom Chat, Kode og Kode Studio", group: "Visning", keys: "Mod+Shift+M" },
   { id: "help.shortcuts", label: "Hurtigtaster", group: "Vindu", keys: "Mod+/" },
   // v0.5: the command palette, and the thread menu on the focused thread.
   { id: "palette.open", label: "Kommandopalett", group: "Vindu", keys: "Mod+K" },

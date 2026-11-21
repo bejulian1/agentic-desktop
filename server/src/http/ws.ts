@@ -12,6 +12,7 @@ import type { Store } from "../db.ts";
 import type { Terminals } from "../terminal.ts";
 import type { ClientMessage, Project, ServerMessage, ThreadEventEnvelope } from "../../../shared/protocol.ts";
 import { LOCAL_PANEL } from "../paths.ts";
+import { ProjectWatches } from "../project-watch.ts";
 import type { Security } from "./security.ts";
 
 const MAX_BUFFERED = 32 * 1024 * 1024;
@@ -50,6 +51,7 @@ export interface HubDeps {
   terminals: Terminals;
   browser: BrowserManager;
   flushThread: (threadId: string) => void;
+  projectWatches?: ProjectWatches;
   localFolder?: () => string; // round 9: the terminal's folder on Denne datamaskinen
 }
 
@@ -116,6 +118,7 @@ export class Hub {
       this.threadClients.get(threadId)?.delete(client);
       this.lastViewed.set(threadId, Date.now());
     }
+    this.deps.projectWatches?.unsubscribe(client);
     this.deps.terminals.detach(client);
     void this.deps.browser.detach(client);
     if (!this.clients.size) {
@@ -164,8 +167,14 @@ export class Hub {
     const { store, terminals, browser } = this.deps;
     // Round 9: the terminal and the Browser panel also open without a project, on Denne datamaskinen.
     const local = "projectId" in message && message.projectId === LOCAL_PANEL && (message.type.startsWith("terminal.") || message.type.startsWith("browser."));
-    if ("projectId" in message && !local) this.project(message.projectId);
+    if ("projectId" in message && !local && message.type !== "project.unwatch") this.project(message.projectId);
     switch (message.type) {
+      case "project.watch":
+        this.deps.projectWatches?.subscribe(client, this.project(message.projectId), message.directories);
+        return;
+      case "project.unwatch":
+        this.deps.projectWatches?.unsubscribe(client, message.projectId);
+        return;
       case "thread.subscribe": {
         if (!store.thread(message.threadId)) throw new Error("Fant ikke tråden");
         this.deps.flushThread(message.threadId);
@@ -242,6 +251,8 @@ export class Hub {
   }
 
   broadcast(message: ServerMessage): void {
+    if (message.type === "project.changed") this.deps.projectWatches?.projectChanged(message.project.id, message.project);
+    if (message.type === "project.deleted") this.deps.projectWatches?.projectChanged(message.projectId);
     if (!this.clients.size) return;
     const text = JSON.stringify(message);
     for (const client of this.clients) client.sendText(text);
@@ -249,6 +260,7 @@ export class Hub {
 
   close(): void {
     clearInterval(this.heartbeat);
+    this.deps.projectWatches?.close();
     for (const client of this.clients) client.ws.terminate();
     this.wss.close();
   }

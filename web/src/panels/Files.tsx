@@ -7,11 +7,12 @@ import { app, LOCAL_SCOPE, report } from "../state/app";
 import { currentFileActivity, peekModel } from "../state/thread-model";
 import { FileChangeCounts } from "../ui/FileChangeCounts";
 import type { ChangedFile } from "../../../shared/protocol";
-import { fileRequest, noteRecentFile, registerOpenedFile } from "../state/nav";
+import { fileRequest, noteRecentFile, registerOpenedFile, requestFile } from "../state/nav";
 import { FileTreeEntry } from "./FileTree";
 import LocalFiles from "./LocalFiles";
 import type { ReadonlyEditor } from "./editor";
 import { openMiniEditor, preloadMiniEditor } from "../ui/MiniEditorHooks";
+import { enterStudio } from "../ui/ModeSwitch";
 
 const treeCache = new Map<string, Map<string, FileEntry[]>>();
 
@@ -201,6 +202,7 @@ function ProjectFilesPanel(props: { projectId: string; threadId: () => string | 
             <Show when={changes().get(selected()!)}>{(change) => <FileChangeCounts file={change()} />}</Show>
             <Show when={file() && !file()!.binary}>
               <button type="button" class="btn btn-small btn-ghost file-edit" title="Åpne i mini-editoren for å søke, se oversikten eller redigere" onPointerEnter={preloadMiniEditor} onClick={(e) => openMiniEditor({ kind: "file", projectId: props.projectId, path: selected()!, source: e.currentTarget })}>Rediger</button>
+              <button type="button" class="btn btn-small btn-ghost file-studio" title="Åpne denne filen i Kode Studio" onClick={() => { const path = selected()!; enterStudio(); requestFile(props.projectId, path); }}>Studio</button>
             </Show>
           </div>
         </Show>

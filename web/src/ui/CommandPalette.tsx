@@ -12,9 +12,11 @@ import { openArtifacts, closeArtifacts } from "../state/artifacts";
 import { closePalette, openProfile, palette, recentFiles, requestFile, type PaletteTab } from "../state/nav";
 import { openThread } from "../state/navigate";
 import { requestBrowserTab, showPanel } from "../state/panel";
+import { studioOpen } from "../state/studio";
+import { enterMode, enterStudio } from "./ModeSwitch";
 import { openChromeImport, openCookieImport } from "./dialog-state";
 import { displayKeys, keysFor } from "../state/shortcuts";
-import { IconArchive, IconArtifact, IconChat, IconCode, IconCompose, IconFile, IconFolder, IconHelp, IconInfo, IconKeyboard, IconPanel, IconSearch, IconSettings, IconSidebar, IconSpark, IconSplitRight, IconSun, IconUser, IconClock, IconPin, IconBranch, IconGlobe, IconBookmark } from "./icons";
+import { IconArchive, IconArtifact, IconChat, IconCode, IconCompose, IconFile, IconFolder, IconHelp, IconInfo, IconKeyboard, IconPanel, IconSearch, IconSettings, IconSidebar, IconSpark, IconSplitRight, IconStudio, IconSun, IconUser, IconClock, IconPin, IconBranch, IconGlobe, IconBookmark } from "./icons";
 import { IconCookie, IconPencil } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 
@@ -59,7 +61,9 @@ const ACTIONS = (): ActionDef[] => [
   { label: "Ny tråd i Chat", words: "chat uten prosjekt", icon: IconChat, run: actions.newChat },
   { label: "Åpne mappe", words: "prosjekt", icon: IconFolder, keys: "folder.open", quick: true, run: actions.openFolder },
   { label: "Innstillinger", icon: IconSettings, keys: "settings.open", quick: true, run: () => actions.settings() },
-  { label: mode() === "code" ? "Bytt til Chat" : "Bytt til Kode", words: "modus chat kode", icon: mode() === "code" ? IconChat : IconCode, keys: "view.mode", quick: true, run: actions.toggleMode },
+  { label: mode() === "chat" ? "Bytt til Kode" : studioOpen() ? "Bytt til Chat" : "Bytt til Kode Studio", words: "modus chat kode studio", icon: mode() === "chat" ? IconCode : studioOpen() ? IconChat : IconStudio, keys: "view.mode", quick: true, run: actions.toggleMode },
+  { label: "Åpne Kode Studio", words: "studio editor arbeidsflate filer", icon: IconStudio, when: () => !(mode() === "code" && studioOpen()), run: enterStudio },
+  { label: "Bytt til vanlig Kode", words: "kode samtale panel", icon: IconCode, when: () => mode() === "code" && studioOpen(), run: () => enterMode("code") },
   { label: "Ny rute", icon: IconSplitRight, keys: "pane.new", run: actions.newPane },
   { label: "Søk i tråder", icon: IconSearch, keys: "thread.search", run: actions.searchThreads },
   { label: "Vis eller skjul sidefanen", icon: IconSidebar, keys: "view.sidebar", run: actions.toggleSidebar },

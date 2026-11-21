@@ -1115,6 +1115,8 @@ export interface DownloadItem {
 export type ClientMessage =
   | { type: "thread.subscribe"; threadId: string; afterSeq: number; historyRevision?: number }
   | { type: "thread.unsubscribe"; threadId: string }
+  | { type: "project.watch"; projectId: string; directories: string[] }
+  | { type: "project.unwatch"; projectId: string }
   | { type: "terminal.open"; projectId: string; terminalId?: string; cols: number; rows: number }
   | { type: "terminal.input"; terminalId: string; data: string }
   | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
@@ -1161,6 +1163,7 @@ export type ServerMessage =
   | { type: "skills.changed" } // a SKILL.md changed; refresh command menus
   | { type: "settings.changed"; settings: Settings; providers: ProviderConfig[]; models: ModelConfig[] }
   | { type: "project.files-changed"; projectId: string; paths: string[] }
+  | { type: "project.watch-state"; projectId: string; directories: string[]; watching: boolean }
   | { type: "playtest.state"; state: PlaytestState }
   | { type: "terminal.opened"; terminalId: string; projectId: string; title: string; replay: string }
   | { type: "terminal.output"; terminalId: string; data: string }
@@ -1250,7 +1253,8 @@ export interface EditableFile extends FileContent {
 // DELETE /api/github/token                  GitHubStatus
 // GET    /api/projects/:id/github?refresh=1 GitHubProject
 // GET    /api/projects/:id/file/edit?path=  EditableFile
-// PUT    /api/projects/:id/file             { path, text, hash, force? } => EditableFile, 409 when the file changed on disk
+// POST   /api/projects/:id/file             { path, text, projectPath? } => EditableFile; create-only, parent must exist
+// PUT    /api/projects/:id/file             { path, text, hash, force?, projectPath? } => EditableFile, 409 when the file changed on disk
 
 // Round 9b (SPEC 22): the standard harness for Kode, Chat's own personalisation, the memory upgrade
 // and import of many skills. Routes in server/src/http/harness-routes.ts.

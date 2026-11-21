@@ -1,3 +1,4 @@
+import { studioOpen } from "../state/studio";
 // Round 10 (SPEC 23.9): the sidebar, hidden, as a thin row of icons about 48 px wide. From the top:
 // Vis sidefanen, Chat and Kode, Ny tråd, Søk, Artifacts and Skills; in Kode, pinned threads and the
 // projects as small marks or favicons; at the bottom Varsler, the gear and the avatar. Every icon
@@ -13,12 +14,12 @@ import { openArtifacts, room } from "../state/artifacts";
 import { chatProjectPageId, closeProfile } from "../state/nav";
 import { openChatProject, openThread } from "../state/navigate";
 import { displayKeys, keysFor } from "../state/shortcuts";
-import { enterMode } from "./ModeSwitch";
+import { enterMode, enterStudio } from "./ModeSwitch";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { preloadSettings } from "./lazy-views";
 import { Notifications, ProfileMenu } from "./Sidebar";
-import { IconArtifact, IconChat, IconCode, IconCompose, IconPin, IconSearch, IconSettings, IconSidebar, IconSpark } from "./icons";
+import { IconArtifact, IconChat, IconCode, IconCompose, IconPin, IconSearch, IconSettings, IconSidebar, IconSpark, IconStudio } from "./icons";
 
 const tip = (name: string, keys?: string) => (keys && keysFor(keys) ? `${name} (${displayKeys(keysFor(keys))})` : name);
 
@@ -41,7 +42,8 @@ export function SidebarRail() {
         <button type="button" class="icon-button rail-button" aria-label="Vis sidefanen" title={tip("Vis sidefanen", "view.sidebar")} onClick={() => setSidebarOpen(true)}><IconSidebar size={16} /></button>
         <div class="rail-modes" role="group" aria-label="Modus">
           <button type="button" class="icon-button rail-button" aria-label="Chat" title={tip("Chat", "view.mode")} aria-pressed={!code()} onClick={() => enterMode("chat")}><IconChat size={16} /></button>
-          <button type="button" class="icon-button rail-button" aria-label="Kode" title={tip("Kode", "view.mode")} aria-pressed={code()} onClick={() => enterMode("code")}><IconCode size={16} /></button>
+          <button type="button" class="icon-button rail-button" aria-label="Kode" title={tip("Kode", "view.mode")} aria-pressed={code() && !studioOpen()} onClick={() => enterMode("code")}><IconCode size={16} /></button>
+          <button type="button" class="icon-button rail-button" aria-label="Studio" title={tip("Kode Studio", "view.mode")} aria-pressed={code() && studioOpen()} onClick={enterStudio}><IconStudio size={16} /></button>
         </div>
         <button type="button" class="icon-button rail-button" aria-label="Ny tråd" title={tip("Ny tråd", "thread.new")} onClick={() => actions.newThread()}><IconCompose size={16} /></button>
         <button type="button" class="icon-button rail-button" aria-label="Søk i tråder" title={tip("Søk i tråder", "thread.search")} onClick={() => actions.searchThreads()}><IconSearch size={16} /></button>

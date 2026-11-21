@@ -30,6 +30,8 @@ import { wireServers } from "../state/servers";
 import { on } from "../lib/socket";
 import { SettingsView } from "./lazy-views";
 import { closeSkills, skillsOpen } from "../state/skills-workspace";
+import { studioOpen } from "../state/studio";
+import StudioWorkspace from "../studio/StudioWorkspace";
 
 const UiModsDialogHost=lazy(()=>import("./UiModsDialog"));
 const ArtifactsRoom = lazy(() => import("./ArtifactsRoom"));
@@ -134,7 +136,7 @@ export function App() {
     if (open?.threadId && id !== open.threadId) closeArtifactPanel();
   }, { defer: true }));
   // Kode: the panel, with or without a project (SPEC 21.9). Chat has none (SPEC 24.5).
-  const panelShown = () => !away() && mode() === "code" && panelOpen() && !artifactShown();
+  const panelShown = () => !away() && mode() === "code" && !studioOpen() && panelOpen() && !artifactShown();
   // Full view (round 10) ends with the panel.
   createEffect(() => {
     if (!panelShown()) setPanelFull(false);
@@ -161,9 +163,10 @@ export function App() {
     const over = open && ((artifact ? artifactBig() : panelFull()) || narrow());
     const key = scope();
     const panes = !away() && !chatProjectPage() && key ? gridFor(key).count() : 1;
+    const studio = studioOpen() && mode() === "code" && !away();
     const root = document.documentElement.style;
     root.setProperty("--toasts-panel", open && !over ? `${artifact ? artifactWidth() : panelWidth()}px` : "0px");
-    root.setProperty("--toasts-down", over ? "124px" : panes > 1 ? "40px" : "0px");
+    root.setProperty("--toasts-down", over ? "124px" : studio ? "50px" : panes > 1 ? "40px" : "0px");
   });
 
   // Project favicons: at start, and when a project is added, moved or changed.
@@ -206,10 +209,12 @@ export function App() {
         <OfflineBanner />
         {/* The panes stay mounted under the Artifacts room, so drafts and scroll survive a visit. */}
         <div class="main-panes" hidden={away() || !!chatProjectPage()}>
+          <StudioWorkspace active={() => studioOpen() && mode() === "code" && !away()} project={currentProject()} threadId={threadId}>
           {/* Kode without a project is a grid of its own, Denne datamaskinen (round 9). */}
           <Show when={scope()} keyed>
             {(key) => <GridView grid={gridFor(key)} projectId={projectOfScope(key)} code={key !== "chat"} />}
           </Show>
+          </StudioWorkspace>
         </div>
         <Show when={chatProjectPage() && !away() ? chatProjectPageId() : null} keyed>
           {(id) => <Suspense><ChatProjectPage project={app.chatProjects[id]} /></Suspense>}

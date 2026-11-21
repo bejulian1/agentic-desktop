@@ -30,6 +30,7 @@ import { Api } from "./http/api.ts";
 import { Security } from "./http/security.ts";
 import { serveStatic } from "./http/static.ts";
 import { Hub } from "./http/ws.ts";
+import { ProjectWatches } from "./project-watch.ts";
 import { Playtest } from "./playtest.ts";
 import { PreviewServer } from "./preview.ts";
 import { PreviewRuntime } from "./preview-runtime.ts";
@@ -301,7 +302,8 @@ async function startAppWithClaim(
     mcp.keyringChanged();
   };
 
-  hub = new Hub({ store, security, terminals, browser, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
+  const projectWatches = new ProjectWatches(config.dataDir, (id) => api.invalidateFiles(id));
+  hub = new Hub({ store, security, terminals, browser, projectWatches, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   onFail(() => hub.close());
   api = new Api({
     uiMods,
