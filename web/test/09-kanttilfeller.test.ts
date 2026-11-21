@@ -36,7 +36,10 @@ flow("tom tilstand", async (h) => {
 
 flow("feil fra modellen vises i tråden, med en leverandør lagt inn i Innstillinger", async (h) => {
   const { page } = h;
-  const llm = http.createServer((_req, res) => res.writeHead(401, { "content-type": "application/json" }).end(JSON.stringify({ error: { message: "Ugyldig nøkkel fra testserveren" } })));
+  const llm = http.createServer((req, res) => {
+    if (req.url === "/v1/models") return void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ data: [] }));
+    res.writeHead(401, { "content-type": "application/json" }).end(JSON.stringify({ error: { message: "Ugyldig nøkkel fra testserveren" } }));
+  });
   await new Promise<void>((resolve) => llm.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(llm.address() as AddressInfo).port}/v1`;
   try {
@@ -47,13 +50,12 @@ flow("feil fra modellen vises i tråden, med en leverandør lagt inn i Innstilli
 
     await page.getByRole("button", { name: "Modeller og leverandører", exact: true }).click();
     await page.getByRole("button", { name: /^Egendefinert/ }).click();
-    const form = page.getByRole("form", { name: "Leverandør" });
+    const form = page.getByRole("form", { name: "Koble til Egendefinert" });
     await form.getByLabel("Navn").fill("Lokal test");
-    await form.getByLabel("Adresse").fill(url);
+    await form.getByLabel("API-adresse").fill(url);
     await form.getByLabel("Nøkkel", { exact: true }).fill("test-nokkel");
-    await form.getByRole("button", { name: "Lagre" }).click();
-    await page.locator(".provider-row", { hasText: "Lokal test" }).waitFor();
-    await page.getByRole("button", { name: "Modeller og leverandører", exact: true }).click();
+    await form.getByRole("button", { name: "Fortsett" }).click();
+    await page.getByRole("region", { name: "Koble til Egendefinert" }).getByRole("button", { name: "Ferdig", exact: true }).click();
     const card = page.locator('.card[data-provider="Lokal test"]');
     await card.getByText("API-nøkkel").waitFor();
     await card.getByRole("button", { name: "Legg til modell" }).click();

@@ -408,7 +408,7 @@ function FolderPicker() {
       </div>
       <form class="path-row" onSubmit={(e) => { e.preventDefault(); void browse(typed(), true); }}>
         <button type="button" class="icon-button" aria-label="Opp en mappe" disabled={!parent()} onClick={() => browse(parent()!, true)}><IconBack size={15} /></button>
-        <input class="input" aria-label="Sti" value={typed()} spellcheck={false} onInput={(e) => { typedByHand = true; setTyped(e.currentTarget.value); }} />
+        <input class="input" aria-label="Sti" value={typed()} spellcheck={false} onFocus={() => { typedByHand = true; }} onInput={(e) => { typedByHand = true; setTyped(e.currentTarget.value); }} />
       </form>
       <div class="folder-list" role="list">
         <For each={dirs()} fallback={<div class="muted folder-empty">Ingen undermapper</div>}>
