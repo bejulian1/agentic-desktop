@@ -28,7 +28,7 @@ Commits fra dette arbeidet har en `Co-Authored-By`-linje til Claude.
 
 ## Codex – OpenAI
 
-Codex med GPT 6.2 Sol implementerte GitHub CLI-innlogging, pull request- og issue-visningene og de isolerte testene.
+Codex med GPT 6.2 Sol implementerte GitHub CLI-innlogging, pull request- og issue-visningene og de isolerte testene (v1.1.0), og i en egen underagent velkomstskjermen og importen av prosjekter og samtaler fra Claude Code, Codex CLI, Gemini CLI og Pi.
 
 GPT 6.2 Astra implementerte diktering med valgt taleleverandør og planlagte Chat- og Kode-tråder, og fjernet uvirksomme betjeningselementer.
 
@@ -74,6 +74,10 @@ Katalogene for de elleve språkene ble oversatt av underagenter, hvert språk le
 To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiensk, men stoppet på kvotegrensen før de hadde levert noe, så det arbeidet ble gjort på nytt av Fable 5.2. GPT 6.2 Astra flettet de fire konverteringsgruppene og oversettelsene, ryddet tekst ingen gruppe eide og la inn den strenge oversettelsessjekken i CI.
 
 **Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
+
+## 1.1.0
+
+GPT 6.2 Sol (Codex) bygde GitHub-integrasjonen med GitHub CLI og velkomstskjermen med import, i hver sin underagent. Gemini 4 Neon bygde innstillingene for differ (side om side, mellomrom, filtilstand og farger), nettleser (søkemotor, agenttilgang, lenker, zoom og utseende), varsler og rekkefølgen i sidefanen. **Claude Opus 5.5** koordinerte i Claude Code: skrev oppgavene, gjennomgikk og flettet de tre pull requestene, løste flettekonflikter, rettet en utdatert test, og sto for versjonsloggen, bygg, utgivelse og installasjon.
 
 ## Om GitHubs Contributors-graf
 

@@ -154,8 +154,9 @@ The project owner credits the following AI models for development assistance (se
 - **OpenAI GPT 6.1 Sol** — used with Codex and sub-agents for ongoing feature development, reviews, and fixes (including v0.11.0–v0.24.0, v0.27.0–v0.29.0, agent communication, and parent chains).
 - **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff.
 - **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
-- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action; **Gemini 4 Neon** finished Kode Studio.
-- **Anthropic Claude Opus 5.5** — also coordinated the 1.0.0 release with Claude Code: distributing issues, pull requests and translations across sub-agents, reviewing and merging their work, and the open-source switch, release and packaging.
+- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action; **Gemini 4 Neon** finished Kode Studio and built the 1.1.0 diff, browser, notification and sidebar settings.
+- **OpenAI GPT 6.2 Sol** — built the 1.1.0 GitHub CLI integration with pull request and issue pages, and the welcome screen with project and conversation import.
+- **Anthropic Claude Opus 5.5** — also coordinated the 1.0.0 and 1.1.0 releases with Claude Code: distributing issues, pull requests and translations across sub-agents, reviewing and merging their work, and the open-source switch, release and packaging.
 
 GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API compatibility, setup, and local model discovery and recommendations.
 

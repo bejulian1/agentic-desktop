@@ -4,6 +4,34 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.1.0: GitHub i sidefanen, velkomstskjerm og nye innstillinger (21. november 2026, bygg 81)
+
+GitHub kobles til med GitHub CLI, og pull requests og issues fra alle prosjektene har egne sider. Nye brukere møter en velkomstskjerm som setter opp modeller og kan hente prosjekter og samtaler fra andre kodeapper. Differ, nettleser, varsler og rekkefølgen i sidefanen har fått egne innstillinger.
+
+**GitHub**
+
+- **Koble til med GitHub CLI:** under **Innstillinger → GitHub** bruker appen innloggingen i `gh` for github.com, så du slipper å lage et token. Personlig tilgangstoken virker som før. Tokenet holdes i serverens minne, sendes bare til GitHub og aldri til kommandoer agenten kjører. GitHub er ikke lenger merket Beta.
+- **Pull requests og issues ved innstillingshjulet:** to knapper nederst i sidefanen åpner egne sider for alle prosjekter med en remote på github.com, eller ett prosjekt. Søk, sortering, filtre (tilstand, mine, tildelt meg, nevner meg, ber om min gjennomgang, etiketter) og lagrede visninger.
+- **Detaljer i appen:** beskrivelse, kommentarer og etiketter; for pull requests også grener, gjennomgang, sjekker og diff for endrede filer. **Start en Kode-tråd** fyller ut meldingsfeltet i et nytt utkast med tittel, nummer og lenke, og **Åpne på GitHub** åpner saken i nettleseren. GitHub-lenker i Chat og Kode åpnes i appen; det kan slås av. Appen skriver ikke til GitHub. [GitHub i Agentic Desktop](GITHUB.md)
+
+**Velkomst og import**
+
+- **Velkomstskjerm** første gang appen åpnes uten leverandør eller tråder: velg språk, legg til en leverandør, finn lokale modellservere eller prøv demo-modellen. Eksisterende installasjoner ser den ikke av seg selv; den åpnes igjen under **Innstillinger → Generelt → Velkomstskjerm**.
+- **Hent prosjekter og samtaler** fra Claude Code, Codex CLI, Gemini CLI og Pi på maskinen. Du ser mappe, kilde, antall tråder og siste aktivitet, og velger selv. Importerte tråder havner under Kode i prosjektet, viser kilden og kan fortsettes med hvilken modell som helst. Samme samtale importeres ikke to ganger, kildefilene endres aldri, og søket følger ikke symlenker. Bilder, vedlegg og internt modellinnhold følger ikke med. [Velkomst og import](VELKOMST-OG-IMPORT.md)
+
+**Innstillinger**
+
+- **Differ:** stablet eller side om side (med bryter i Endringer, og stablet automatisk i smale paneler), skjul endringer som bare gjelder mellomrom, filer åpne eller lukket fra start, og farger: rød og grønn eller blå og oransje.
+- **Nettleser:** søkemotor (DuckDuckGo, Google, Bing, Brave Search, Kagi, Ecosia eller egen adresse med `{q}`), som også brukes når modellen søker gjennom appens nettleser. Agentenes tilgang til nettleseren kan slås av, også per prosjekt. Lenker åpnes i appens nettleser eller standardnettleseren (Ctrl-klikk åpner alltid standardnettleseren). Under **Avansert**: standard zoom og om sidene skal vises lyst eller mørkt.
+- **Varsler:** systemvarsel, med eller uten lyd, når en tråd blir ferdig, feiler eller trenger svar eller godkjenning, og en melding i appen når en annen tråd gjør det. Gamle valg flyttes over.
+- **Sidefane:** prosjektene sorteres etter siste melding, sist opprettet eller navn, også i prosjektvelgeren og kommandopaletten.
+
+**Utelatt med vilje**
+
+- Standard skjermstørrelse i nettleseren og opptak av nettleseren, fordi appen ikke kan gjøre det på ordentlig. Knapper som kommenterer, fletter eller lukker på GitHub kommer eventuelt senere.
+
+**Kontroll:** typekontroll, 613 servertester, 356 UI-forløp, 55 kontroller av den pakkede appen og streng oversettelsessjekk (0 mangler av 4 549 tekster i hvert av de elleve språkene) består. GitHub-visningene er lest mot github.com med GitHub CLI; skriving til GitHub er ikke prøvd fordi appen ikke gjør det. Importen er testet med oppdiktede økter, ikke med ekte historikk. Oversettelsene av de nye tekstene er maskinlaget. Ikke prøvd mot ekte modeller.
+
 ## 1.0.0: Åpen kildekode, elleve nye språk og Kode Studio (21. november 2026, bygg 80)
 
 Første offentlige utgivelse. Agentic Desktop er nå åpen kildekode under MIT-lisensen, appen finnes på tolv språk, og alle åpne issues og pull requests fra 0.29-serien er rettet og flettet inn.
