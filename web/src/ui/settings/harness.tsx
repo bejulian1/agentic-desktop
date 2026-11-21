@@ -10,6 +10,7 @@ import { ModelContextSettings } from "./model-context";
 import { del, get, patch, post, put } from "../../lib/api";
 import { confirmDialog } from "../dialogs";
 import { app, currentProject, report, sortedProjects, toast } from "../../state/app";
+import { DiffBlock } from "../DiffBlock";
 import { IconChevronDown, IconCopy, IconPencil, IconReset } from "../icons";
 import { Select } from "../Select";
 import { openProjectSettings } from "../ProjectSettings";
@@ -59,20 +60,13 @@ function foldDiff(lines: DiffLineInfo[], context = 2): Array<DiffLineInfo | { ki
 export function DiffView(props: { lines: DiffLineInfo[]; label: string }) {
   const added = () => props.lines.filter((l) => l.kind === "add").length;
   const removed = () => props.lines.filter((l) => l.kind === "del").length;
+  const items = () => foldDiff(props.lines).map((line) => (line.kind === "fold" ? { kind: "skip" as const, count: line.count } : line));
   return (
     <div class="harness-diff-wrap">
       <div class="harness-diff-stats muted"><Rich text={t("{added} {removed} linjer")} parts={{ added: <span class="diff-add-count">+{added()}</span>, removed: <span class="diff-del-count">−{removed()}</span> }} /></div>
-      <pre class="harness-diff" aria-label={props.label} tabindex="0">
-        <For each={foldDiff(props.lines)}>
-          {(line) =>
-            line.kind === "fold" ? (
-              <span class="diff-line diff-fold">{plural(line.count, "… {count} lik linje …", "… {count} like linjer …")}</span>
-            ) : (
-              <span class={`diff-line diff-${line.kind}`}><span class="diff-sign" aria-hidden="true">{line.kind === "add" ? "+" : line.kind === "del" ? "−" : " "}</span>{line.text || " "}</span>
-            )
-          }
-        </For>
-      </pre>
+      <div class="harness-diff" aria-label={props.label} tabindex="0">
+        <DiffBlock items={items()} showLineNumbers={false} />
+      </div>
     </div>
   );
 }

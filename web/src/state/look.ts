@@ -3,10 +3,12 @@ import { t } from "../lib/i18n";
 // attributes and CSS variables on <html>, read by styles/settings.css. public/theme.js applies a
 // copy from localStorage before the first paint, so a stored accent or text size never flashes.
 // The rest are small behaviours: the mode the app opens in, a sound or a system notification when
-// a turn ends, and asking before the tab closes while a thread runs.
-import type { Settings, Thread } from "../../../shared/protocol";
+// a turn ends, fails or needs input/approval, and asking before the tab closes while a thread runs.
+import { threadNotificationsOf, type Settings, type Thread } from "../../../shared/protocol";
 import { on } from "../lib/socket";
-import { app, mode, setMode } from "./app";
+import { app, mode, scope, setMode, setSettingsOpen, settingsOpen, toast } from "./app";
+import { gridFor } from "./grid";
+import { openThread } from "./navigate";
 
 const LOOK_KEY = "ad-look";
 let current: Partial<Settings> = {};
@@ -30,6 +32,7 @@ function lookOf(settings: Partial<Settings>): Look {
   if (settings.codeThemeDark && settings.codeThemeDark !== "app") attrs["data-code-dark"] = settings.codeThemeDark;
   if (settings.reduceMotion) attrs["data-motion"] = "reduce";
   if (settings.wrapCode) attrs["data-wrap-code"] = "on";
+  if (settings.diffColors && settings.diffColors !== "red-green") attrs["data-diff-colors"] = settings.diffColors;
   if (settings.codeFontSize) {
     attrs["data-code-size"] = String(settings.codeFontSize);
     vars["--code-font-size"] = `${settings.codeFontSize}px`;
@@ -38,7 +41,7 @@ function lookOf(settings: Partial<Settings>): Look {
   return { attrs, vars };
 }
 
-const ATTRS = ["data-accent", "data-palette", "data-density", "data-ui-size", "data-code-font", "data-code-light", "data-code-dark", "data-motion", "data-wrap-code", "data-code-size"];
+const ATTRS = ["data-accent", "data-palette", "data-density", "data-ui-size", "data-code-font", "data-code-light", "data-code-dark", "data-motion", "data-wrap-code", "data-diff-colors", "data-code-size"];
 const VARS = ["--code-font-size", "--tab-size", "--font-mono"];
 
 // Called with the settings as the server sent them, so a field that was reset is gone here too.
@@ -103,32 +106,97 @@ export async function allowNotifications(): Promise<boolean> {
   return Notification.permission === "granted";
 }
 
-function notify(thread: Thread): void {
-  const when = current.notifyOnDone ?? "off";
-  if (when === "off" || typeof Notification === "undefined" || Notification.permission !== "granted") return;
-  if (when === "unfocused" && document.visibilityState === "visible" && document.hasFocus()) return;
-  const text = thread.lastStatus === "error" ? t("«{title}» stoppet med en feil.", { title: thread.title }) : t("«{title}» er ferdig.", { title: thread.title });
-  try {
-    new Notification("Agentic Desktop", { body: text, tag: `ad-turn-${thread.id}` });
-  } catch {
-    // Some browsers only allow notifications from a service worker.
+type ThreadNoticeKind = "done" | "error" | "approval" | "question";
+
+function noticeText(thread: Thread, kind: ThreadNoticeKind): string {
+  if (kind === "error") return t("«{title}» stoppet med en feil.", { title: thread.title });
+  if (kind === "approval") return t("«{title}» trenger godkjenning.", { title: thread.title });
+  if (kind === "question") return t("«{title}» venter på svar.", { title: thread.title });
+  return t("«{title}» er ferdig.", { title: thread.title });
+}
+
+function isThreadOpenInView(threadId: string): boolean {
+  if (settingsOpen()) return false;
+  const key = scope();
+  if (!key) return false;
+  return gridFor(key).panes().some((pane) => pane.threadId() === threadId);
+}
+
+function isAppFocused(): boolean {
+  return document.visibilityState === "visible" && document.hasFocus();
+}
+
+function notify(thread: Thread, kind: ThreadNoticeKind): void {
+  const modeChoice = threadNotificationsOf(current);
+  const text = noticeText(thread, kind);
+  const openTarget = () => {
+    setSettingsOpen(null);
+    const live = app.threads[thread.id] ?? thread;
+    void openThread(live);
+  };
+
+  if (modeChoice === "sound") chime();
+
+  if (modeChoice !== "off" && typeof Notification !== "undefined" && Notification.permission === "granted") {
+    const legacyUnfocusedOnly = current.notifyOnDone === "unfocused" && current.threadNotifications === undefined;
+    const focused = isAppFocused();
+    const shouldShowSystem = current.notifyOnDone === "always"
+      || !focused
+      || (!legacyUnfocusedOnly && !current.inAppNotifications);
+    if (shouldShowSystem) {
+      try {
+        const note = new Notification("Agentic Desktop", { body: text, tag: `ad-turn-${thread.id}-${kind}` });
+        note.onclick = () => {
+          window.focus();
+          openTarget();
+        };
+      } catch {
+        // Some browsers only allow notifications from a service worker.
+      }
+    }
+  }
+
+  // In-app toast when another thread finishes, fails or needs input/approval while the app has focus.
+  if (current.inAppNotifications === true && isAppFocused() && !isThreadOpenInView(thread.id)) {
+    toast(text, kind === "error" ? "error" : "info", { label: t("Åpne"), run: openTarget });
   }
 }
 
 let wired = false;
 const wasRunning = new Map<string, boolean>();
+const prevApprovals = new Map<string, number>();
+const prevQuestions = new Map<string, number>();
 
 function wire(): void {
   if (wired) return;
   wired = true;
-  for (const thread of Object.values(app.threads)) if (thread) wasRunning.set(thread.id, thread.running);
-  on("thread.changed", ({ thread }) => {
-    const before = wasRunning.get(thread.id) ?? false;
+  for (const thread of Object.values(app.threads)) {
+    if (!thread) continue;
     wasRunning.set(thread.id, thread.running);
-    if (!before || thread.running) return;
-    if (thread.lastStatus !== "done" && thread.lastStatus !== "error") return;
-    if (current.soundOnDone) chime();
-    notify(thread);
+    prevApprovals.set(thread.id, thread.pendingApprovals ?? 0);
+    prevQuestions.set(thread.id, thread.pendingQuestions ?? 0);
+  }
+  on("thread.changed", ({ thread }) => {
+    const beforeRun = wasRunning.get(thread.id) ?? false;
+    const beforeApprovals = prevApprovals.get(thread.id) ?? 0;
+    const beforeQuestions = prevQuestions.get(thread.id) ?? 0;
+    const nextApprovals = thread.pendingApprovals ?? 0;
+    const nextQuestions = thread.pendingQuestions ?? 0;
+    wasRunning.set(thread.id, thread.running);
+    prevApprovals.set(thread.id, nextApprovals);
+    prevQuestions.set(thread.id, nextQuestions);
+
+    if (nextApprovals > beforeApprovals) {
+      notify(thread, "approval");
+      return;
+    }
+    if (nextQuestions > beforeQuestions) {
+      notify(thread, "question");
+      return;
+    }
+    if (beforeRun && !thread.running && (thread.lastStatus === "done" || thread.lastStatus === "error")) {
+      notify(thread, thread.lastStatus);
+    }
   });
   addEventListener("beforeunload", (event) => {
     if (!current.confirmQuit || !Object.values(app.threads).some((t) => t?.running)) return;

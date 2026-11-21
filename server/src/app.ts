@@ -203,6 +203,7 @@ async function startAppWithClaim(
     downloads,
     cookies: importedCookies,
     askSignedIn: () => store.settings().browserAskSignedIn !== false,
+    appearance: () => store.settings().browserAppearance ?? "system",
     profileDir: path.join(config.dataDir, "chrome-profile"),
     idleMs: config.browserIdleMs,
     env,

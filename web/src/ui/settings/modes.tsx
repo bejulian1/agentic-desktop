@@ -3,9 +3,8 @@
 // 25.2: Tekst, Token-historikk or Prosjektboks, the same with and without a project), and what
 // shows beside a thread. Chat: the HTML preview and Chat projects.
 import { createSignal, createUniqueId, For, Show, type JSX } from "solid-js";
-import { CHAT_PERSONALITIES, chatToolsOf, type ChatToolId, type CodeStart, type CodeStartSize } from "../../../../shared/protocol";
-import { patch } from "../../lib/api";
-import { app, pinnedSummary, setApp, setPinnedSummary, sortedChatProjects } from "../../state/app";
+import { CHAT_PERSONALITIES, chatToolsOf, searchEngineById, searchEngineOf, type ChatToolId, type CodeStart, type CodeStartSize } from "../../../../shared/protocol";
+import { app, pinnedSummary, setPinnedSummary, setSettingsOpen, sortedChatProjects } from "../../state/app";
 import { IconMark, IconPlus } from "../icons";
 import { Group, Page, Row, save, Segmented, Toggle } from "./parts";
 import { CodeAppearance } from "./code-appearance";
@@ -127,42 +126,20 @@ export function CodeSettings() {
   );
 }
 
-// Round 13 (SPEC 27.2): the page the app's browser searches on, with {q} for the words. Saved when
-// the field is left or Enter is pressed; the server checks it and says what is wrong.
+// Unified search engine lives in Innstillinger → Nettleser; show a quiet shortcut here.
 function SearchUrlRow() {
-  const [value, setValue] = createSignal(app.settings.webSearchUrl ?? "");
-  const [error, setError] = createSignal("");
-  const commit = async () => {
-    const next = value().trim();
-    if (next === (app.settings.webSearchUrl ?? "")) return setError("");
-    try {
-      await patch("/api/settings", { webSearchUrl: next || null });
-      setApp("settings", "webSearchUrl", next || undefined!);
-      setError("");
-    } catch (err) {
-      setError((err as Error).message.replace(/^\d{3}\s*/, ""));
-    }
+  const engineLabel = () => {
+    const id = searchEngineOf(app.settings);
+    if (id === "custom") return app.settings.webSearchUrl || t("Egendefinert");
+    return searchEngineById(id)?.label ?? "DuckDuckGo";
   };
   return (
-    <div class="setting setting-block search-url-row">
-      <div class="setting-text">
-        <strong>{t("Søkeside for nettsøk")}</strong>
-        <span class="muted">{t("Brukes når modellen ikke har eget nettsøk. Appens nettleser åpner siden uten å vise den, og leser treffene. Skriv {placeholder} der søkeordene skal stå. Tom betyr ingen søkeside.", { placeholder: "{q}" })}</span>
-      </div>
-      <input
-        class="input"
-        aria-label={t("Søkeside for nettsøk")}
-        placeholder="https://søkemotor.example/sok?q={q}"
-        spellcheck={false}
-        value={value()}
-        onInput={(e) => setValue(e.currentTarget.value)}
-        onBlur={() => void commit()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void commit();
-        }}
-      />
-      <Show when={error()}><p class="field-error" role="alert">{error()}</p></Show>
-    </div>
+    <Row
+      label={t("Søkemotor")}
+      text={t("Brukes for modellens nettsøk når modellen ikke har eget søk, og i adressefeltet i nettleserpanelet. Aktivt valg: {engine}.", { engine: engineLabel() })}
+    >
+      <button type="button" class="btn btn-small" onClick={() => setSettingsOpen("browser")}>{t("Åpne Nettleser-innstillinger")}</button>
+    </Row>
   );
 }
 

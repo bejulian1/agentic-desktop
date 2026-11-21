@@ -139,12 +139,11 @@ flow("når en tur er ferdig: lyd og systemvarsel, og appen åpner i valgt modus"
   });
   await h.reload();
   await openSettings(page);
-  await page.getByRole("switch", { name: "Spill av en lyd" }).click();
-  await choose(page, "Systemvarsel", "Alltid");
+  await choose(page, "Trådvarsler", "Varsler med lyd");
   await choose(page, "Åpne appen i", "Kode");
   await waitFor(async () => {
     const { settings } = await h.api("GET", "/api/bootstrap");
-    return settings.soundOnDone === true && settings.notifyOnDone === "always" && settings.startMode === "code";
+    return settings.threadNotifications === "sound" && settings.soundOnDone === true && settings.startMode === "code";
   }, "lagret");
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
 

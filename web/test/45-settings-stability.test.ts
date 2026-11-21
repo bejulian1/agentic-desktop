@@ -99,10 +99,10 @@ for (const scenario of [
     }
     assert.ok(longPages > 0 && shortPages > 0, "både lange og korte sider ble byttet uten horisontalt hopp");
     // Controls still work after repeated navigation; verify the resulting persisted setting.
-    const sound = page.getByRole("switch", { name: "Spill av en lyd", exact: true });
-    const enabled = !await sound.isChecked();
-    await sound.setChecked(enabled);
-    await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.soundOnDone === enabled, "bryteren virker etter sidebytter");
+    const inApp = page.getByRole("switch", { name: "Varsler i appen", exact: true });
+    const enabled = !await inApp.isChecked();
+    await inApp.setChecked(enabled);
+    await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.inAppNotifications === enabled, "bryteren virker etter sidebytter");
     const search = page.getByLabel("Søk i innstillinger");
     await search.fill("appikon");
     await page.locator(".search-result", { hasText: "Appikon" }).click();

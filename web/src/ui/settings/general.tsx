@@ -5,10 +5,10 @@ import {setModsOpen,uiMods} from "../../state/ui-mods";
 // Generelt, Utseende and Personvern og data. Kode and Chat are in ./modes.tsx (round 9). Every control here is saved on the server and acts at
 // once. Native window behavior is shown only inside the Electron app.
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
-import type { AccentColor, BusyMessages, Density, EnterKey, GlobalConfig, PermissionMode, StartMode, ThemeSetting, TurnNotify } from "../../../../shared/protocol";
+import { threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThemeSetting, type ThreadNotifications } from "../../../../shared/protocol";
 import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
-import { app, deleteThread, report, setApp, setSettingsOpen, toast } from "../../state/app";
+import { app, deleteThread, effectiveProjectOrder, report, setApp, setProjectSort, setSettingsOpen, toast } from "../../state/app";
 import { allowNotifications, chime } from "../../state/look";
 import { openWelcome } from "../../state/welcome";
 import { confirmDialog } from "../dialogs";
@@ -46,11 +46,11 @@ export function LanguageRow() {
 }
 
 export function General() {
-  const notifyChoice = async (value: TurnNotify) => {
+  const notifyChoice = async (value: ThreadNotifications) => {
     if (value !== "off" && !(await allowNotifications())) {
       toast(t("Nettleseren tillater ikke varsler for denne siden. Varsler kan slås på i nettleserens innstillinger for nettstedet."), "info");
     }
-    save({ notifyOnDone: value });
+    save({ threadNotifications: value });
   };
   return (
     <Page title={t("Generelt")}>
@@ -77,20 +77,23 @@ export function General() {
           <Choice<"new" | "resume"> label={t("Samtale ved oppstart")} value={app.settings.startConversation ?? "new"} options={[{ value: "new", label: t("Ny, tom samtale") }, { value: "resume", label: t("Fortsett der jeg slapp") }]} onChange={(v) => save({ startConversation: v })} />
         </Row>
       </Group>
-      <Group title={t("Når en tur er ferdig")}>
-        <Row label={t("Spill av en lyd")} text={t("En kort lyd når agenten er ferdig eller stopper med en feil.")}>
+      <Group title={t("Varsler")}>
+        <Row label={t("Trådvarsler")} text={t("Varsle når en tråd er ferdig, feiler eller trenger svar eller godkjenning.")}>
           <button type="button" class="btn btn-small try-sound" title={t("Spill av lyden nå")} onClick={() => chime()}><IconPlay size={12} />{t("Prøv")}</button>
           <span class="setting-control-sep" aria-hidden="true" />
-          <input type="checkbox" role="switch" class="switch" aria-label={t("Spill av en lyd")} checked={app.settings.soundOnDone ?? false} onChange={(e) => save({ soundOnDone: e.currentTarget.checked })} />
-        </Row>
-        <Row label={t("Systemvarsel")} text={t("Et varsel fra nettleseren med navnet på tråden. Nettleseren spør om lov første gang.")}>
-          <Choice<TurnNotify>
-            label={t("Systemvarsel")}
-            value={app.settings.notifyOnDone ?? "off"}
-            options={[{ value: "off", label: t("Av") }, { value: "unfocused", label: t("Når appen ikke er i fokus") }, { value: "always", label: t("Alltid") }]}
+          <Choice<ThreadNotifications>
+            label={t("Trådvarsler")}
+            value={threadNotificationsOf(app.settings)}
+            options={[{ value: "off", label: t("Av") }, { value: "notify", label: t("Varsler") }, { value: "sound", label: t("Varsler med lyd") }]}
             onChange={(v) => void notifyChoice(v)}
           />
         </Row>
+        <Toggle
+          label={t("Varsler i appen")}
+          text={t("Vis et varsel i appen når en annen tråd er ferdig, feiler eller trenger svar eller godkjenning mens appen er i fokus.")}
+          checked={app.settings.inAppNotifications === true}
+          onChange={(inAppNotifications) => save({ inAppNotifications })}
+        />
       </Group>
       <Group title={t("Samtale")}>
         <Row label={t("Enter i meldingsfeltet")} text={t("Enter sender, og Shift+Enter gir ny linje. Eller omvendt: Enter gir ny linje, og Ctrl+Enter sender.")}>
@@ -260,6 +263,18 @@ export function Appearance() {
             value={app.settings.sidebarCollapsed ?? "rail"}
             options={[{ value: "rail", label: t("Tynn ikonrad") }, { value: "hidden", label: t("Helt borte") }]}
             onChange={(v) => save({ sidebarCollapsed: v })}
+          />
+        </Row>
+        <Row label={t("Prosjektrekkefølge")} text={t("Rekkefølgen på prosjekter i sidefanen, prosjektvelgeren og kommandopaletten.")}>
+          <Choice<ProjectOrder>
+            label={t("Prosjektrekkefølge")}
+            value={effectiveProjectOrder()}
+            options={[
+              { value: "recent", label: t("Siste brukermelding") },
+              { value: "created", label: t("Sist opprettet") },
+              { value: "name", label: t("Navn (A–Å)") },
+            ]}
+            onChange={(v) => setProjectSort(v)}
           />
         </Row>
       </Group>

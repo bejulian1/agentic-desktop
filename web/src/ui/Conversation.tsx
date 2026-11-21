@@ -17,6 +17,8 @@ import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
 import { app, modelName, report, toast } from "../state/app";
 import { patch, post } from "../lib/api";
 import { openThread } from "../state/navigate";
+import { openLink } from "../lib/links";
+import { githubReference } from "../state/github";
 import { registerJumper } from "../state/message-jump";
 import { confirmDialog, promptDialog } from "./dialogs";
 import type { Thread } from "../../../shared/protocol";
@@ -636,11 +638,23 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
       }
     });
 
+    const onLinkClick = (event: MouseEvent) => {
+      const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
+      if (!anchor || !scroller.contains(anchor) || anchor.hasAttribute("download")) return;
+      if (
+        event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
+        && app.settings.githubOpenLinks !== false
+        && anchor.closest('.row-text[data-row="text"], .row-user[data-row="user"]')
+        && githubReference(anchor.href)
+      ) return;
+      openLink(anchor.href, event, true);
+    };
     props.jump?.(() => (scroller.scrollTop = 0));
     scroller.addEventListener("click", handleCopyClick);
     scroller.addEventListener("click", onAction);
     scroller.addEventListener("click", onShiftClick);
     scroller.addEventListener("click", onRun);
+    scroller.addEventListener("click", onLinkClick);
     // Ctrl+F searches the conversation of the pane that has focus.
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "f") return;

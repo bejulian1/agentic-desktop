@@ -120,6 +120,19 @@ function threadItem(thread: Thread, detail?: string): Item {
   };
 }
 
+function projectItem(project: Project): Item {
+  return {
+    key: `p:${project.id}`,
+    icon: () => <ProjectGlyph project={project} size={15} />,
+    label: project.name,
+    detail: project.path,
+    run: () => {
+      setProjectId(project.id);
+      setMode("code");
+    },
+  };
+}
+
 function openFile(project: Project, path: string): void {
   setProjectId(project.id);
   setMode("code");
@@ -218,10 +231,13 @@ function Palette(props: { initial: PaletteTab; initialQuery: string }) {
       const list = (byText.length ? byText : serverThreads).map((th) => threadItem(th, t("Treff i meldingene · {time}", { time: relativeTime(th.updatedAt) })));
       return [{ title: t("Treff i meldingene"), items: list, note: found()?.query === q && !list.length ? t("Ingen treff") : undefined }];
     }
+    const projects = sortedProjects();
+    const matchedProjects = q ? projects.filter((p) => matches(`${p.name} ${p.path}`, q)) : projects;
     // Alle
     if (!q) {
       return [
         { title: t("Hurtighandlinger"), items: actionItems(defs.filter((a) => a.quick)) },
+        { title: t("Prosjekter"), items: matchedProjects.slice(0, 8).map(projectItem) },
         { title: t("Nylige tråder"), items: recentThreads().slice(0, 5).map((th) => threadItem(th)) },
         { title: t("Nylig åpnet"), items: recent },
       ].filter((s) => s.items.length);
@@ -230,6 +246,7 @@ function Palette(props: { initial: PaletteTab; initialQuery: string }) {
     const threads = [...localThreads, ...serverThreads.filter((th) => !localThreads.some((l) => l.id === th.id))].slice(0, 8);
     const out = [
       { title: t("Handlinger"), items: actionItems(matchedActions.slice(0, 6)) },
+      { title: t("Prosjekter"), items: matchedProjects.slice(0, 6).map(projectItem) },
       { title: t("Tråder"), items: threads.map((th) => threadItem(th)) },
       { title: t("Filer"), items: fileHits.slice(0, 6) },
     ].filter((s) => s.items.length);

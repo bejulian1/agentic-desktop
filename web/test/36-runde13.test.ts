@@ -188,13 +188,17 @@ flow("Chat: verktøymenyen ved + og valg som gjelder per tråd, med standard fra
   await page.getByTestId("chat-tools-button").click();
   await waitFor(async () => (await toolItem(page, "Nettsøk").getAttribute("aria-checked")) === "true" && (await toolItem(page, "Minne").getAttribute("aria-checked")) === "false", "trådens egne valg");
 
-  // Innstillinger → Chat sets the defaults, and checks the search page.
+  // Innstillinger → Chat sets the defaults, and links to Nettleser for the unified search engine.
   await toolMenu(page).getByRole("button", { name: "Innstillinger → Chat" }).click();
   const settings = page.locator(".settings-section");
   await settings.getByRole("heading", { name: "Verktøy i nye chatter" }).waitFor();
   await settings.locator("label.setting", { hasText: "Les nettsider" }).getByRole("switch").check();
   await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.chatTools?.fetch === true, "standard lagret");
-  const url = settings.getByLabel("Søkeside for nettsøk", { exact: true });
+  await settings.getByRole("button", { name: "Åpne Nettleser-innstillinger" }).click();
+  await settings.getByRole("heading", { level: 1, name: "Nettleser" }).waitFor();
+  await settings.getByRole("button", { name: "Søkemotor" }).click();
+  await page.getByRole("menuitemradio", { name: "Egendefinert" }).click();
+  const url = settings.getByLabel("Egendefinert søke-adresse", { exact: true });
   await url.fill("https://sok.example/sok");
   await url.press("Enter");
   await settings.getByRole("alert").getByText(/\{q\}/).waitFor();

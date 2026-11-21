@@ -322,3 +322,74 @@ button.setting.search-result:hover { background: var(--hover); }
 .start-sketch-card i { display: block; width: 70%; height: 3px; border-radius: 2px; background: var(--border-strong); }
 .start-sketch-card i + i { width: 52%; }
 .start-card[aria-checked="true"] .start-sketch-mark { color: var(--accent-text); }
+
+/* Diff colour scheme override (colour-blind-friendly Blue & orange). Higher specificity so it wins over theme presets. */
+:root[data-diff-colors="blue-orange"],
+:root[data-palette][data-diff-colors="blue-orange"] {
+  --add-bg: #e3f0fd;
+  --add-text: #1556a0;
+  --add-word-bg: rgba(21, 86, 160, 0.22);
+  --del-bg: #fdf0e2;
+  --del-text: #9d4b0a;
+  --del-word-bg: rgba(157, 75, 10, 0.22);
+}
+:root[data-theme="dark"][data-diff-colors="blue-orange"],
+:root[data-theme="dark"][data-palette][data-diff-colors="blue-orange"] {
+  --add-bg: #1c2e45;
+  --add-text: #8bc2ff;
+  --add-word-bg: rgba(139, 194, 255, 0.26);
+  --del-bg: #3e2a19;
+  --del-text: #f4b276;
+  --del-word-bg: rgba(244, 178, 118, 0.26);
+}
+
+/* Colour swatch dots in Select button and menu items (e.g. Diff colours). */
+.select-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.select-swatch i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Collapsible Advanced disclosure row inside a Settings group (e.g. Browser). */
+.settings-advanced-toggle {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 40px;
+  padding-block: 8px;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.settings-advanced-toggle:hover {
+  background: var(--hover);
+  color: var(--text-2);
+}
+.settings-advanced-chevron {
+  display: inline-flex;
+  transform: rotate(-90deg);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.settings-advanced-chevron.open {
+  transform: rotate(0deg);
+}
+.search-url-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+.search-url-input-row .input {
+  flex: 1;
+  min-width: 0;
+}

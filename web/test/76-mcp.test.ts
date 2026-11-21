@@ -35,7 +35,7 @@ flow("MCP-servere: forhåndsvalg, ekte stdio-server, skjult hemmelighet, verktø
   await page.screenshot({ path: "/tmp/ad-025-mcp-empty-dark.png" });
 
   // GitHub: an HTTP address and a secret Authorization header, nothing saved or connected.
-  await settings.getByRole("button", { name: "GitHub", exact: true }).click();
+  await settings.locator("button.btn", { hasText: /^GitHub$/ }).click(); // the MCP preset, not the GitHub settings page in the nav
   const form = page.getByRole("form", { name: "MCP-server" });
   await form.waitFor();
   assert.equal(await form.getByLabel("Navn", { exact: true }).inputValue(), "GitHub");
@@ -191,7 +191,7 @@ flow("MCP-servere i lyst tema og med en server som ikke starter", async (h) => {
   await broken.getByRole("alert").waitFor();
   assert.notEqual((await broken.getByRole("alert").innerText()).trim(), "", "feilen er forklart");
   await page.screenshot({ path: "/tmp/ad-025-mcp-list-light.png" });
-  await settings.getByRole("button", { name: "GitHub", exact: true }).click();
+  await settings.locator("button.btn", { hasText: /^GitHub$/ }).click(); // the MCP preset, not the GitHub settings page in the nav
   await page.getByRole("form", { name: "MCP-server" }).waitFor();
   await page.screenshot({ path: "/tmp/ad-025-mcp-form-light.png" });
 });

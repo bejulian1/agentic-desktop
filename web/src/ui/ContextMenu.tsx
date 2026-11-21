@@ -11,6 +11,7 @@ export type MenuEntry =
   | {
       label: string;
       icon?: (p: { size?: number }) => JSX.Element;
+      swatch?: readonly [string, string];
       keys?: string; // a shortcut id from SHORTCUTS
       hint?: string; // shown on the right instead of keys
       run?: () => unknown;
@@ -135,6 +136,7 @@ function Level(props: { entries: MenuEntry[]; anchor: MenuAnchor; label: string;
                 }}
               >
                 <Show when={entry.icon} fallback={<Show when={entry.checked !== undefined}><span class="menu-check">{entry.checked ? <IconCheck size={14} /> : null}</span></Show>}>{(Icon) => Icon()({ size: 15 })}</Show>
+                <Show when={entry.swatch}>{(colors) => <span class="select-swatch" aria-hidden="true"><i style={{ background: colors()[0] }} /><i style={{ background: colors()[1] }} /></span>}</Show>
                 <span class="menu-name">{entry.label}</span>
                 <Show when={entry.chosen || entry.toggle}><span class="menu-check menu-check-end"><IconCheck size={14} /></span></Show>
                 <Show when={keys()}><kbd class="menu-keys">{keys()}</kbd></Show>

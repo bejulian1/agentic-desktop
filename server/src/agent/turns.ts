@@ -45,13 +45,13 @@ export function countChanges(before: string, after: string): { additions: number
   return { additions, deletions };
 }
 
-function textChanges(before: Uint8Array | null, after: Uint8Array | null) {
+function textChanges(before: Uint8Array | null, after: Uint8Array | null, ignoreWhitespace = false) {
   const a = decode(before);
   const b = decode(after);
   const binary = (before !== null && (a === null || a.includes("\0"))) || (after !== null && (b === null || b.includes("\0")));
   return binary
     ? { additions: 0, deletions: 0, binary: true, countsExact: false }
-    : { ...lineChangeCounts(a, b), binary: false };
+    : { ...lineChangeCounts(a, b, { ignoreWhitespace }), binary: false };
 }
 
 export class Turns {
@@ -96,14 +96,14 @@ export class Turns {
     return changed;
   }
 
-  diff(turnId: string): TurnDiff {
+  diff(turnId: string, ignoreWhitespace = false): TurnDiff {
     const files = this.store.turnFiles(turnId).filter((row) => row.change);
     return {
       turnId,
       files: files.map((row) => ({
         path: row.path,
         change: row.change!,
-        ...textChanges(row.before, row.after),
+        ...textChanges(row.before, row.after, ignoreWhitespace),
         ...(row.interleaved ? { overlapping: true } : {}),
         before: decode(row.before),
         after: decode(row.after),

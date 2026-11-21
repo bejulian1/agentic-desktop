@@ -48,7 +48,7 @@ import { githubRoom, chatProjectPageId, closeProfile, openProfile, profileOpen }
 import { IconInfo, IconKeyboard, IconSun, IconTerminal, IconUser, IconPencil as IconEdit, IconPlusCircle as IconAddRun, IconPin as IconPinned, IconTrash as IconRemove } from "./icons";
 import { homeStats, loadHomeStats, runsFinished } from "../state/home";
 import { formatTokens } from "../lib/format";
-import { LOCAL_SCOPE, modelName, projectGroup, projectSort, scopeOf, setAllCollapsed, setProjectGroup, setProjectSort, sortedChatProjects, type ProjectSort } from "../state/app";
+import { effectiveProjectOrder, LOCAL_SCOPE, modelName, projectGroup, scopeOf, setAllCollapsed, setProjectGroup, setProjectSort, sortedChatProjects, type ProjectSort } from "../state/app";
 import { moveToSection, sectionsFor, setShowPinned, setShowProjects, showPinned, showProjects } from "../state/app";
 import type { SidebarSection } from "../../../shared/protocol";
 import { deleteSection, newSection, renameSection } from "./sidebar-sections";
@@ -725,7 +725,7 @@ function SidebarMenu(props: { foldIds: () => string[] }) {
     {
       label: t("Sorter samtaler etter"),
       icon: IconSort,
-      children: SORTS.map((sort) => ({ label: sort.label, chosen: projectSort() === sort.id, run: () => setProjectSort(sort.id) })),
+      children: SORTS.map((sort) => ({ label: sort.label, chosen: effectiveProjectOrder() === sort.id, run: () => setProjectSort(sort.id) })),
     },
     "sep",
     { heading: <span class="menu-heading">{t("Vis")}</span> },
@@ -820,7 +820,7 @@ function DateList(props: { threads: Thread[]; activeIds: ReadonlySet<string>; sh
   const shown = () => (all() || props.threads.length <= LIST_SHOWN + 2 ? props.threads : props.threads.filter((t, i) => i < LIST_SHOWN || props.activeIds.has(t.id) || t.running || t.pendingApprovals > 0));
   const groups = createMemo(() => {
     const now = Date.now();
-    const at = (t: Thread) => (projectSort() === "created" ? t.createdAt : t.updatedAt);
+    const at = (t: Thread) => (effectiveProjectOrder() === "created" ? t.createdAt : t.updatedAt);
     const out: Array<{ bucket: number; threads: Thread[] }> = [];
     for (const thread of shown()) {
       const bucket = dateBucket(at(thread), now);
@@ -879,7 +879,7 @@ export function Sidebar() {
   // dimmed with a clock, until the time is up.
   const order = (a: Thread, b: Thread) =>
     Number(isSnoozed(a)) - Number(isSnoozed(b)) ||
-    (projectSort() === "name" ? a.title.localeCompare(b.title, language(), { sensitivity: "base" }) : projectSort() === "created" ? b.createdAt - a.createdAt : b.updatedAt - a.updatedAt);
+    (effectiveProjectOrder() === "name" ? a.title.localeCompare(b.title, language(), { sensitivity: "base" }) : effectiveProjectOrder() === "created" ? b.createdAt - a.createdAt : b.updatedAt - a.updatedAt);
   const threads = createMemo(() => Object.values(app.threads).filter(listed));
   const live = createMemo(() => threads().filter((t) => !t.archived).sort(order));
   // ⋯ → Vis → Festet. Pinned threads get their own place under Festet and are not shown twice; with
@@ -900,13 +900,8 @@ export function Sidebar() {
   const forProject = (id: string) => unpinned().filter((t) => t.projectId === id);
   const forChatProject = (id: string) => unpinned().filter((t) => t.chatProjectId === id && !t.projectId);
   const archivedCount = createMemo(() => threads().filter((t) => t.archived).length);
-  // Projects in the order chosen in ⋯.
-  const ordered = createMemo(() => {
-    const list = [...sortedProjects()];
-    if (projectSort() === "name") list.sort((a, b) => a.name.localeCompare(b.name, language(), { sensitivity: "base" }));
-    else if (projectSort() === "created") list.sort((a, b) => b.createdAt - a.createdAt);
-    return list;
-  });
+  // Projects in the order chosen in Innstillinger → Utseende → Sidefane or ⋯.
+  const ordered = createMemo(() => sortedProjects());
   // Pinned projects get their own place under Festet and are not shown twice.
   const pinnedProjects = createMemo(() => (festet() ? ordered().filter((p) => p.pinned) : []));
   const otherProjects = createMemo(() => ordered().filter((p) => !(festet() && p.pinned)));

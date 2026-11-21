@@ -64,7 +64,7 @@ import { FileState } from "./filestate.ts";
 import { decide, effectiveMode } from "./permissions.ts";
 import { abilities, CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, proposeChatMemory, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
 import { browserWeb, demoWeb, sourcesText, webFetchTool, webSearchTool, type WebAccess, type WebReader } from "./web.ts";
-import { chatToolsOf, modelAllowsTools, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
+import { agentBrowserAllowed, chatToolsOf, modelAllowsTools, modelSearchUrl, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
 import { localKindFor } from "../providers/presets.ts";
 import type { Turns } from "./turns.ts";
 import type { HookBatch, Hooks } from "../hooks.ts";
@@ -624,6 +624,7 @@ export class Runner {
     if (thread.planMode) hidden.add("update_plan"); // plan mode answers with its plan as text
     // Denne datamaskinen is not a project in the store: no helper threads, task list or browser tab.
     if (project.id === LOCAL_PANEL) for (const tool of CODE_TOOLS) if (/^(?:thread_|task_|browser_)/.test(tool.def.name)) hidden.add(tool.def.name);
+    if (!agentBrowserAllowed(this.store.settings(), project)) for (const tool of CODE_TOOLS) if (tool.def.name.startsWith("browser_")) hidden.add(tool.def.name);
     return [...CODE_TOOLS.filter((t) => !hidden.has(t.def.name) && (!thread.planMode || READ_ONLY_TOOLS.has(t.def.name))),...mods, ...this.mcpTools(thread)];
   }
 
@@ -650,7 +651,7 @@ export class Runner {
   private webAccess(route: WebSearchRoute | null): WebAccess | undefined {
     if (route === "demo") return demoWeb(this.deps.web);
     if (!this.deps.web) return undefined;
-    return browserWeb(this.deps.web, this.store.settings().webSearchUrl);
+    return browserWeb(this.deps.web, modelSearchUrl(this.store.settings()));
   }
 
   // Kode searches with the browser or as a demo; the provider's own search is for Chat.
@@ -1637,7 +1638,10 @@ export class Runner {
 
     const available = offered ?? new Set(TOOLS_BY_NAME.keys());
     const missing = tool ? (tool.def.parameters.required as string[]).filter((field) => call.input?.[field] === undefined || call.input?.[field] === null) : [];
-    const problem = !tool || (offered && !available.has(tool.def.name) && !(thread.planMode && !READ_ONLY_TOOLS.has(tool.def.name)))
+    const browserBlocked = !!tool && tool.def.name.startsWith("browser_") && !agentBrowserAllowed(this.store.settings(), this.store.project(project.id) ?? project);
+    const problem = browserBlocked
+      ? sourceText("Tilgang til den delte nettleseren er slått av for agenter i innstillingene.")
+      : !tool || (offered && !available.has(tool.def.name) && !(thread.planMode && !READ_ONLY_TOOLS.has(tool.def.name)))
       ? `Ukjent verktøy: ${original.name}. Verktøyene du har: ${[...available].join(", ")}.`
       : thread.planMode && !READ_ONLY_TOOLS.has(call.name)
       ? `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`
@@ -1760,6 +1764,9 @@ export class Runner {
       return finish("denied", { text: `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`, isError: true });
     }
     const currentProject = this.projectOf(currentThread)!;
+    if (call.name.startsWith("browser_") && !agentBrowserAllowed(this.store.settings(), currentProject)) {
+      return finish("denied", { text: sourceText("Tilgang til den delte nettleseren er slått av for agenter i innstillingene."), isError: true });
+    }
     if (!asks && effectiveMode(currentProject, currentThread) !== effectiveMode(project, thread) &&
         decide(tool, call.input, currentProject, currentThread, this.store, this.deps.dataDir, local && { isAllowed: (kind, value) => local.has(`${kind}:${value}`) }).ask) {
       return finish("denied", { text: "Tillatelsene er endret. Be om godkjenning med et nytt verktøykall.", isError: true });

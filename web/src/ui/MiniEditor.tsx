@@ -18,6 +18,7 @@ import { render } from "solid-js/web";
 import type { EditableFile, TurnDiff } from "../../../shared/protocol";
 import { ApiError, get, put } from "../lib/api";
 import { diffLines, hunks, type DiffLine } from "../lib/diff";
+import { DiffBlock } from "./DiffBlock";
 import { outline, symbolAt, type OutlineItem, type SymbolKind } from "../lib/outline";
 import { on } from "../lib/socket";
 import { app, report, toast } from "../state/app";
@@ -333,7 +334,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
     setSymbols(outline(text, language.outline));
     const b = before();
     if (b !== undefined) {
-      const lines = diffLines(b, text);
+      const lines = diffLines(b, text, { ignoreWhitespace: app.settings.diffIgnoreWhitespace === true });
       view.dispatch({ effects: setChanges.of(changeMarkers(view.state.doc, lines)) });
       setDiffStats({ add: lines.filter((l) => l.kind === "add").length, del: lines.filter((l) => l.kind === "del").length });
     }
@@ -719,11 +720,21 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
     if (active?.close === close) active = null;
   });
 
+  const [splitItems, setSplitItems] = createSignal<Array<DiffLine | { kind: "skip"; count: number }>>([]);
+  const isSplitDiff = () => mode() === "diff" && app.settings.diffLayout === "split";
+
   // 4c. The changes view: the file's hunks with their context, read only.
   const showDiff = async () => {
     if (!view || before() === undefined) return;
     setMode("diff");
-    const lines = hunks(diffLines(before()!, view.state.doc.toString()));
+    const ignoreWhitespace = app.settings.diffIgnoreWhitespace === true;
+    const lines = hunks(diffLines(before()!, view.state.doc.toString(), { ignoreWhitespace }));
+    setSplitItems(lines);
+    if (app.settings.diffLayout === "split") {
+      diffView?.destroy();
+      diffView = undefined;
+      return;
+    }
     const numbers: string[] = [];
     const kinds: string[] = [];
     const text = lines.map((l) => {
@@ -951,7 +962,10 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
             </div>
           </Show>
           <div class="mini-cm" ref={host} hidden={mode() !== "file" || status() !== "ready"} />
-          <div class="mini-cm" ref={diffHost} hidden={mode() !== "diff"} />
+          <div class="mini-cm" ref={diffHost} hidden={mode() !== "diff" || isSplitDiff()} />
+          <Show when={isSplitDiff()}>
+            <div class="mini-diff-split"><DiffBlock items={splitItems()} ignoreWhitespace={app.settings.diffIgnoreWhitespace === true} /></div>
+          </Show>
         </div>
       </div>
 

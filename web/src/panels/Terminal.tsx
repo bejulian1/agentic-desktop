@@ -16,6 +16,7 @@ import { app, LOCAL_SCOPE, mode, report, scope, scopeOf, toast, untitled } from 
 import { gridFor } from "../state/grid";
 import { deliverToComposer } from "../state/composer-delivery";
 import { formatTerminalShare } from "../lib/terminal-share";
+import { openLink } from "../lib/links";
 import { IconClose } from "../ui/icons";
 import { closePanelTool, showPanel } from "../state/panel";
 import { publishPanelSessions, releasePanelSessions, takeTerminalRequest, terminalRequest } from "../state/panel-sessions";
@@ -99,6 +100,26 @@ function View(props: { projectId: string; tab: Tab }) {
     ];
     const data = terminal.onData((input) => send({ type: "terminal.input", terminalId, data: input }));
     const selection = terminal.onSelectionChange(() => setHasSelection(!!terminal.getSelection().trim()));
+    const linkProvider = terminal.registerLinkProvider({
+      provideLinks(lineNumber, callback) {
+        const line = terminal.buffer.active.getLine(lineNumber - 1);
+        if (!line) return callback(undefined);
+        const text = line.translateToString(true);
+        const matches = [...text.matchAll(/https?:\/\/[^\s<>"'`\])]+/g)];
+        if (!matches.length) return callback(undefined);
+        callback(matches.map((match) => {
+          const uri = match[0].replace(/[.,;:!?]+$/, "");
+          const startX = (match.index ?? 0) + 1;
+          return {
+            range: { start: { x: startX, y: lineNumber }, end: { x: startX + uri.length - 1, y: lineNumber } },
+            text: uri,
+            activate(event: MouseEvent, linkText: string) {
+              openLink(linkText, event, false);
+            },
+          };
+        }));
+      },
+    });
     const parsed = terminal.onWriteParsed(() => {
       const buffer = terminal.buffer.active;
       // A prompt near the end normally answers this immediately, without copying scrollback
@@ -112,6 +133,7 @@ function View(props: { projectId: string; tab: Tab }) {
       for (const stop of stops) stop();
       data.dispose();
       selection.dispose();
+      linkProvider.dispose();
       parsed.dispose();
     });
   });

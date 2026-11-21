@@ -34,7 +34,7 @@ import type {
   ThemeSetting,
   Thread,
 } from "../../../shared/protocol.ts";
-import { modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, type ProjectConfig } from "../../../shared/protocol.ts";
+import { BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
 import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS } from "../../../shared/protocol.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
@@ -143,7 +143,7 @@ export interface ApiDeps {
   threadChanged: (threadId: string) => void;
   downloads?: Downloads; // the Browser panel's downloads, v0.6
   servers?: Servers; // servers the app's own processes started, v0.6
-  browser?: { running: boolean; close: () => Promise<void>; annotationSnapshot?: (projectId: string, tabId: string) => Promise<BrowserAnnotationSnapshot>; screenshot?: (projectId: string, tabId?: string) => Promise<{ png: Buffer; url: string }> }; // Lagring closes Chrome before it cleans the profile; Annoter freezes a tab (round 11b)
+  browser?: { running: boolean; close: () => Promise<void>; setAppearance?: (mode: ThemeSetting) => Promise<void>; annotationSnapshot?: (projectId: string, tabId: string) => Promise<BrowserAnnotationSnapshot>; screenshot?: (projectId: string, tabId?: string) => Promise<{ png: Buffer; url: string }> }; // Lagring closes Chrome before it cleans the profile; Annoter freezes a tab (round 11b)
   viewedAt?: (threadId: string) => number | undefined; // when a window last showed the thread (ws.ts)
   chromeConfigHome?: string; // round 10: where Chrome profiles are looked for; tests give a temporary home
   homeDir?: string; // round 12: the home folder Firefox profiles are looked for in; tests give a temporary one
@@ -494,6 +494,9 @@ export class Api {
       if (body.icon !== undefined && body.icon !== null && (typeof body.icon !== "string" || !isProjectIcon(body.icon))) throw new HttpError(400, "Ukjent ikon");
       if (body.defaultModelId && !store.model(body.defaultModelId)) throw new HttpError(400, "Fant ikke modellen");
       if (body.pinned !== undefined && typeof body.pinned !== "boolean") throw new HttpError(400, "pinned må være sann eller usann");
+      if (body.agentBrowserAccess !== undefined && body.agentBrowserAccess !== null && typeof body.agentBrowserAccess !== "boolean") {
+        throw new HttpError(400, "Ugyldig verdi for agentBrowserAccess");
+      }
       let newPath: string | undefined;
       if (body.path !== undefined) {
         // Same rules as a new project. Running threads, terminals and the preview use the old
@@ -517,6 +520,7 @@ export class Api {
         defaultModelId: body.defaultModelId === undefined ? undefined : body.defaultModelId || null,
         path: newPath,
         pinned: body.pinned,
+        agentBrowserAccess: body.agentBrowserAccess,
       });
       const project = this.project(params.id);
       publish({ type: "project.changed", project });
@@ -918,9 +922,9 @@ export class Api {
       runner.resolveApproval(params.id, body.decision);
     });
 
-    this.route("GET", "/api/turns/:id/diff", ({ params }) => {
+    this.route("GET", "/api/turns/:id/diff", ({ params, query }) => {
       if (!store.turnThread(params.id)) throw new HttpError(404, "Fant ikke turen");
-      return turns.diff(params.id);
+      return turns.diff(params.id, query.get("ignoreWhitespace") === "1");
     });
     this.route("POST", "/api/turns/:id/revert", ({ params, body }) => runner.revertTurn(params.id, body.force === true));
 
@@ -1085,10 +1089,27 @@ export class Api {
       Object.assign(patch, round5Settings(body));
       Object.assign(patch, runde12Settings(body)); // round 12: imported cookies (SPEC 26.4)
       Object.assign(patch, runde13Settings(body, store.settings(), DEFAULT_CHAT_TOOLS)); // round 13: Chat tools and web search (SPEC 27.2)
+      // Keep threadNotifications and legacy notifyOnDone/soundOnDone synchronized.
+      if (body.threadNotifications !== undefined) {
+        if (body.threadNotifications === null) {
+          patch.threadNotifications = undefined;
+          if (body.notifyOnDone === undefined) patch.notifyOnDone = undefined;
+          if (body.soundOnDone === undefined) patch.soundOnDone = undefined;
+        } else {
+          if (body.notifyOnDone === undefined) {
+            patch.notifyOnDone = body.threadNotifications === "off" ? "off" : (store.settings().notifyOnDone === "always" ? "always" : "unfocused");
+          }
+          if (body.soundOnDone === undefined) patch.soundOnDone = body.threadNotifications === "sound";
+        }
+      } else if (body.notifyOnDone !== undefined || body.soundOnDone !== undefined) {
+        const merged = { ...store.settings(), ...patch };
+        patch.threadNotifications = threadNotificationsOf({ notifyOnDone: merged.notifyOnDone, soundOnDone: merged.soundOnDone });
+      }
       // Round 11b (SPEC 25.2): a client that still sets the old Kode start choices gets the new one
       // they stand for (migrateCodeStart reads it from them again).
       if ((body.codeStartEmpty !== undefined || body.codeStartProject !== undefined) && body.codeStart === undefined) patch.codeStart = undefined;
       const settings = store.updateSettings(patch);
+      if (body.browserAppearance !== undefined) void this.deps.browser?.setAppearance?.(settings.browserAppearance ?? "system");
       if (patch.promptAutocomplete === false || body.promptAutocompleteModelId !== undefined) this.deps.promptCompletion?.clear();
       this.settingsChanged();
       return settings;
@@ -1390,13 +1411,21 @@ const ROUND5_CHOICES: Record<string, readonly string[]> = {
   codeStart: ["text", "tokens", "projects"], // round 11b, SPEC 25.2
   codeStartSize: ["small", "medium", "large"],
   enterKey: ["send", "newline"], // round 9, SPEC 21.8
+  diffLayout: ["stacked", "split"],
+  diffFileState: ["expanded", "collapsed"],
+  diffColors: ["red-green", "blue-orange"],
+  openLinksIn: ["app", "system"],
+  browserAppearance: ["system", "light", "dark"],
+  threadNotifications: ["off", "notify", "sound"],
+  projectOrder: ["recent", "created", "name"],
 };
 const ROUND5_NUMBERS: Record<string, readonly number[]> = {
   uiFontSize: [13, 14, 15, 16],
   codeFontSize: [11, 12, 13, 14, 15, 16, 17, 18],
   tabSize: [2, 4, 8],
+  browserDefaultZoom: BROWSER_ZOOMS,
 };
-const ROUND5_FLAGS = ["soundOnDone", "confirmQuit", "reduceMotion", "wrapCode"];
+const ROUND5_FLAGS = ["soundOnDone", "confirmQuit", "reduceMotion", "wrapCode", "diffIgnoreWhitespace", "agentBrowserAccess", "inAppNotifications"];
 
 function round5Settings(body: any): Partial<Settings> {
   const out: Record<string, unknown> = {};

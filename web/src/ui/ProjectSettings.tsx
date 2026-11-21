@@ -27,9 +27,17 @@ export function AgentTab(props: {
   onModel: (id: string | null) => void;
   permission: PermissionMode;
   onPermission: (mode: PermissionMode) => void;
+  browserAccess: boolean | null;
+  onBrowserAccess: (value: boolean | null) => void;
   instructions: string;
   onInstructions: (text: string) => void;
 }) {
+  const browserOptions = (): Array<{ value: string; label: string }> => [
+    { value: "inherit", label: app.settings.agentBrowserAccess === false ? t("Følg global (av)") : t("Følg global (på)") },
+    { value: "allow", label: t("Tillat") },
+    { value: "block", label: t("Av") },
+  ];
+  const browserValue = () => (props.browserAccess === null ? "inherit" : props.browserAccess ? "allow" : "block");
   return (
     <div class="project-agent">
       <div class="project-agent-row">
@@ -44,6 +52,15 @@ export function AgentTab(props: {
       <div class="project-agent-row">
         <div class="setting-text"><strong>{t("Tillatelser")}</strong><span class="muted">{PERMISSION_TEXT[props.permission]}</span></div>
         <Select<PermissionMode> label={t("Tillatelser")} value={props.permission} options={PERMISSIONS} onChange={props.onPermission} />
+      </div>
+      <div class="project-agent-row">
+        <div class="setting-text"><strong>{t("Agenttilgang til nettleseren")}</strong><span class="muted">{t("Overstyrer den globale innstillingen for dette prosjektet.")}</span></div>
+        <Select<string>
+          label={t("Agenttilgang til nettleseren")}
+          value={browserValue()}
+          options={browserOptions()}
+          onChange={(v) => props.onBrowserAccess(v === "inherit" ? null : v === "allow")}
+        />
       </div>
       <label class="field project-agent-instructions"><span>{t("Instruksjoner for prosjektet")} (<code>.agentic/AGENTS.md</code>)</span>
         <textarea

@@ -41,7 +41,7 @@ import type {
   ArtifactLang,
 } from "../../shared/protocol.ts";
 import type { Message } from "./providers/types.ts";
-import { agentSettingsOf, modelContextOf } from "../../shared/protocol.ts";
+import { agentSettingsOf, modelContextOf, searchEngineOf, threadNotificationsOf } from "../../shared/protocol.ts";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -179,6 +179,18 @@ export function migrateCodeStart(settings: Settings): Settings {
   return settings;
 }
 
+// Migrates legacy settings shapes on load without requiring a one-off migration step.
+export function migrateSettings(raw: Settings): Settings {
+  let settings = migrateCodeStart(raw);
+  if (!settings.threadNotifications && (settings.soundOnDone === true || (settings.notifyOnDone && settings.notifyOnDone !== "off"))) {
+    settings = { ...settings, threadNotifications: threadNotificationsOf(settings) };
+  }
+  if (!settings.searchEngine && settings.webSearchUrl) {
+    settings = { ...settings, searchEngine: searchEngineOf(settings) };
+  }
+  return settings;
+}
+
 export interface StoredProvider {
   id: string;
   kind: ProviderKind;
@@ -299,6 +311,7 @@ export class Store {
     add("projects", "icon", "TEXT");
     add("projects", "default_model_id", "TEXT");
     add("projects", "pinned", "INTEGER NOT NULL DEFAULT 0");
+    add("projects", "agent_browser_access", "INTEGER");
     add("threads", "pinned", "INTEGER NOT NULL DEFAULT 0");
     add("threads", "snoozed_until", "INTEGER");
     add("threads", "temporary", "INTEGER NOT NULL DEFAULT 0");
@@ -365,7 +378,7 @@ export class Store {
 
   private storedSettings(): Settings {
     const row = this.q("SELECT value FROM meta WHERE key = 'settings'").get() as { value: string } | undefined;
-    const settings = migrateCodeStart({ ...DEFAULT_SETTINGS, ...(row ? JSON.parse(row.value) : {}) });
+    const settings = migrateSettings({ ...DEFAULT_SETTINGS, ...(row ? JSON.parse(row.value) : {}) });
     return { ...settings, ...agentSettingsOf(settings), modelContext: { chat: modelContextOf(settings, "chat"), code: modelContextOf(settings, "code") } };
   }
 
@@ -405,6 +418,7 @@ export class Store {
     icon: row.icon ?? null,
     defaultModelId: row.default_model_id ?? null,
     pinned: row.pinned === 1,
+    agentBrowserAccess: row.agent_browser_access === null || row.agent_browser_access === undefined ? null : row.agent_browser_access === 1,
     // Checked on every read, so a folder that was moved or deleted shows the next time anyone looks.
     ...(folderExists(row.path) ? {} : { folderMissing: true }),
   });
@@ -431,7 +445,7 @@ export class Store {
     return this.project(id)!;
   }
 
-  updateProject(id: string, patch: { name?: string; permissionMode?: PermissionMode; color?: string | null; icon?: string | null; defaultModelId?: string | null; path?: string; pinned?: boolean }): void {
+  updateProject(id: string, patch: { name?: string; permissionMode?: PermissionMode; color?: string | null; icon?: string | null; defaultModelId?: string | null; path?: string; pinned?: boolean; agentBrowserAccess?: boolean | null }): void {
     if (patch.name !== undefined) this.q("UPDATE projects SET name = ? WHERE id = ?").run(patch.name, id);
     if (patch.permissionMode) this.q("UPDATE projects SET permission_mode = ? WHERE id = ?").run(patch.permissionMode, id);
     if (patch.color !== undefined) this.q("UPDATE projects SET color = ? WHERE id = ?").run(patch.color, id);
@@ -439,6 +453,7 @@ export class Store {
     if (patch.defaultModelId !== undefined) this.q("UPDATE projects SET default_model_id = ? WHERE id = ?").run(patch.defaultModelId, id);
     if (patch.path !== undefined) this.q("UPDATE projects SET path = ? WHERE id = ?").run(patch.path, id);
     if (patch.pinned !== undefined) this.q("UPDATE projects SET pinned = ? WHERE id = ?").run(patch.pinned ? 1 : 0, id);
+    if (patch.agentBrowserAccess !== undefined) this.q("UPDATE projects SET agent_browser_access = ? WHERE id = ?").run(patch.agentBrowserAccess === null ? null : patch.agentBrowserAccess ? 1 : 0, id);
   }
 
   touchProject(id: string): void {
