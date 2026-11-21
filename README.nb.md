@@ -115,6 +115,7 @@ Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
   - Boksen åpner et panel med **Forhåndsvisning** og **Kode**, og du kan bla mellom versjonene.
   - React kjører lokalt og uten nett, i en isolert sandkasse som ikke når appen eller filene dine.
 - **Verktøy ved siden av samtalen:** terminal, filer, endringer (diff) med angre, mini-editor, økt, team og en nettleser som agenten kan styre med Playwright. Åpne verktøy får egne lukkbare faner; pluss lager en ny verktøystartside eller nettleserfane, etter eget valg. Nettleser, terminal og lokal fillesing fungerer også uten prosjektmappe. Se [`docs/SIDEPANEL-WORKSPACE.md`](docs/SIDEPANEL-WORKSPACE.md).
+- **GitHub:** Koble til med GitHub CLI og se pull requests og issues på tvers av prosjekter, med detaljer, sjekker og diff ([GitHub i Agentic Desktop](docs/GITHUB.md)).
 - **Tråder som samarbeider.** Hjelpetråder, team med oppgaveliste, flere ruter side om side og tråder i egne vinduer.
 - **Gafler og arkiv.**
   - Du kan lage en gaffel fra hvilken som helst melding, og gaffelen viser hvor den kom fra.

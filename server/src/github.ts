@@ -1,13 +1,16 @@
-import { sourceText } from "../../shared/i18n.ts";
-// GitHub, read only (round 8, Beta). A personal access token is kept in the keyring next to the
-// provider keys (secrets.ts), is sent only to the GitHub API, and never goes back to the browser.
+// Credentials from gh or the keyring are sent only to the GitHub API.
 // The repo comes from .git/config, read as a file: no git command is ever run.
 //
 // AD_GITHUB_API points the client at another API address, for the tests and their local fake
 // server. Only a loopback address is accepted, so the variable can never send the token elsewhere.
 import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
-import type { GitHubErrorCode, GitHubItem, GitHubProject, GitHubRemote, GitHubStatus, PullWatchStatus } from "../../shared/protocol.ts";
+import { promisify } from "node:util";
+import { sourceText } from "../../shared/i18n.ts";
+import type { GitHubCliStatus, GitHubErrorCode, GitHubItem, GitHubProject, GitHubRemote, GitHubStatus, PullWatchStatus, Settings } from "../../shared/protocol.ts";
+import { childEnv } from "./env.ts";
 import type { Secrets } from "./secrets.ts";
 
 export const GITHUB_SECRET = "integration:github";
@@ -18,6 +21,37 @@ const CACHE_MS = 60_000;
 const MAX_ITEMS = 30;
 const MAX_CONFIG = 64 * 1024;
 const MAX_RESPONSE = 4 * 1024 * 1024;
+const exec = promisify(execFile);
+
+async function gh(command: "status" | "token") {
+  const env = childEnv({ names: ["GH_DEBUG", "GH_HOST", "GH_FORCE_TTY"], values: [] });
+  return exec("gh", ["auth", command, "--hostname", "github.com"], {
+    env: { ...env, NO_COLOR: "1", GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1" },
+    timeout: command === "status" ? TIMEOUT_MS : 3000,
+    maxBuffer: 16 * 1024,
+    encoding: "utf8",
+  });
+}
+
+function cliLogin(output: string, activeOnly = false): string | undefined {
+  const accounts = [...output.matchAll(/Logged in to github\.com (?:account )?([a-z\d][a-z\d-]{0,38}(?:\[bot\])?)(?=\s|$)[^\r\n]*(?:\r?\n\s*- Active account: (true|false))?/gi)];
+  return accounts.find(account => account[2] === "true")?.[1] ?? (activeOnly ? undefined : accounts.find(account => !account[2])?.[1]);
+}
+
+export async function inspectGitHubCli(): Promise<GitHubCliStatus> {
+  try {
+    const { stdout, stderr } = await gh("status");
+    const login = cliLogin(stdout + "\n" + stderr);
+    return login ? { state: "signed-in", login } : { state: "unavailable" };
+  } catch (err) {
+    const { code, stdout, stderr } = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string };
+    if (code === "ENOENT") return { state: "missing" };
+    const login = cliLogin(`${stdout ?? ""}\n${stderr ?? ""}`, true);
+    if (typeof code === "number" && login) return { state: "signed-in", login };
+    if (typeof code === "number" && /not logged|failed to log in|invalid|authenticate|no oauth token/i.test(stderr ?? "")) return { state: "signed-out" };
+    return { state: "unavailable" };
+  }
+}
 
 export class GitHubError extends Error {
   code: GitHubErrorCode;
@@ -163,52 +197,140 @@ interface Cached {
 export class GitHub {
   private secrets: Secrets;
   private base: string;
-  private web: string;
+  readonly web: string;
+  private selection: () => Settings["githubAuth"];
+  private select: (method: Settings["githubAuth"]) => void;
+  private changes: Promise<unknown> = Promise.resolve();
+  private revision = 0;
   private cache = new Map<string, Cached>();
+  private cacheIdentity = "";
   private account: GitHubStatus | null = null;
 
-  constructor(secrets: Secrets, base = apiBase()) {
+  constructor(secrets: Secrets, auth: { get: () => Settings["githubAuth"]; set: (method: Settings["githubAuth"]) => void }, base = apiBase()) {
     this.secrets = secrets;
+    this.selection = auth.get;
+    this.select = auth.set;
     this.base = base;
     // With a test server for the API, links go to the same server, so a test never opens github.com.
     this.web = base === DEFAULT_API ? WEB : new URL(base).origin;
   }
 
-  private token(): string | undefined {
-    return this.secrets.get(GITHUB_SECRET);
+  private method(): Settings["githubAuth"] {
+    const choice = this.selection();
+    return choice === undefined && this.secrets.get(GITHUB_SECRET) ? "token" : choice;
   }
 
-  // Connected means a token is stored. The account name comes from the last successful check.
+  private async token(): Promise<string | undefined> {
+    const method = this.method();
+    if (method === "token") return this.secrets.get(GITHUB_SECRET);
+    if (method !== "gh") return;
+    const revision = this.revision;
+    try {
+      const { stdout } = await gh("token");
+      const token = stdout.trim();
+      if (revision === this.revision && plausibleToken(token)) return token;
+    } catch {
+      // gh failures can carry credential material in stdout or stderr.
+    }
+    if (this.revision === revision) this.account = { connected: false, method: "gh" };
+  }
+
   status(): GitHubStatus {
-    if (!this.token()) return { connected: false };
-    return this.account ?? { connected: true };
+    const method = this.method();
+    if (method === "gh") return this.account ?? { connected: false, method };
+    if (!method || !this.secrets.get(GITHUB_SECRET)) return { connected: false };
+    return this.account ?? { connected: true, method };
   }
 
-  // After a restart the account name is not known yet: ask GitHub once. A failure is not an error
-  // here; the panel says what is wrong when it loads the repo.
   async check(): Promise<GitHubStatus> {
-    const token = this.token();
-    if (token && !this.account) await this.loadAccount(token).catch(() => undefined);
+    if (this.method() === "gh") {
+      const revision = this.revision;
+      const cli = await inspectGitHubCli();
+      if (revision === this.revision) this.account = this.cliAccount(cli);
+      return this.status();
+    }
+    const token = await this.token();
+    if (token) {
+      const identity = this.useCredential(token);
+      if (!this.account) await this.loadAccount(token, identity).catch(() => undefined);
+    }
     return this.status();
   }
 
-  async connect(token: unknown): Promise<GitHubStatus> {
+  connect(token: unknown): Promise<GitHubStatus> {
+    return this.change(() => this.connectToken(token));
+  }
+
+  private async connectToken(token: unknown): Promise<GitHubStatus> {
     const trimmed = typeof token === "string" ? token.trim() : token;
     if (!plausibleToken(trimmed)) throw new GitHubError("bad-token", "Det ser ikke ut som et GitHub-token. Lim inn hele tokenet, uten mellomrom.", 400);
     const { body, headers } = await this.request("/user", trimmed, false);
     const user = body as { login?: unknown; name?: unknown };
     if (typeof user.login !== "string") throw new GitHubError("other", "GitHub svarte uten et brukernavn.", 502);
     await this.secrets.set(GITHUB_SECRET, trimmed);
-    this.cache.clear();
-    this.account = { connected: true, login: user.login, name: typeof user.name === "string" ? user.name : null, scopes: headers.get("x-oauth-scopes") };
-    return this.account;
+    this.changeAccount("token", { connected: true, method: "token", login: user.login, name: typeof user.name === "string" ? user.name : null, scopes: headers.get("x-oauth-scopes") });
+    this.cacheIdentity = credentialIdentity(trimmed);
+    return this.status();
   }
 
-  async disconnect(): Promise<GitHubStatus> {
-    await this.secrets.set(GITHUB_SECRET, null);
+  useCli(): Promise<GitHubStatus> {
+    return this.change(async () => {
+      const status = await inspectGitHubCli();
+      if (status.state === "missing") throw new GitHubError("not-connected", sourceText("GitHub CLI er ikke installert."), 409);
+      await this.secrets.set(GITHUB_SECRET, null);
+      this.changeAccount("gh", this.cliAccount(status));
+      return this.status();
+    });
+  }
+
+  disconnect(): Promise<GitHubStatus> {
+    return this.change(async () => {
+      await this.secrets.set(GITHUB_SECRET, null);
+      this.changeAccount(null, null);
+      return this.status();
+    });
+  }
+
+  private cliAccount(cli: GitHubCliStatus): GitHubStatus {
+    return cli.state === "signed-in" ? { connected: true, method: "gh", login: cli.login } : { connected: false, method: "gh" };
+  }
+
+  private change(work: () => Promise<GitHubStatus>): Promise<GitHubStatus> {
+    const result = this.changes.then(work);
+    this.changes = result.catch(() => undefined);
+    return result;
+  }
+
+  private changeAccount(method: Settings["githubAuth"], account: GitHubStatus | null): void {
+    this.select(method);
+    this.revision++;
     this.cache.clear();
-    this.account = null;
-    return { connected: false };
+    this.cacheIdentity = "";
+    this.account = account;
+  }
+
+  async reader(refresh = false) {
+    const revision = this.revision;
+    const token = await this.token();
+    if (!token || revision !== this.revision) throw new GitHubError("not-connected", NOT_CONNECTED, 409);
+    const identity = this.useCredential(token);
+    const login = this.account?.login ?? (await this.loadAccount(token, identity))?.login;
+    return {
+      login,
+      get: (route: string) => this.cached(route, token, refresh),
+      query: (query: string) => this.cached("/graphql", token, refresh, JSON.stringify({ query })),
+    };
+  }
+
+  private useCredential(token: string): string {
+    const identity = credentialIdentity(token);
+    if (this.cacheIdentity !== identity) {
+      this.cacheIdentity = identity;
+      this.cache.clear();
+      // Credentials can also change outside the app, for example with gh auth switch.
+      this.account = null;
+    }
+    return identity;
   }
 
   // Remote, repo, open pull requests and issues. Errors from GitHub are part of the answer, so the
@@ -217,14 +339,16 @@ export class GitHub {
     const { remote, reason } = readGitHubRemote(root, this.web);
     const out: GitHubProject = { remote, reason, status: this.status() };
     if (!remote) return out;
-    const token = this.token();
+    const token = await this.token();
     if (!token) {
-      out.error = { code: "not-connected", message: "Koble til GitHub i Innstillinger for å se pull requests og issues." };
+      out.error = { code: "not-connected", message: NOT_CONNECTED };
+      out.status = this.status();
       return out;
     }
     const base = `/repos/${encodeURIComponent(remote.owner)}/${encodeURIComponent(remote.repo)}`;
     try {
-      if (!this.account) await this.loadAccount(token);
+      const identity = this.useCredential(token);
+      if (!this.account?.login) await this.loadAccount(token, identity);
       out.status = this.status();
       const [repo, pulls, issues] = await Promise.all([
         this.cached(base, token, refresh),
@@ -258,7 +382,7 @@ export class GitHub {
         !Number.isSafeInteger(number) || number < 1 || number > 2_147_483_647) {
       throw new GitHubError("other", "Bruk et gyldig GitHub-repo og PR-nummer.", 400);
     }
-    const token = this.token();
+    const token = await this.token();
     if (!token) throw new GitHubError("not-connected", "Koble til GitHub i Innstillinger for å følge en pull request.", 409);
     const query = `query PullWatch($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) {
@@ -299,20 +423,31 @@ export class GitHub {
     return { repo, number, title, url: `${this.web}/${owner}/${name}/pull/${number}`, state, head, draft, checks: checks ?? null, review: reviewDecision };
   }
 
-  private async loadAccount(token: string): Promise<void> {
+  private async loadAccount(token: string, identity: string): Promise<GitHubStatus | undefined> {
+    const revision = this.revision;
+    const method = this.method();
     const { body, headers } = await this.request("/user", token, true);
     const user = body as { login?: unknown; name?: unknown };
-    if (typeof user.login === "string") this.account = { connected: true, login: user.login, name: typeof user.name === "string" ? user.name : null, scopes: headers.get("x-oauth-scopes") };
+    if (!method || typeof user?.login !== "string" || !/^[\w-]+(?:\[bot\])?$/.test(user.login)) return;
+    const account: GitHubStatus = { connected: true, method, login: user.login, name: typeof user.name === "string" ? user.name : null, scopes: headers.get("x-oauth-scopes") };
+    if (revision === this.revision && identity === this.cacheIdentity) this.account = account;
+    return account;
   }
 
   // A conditional request with the last ETag: GitHub answers 304, which does not count against the
   // rate limit. Within CACHE_MS the cached answer is used without asking at all.
-  private async cached(pathAndQuery: string, token: string, refresh: boolean): Promise<unknown> {
-    const hit = this.cache.get(pathAndQuery);
+  private async cached(pathAndQuery: string, token: string, refresh: boolean, query?: string): Promise<unknown> {
+    const key = query ?? pathAndQuery;
+    const revision = this.revision;
+    const identity = credentialIdentity(token);
+    const hit = identity === this.cacheIdentity ? this.cache.get(key) : undefined;
     if (hit && !refresh && Date.now() - hit.at < CACHE_MS) return hit.body;
-    const { body, headers, notModified } = await this.request(pathAndQuery, token, true, hit?.etag ?? undefined);
+    const { body, headers, notModified } = await this.request(pathAndQuery, token, true, hit?.etag ?? undefined, query);
     const value = notModified && hit ? hit.body : body;
-    this.cache.set(pathAndQuery, { etag: headers.get("etag"), body: value, at: Date.now() });
+    if (revision === this.revision && identity === this.cacheIdentity) {
+      if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);
+      this.cache.set(key, { etag: headers.get("etag"), body: value, at: Date.now() });
+    }
     return value;
   }
 
@@ -344,7 +479,13 @@ export class GitHub {
     } catch {
       body = null;
     }
-    if (res.ok) return { body, headers: res.headers, notModified: false };
+    if (res.ok) {
+      if (query !== undefined && Array.isArray((body as any)?.errors) && (body as any).errors.some((error: any) => error?.type === "RATE_LIMITED")) {
+        const reset = Number(res.headers.get("x-ratelimit-reset"));
+        throw new GitHubError("rate-limit", "GitHub har nådd grensen for antall forespørsler.", 429, reset > 0 ? reset * 1000 : undefined);
+      }
+      return { body, headers: res.headers, notModified: false };
+    }
     const message = typeof (body as any)?.message === "string" ? String((body as any).message).slice(0, 200) : "";
     const remaining = res.headers.get("x-ratelimit-remaining");
     const reset = Number(res.headers.get("x-ratelimit-reset"));
@@ -359,8 +500,13 @@ export class GitHub {
     if (res.status === 404 || res.status === 403) {
       throw new GitHubError("not-found", "Fant ikke repoet på GitHub, eller tokenet har ikke tilgang til det.", 404);
     }
+    if (res.status === 422) throw new GitHubError("other", sourceText("GitHub kunne ikke utføre søket. Sjekk at du har tilgang til de valgte repoene."), 422);
     throw new GitHubError("other", `GitHub svarte med en feil (${res.status}).`, 502);
   }
+}
+
+function credentialIdentity(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 async function readLimited(res: Response): Promise<string> {
@@ -376,7 +522,9 @@ async function readLimited(res: Response): Promise<string> {
 
 // Only the fields the panel shows, and a link that is the repo's own page on GitHub, so nothing
 // from the answer can point the browser panel somewhere else.
-function items(list: unknown, remote: GitHubRemote, kind: "pull" | "issues"): GitHubItem[] {
+export const NOT_CONNECTED = sourceText("Koble til GitHub i Innstillinger for å se pull requests og issues.");
+
+export function items(list: unknown, remote: Pick<GitHubRemote, "url">, kind: "pull" | "issues"): GitHubItem[] {
   if (!Array.isArray(list)) return [];
   const out: GitHubItem[] = [];
   for (const raw of list.slice(0, MAX_ITEMS)) {

@@ -102,7 +102,7 @@ flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle f
   h.allow(/status of 400/);
   await panel.getByRole("button", { name: "Koble til…" }).click();
   const field = page.getByLabel("GitHub-token");
-  await field.fill("ghp_feil000000000000000000000000000000");
+  await field.fill("ghp_" + "feil000000000000000000000000000000");
   await page.getByRole("button", { name: "Koble til", exact: true }).click();
   await page.getByText("GitHub godtok ikke tokenet").waitFor();
   await field.fill(GOOD_TOKEN);
@@ -147,8 +147,15 @@ flow("GitHub (Beta): koble til med token, se pull requests og issues, og tåle f
   await toolShown(page, "Nettleser");
   await waitFor(() => fake.requests.some((r) => r.path === "/acme/rakett/pull/42"), "siden ble åpnet i nettleserpanelet", 30_000);
 
+  await openTool(page, "GitHub");
+  await panel.getByRole("button", { name: "Vis i appen" }).click();
+  const room = page.getByTestId("github-room");
+  await room.getByRole("heading", { name: "Pull requests" }).waitFor();
+  assert.equal(await room.getByLabel("Prosjekt", { exact: true }).locator("option:checked").textContent(), "Demo");
+
   // Not a GitHub repo.
   writeFileSync(path.join(h.projectDir, ".git/config"), `[remote "origin"]\n\turl = https://gitlab.com/acme/rakett.git\n`);
+  await room.getByRole("button", { name: "Lukk", exact: true }).click();
   await openTool(page, "GitHub");
   await page.getByTestId("github-panel").getByText("Ikke et GitHub-repo").waitFor();
   await page.getByTestId("github-panel").getByText("Ingen remote peker til GitHub.").waitFor();

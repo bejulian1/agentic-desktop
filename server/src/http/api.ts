@@ -45,6 +45,7 @@ import type { McpServers } from "../mcp/manager.ts";
 import { chatRoutes } from "./chat-routes.ts";
 import { chatProjectRoutes } from "./chat-project-routes.ts";
 import { githubRoutes } from "./github-routes.ts";
+import type { GitHub } from "../github.ts";
 import { runde12Routes, runde12Settings } from "./runde12-routes.ts";
 import { chatToolsFromBody, runde13Settings } from "./runde13-routes.ts";
 import { Storage, storageRoutes } from "../storage.ts";
@@ -114,6 +115,7 @@ interface Route {
 export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
+  github: GitHub;
   uiMods?:UiMods;
   hooks?: Hooks; // Innstillinger → Hooks (hooks-routes.ts)
   mcp?: McpServers; // Innstillinger → MCP-servere (mcp-routes.ts)
@@ -961,6 +963,10 @@ export class Api {
 
     this.route("PATCH", "/api/settings", ({ body }) => {
       const patch: Partial<Settings> = {};
+      if (body.githubOpenLinks !== undefined) {
+        if (typeof body.githubOpenLinks !== "boolean") throw new HttpError(400, "Velg om GitHub-lenker skal åpnes i appen.");
+        patch.githubOpenLinks = body.githubOpenLinks;
+      }
       if (body.dictation !== undefined) {
         const choice = body.dictation;
         if (choice !== null && (typeof choice?.providerId !== 'string' || store.provider(choice.providerId)?.kind !== 'openai-compatible' || typeof choice.model !== 'string' || !choice.model.trim() || choice.model.length > 200)) throw new HttpError(400, 'Velg en kompatibel leverandør og en talemodell.');
@@ -1321,6 +1327,7 @@ export class Api {
     // Round 8: GitHub (Beta, read only) and saving from the mini editor.
     githubRoutes((method, spec, handler) => this.route(method, spec, handler), this.deps, {
       project: (id) => this.project(id),
+      settingsChanged: () => this.settingsChanged(),
       filesChanged: (projectId, paths) => {
         this.invalidateFiles(projectId);
         this.deps.publish({ type: "project.files-changed", projectId, paths });

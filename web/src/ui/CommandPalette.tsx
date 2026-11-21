@@ -1,3 +1,5 @@
+import { IconPullRequest } from "./GitHubShared";
+import { openGitHubRoom } from "../state/github";
 // The command palette (Ctrl+K): one field for actions, chats, files in the project and the text of
 // messages. Tabs narrow it down, and Tab moves between them. The arrows pick, Enter runs and Esc
 // closes. Chats and text use the thread search, files the same list as @ in the message field.
@@ -17,7 +19,7 @@ import { studioOpen } from "../state/studio";
 import { enterMode, enterStudio } from "./ModeSwitch";
 import { openChromeImport, openCookieImport } from "./dialog-state";
 import { displayKeys, keysFor } from "../state/shortcuts";
-import { IconArchive, IconArtifact, IconChat, IconCode, IconCompose, IconFile, IconFolder, IconHelp, IconInfo, IconKeyboard, IconPanel, IconSearch, IconSettings, IconSidebar, IconSpark, IconSplitRight, IconStudio, IconSun, IconUser, IconClock, IconPin, IconBranch, IconGlobe, IconBookmark } from "./icons";
+import { IconArchive, IconArtifact, IconChat, IconCode, IconCompose, IconFile, IconFolder, IconHelp, IconInfo, IconIssue, IconKeyboard, IconPanel, IconSearch, IconSettings, IconSidebar, IconSpark, IconSplitRight, IconStudio, IconSun, IconUser, IconClock, IconPin, IconBranch, IconGlobe, IconBookmark } from "./icons";
 import { IconCookie, IconPencil } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 
@@ -76,6 +78,8 @@ const ACTIONS = (): ActionDef[] => [
   { label: t("Gi tråden nytt navn"), icon: IconPencil, keys: "thread.rename", when: () => !!focusedThread(), run: actions.rename },
   { label: t("Lag gaffel av tråden"), words: t("gaffel forgrening forgren fork kopier"), icon: IconBranch, when: () => !!focusedThread(), run: actions.fork },
   { label: t("Profil"), words: t("statistikk tokens"), icon: IconUser, run: () => { closeArtifacts(); openProfile(); } },
+  { label: t("Pull requests"), icon: IconPullRequest, run: () => openGitHubRoom("pull") },
+  { label: t("Issues"), icon: IconIssue, run: () => openGitHubRoom("issues") },
   { label: t("Artifacts"), icon: IconArtifact, run: () => openArtifacts() },
   { label: t("Skills"), icon: IconSpark, run: actions.skills },
   { label: t("Planlagte oppgaver"), words: "planlagt", icon: IconClock, run: actions.scheduled },

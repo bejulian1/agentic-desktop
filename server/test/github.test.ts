@@ -6,7 +6,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { hashContent } from "../src/agent/filestate.ts";
 import { apiBase, parseGitHubUrl, parseRemotes, plausibleToken, readGitHubRemote } from "../src/github.ts";
-import { GOOD_TOKEN, OTHER_TOKEN, startFakeGitHub, type FakeGitHub } from "./fake-github.ts";
+import { fakeGh, GOOD_TOKEN, OTHER_TOKEN, startFakeGitHub, type FakeGitHub } from "./fake-github.ts";
 import { startHarness, tempDir } from "./helpers.ts";
 import type { MemoryKeyring } from "../src/keyring.ts";
 
@@ -85,7 +85,7 @@ test("koble til, lese pull requests og issues, og koble fra, uten at tokenet for
   assert.equal(fake.requests.length, 0, "ingen forespørsel uten token");
 
   // A wrong token and a pasted sentence: refused, and nothing is stored.
-  const wrong = await h.raw("PUT", "/api/github/token", { headers: { "content-type": "application/json" }, body: JSON.stringify({ token: "ghp_feil000000000000000000000000000000" }) });
+  const wrong = await h.raw("PUT", "/api/github/token", { headers: { "content-type": "application/json" }, body: JSON.stringify({ token: "ghp_" + "feil000000000000000000000000000000" }) });
   assert.equal(wrong.status, 400);
   assert.equal(JSON.parse(wrong.body).code, "bad-token");
   const sentence = await h.raw("PUT", "/api/github/token", { headers: { "content-type": "application/json" }, body: JSON.stringify({ token: "her er tokenet mitt" }) });
@@ -244,4 +244,138 @@ test("mini-editoren lagrer bare prosjektfiler, med vanlige sjekker og uten å ov
   assert.equal(readFileSync(path.join(outside, "annen.txt"), "utf8"), "utenfor\n");
   assert.equal(await status({ path: "finnes-ikke.ts", text: "x", hash: "" }), 404);
   assert.equal(await status({ path: "kort.ts", hash: "" }), 400);
+});
+
+test("GitHub CLI bruker aktiv innlogging fra PATH og kobler fra uten å logge ut gh", async (t) => {
+  const bin = tempDir(t);
+  const originalPath = process.env.PATH;
+  const previousConfig = process.env.GH_CONFIG_DIR;
+  const fakeCli = fakeGh(path.join(bin, "bin"), false);
+  process.env.PATH = bin;
+  process.env.GH_CONFIG_DIR = path.join(bin, "config");
+  t.after(() => {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+    if (previousConfig === undefined) delete process.env.GH_CONFIG_DIR;
+    else process.env.GH_CONFIG_DIR = previousConfig;
+  });
+  const h = await startHarness(t);
+  assert.deepEqual(await h.api("GET", "/api/github/cli"), { state: "missing" });
+  await assert.rejects(h.api("PUT", "/api/github/cli"), /409/);
+  process.env.PATH = fakeCli.path;
+  assert.deepEqual(await h.api("GET", "/api/github/cli"), { state: "signed-out" });
+  assert.deepEqual(await h.api("PUT", "/api/github/cli"), { connected: false, method: "gh" });
+  fakeCli.signIn();
+  assert.deepEqual(await h.api("GET", "/api/github"), { connected: true, method: "gh", login: "testbruker" });
+
+  const dir = tempDir(t);
+  gitProject(dir, RAKETT);
+  const project = await h.project(dir);
+  const before = fake.requests.length;
+  const list = await h.api("GET", "/api/github/list/issues");
+  assert.deepEqual(list.items.map((item: any) => item.number), [40, 39]);
+  assert.equal((await h.api("GET", `/api/projects/${project.id}/github`)).issues.length, 2);
+  assert.equal((await h.api("GET", "/api/github/pull-watch?repo=acme%2Frakett&number=42")).checks, "PENDING");
+  assert.ok(fake.requests.slice(before).every(request => request.auth === `Bearer ${GOOD_TOKEN}`));
+  const boot = await h.api("GET", "/api/bootstrap");
+  assert.equal(boot.settings.githubAuth, "gh");
+  assert.ok(!JSON.stringify(boot).includes(GOOD_TOKEN));
+  assert.ok(!JSON.stringify(list).includes(GOOD_TOKEN));
+  assert.equal((h.keyring as MemoryKeyring).items.has("integration:github"), false);
+  assert.ok(!Object.values(h.app.childEnv()).includes(GOOD_TOKEN));
+
+  assert.deepEqual(await h.api("DELETE", "/api/github"), { connected: false });
+  assert.equal((await h.api("GET", "/api/bootstrap")).settings.githubAuth, null);
+  assert.deepEqual(await h.api("GET", "/api/github/cli"), { state: "signed-in", login: "testbruker" });
+  await assert.rejects(h.api("GET", "/api/github/list/issues"), /409/);
+});
+
+test("GitHub-prosjekter, søk, sortering, etiketter, paginering og lagrede visninger", async (t) => {
+  const h = await startHarness(t);
+  const rakett = tempDir(t);
+  gitProject(rakett, RAKETT);
+  const p1 = await h.project(rakett);
+  const atlas = tempDir(t);
+  gitProject(atlas, RAKETT.replace("acme/rakett", "acme/atlas"));
+  const p2 = await h.project(atlas);
+  const duplicate = tempDir(t);
+  gitProject(duplicate, RAKETT.replace("acme/rakett", "ACME/RAKETT"));
+  const p3 = await h.project(duplicate);
+  await h.project();
+  assert.deepEqual(new Set((await h.api("GET", "/api/github/projects")).map((p: any) => p.id)), new Set([p1.id, p2.id, p3.id]));
+  // Put the two repos with results in different GitHub search requests.
+  for (let i = 0; i < 7; i++) {
+    const dir = tempDir(t);
+    gitProject(dir, RAKETT.replace("acme/rakett", `acme/fyll-${i}`));
+    await h.project(dir);
+  }
+  await h.api("PUT", "/api/github/token", { token: GOOD_TOKEN });
+  const first = await h.api("GET", "/api/github/list/issues");
+  assert.equal(first.items.length, 25);
+  const second = await h.api("GET", `/api/github/list/issues?cursor=${first.next}`);
+  const numbers = [...first.items, ...second.items].map(item => item.number);
+  assert.equal(numbers.length, 31);
+  assert.equal(new Set(numbers).size, 31);
+  assert.equal(second.next, null);
+  const matches = async (kind: string, query: Record<string, string>) => (await h.api("GET", `/api/github/list/${kind}?${new URLSearchParams(query)}`)).items.map((item: any) => item.number);
+  assert.deepEqual(await matches("issues", { sort: "oldest", projectId: p1.id }), [39, 40]);
+  assert.deepEqual(await matches("issues", { sort: "newest", projectId: p1.id }), [40, 39]);
+  assert.deepEqual(await matches("issues", { sort: "comments", search: "Unicode", label: "god første oppgave" }), [40]);
+  assert.deepEqual(await matches("issues", { search: "#40", involvement: "mentions" }), [40]);
+  assert.deepEqual(await matches("issues", { search: "40", involvement: "assignee" }), [40]);
+  assert.deepEqual(await matches("pull", { involvement: "review-requested" }), [42]);
+  assert.deepEqual(await matches("pull", { state: "merged" }), [38]);
+  assert.deepEqual(await matches("pull", { state: "closed" }), []);
+  assert.equal((await h.api("GET", "/api/github/list/pull")).items[0].checks, "PENDING");
+  assert.equal((await h.api("GET", "/api/github/list/pull")).items[1].state, "draft");
+  assert.ok((await h.api("GET", "/api/github/labels")).some((item: any) => item.name === "god første oppgave"));
+  await assert.rejects(h.api("GET", "/api/github/list/issues?state=merged"), /400/);
+  await assert.rejects(h.api("GET", "/api/github/list/issues?cursor=bogus"), /400/);
+
+  const view = { id: "test-view", name: "Mine kartoppgaver", kind: "issues", filters: { projectId: p2.id, involvement: "author" } };
+  const views = await h.api("POST", "/api/github/views", view);
+  assert.equal(views[0].filters.projectId, p2.id);
+  assert.equal(views[0].filters.state, "open");
+  await assert.rejects(h.api("POST", "/api/github/views", view), /400/);
+  assert.deepEqual((await h.api("GET", "/api/bootstrap")).settings.githubViews, views);
+  assert.deepEqual(await h.api("DELETE", "/api/github/views/test-view"), []);
+
+  assert.equal((await h.api("PATCH", "/api/settings", { githubOpenLinks: false })).githubOpenLinks, false);
+  await assert.rejects(h.api("PATCH", "/api/settings", { githubOpenLinks: "false" }), /400/);
+});
+
+test("GitHub-detaljer har tidslinje, sjekker og filendringer, også for lenker utenfor prosjektene", async (t) => {
+  const h = await startHarness(t);
+  await h.api("PUT", "/api/github/token", { token: GOOD_TOKEN });
+  const pull = (path: string) => `/api/github/${path}/pull?repo=acme%2Frakett&number=42`;
+  const detail = await h.api("GET", pull("detail"));
+  assert.equal(detail.body, "Detaljer om **oppstarten**.");
+  assert.deepEqual(detail.projectIds, []);
+  assert.deepEqual(detail.pull, {
+    base: "main", head: "rask-oppstart", review: "REVIEW_REQUIRED",
+    checks: [{ name: "Typecheck", status: "SUCCESS" }, { name: "UI", status: "PENDING" }],
+  });
+  const comments = await h.api("GET", pull("comments"));
+  assert.deepEqual(comments.items.map((comment: any) => comment.id), ["0:1", "1:2", "2:3"]);
+  assert.equal(comments.items[2].path, "src/start.ts");
+  assert.equal(comments.next, null);
+  assert.equal((await h.api("GET", pull("files"))).items[0].patch, "@@ -1 +1 @@\n-før\n+etter");
+
+  const issue = await h.api("GET", "/api/github/detail/issues?repo=acme%2Frakett&number=40");
+  assert.deepEqual(issue.assignees, ["testbruker"]);
+  assert.equal(issue.avatarId, 123);
+  const avatar = await h.raw("GET", "/api/github/avatar/123");
+  assert.equal(avatar.status, 200);
+  assert.equal(fake.requests.at(-1)?.auth, undefined);
+  await assert.rejects(h.api("GET", "/api/github/detail/pull?repo=evil.example%2Facme%2Frakett&number=42"), /400/);
+  await assert.rejects(h.api("GET", "/api/github/files/issues?repo=acme%2Frakett&number=40"), /400/);
+
+  fake.setMode("rate-limit");
+  try {
+    const response = await h.raw("GET", pull("detail") + "&refresh=1");
+    assert.equal(response.status, 429);
+    assert.ok(JSON.parse(response.body).resetAt > Date.now());
+  } finally {
+    fake.setMode("ok");
+  }
 });

@@ -71,9 +71,12 @@ export function openDetachedWindow(entry: Detached): void {
 
 // In a detached window.
 export function registerSoloWindow(threadId: string): void {
+  if (soloThreadId) post({ type: "bye", threadId: soloThreadId });
+  else window.addEventListener("pagehide", () => {
+    if (soloThreadId) post({ type: "bye", threadId: soloThreadId });
+  });
   soloThreadId = threadId;
   post({ type: "hello", threadId });
-  window.addEventListener("pagehide", () => post({ type: "bye", threadId }));
 }
 
 export function sendReattach(threadId: string, scope: string): void {
