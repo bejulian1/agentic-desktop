@@ -8,6 +8,7 @@
 // file, and refuses when the file changed on disk since it was opened (409).
 //
 // This module is a chunk of its own with CodeMirror in it. ./MiniEditorHooks is the light half.
+import { plural, t } from "../lib/i18n";
 import { Annotation, ChangeSet, Compartment, EditorSelection, EditorState, RangeSetBuilder, StateEffect, StateField, Text, type Extension, type RangeSet, type Transaction } from "@codemirror/state";
 import { Decoration, drawSelection, EditorView, gutter, GutterMarker, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, type DecorationSet } from "@codemirror/view";
 import { bracketMatching, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
@@ -55,7 +56,7 @@ function languageOf(nameOrPath: string): Language {
     case "rs": case "rust": return { name: "Rust", outline: "rs", load: async () => (await import("@codemirror/lang-rust")).rust() };
     case "sh": case "bash": case "zsh": case "shell": return { name: "Shell", outline: "sh", load: async () => [] };
     case "go": return { name: "Go", outline: "go", load: async () => [] };
-    default: return { name: nameOrPath.includes(".") || !nameOrPath ? "Ren tekst" : nameOrPath, outline: key, load: async () => [] };
+    default: return { get name() { return nameOrPath.includes(".") || !nameOrPath ? t("Ren tekst") : nameOrPath; }, outline: key, load: async () => [] };
   }
 }
 
@@ -98,7 +99,7 @@ class ChangeMarker extends GutterMarker {
   toDOM() {
     const span = document.createElement("span");
     span.className = `mini-change ${this.kind}`;
-    span.title = this.kind === "add" ? "Ny linje" : this.kind === "mod" ? "Endret linje" : "Linjer fjernet her";
+    span.title = this.kind === "add" ? t("Ny linje") : this.kind === "mod" ? t("Endret linje") : t("Linjer fjernet her");
     return span;
   }
 }
@@ -240,15 +241,15 @@ function putInComposer(textarea: HTMLTextAreaElement, text: string): void {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-const KIND_LABEL: Record<SymbolKind, [string, string]> = {
-  function: ["ƒ", "Funksjon"],
-  method: ["m", "Metode"],
-  class: ["C", "Klasse"],
-  interface: ["I", "Grensesnitt"],
-  type: ["T", "Type"],
-  const: ["K", "Konstant"],
-  heading: ["#", "Overskrift"],
-  rule: ["{}", "Regel"],
+const KIND_LABEL: Record<SymbolKind, { glyph: string; label: string }> = {
+  function: { glyph: "ƒ", get label() { return t("Funksjon"); } },
+  method: { glyph: "m", get label() { return t("Metode"); } },
+  class: { glyph: "C", get label() { return t("Klasse"); } },
+  interface: { glyph: "I", get label() { return t("Grensesnitt"); } },
+  type: { glyph: "T", get label() { return t("Type"); } },
+  const: { glyph: "K", get label() { return t("Konstant"); } },
+  heading: { glyph: "#", get label() { return t("Overskrift"); } },
+  rule: { glyph: "{}", get label() { return t("Regel"); } },
 };
 
 const IconGoto = (p: { size?: number }) => (
@@ -277,7 +278,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
   const req = props.request;
   const isFile = req.kind === "file";
   const path = (req.path ?? "").replace(/^(\.\/)+/, "");
-  const name = isFile ? path.slice(path.lastIndexOf("/") + 1) : "Kodeblokk";
+  const name = () => isFile ? path.slice(path.lastIndexOf("/") + 1) : t("Kodeblokk");
   const dir = isFile && path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "";
   const language = languageOf(isFile ? path : req.lang ?? "");
   const narrow = matchMedia("(max-width: 720px)");
@@ -289,7 +290,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
   const [file, setFile] = createSignal<EditableFile | null>(null);
   const [dirty, setDirty] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
-  const [savedNote, setSavedNote] = createSignal("");
+  const [savedNote, setSavedNote] = createSignal<"saved" | "inserted" | null>(null);
   const [conflict, setConflict] = createSignal<null | "changed" | "deleted">(null);
   const [before, setBefore] = createSignal<string | null | undefined>(undefined);
   const [mode, setMode] = createSignal<"file" | "diff">("file");
@@ -435,7 +436,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
-      toast("Nettleseren tillot ikke å kopiere.", "info");
+      toast(t("Nettleseren tillot ikke å kopiere."), "info");
     }
   };
 
@@ -460,10 +461,10 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       quote = `Om denne koden:\n\n${start}\n${text}\n${end}\n\n`;
     }
     const textarea = composerFor(req.source);
-    if (!textarea) return toast("Fant ikke meldingsfeltet. Åpne en tråd først.", "info");
+    if (!textarea) return toast(t("Fant ikke meldingsfeltet. Åpne en tråd først."), "info");
     if (dirty()) {
       putInComposer(textarea, quote);
-      setSavedNote("Lagt i meldingsfeltet. Lagre eller lukk editoren for å skrive videre.");
+      setSavedNote("inserted");
       return;
     }
     finish();
@@ -487,12 +488,12 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       const loaded = await get<EditableFile>(`/api/projects/${req.projectId}/file/edit?path=${encodeURIComponent(path)}`);
       if (loaded.binary || loaded.text === null) {
         setRetryable(false);
-        throw new Error(loaded.binary ? "Binærfilen kan ikke vises her." : (loaded.reason ?? "Filen kan ikke vises her."));
+        throw new Error(loaded.binary ? t("Binærfilen kan ikke vises her.") : (loaded.reason ?? t("Filen kan ikke vises her.")));
       }
       return loaded;
     } catch (err) {
       if (err instanceof ApiError) setRetryable(err.status === 0 || err.status >= 500);
-      setError(err instanceof ApiError && err.status === 404 ? "Fant ikke filen. Den kan være flyttet eller slettet." : (err as Error).message);
+      setError(err instanceof ApiError && err.status === 404 ? t("Fant ikke filen. Den kan være flyttet eller slettet.") : (err as Error).message);
       setStatus("error");
       return null;
     }
@@ -539,7 +540,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
         indentUnit.of(detectIndent(text, tabSize)),
         ...(separator ? [EditorState.lineSeparator.of(separator)] : []),
         ...(app.settings.wrapCode ? [EditorView.lineWrapping] : []),
-        EditorView.contentAttributes.of({ "aria-label": isFile ? `Innholdet i ${path}` : "Kodeblokken", spellcheck: "false", autocorrect: "off", autocapitalize: "off" }),
+        EditorView.contentAttributes.of({ "aria-label": isFile ? t("Innholdet i {path}", { path }) : t("Kodeblokken"), spellcheck: "false", autocorrect: "off", autocapitalize: "off" }),
         marks,
         flash,
         changes,
@@ -586,7 +587,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
           if (update.docChanged) {
             for (const tr of update.transactions) hist.record(tr);
             setDirty(!update.state.doc.eq(saved));
-            if (savedNote()) setSavedNote("");
+            if (savedNote()) setSavedNote(null);
             later();
           }
           if (update.selectionSet || update.docChanged) updateCursor();
@@ -638,8 +639,8 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       setFile(result);
       setDirty(!view.state.doc.eq(saved));
       setConflict(null);
-      setSavedNote("Lagret");
-      setTimeout(() => setSavedNote((note) => (note === "Lagret" ? "" : note)), 1600);
+      setSavedNote("saved");
+      setTimeout(() => setSavedNote((note) => (note === "saved" ? null : note)), 1600);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setConflict("changed");
       else if (err instanceof ApiError && err.status === 404) setConflict("deleted");
@@ -663,7 +664,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
   };
   async function close(): Promise<boolean> {
     if (dirty()) {
-      const ok = await confirmDialog({ title: `Forkaste endringene i ${name}?`, text: "Endringene er ikke lagret. Filen på disken er som før.", confirm: "Forkast", danger: true });
+      const ok = await confirmDialog({ title: t("Forkaste endringene i {name}?", { name: name() }), text: t("Endringene er ikke lagret. Filen på disken er som før."), confirm: t("Forkast"), danger: true });
       if (!ok) return false;
     }
     finish();
@@ -729,7 +730,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       if (l.kind === "skip") {
         numbers.push("");
         kinds.push("skip");
-        return `⋯ ${l.count} uendrede ${l.count === 1 ? "linje" : "linjer"}`;
+        return plural(l.count, "⋯ {count} uendrede linje", "⋯ {count} uendrede linjer");
       }
       numbers.push(String(l.kind === "del" ? l.oldLine : l.newLine));
       kinds.push(l.kind);
@@ -806,65 +807,65 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       <header class="mini-head">
         <div class="mini-title" id="mini-editor-title" title={isFile ? path : undefined}>
           <span class="mini-file-icon"><IconFile size={15} /></span>
-          <span class="mini-path"><Show when={dir}><span class="mini-dir">{dir}</span></Show><span class="mini-name">{name}</span></span>
-          <Show when={dirty()}><span class="mini-dirty" title="Ikke lagret" aria-label="Ikke lagret" /></Show>
+          <span class="mini-path"><Show when={dir}><span class="mini-dir">{dir}</span></Show><span class="mini-name">{name()}</span></span>
+          <Show when={dirty()}><span class="mini-dirty" title={t("Ikke lagret")} aria-label={t("Ikke lagret")} /></Show>
           <Show when={!isFile || (file() && !file()!.editable)}>
-            <span class="pill mini-pill" title={file()?.reason ?? "Kodeblokker fra samtalen kan ikke lagres."}>Bare lesing</span>
+            <span class="pill mini-pill" title={file()?.reason ?? t("Kodeblokker fra samtalen kan ikke lagres.")}>{t("Bare lesing")}</span>
           </Show>
         </div>
-        <div class="mini-tools" role="toolbar" aria-label="Editorverktøy">
+        <div class="mini-tools" role="toolbar" aria-label={t("Editorverktøy")}>
           <Show when={before() !== undefined}>
-            <div class="segmented mini-modes" role="group" aria-label="Visning">
-              <button type="button" class="segment" aria-pressed={mode() === "file"} onClick={showFile}>Fil</button>
-              <button type="button" class="segment" aria-pressed={mode() === "diff"} onClick={() => void showDiff()} title="Det tråden endret i filen">
-                <IconDiff size={13} />Endringer
+            <div class="segmented mini-modes" role="group" aria-label={t("Visning")}>
+              <button type="button" class="segment" aria-pressed={mode() === "file"} onClick={showFile}>{t("Fil")}</button>
+              <button type="button" class="segment" aria-pressed={mode() === "diff"} onClick={() => void showDiff()} title={t("Det tråden endret i filen")}>
+                <IconDiff size={13} />{t("Endringer")}
               </button>
             </div>
           </Show>
-          <button type="button" class="icon-button" classList={{ on: searchOpen() }} title={`Søk (${shortcut("Ctrl+F")})`} aria-label="Søk i filen" disabled={mode() !== "file" || status() !== "ready"} onClick={() => (searchOpen() ? closeSearch() : openSearch())}><IconSearch size={15} /></button>
-          <button type="button" class="icon-button" classList={{ on: gotoOpen() }} title={`Gå til linje (${shortcut("Ctrl+G")})`} aria-label="Gå til linje" disabled={mode() !== "file" || status() !== "ready"} onClick={() => (gotoOpen() ? setGotoOpen(false) : openGoto())}><IconGoto size={15} /></button>
-          <button type="button" class="icon-button" classList={{ on: showOutline() }} title="Oversikt over funksjoner og klasser" aria-label="Oversikt" aria-pressed={showOutline()} disabled={mode() !== "file"} onClick={() => setShowOutline(!showOutline())}><IconList size={15} /></button>
+          <button type="button" class="icon-button" classList={{ on: searchOpen() }} title={t("Søk ({shortcut})", { shortcut: shortcut("Ctrl+F") })} aria-label={t("Søk i filen")} disabled={mode() !== "file" || status() !== "ready"} onClick={() => (searchOpen() ? closeSearch() : openSearch())}><IconSearch size={15} /></button>
+          <button type="button" class="icon-button" classList={{ on: gotoOpen() }} title={t("Gå til linje ({shortcut})", { shortcut: shortcut("Ctrl+G") })} aria-label={t("Gå til linje")} disabled={mode() !== "file" || status() !== "ready"} onClick={() => (gotoOpen() ? setGotoOpen(false) : openGoto())}><IconGoto size={15} /></button>
+          <button type="button" class="icon-button" classList={{ on: showOutline() }} title={t("Oversikt over funksjoner og klasser")} aria-label={t("Oversikt")} aria-pressed={showOutline()} disabled={mode() !== "file"} onClick={() => setShowOutline(!showOutline())}><IconList size={15} /></button>
           <span class="mini-sep" aria-hidden="true" />
-          <button type="button" class="btn btn-small btn-ghost mini-action" data-done={copied() ? "" : undefined} title={cursor().chars ? "Kopier det som er valgt" : "Kopier hele filen"} onClick={() => void copy()} disabled={status() !== "ready"}>
-            <Show when={copied()} fallback={<IconCopy size={14} />}><IconCheck size={14} /></Show><span>{copied() ? "Kopiert" : "Kopier"}</span>
+          <button type="button" class="btn btn-small btn-ghost mini-action" data-done={copied() ? "" : undefined} title={cursor().chars ? t("Kopier det som er valgt") : t("Kopier hele filen")} onClick={() => void copy()} disabled={status() !== "ready"}>
+            <Show when={copied()} fallback={<IconCopy size={14} />}><IconCheck size={14} /></Show><span>{copied() ? t("Kopiert") : t("Kopier")}</span>
           </button>
           <Show when={isFile && req.projectId}>
-            <button type="button" class="btn btn-small btn-ghost mini-action" title="Vis filen i Filer-panelet" onClick={openInFiles}><IconFolderOpen size={14} /><span>Åpne i Filer</span></button>
+            <button type="button" class="btn btn-small btn-ghost mini-action" title={t("Vis filen i Filer-panelet")} onClick={openInFiles}><IconFolderOpen size={14} /><span>{t("Åpne i Filer")}</span></button>
           </Show>
-          <button type="button" class="btn btn-small btn-ghost mini-action" title={cursor().chars ? "Legg det som er valgt i meldingsfeltet, som sitat" : isFile ? "Nevn filen i meldingsfeltet" : "Legg koden i meldingsfeltet, som sitat"} onClick={() => void ask()} disabled={status() !== "ready"}>
-            <IconChat size={14} /><span>Spør om dette</span>
+          <button type="button" class="btn btn-small btn-ghost mini-action" title={cursor().chars ? t("Legg det som er valgt i meldingsfeltet, som sitat") : isFile ? t("Nevn filen i meldingsfeltet") : t("Legg koden i meldingsfeltet, som sitat")} onClick={() => void ask()} disabled={status() !== "ready"}>
+            <IconChat size={14} /><span>{t("Spør om dette")}</span>
           </button>
           <Show when={isFile && file()?.editable}>
-            <button type="button" class="btn btn-small btn-primary mini-save" disabled={!dirty() || saving() || conflict() === "deleted"} title={`Lagre (${shortcut("Ctrl+S")})`} onClick={() => void save(false)}>
-              {saving() ? "Lagrer…" : "Lagre"}
+            <button type="button" class="btn btn-small btn-primary mini-save" disabled={!dirty() || saving() || conflict() === "deleted"} title={t("Lagre ({shortcut})", { shortcut: shortcut("Ctrl+S") })} onClick={() => void save(false)}>
+              {saving() ? t("Lagrer…") : t("Lagre")}
             </button>
           </Show>
-          <button type="button" class="icon-button mini-close" title="Lukk (Esc)" aria-label="Lukk editoren" onClick={() => void close()}><IconClose size={15} /></button>
+          <button type="button" class="icon-button mini-close" title={t("Lukk (Esc)")} aria-label={t("Lukk editoren")} onClick={() => void close()}><IconClose size={15} /></button>
         </div>
       </header>
 
       <Show when={conflict()}>
         <div class="mini-banner" role="alert">
-          <span>{conflict() === "deleted" ? "Filen finnes ikke lenger på disken." : "Filen er endret på disken siden du åpnet den."}</span>
+          <span>{conflict() === "deleted" ? t("Filen finnes ikke lenger på disken.") : t("Filen er endret på disken siden du åpnet den.")}</span>
           <Show when={conflict() === "changed"}>
-            <button type="button" class="btn btn-small" onClick={() => void reload()}>Last inn på nytt</button>
-            <button type="button" class="btn btn-small btn-danger" onClick={() => void save(true)}>Overskriv</button>
+            <button type="button" class="btn btn-small" onClick={() => void reload()}>{t("Last inn på nytt")}</button>
+            <button type="button" class="btn btn-small btn-danger" onClick={() => void save(true)}>{t("Overskriv")}</button>
           </Show>
         </div>
       </Show>
 
       <div class="mini-body" classList={{ "with-outline": showOutline() && mode() === "file" }}>
         <Show when={showOutline() && mode() === "file"}>
-          <nav class="mini-outline" aria-label="Oversikt">
-            <div class="mini-outline-head">Oversikt<Show when={symbols().length}><span class="count">{symbols().length}</span></Show></div>
+          <nav class="mini-outline" aria-label={t("Oversikt")}>
+            <div class="mini-outline-head">{t("Oversikt")}<Show when={symbols().length}><span class="count">{symbols().length}</span></Show></div>
             <Show when={status() === "ready"} fallback={<div class="skeleton-lines" aria-hidden="true"><span class="skeleton skeleton-line" /><span class="skeleton skeleton-line" /><span class="skeleton skeleton-line" /></div>}>
-              <Show when={symbols().length} fallback={<p class="mini-outline-empty">Fant ingen funksjoner, klasser eller overskrifter.</p>}>
+              <Show when={symbols().length} fallback={<p class="mini-outline-empty">{t("Fant ingen funksjoner, klasser eller overskrifter.")}</p>}>
                 <ul class="mini-outline-list">
                   <For each={symbols()}>
                     {(item) => (
                       <li>
-                        <button type="button" class="mini-symbol" classList={{ active: activeSymbol() === item }} style={`--depth:${Math.min(item.depth, 6)}`} title={`${KIND_LABEL[item.kind][1]} på linje ${item.line}`} onClick={() => jumpTo(item.line)}>
-                          <span class="mini-kind" data-kind={item.kind} aria-hidden="true">{KIND_LABEL[item.kind][0]}</span>
+                        <button type="button" class="mini-symbol" classList={{ active: activeSymbol() === item }} style={`--depth:${Math.min(item.depth, 6)}`} title={t("{kind} på linje {line}", { kind: KIND_LABEL[item.kind].label, line: item.line })} onClick={() => jumpTo(item.line)}>
+                          <span class="mini-kind" data-kind={item.kind} aria-hidden="true">{KIND_LABEL[item.kind].glyph}</span>
                           <span class="mini-symbol-name">{item.name}</span>
                           <span class="mini-symbol-line">{item.line}</span>
                         </button>
@@ -885,8 +886,8 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
                 ref={searchInput}
                 class="mini-find-input"
                 type="text"
-                placeholder="Søk"
-                aria-label="Søk i filen"
+                placeholder={t("Søk")}
+                aria-label={t("Søk i filen")}
                 spellcheck={false}
                 value={query()}
                 onInput={(e) => {
@@ -905,11 +906,11 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
                   }
                 }}
               />
-              <span class="mini-find-count" aria-live="polite">{query() ? (matches().length ? `${current() + 1} av ${matches().length >= MAX_MATCHES ? `${MAX_MATCHES}+` : matches().length}` : "Ingen treff") : ""}</span>
-              <button type="button" class="icon-button mini-case" aria-pressed={caseSensitive()} title="Skill mellom store og små bokstaver" aria-label="Skill mellom store og små bokstaver" onClick={() => { setCaseSensitive(!caseSensitive()); runSearch(true); searchInput?.focus(); }}>Aa</button>
-              <button type="button" class="icon-button" title="Forrige treff (Shift+Enter)" aria-label="Forrige treff" disabled={!matches().length} onClick={() => runSearch(false, -1)}><span class="mini-up"><IconChevronDown size={13} /></span></button>
-              <button type="button" class="icon-button" title="Neste treff (Enter)" aria-label="Neste treff" disabled={!matches().length} onClick={() => runSearch(false, 1)}><IconChevronDown size={13} /></button>
-              <button type="button" class="icon-button" title="Lukk søket (Esc)" aria-label="Lukk søket" onClick={closeSearch}><IconClose size={12} /></button>
+              <span class="mini-find-count" aria-live="polite">{query() ? (matches().length ? t("{index} av {total}", { index: current() + 1, total: matches().length >= MAX_MATCHES ? `${MAX_MATCHES}+` : matches().length }) : t("Ingen treff")) : ""}</span>
+              <button type="button" class="icon-button mini-case" aria-pressed={caseSensitive()} title={t("Skill mellom store og små bokstaver")} aria-label={t("Skill mellom store og små bokstaver")} onClick={() => { setCaseSensitive(!caseSensitive()); runSearch(true); searchInput?.focus(); }}>Aa</button>
+              <button type="button" class="icon-button" title={t("Forrige treff (Shift+Enter)")} aria-label={t("Forrige treff")} disabled={!matches().length} onClick={() => runSearch(false, -1)}><span class="mini-up"><IconChevronDown size={13} /></span></button>
+              <button type="button" class="icon-button" title={t("Neste treff (Enter)")} aria-label={t("Neste treff")} disabled={!matches().length} onClick={() => runSearch(false, 1)}><IconChevronDown size={13} /></button>
+              <button type="button" class="icon-button" title={t("Lukk søket (Esc)")} aria-label={t("Lukk søket")} onClick={closeSearch}><IconClose size={12} /></button>
             </div>
           </Show>
           <Show when={gotoOpen()}>
@@ -920,8 +921,8 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
                 class="mini-find-input"
                 type="text"
                 inputmode="numeric"
-                placeholder={`Linje (1–${view?.state.doc.lines ?? 1}), eller linje:kolonne`}
-                aria-label="Gå til linje"
+                placeholder={t("Linje (1–{max}), eller linje:kolonne", { max: view?.state.doc.lines ?? 1 })}
+                aria-label={t("Gå til linje")}
                 value={gotoText()}
                 onInput={(e) => setGotoText(e.currentTarget.value)}
                 onKeyDown={(e) => {
@@ -933,19 +934,19 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
                   }
                 }}
               />
-              <button type="submit" class="btn btn-small" disabled={!/^\s*\d+\s*([:,]\s*\d+\s*)?$/.test(gotoText())}>Gå</button>
+              <button type="submit" class="btn btn-small" disabled={!/^\s*\d+\s*([:,]\s*\d+\s*)?$/.test(gotoText())}>{t("Gå")}</button>
             </form>
           </Show>
           <Show when={status() === "loading"}>
-            <div class="mini-loading skeleton-lines" role="status"><span class="sr-only">Laster filen</span>
+            <div class="mini-loading skeleton-lines" role="status"><span class="sr-only">{t("Laster filen")}</span>
               <For each={[1, 2, 3, 4, 5, 6]}>{() => <span class="skeleton skeleton-line" />}</For>
             </div>
           </Show>
           <Show when={status() === "error"}>
             <div class="mini-error" role="alert">
               <p>{error()}</p>
-              <Show when={retryable()} fallback={<Show when={isFile && req.projectId}><button type="button" class="btn btn-small" onClick={openInFiles}>Vis i Filer</button></Show>}>
-                <button type="button" class="btn btn-small" onClick={() => void reload()}>Prøv igjen</button>
+              <Show when={retryable()} fallback={<Show when={isFile && req.projectId}><button type="button" class="btn btn-small" onClick={openInFiles}>{t("Vis i Filer")}</button></Show>}>
+                <button type="button" class="btn btn-small" onClick={() => void reload()}>{t("Prøv igjen")}</button>
               </Show>
             </div>
           </Show>
@@ -956,14 +957,14 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
 
       <footer class="mini-status">
         <Show when={status() === "ready"}>
-          <span class="tabular">Linje {cursor().line}, kolonne {cursor().col}</span>
-          <Show when={cursor().chars}><span class="tabular">{cursor().lines > 1 ? `${cursor().lines} linjer valgt` : `${cursor().chars} tegn valgt`}</span></Show>
+          <span class="tabular">{t("Linje {line}, kolonne {column}", { line: cursor().line, column: cursor().col })}</span>
+          <Show when={cursor().chars}><span class="tabular">{cursor().lines > 1 ? t("{count} linjer valgt", { count: cursor().lines }) : t("{count} tegn valgt", { count: cursor().chars })}</span></Show>
         </Show>
         <Show when={activeSymbol() && mode() === "file"}><span class="mini-status-symbol">{activeSymbol()!.name}</span></Show>
         <span class="spacer" />
-        <Show when={savedNote()}><span class="mini-saved" role="status">{savedNote() === "Lagret" ? <><IconCheck size={12} />Lagret</> : savedNote()}</span></Show>
+        <Show when={savedNote()}><span class="mini-saved" role="status">{savedNote() === "saved" ? <><IconCheck size={12} />{t("Lagret")}</> : t("Lagt i meldingsfeltet. Lagre eller lukk editoren for å skrive videre.")}</span></Show>
         <Show when={diffStats() && (diffStats()!.add || diffStats()!.del)}>
-          <span class="tabular" title="Endret av tråden, mot filen før endringene"><span class="diff-add">+{diffStats()!.add}</span> <span class="diff-del">−{diffStats()!.del}</span></span>
+          <span class="tabular" title={t("Endret av tråden, mot filen før endringene")}><span class="diff-add">+{diffStats()!.add}</span> <span class="diff-del">−{diffStats()!.del}</span></span>
         </Show>
         <span>{language.name}</span>
         <Show when={isFile && file()}><span>{file()!.eol === "crlf" ? "CRLF" : "LF"}</span></Show>

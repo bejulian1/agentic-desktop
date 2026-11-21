@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { studioOpen, setStudioOpen, studioAgentOpen, setStudioAgentOpen } from "./studio";
 // What the menu bar, the shortcuts and the commands do. One place, so they cannot drift apart.
 import type { Thread } from "../../../shared/protocol";
@@ -52,7 +53,7 @@ export const actions = {
   toggleSidebar: () => setSidebarOpen(!sidebarOpen()),
   // Kode: the panel, with or without a project. Chat has none (SPEC 24.5).
   togglePanel: () => {
-    if (mode() !== "code") return toast("Sidepanelet med verktøy finnes i Kode.", "info");
+    if (mode() !== "code") return toast(t("Sidepanelet med verktøy finnes i Kode."), "info");
     if (studioOpen()) return setStudioAgentOpen(!studioAgentOpen());
     togglePanel();
   },
@@ -63,7 +64,7 @@ export const actions = {
     else { setStudioOpen(false); setMode("chat"); }
   },
   showTab: (tab: PanelTab) => {
-    if (mode() !== "code") return toast("Sidepanelet med verktøy finnes i Kode.", "info");
+    if (mode() !== "code") return toast(t("Sidepanelet med verktøy finnes i Kode."), "info");
     showPanel(tab);
   },
   theme: (theme: "light" | "dark" | "system") => saveSettings({ theme }).catch(report),
@@ -74,13 +75,13 @@ export const actions = {
   about: () => setSettingsOpen("about"),
   rename: async () => {
     const thread = focusedThread();
-    if (!thread) return toast("Ingen tråd er valgt.", "info");
-    const title = await promptDialog({ title: "Gi tråden nytt navn", value: thread.title, confirm: "Lagre" });
+    if (!thread) return toast(t("Ingen tråd er valgt."), "info");
+    const title = await promptDialog({ title: t("Gi tråden nytt navn"), value: thread.title, confirm: t("Lagre") });
     if (title?.trim() && title.trim() !== thread.title) await renameThread(thread.id, title.trim()).catch(report);
   },
   compact: async () => {
     const id = focusedThreadId();
-    if (!id) return toast("Tråden er tom.", "info");
+    if (!id) return toast(t("Tråden er tom."), "info");
     await post(`/api/threads/${id}/compact`).catch(report);
   },
   undo: () => revertLastTurn(focusedThreadId()),
@@ -91,14 +92,14 @@ export const actions = {
   fork: () => {
     const id = focusedThreadId();
     if (id) void forkThread(id);
-    else toast("Tråden er tom.", "info");
+    else toast(t("Tråden er tom."), "info");
   },
   init: async () => {
     const project = currentProject();
-    if (!project || mode() !== "code") return toast("/init krever Kode-modus og et prosjekt.", "info");
+    if (!project || mode() !== "code") return toast(t("/init krever Kode-modus og et prosjekt."), "info");
     try {
       await post(`/api/projects/${project.id}/init`);
-      toast("Laget AGENTS.md i prosjektet.", "info");
+      toast(t("Laget AGENTS.md i prosjektet."), "info");
     } catch (err) {
       report(err);
     }
@@ -120,7 +121,7 @@ export async function forkThread(id: string): Promise<void> {
     await grid.loaded;
     const pane = grid.paneWith(id);
     if (!pane || !grid.split(pane.id, "right", copy.id)) await openThread(copy);
-    toast(`Laget «${copy.title}».`, "info");
+    toast(t("Laget «{title}».", { title: copy.title }), "info");
   } catch (err) {
     report(err);
   }
@@ -148,7 +149,7 @@ const HANDLERS: Record<string, () => unknown> = {
   "thread.side": () => {
     const thread = focusedThread();
     if (thread) void sideChat(thread);
-    else toast("Ingen tråd er valgt.", "info");
+    else toast(t("Ingen tråd er valgt."), "info");
   },
   "thread.unread": () => {
     const thread = focusedThread();
@@ -175,10 +176,10 @@ const HANDLERS: Record<string, () => unknown> = {
   },
   // Round 11b (SPEC 25.1): Annoter in the Browser panel that is open, or the panel and a hint.
   "browser.annotate": () => {
-    if (mode() !== "code") return toast("Annoter hører til nettleseren i Kode.", "info");
+    if (mode() !== "code") return toast(t("Annoter hører til nettleseren i Kode."), "info");
     if (requestAnnotate()) return;
     actions.showTab("browser");
-    toast("Åpne en side i nettleseren, så kan du annotere den.", "info");
+    toast(t("Åpne en side i nettleseren, så kan du annotere den."), "info");
   },
 };
 
@@ -199,12 +200,12 @@ export function handleShortcut(event: KeyboardEvent): void {
 // A background instance: a thread that starts on a task without taking a pane. Its dot in the
 // sidebar shows how it is doing.
 export async function startBackground(projectId: string): Promise<void> {
-  const task = await promptDialog({ title: "Ny bakgrunnstråd", value: "", confirm: "Start" });
+  const task = await promptDialog({ title: t("Ny bakgrunnstråd"), value: "", confirm: t("Start") });
   if (!task?.trim()) return;
   try {
     const thread = await post<Thread>("/api/threads", { projectId, mode: "code" });
     await post(`/api/threads/${thread.id}/messages`, { text: task.trim() });
-    toast("Startet i bakgrunnen. Følg den i sidefanen.", "info");
+    toast(t("Startet i bakgrunnen. Følg den i sidefanen."), "info");
   } catch (err) {
     report(err);
   }

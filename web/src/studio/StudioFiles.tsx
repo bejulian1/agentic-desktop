@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { batch, createEffect, createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { createMutable } from "solid-js/store";
 import type { ChangedFile, EditableFile, FileEntry, MentionItem } from "../../../shared/protocol";
@@ -211,7 +212,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
     if (cache.buffers.has(path)) { if (focus) select(path); return; }
     if (folderMissing()) return;
     if (cache.buffers.size >= MAX_TABS || totalBuffers() >= MAX_BUFFERS) {
-      setError("Lagre og lukk noen faner før du åpner flere filer.");
+      setError(t("Lagre og lukk noen faner før du åpner flere filer."));
       return;
     }
     const generation = focus ? ++request : request;
@@ -274,7 +275,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
       if (!alive || cache.buffers.get(path) !== file || file.request !== generation) return;
       if (err instanceof ApiError && err.status === 404) {
         file.conflict = "missing";
-        file.error = "Filen finnes ikke lenger på disken. Utkastet ditt er beholdt.";
+        file.error = t("Filen finnes ikke lenger på disken. Utkastet ditt er beholdt.");
       } else {
         file.error = (err as Error).message;
       }
@@ -282,7 +283,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
     }
   }
 
-  function flashSaved(message = "Lagret") {
+  function flashSaved(message = t("Lagret")) {
     clearTimeout(savedTimer);
     setSavedNote(message);
     savedTimer = setTimeout(() => { if (alive) setSavedNote(""); }, 1800);
@@ -307,7 +308,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
       if (normalizeText(saved.text) !== text) {
         file.conflict = saved;
         file.conflictKept = false;
-        file.error = "Filen ble endret på disken mens lagringen ble fullført. Utkastet er beholdt.";
+        file.error = t("Filen ble endret på disken mens lagringen ble fullført. Utkastet er beholdt.");
       } else {
         file.file = saved;
         file.conflict = undefined;
@@ -349,7 +350,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
       file.conflict = undefined;
       file.conflictKept = false;
       file.error = undefined;
-      flashSaved("Lagret på nytt");
+      flashSaved(t("Lagret på nytt"));
       void loadDir(".");
     } catch (err) {
       if (alive && cache.buffers.get(path) === file) file.error = (err as Error).message;
@@ -363,9 +364,9 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
     const file = cache.buffers.get(path);
     if (!file || file.saving) return;
     if (dirty(file) && !await confirmDialog({
-      title: `Forkaste endringene i ${path}?`,
-      text: "Endringene finnes bare i utkastet. Filen på disken blir ikke endret.",
-      confirm: "Forkast",
+      title: t("Forkaste endringene i {path}?", { path }),
+      text: t("Endringene finnes bare i utkastet. Filen på disken blir ikke endret."),
+      confirm: t("Forkast"),
       danger: true,
     })) return;
     if (!alive || cache.buffers.get(path) !== file) return;
@@ -411,9 +412,9 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
     const file = current();
     if (!path || !file) return;
     if (dirty(file) && !await confirmDialog({
-      title: "Erstatte utkastet med diskversjonen?",
-      text: "Dine ulagrede endringer i denne fanen blir forkastet.",
-      confirm: "Last inn fra disk",
+      title: t("Erstatte utkastet med diskversjonen?"),
+      text: t("Dine ulagrede endringer i denne fanen blir forkastet."),
+      confirm: t("Last inn fra disk"),
       danger: true,
     })) return;
     if (!alive || cache.buffers.get(path) !== file) return;
@@ -423,7 +424,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
       const disk = await get<EditableFile>(`/api/projects/${props.projectId}/file/edit?path=${encodeURIComponent(path)}`);
       if (!alive || cache.buffers.get(path) !== file || file.request !== generation) return;
       if (file.text !== draftAtStart) {
-        file.error = "Utkastet ble redigert mens diskversjonen ble lastet. Prøv igjen når du er klar.";
+        file.error = t("Utkastet ble redigert mens diskversjonen ble lastet. Prøv igjen når du er klar.");
         touch();
         return;
       }
@@ -448,9 +449,9 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
     if (!file?.conflict || file.conflict === "missing") return;
     const disk = file.conflict;
     if (!await confirmDialog({
-      title: "Bruke det redigerte utkastet som neste versjon?",
-      text: "Kontroller at du har tatt med diskendringene du vil beholde. Neste lagring erstatter denne diskversjonen med utkastet; nyere diskendringer blir fortsatt avvist.",
-      confirm: "Bruk utkastet",
+      title: t("Bruke det redigerte utkastet som neste versjon?"),
+      text: t("Kontroller at du har tatt med diskendringene du vil beholde. Neste lagring erstatter denne diskversjonen med utkastet; nyere diskendringer blir fortsatt avvist."),
+      confirm: t("Bruk utkastet"),
     })) return;
     if (!alive || current() !== file || file.conflict !== disk) return;
     file.file = disk;
@@ -677,7 +678,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
     queueMicrotask(() => newFileButton?.focus());
   }
 
-  const title = () => project()?.name ?? "Prosjekt";
+  const title = () => project()?.name ?? t("Prosjekt");
   const oldDrafts = () => {
     revision();
     return [...projects.values()]
@@ -686,16 +687,16 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
   };
 
   return (
-    <section class="studio-files" classList={{ "studio-tree-hidden": !treeOpen() }} data-testid="studio-files" aria-label="Prosjektfiler og editor">
-      <aside class="studio-explorer" hidden={!treeOpen()} aria-label="Filutforsker">
+    <section class="studio-files" classList={{ "studio-tree-hidden": !treeOpen() }} data-testid="studio-files" aria-label={t("Prosjektfiler og editor")}>
+      <aside class="studio-explorer" hidden={!treeOpen()} aria-label={t("Filutforsker")}>
         <header class="studio-explorer-head">
           <span><IconFolder size={14} /><strong>{title()}</strong></span>
           <button
             ref={newFileButton}
             type="button"
             class="icon-button"
-            aria-label="Ny fil"
-            title="Ny fil"
+            aria-label={t("Ny fil")}
+            title={t("Ny fil")}
             disabled={folderMissing()}
             onClick={() => { setTreeOpen(true); setCreating(true); }}
           >
@@ -705,8 +706,8 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
         <label class="studio-file-filter">
           <IconSearch size={13} />
           <input
-            aria-label="Filtrer prosjektfiler"
-            placeholder="Finn en fil…"
+            aria-label={t("Filtrer prosjektfiler")}
+            placeholder={t("Finn en fil…")}
             value={filter()}
             disabled={folderMissing()}
             onInput={(e) => setFilter(e.currentTarget.value)}
@@ -731,28 +732,28 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
           >
             <input
               ref={newInput}
-              aria-label="Navn på ny fil"
-              placeholder="fil.ts eller mappe/fil.ts"
+              aria-label={t("Navn på ny fil")}
+              placeholder={t("fil.ts eller mappe/fil.ts")}
               value={newPath()}
               onInput={(e) => setNewPath(e.currentTarget.value)}
               disabled={newBusy()}
             />
             <div>
-              <button class="btn btn-small" type="submit" disabled={!newPath().trim() || newBusy()}>Opprett fil</button>
-              <button class="icon-button" type="button" aria-label="Avbryt ny fil" onClick={cancelCreate}><IconClose size={13} /></button>
+              <button class="btn btn-small" type="submit" disabled={!newPath().trim() || newBusy()}>{t("Opprett fil")}</button>
+              <button class="icon-button" type="button" aria-label={t("Avbryt ny fil")} onClick={cancelCreate}><IconClose size={13} /></button>
             </div>
-            <small>Mapper må finnes fra før.</small>
+            <small>{t("Mapper må finnes fra før.")}</small>
           </form>
         </Show>
-        <div class="studio-tree" role="tree" data-testid="studio-tree" aria-label="Prosjektfiler">
+        <div class="studio-tree" role="tree" data-testid="studio-tree" aria-label={t("Prosjektfiler")}>
           <Show
             when={!folderMissing()}
-            fallback={<p class="studio-tree-empty">Prosjektmappen ble ikke funnet. Koble den til på nytt for å vise filer.</p>}
+            fallback={<p class="studio-tree-empty">{t("Prosjektmappen ble ikke funnet. Koble den til på nytt for å vise filer.")}</p>}
           >
             <Show
               when={filter().trim()}
               fallback={
-                <For each={listing(".")} fallback={<p class="studio-tree-empty">{dirs.has(".") ? "Mappen er tom" : "Laster filer…"}</p>}>
+                <For each={listing(".")} fallback={<p class="studio-tree-empty">{dirs.has(".") ? t("Mappen er tom") : t("Laster filer…")}</p>}>
                   {(entry) => (
                     <FileTreeEntry
                       entry={entry}
@@ -769,7 +770,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
                 </For>
               }
             >
-              <For each={found()} fallback={<p class="studio-tree-empty">Ingen filer funnet</p>}>
+              <For each={found()} fallback={<p class="studio-tree-empty">{t("Ingen filer funnet")}</p>}>
                 {(entry) => (
                   <button type="button" class="studio-found-file" data-path={entry.path} onClick={() => { if (entry.path) void openFile(entry.path); }} title={entry.path}>
                     <IconFile size={13} />
@@ -781,11 +782,11 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
           </Show>
         </div>
         <footer class="studio-explorer-foot">
-          <button type="button" aria-label="Følg agentens filer" aria-pressed={follow()} classList={{ active: follow() }} onClick={() => setFollow(!follow())}>
+          <button type="button" aria-label={t("Følg agentens filer")} aria-pressed={follow()} classList={{ active: follow() }} onClick={() => setFollow(!follow())}>
             <span class="studio-live-dot" aria-hidden="true" />
-            Følg agentens filer
+            {t("Følg agentens filer")}
           </button>
-          <span>{folderMissing() ? "Overvåking satt på pause" : "Filer oppdateres fortløpende"}</span>
+          <span>{folderMissing() ? t("Overvåking satt på pause") : t("Filer oppdateres fortløpende")}</span>
         </footer>
       </aside>
       <div class="studio-editor-column">
@@ -798,14 +799,14 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
         </Show>
         <Show when={oldDrafts().length}>
           <details class="studio-old-drafts" data-testid="studio-old-drafts">
-            <summary>Ulagrede utkast fra tidligere prosjektmappe ({oldDrafts().length})</summary>
-            <p>Prosjektmappen er endret. Disse utkastene holdes adskilt og kan ikke lagres over filer i den nye mappen. Kopier innholdet du vil ta vare på.</p>
+            <summary>{t("Ulagrede utkast fra tidligere prosjektmappe ({count})", { count: oldDrafts().length })}</summary>
+            <p>{t("Prosjektmappen er endret. Disse utkastene holdes adskilt og kan ikke lagres over filer i den nye mappen. Kopier innholdet du vil ta vare på.")}</p>
             <For each={oldDrafts()}>
               {(draft) => (
                 <div>
                   <strong>{draft.path}</strong>
                   <small>{draft.root}</small>
-                  <pre tabIndex={0} aria-label={`Tidligere utkast ${draft.path}`}>{draft.file.text}</pre>
+                  <pre tabIndex={0} aria-label={t("Tidligere utkast {path}", { path: draft.path })}>{draft.file.text}</pre>
                 </div>
               )}
             </For>
@@ -815,14 +816,14 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
           <button
             type="button"
             class="icon-button studio-tree-toggle"
-            aria-label={treeOpen() ? "Skjul prosjektfiler" : "Vis prosjektfiler"}
+            aria-label={treeOpen() ? t("Skjul prosjektfiler") : t("Vis prosjektfiler")}
             aria-expanded={treeOpen()}
-            title={treeOpen() ? "Skjul prosjektfiler" : "Vis prosjektfiler"}
+            title={treeOpen() ? t("Skjul prosjektfiler") : t("Vis prosjektfiler")}
             onClick={() => setTreeOpen(!treeOpen())}
           >
             <IconFolder size={15} />
           </button>
-          <div ref={tabsEl} class="studio-file-tabs" role="tablist" aria-label="Åpne filer" data-testid="studio-tabs">
+          <div ref={tabsEl} class="studio-file-tabs" role="tablist" aria-label={t("Åpne filer")} data-testid="studio-tabs">
             <For each={buffers()}>
               {(path, index) => {
                 const file = cache.buffers.get(path)!;
@@ -845,9 +846,9 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
                     >
                       <IconFile size={13} />
                       <span>{path.split("/").at(-1)}</span>
-                      <Show when={dirty(file)}><span class="studio-dirty" aria-label="Ulagrede endringer">●</span></Show>
+                      <Show when={dirty(file)}><span class="studio-dirty" aria-label={t("Ulagrede endringer")}>●</span></Show>
                     </button>
-                    <button type="button" class="studio-tab-close" aria-label={`Lukk ${path}`} title={`Lukk ${path}`} disabled={file.saving} onClick={() => void close(path)}>
+                    <button type="button" class="studio-tab-close" aria-label={t("Lukk {path}", { path })} title={t("Lukk {path}", { path })} disabled={file.saving} onClick={() => void close(path)}>
                       <IconClose size={12} />
                     </button>
                   </div>
@@ -859,7 +860,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
         <Show when={error() && !folderMissing()}>
           <div class="studio-error" role="alert">
             <span>{error()}</span>
-            <button type="button" aria-label="Lukk filfeil" class="icon-button" onClick={() => setError("")}><IconClose size={12} /></button>
+            <button type="button" aria-label={t("Lukk filfeil")} class="icon-button" onClick={() => setError("")}><IconClose size={12} /></button>
           </div>
         </Show>
         <div id="studio-editor-panel" class="studio-editor-panel" role={current() ? "tabpanel" : undefined} aria-label={selected() ?? undefined}>
@@ -868,13 +869,13 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
               <>
                 <div class="studio-editor-toolbar">
                   <span class="studio-file-breadcrumb" title={selected() ?? ""}>{selected()}</span>
-                  <Show when={file().file.reason}><span class="studio-readonly">Skrivebeskyttet</span></Show>
+                  <Show when={file().file.reason}><span class="studio-readonly">{t("Skrivebeskyttet")}</span></Show>
                   <button
                     type="button"
                     class="btn btn-small"
-                    aria-label="Søk i fil"
+                    aria-label={t("Søk i fil")}
                     aria-pressed={searchOpen()}
-                    title="Søk i fil · Ctrl+F"
+                    title={t("Søk i fil · Ctrl+F")}
                     onClick={() => {
                       const next = !searchOpen();
                       setSearchOpen(next);
@@ -887,12 +888,12 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
                   <button
                     type="button"
                     class="btn btn-small"
-                    aria-label="Lagre fil"
-                    title="Lagre · Ctrl+S"
+                    aria-label={t("Lagre fil")}
+                    title={t("Lagre · Ctrl+S")}
                     disabled={!dirty(file()) || file().saving || !file().file.editable || folderMissing()}
                     onClick={() => void save()}
                   >
-                    {file().saving ? "Lagrer…" : "Lagre"}
+                    {file().saving ? t("Lagrer…") : t("Lagre")}
                   </button>
                 </div>
                 <Show when={searchOpen()}>
@@ -906,50 +907,50 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
                   >
                     <input
                       ref={searchInput}
-                      aria-label="Søk i åpen fil"
-                      placeholder="Søk i filen"
+                      aria-label={t("Søk i åpen fil")}
+                      placeholder={t("Søk i filen")}
                       value={query()}
                       onInput={(e) => { setQuery(e.currentTarget.value); setSearchResult(null); }}
                     />
                     <Show when={searchResult()}>
                       {(res) => (
                         <span class="studio-search-count" classList={{ miss: res().count === 0 }} aria-live="polite">
-                          {res().count === 0 ? "Ingen treff" : `${res().index} / ${res().count}`}
+                          {res().count === 0 ? t("Ingen treff") : `${res().index} / ${res().count}`}
                         </span>
                       )}
                     </Show>
-                    <button class="btn btn-small" type="button" onClick={() => find(true)}>Forrige</button>
-                    <button class="btn btn-small" type="submit">Neste</button>
-                    <button class="icon-button" aria-label="Lukk filsøk" title="Lukk søk (Esc)" type="button" onClick={closeSearch}>
+                    <button class="btn btn-small" type="button" onClick={() => find(true)}>{t("Forrige")}</button>
+                    <button class="btn btn-small" type="submit">{t("Neste")}</button>
+                    <button class="icon-button" aria-label={t("Lukk filsøk")} title={t("Lukk søk (Esc)")} type="button" onClick={closeSearch}>
                       <IconClose size={13} />
                     </button>
                   </form>
                 </Show>
                 <Show when={file().conflict}>
                   <div class="studio-conflict" role="status" data-testid="studio-conflict">
-                    <strong>{file().conflict === "missing" ? "Filen er slettet eller flyttet på disken" : "Filen er endret på disken"}</strong>
+                    <strong>{file().conflict === "missing" ? t("Filen er slettet eller flyttet på disken") : t("Filen er endret på disken")}</strong>
                     <p>
                       {file().conflict === "missing"
-                        ? "Utkastet ditt er beholdt i minnet. Du kan lagre det på nytt som en fil eller beholde utkastet åpent."
+                        ? t("Utkastet ditt er beholdt i minnet. Du kan lagre det på nytt som en fil eller beholde utkastet åpent.")
                         : file().conflictKept
-                          ? "Utkastet er beholdt. Sammenlign diskversjonen og ta med endringene du vil beholde før ny lagring."
-                          : "Utkastet ditt er beholdt. Ingenting blir overskrevet automatisk."}
+                          ? t("Utkastet er beholdt. Sammenlign diskversjonen og ta med endringene du vil beholde før ny lagring.")
+                          : t("Utkastet ditt er beholdt. Ingenting blir overskrevet automatisk.")}
                     </p>
                     <div>
                       <Show when={file().conflict !== "missing"}>
-                        <button type="button" class="btn btn-small" onClick={() => void reloadDisk()}>Last inn fra disk</button>
-                        <button type="button" class="btn btn-small" onClick={() => setCompare(!compare())}>{compare() ? "Skjul diskversjon" : "Vis diskversjon"}</button>
+                        <button type="button" class="btn btn-small" onClick={() => void reloadDisk()}>{t("Last inn fra disk")}</button>
+                        <button type="button" class="btn btn-small" onClick={() => setCompare(!compare())}>{compare() ? t("Skjul diskversjon") : t("Vis diskversjon")}</button>
                       </Show>
                       <Show when={file().conflict === "missing" && file().file.editable && !folderMissing()}>
-                        <button type="button" class="btn btn-small" disabled={file().saving} onClick={() => void recreateDeleted()}>Lagre på nytt</button>
+                        <button type="button" class="btn btn-small" disabled={file().saving} onClick={() => void recreateDeleted()}>{t("Lagre på nytt")}</button>
                       </Show>
-                      <button type="button" class="btn btn-small" onClick={() => { file().conflictKept = true; touch(); editor?.focus(); }}>Behold utkast</button>
+                      <button type="button" class="btn btn-small" onClick={() => { file().conflictKept = true; touch(); editor?.focus(); }}>{t("Behold utkast")}</button>
                       <Show when={compare() && file().conflict !== "missing"}>
-                        <button type="button" class="btn btn-small" onClick={() => void acceptMerged()}>Bruk redigert utkast</button>
+                        <button type="button" class="btn btn-small" onClick={() => void acceptMerged()}>{t("Bruk redigert utkast")}</button>
                       </Show>
                     </div>
                     <Show when={compare() && file().conflict !== "missing"}>
-                      <pre aria-label="Diskversjon">{(file().conflict as EditableFile).text ?? "Innholdet kan ikke vises"}</pre>
+                      <pre aria-label={t("Diskversjon")}>{(file().conflict as EditableFile).text ?? t("Innholdet kan ikke vises")}</pre>
                     </Show>
                   </div>
                 </Show>
@@ -962,26 +963,26 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
           <Show when={!current()}>
             <div class="studio-editor-empty">
               <span class="studio-empty-icon"><IconFile size={27} /></span>
-              <h2>{loading() ? "Åpner fil…" : "Prosjektet ditt, i arbeid"}</h2>
-              <p>Velg en fil til venstre, eller be agenten lage noe. Nye filer og endringer vises her mens dere jobber.</p>
-              <button class="btn" type="button" disabled={folderMissing()} onClick={() => { setTreeOpen(true); setCreating(true); }}>Opprett en fil</button>
-              <span>Ctrl+S lagrer · Ctrl+F søker</span>
+              <h2>{loading() ? t("Åpner fil…") : t("Prosjektet ditt, i arbeid")}</h2>
+              <p>{t("Velg en fil til venstre, eller be agenten lage noe. Nye filer og endringer vises her mens dere jobber.")}</p>
+              <button class="btn" type="button" disabled={folderMissing()} onClick={() => { setTreeOpen(true); setCreating(true); }}>{t("Opprett en fil")}</button>
+              <span>{t("Ctrl+S lagrer · Ctrl+F søker")}</span>
             </div>
           </Show>
           <Show when={current()?.file.binary || current()?.file.truncated}>
             <div class="studio-editor-empty">
               <span class="studio-empty-icon"><IconFile size={27} /></span>
-              <h2>{current()?.file.binary ? "Binærfil" : "Filen er for stor for editoren"}</h2>
-              <p>Filen er beholdt på disken. Velg en tekstfil for å redigere.</p>
+              <h2>{current()?.file.binary ? t("Binærfil") : t("Filen er for stor for editoren")}</h2>
+              <p>{t("Filen er beholdt på disken. Velg en tekstfil for å redigere.")}</p>
             </div>
           </Show>
         </div>
         <footer class="studio-editor-status">
           <span aria-live="polite">
-            {savedNote() || (current() ? dirty(current()!) ? "Ulagret utkast" : "Lagret på disk" : "Kode Studio")}
+            {savedNote() || (current() ? dirty(current()!) ? t("Ulagret utkast") : t("Lagret på disk") : t("Kode Studio"))}
           </span>
           <span>
-            {current() ? `Linje ${cursor().line}, kolonne ${cursor().column} · ${current()!.file.eol.toUpperCase()} · UTF-8` : "Velg en prosjektfil"}
+            {current() ? t("Linje {line}, kolonne {column} · {eol} · UTF-8", { line: cursor().line, column: cursor().column, eol: current()!.file.eol.toUpperCase() }) : t("Velg en prosjektfil")}
           </span>
         </footer>
       </div>

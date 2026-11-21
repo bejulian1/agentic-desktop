@@ -1,5 +1,6 @@
 // A compact summary of the focused Code thread, anchored in the top bar.
 // File counts come from recorded changes; terminals belong to the displayed project.
+import { plural, t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import type { Attachment, SummaryTurnChanges, Thread } from "../../../shared/protocol";
 import { app, currentProject, report, settingsOpen } from "../state/app";
@@ -168,7 +169,7 @@ export function PinnedSummary(props: { thread?: Thread }) {
   const childStatus = () => {
     const done = children().filter((t) => !t.running && t.lastStatus === "done").length;
     const running = children().filter((t) => t.running).length;
-    return [done ? `${done} ${done === 1 ? "ferdig" : "ferdige"}` : "", running ? `${running} kjører` : ""].filter(Boolean).join(" · ") || "Venter";
+    return [done ? plural(done, "{count} ferdig", "{count} ferdige") : "", running ? t("{count} kjører", { count: running }) : ""].filter(Boolean).join(" · ") || t("Venter");
   };
   const totals = createMemo(() => results().reduce((sum, file) => ({
     additions: sum.additions + file.additions, deletions: sum.deletions + file.deletions,
@@ -180,73 +181,73 @@ export function PinnedSummary(props: { thread?: Thread }) {
   return (
     <Popover
       open={open() && !settingsOpen()} onClose={close} align="right" below fixed portal returnFocus class="code-summary-anchor"
-      trigger={<button type="button" class="icon-button pinned-head" ref={trigger} data-testid="pinned-summary" aria-label="Festet sammendrag" title="Festet sammendrag" aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconPin /></button>}
+      trigger={<button type="button" class="icon-button pinned-head" ref={trigger} data-testid="pinned-summary" aria-label={t("Festet sammendrag")} title={t("Festet sammendrag")} aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconPin /></button>}
     >
-      <section class="code-summary" role="dialog" aria-label="Festet sammendrag" tabindex="-1" ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}>
+      <section class="code-summary" role="dialog" aria-label={t("Festet sammendrag")} tabindex="-1" ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}>
         <header class="code-summary-head">
-          <span title={project()?.path}>{project()?.name ?? "Denne datamaskinen"}</span>
-          <button type="button" class="icon-button" aria-label="Lukk sammendrag" onClick={closeAndFocus}><IconClose size={14} /></button>
+          <span title={project()?.path}>{project()?.name ?? t("Denne datamaskinen")}</span>
+          <button type="button" class="icon-button" aria-label={t("Lukk sammendrag")} onClick={closeAndFocus}><IconClose size={14} /></button>
         </header>
-        <button type="button" class="code-summary-row" data-testid="changes-chip" disabled={!results().length} title="Endringer i tråden" onClick={() => run(() => { peekPanelActions().showTurn(results()[0].turnId); })}>
-          <IconFile size={15} /><span class="code-summary-name">Endringer</span>
-          <Show when={results().length} fallback={<span class="code-summary-meta">{changesState() === "loading" ? "Henter endringer…" : changesState() === "error" ? "Kunne ikke hente" : "Ingen endringer"}</span>}>
+        <button type="button" class="code-summary-row" data-testid="changes-chip" disabled={!results().length} title={t("Endringer i tråden")} onClick={() => run(() => { peekPanelActions().showTurn(results()[0].turnId); })}>
+          <IconFile size={15} /><span class="code-summary-name">{t("Endringer")}</span>
+          <Show when={results().length} fallback={<span class="code-summary-meta">{changesState() === "loading" ? t("Henter endringer…") : changesState() === "error" ? t("Kunne ikke hente") : t("Ingen endringer")}</span>}>
             <Show when={totals().text}>
-              <Show when={totals().approximate}><span title="Anslåtte linjetall">≈</span></Show>
+              <Show when={totals().approximate}><span title={t("Anslåtte linjetall")}>≈</span></Show>
               <span class="diff-add">+{totals().additions}</span><span class="diff-del">−{totals().deletions}</span>
             </Show>
-            <Show when={totals().binary}><span class="code-summary-meta" title="Binærfiler er ikke med i linjetallene">binærfil</span></Show>
-            <span class="code-summary-meta">· {results().length} {results().length === 1 ? "fil" : "filer"}</span>
+            <Show when={totals().binary}><span class="code-summary-meta" title={t("Binærfiler er ikke med i linjetallene")}>{t("binærfil")}</span></Show>
+            <span class="code-summary-meta">· {plural(results().length, "{count} fil", "{count} filer")}</span>
           </Show>
         </button>
-        <Show when={changesState() === "error"}><button type="button" class="pinned-more" onClick={() => reloadChanges?.()}>Hent endringene på nytt</button></Show>
+        <Show when={changesState() === "error"}><button type="button" class="pinned-more" onClick={() => reloadChanges?.()}>{t("Hent endringene på nytt")}</button></Show>
         <section class="code-summary-section" data-testid="pinned-agents">
-          <h3>Underagenter</h3>
-          <Show when={children().length} fallback={<p class="code-summary-empty">Ingen underagenter i tråden.</p>}>
+          <h3>{t("Underagenter")}</h3>
+          <Show when={children().length} fallback={<p class="code-summary-empty">{t("Ingen underagenter i tråden.")}</p>}>
             <p class="pinned-agents-line"><span class="agents-faces" aria-hidden="true"><For each={children().slice(0, 4)}>{(_, i) => <span class="agent-face" data-tone={i() % 3}><IconAgent size={13} /></span>}</For></span>{childStatus()}</p>
-            <ul class="pinned-list"><For each={children()}>{(child) => <li><button type="button" class="pinned-item" onClick={() => run(() => openThread(child))}><IconAgent size={14} /><span class="pinned-item-text">{child.title}</span><span class="pinned-item-meta">{child.running ? "kjører" : child.lastStatus === "done" ? "ferdig" : child.lastStatus === "error" ? "feilet" : child.lastStatus ? "stoppet" : "venter"}</span></button></li>}</For></ul>
+            <ul class="pinned-list"><For each={children()}>{(child) => <li><button type="button" class="pinned-item" onClick={() => run(() => openThread(child))}><IconAgent size={14} /><span class="pinned-item-text">{child.title}</span><span class="pinned-item-meta">{child.running ? t("kjører") : child.lastStatus === "done" ? t("ferdig") : child.lastStatus === "error" ? t("feilet") : child.lastStatus ? t("stoppet") : t("venter")}</span></button></li>}</For></ul>
           </Show>
         </section>
         <section class="code-summary-section" data-testid="pinned-terminals">
-          <h3>Bakgrunnsprosesser</h3>
-          <p class="code-summary-scope">Terminaler i {project()?.name ?? "Denne datamaskinen"}</p>
-          <Show when={terminalState() !== "error"} fallback={<><p class="code-summary-empty" role="status">Kunne ikke hente terminalene.</p><button type="button" class="pinned-more" onClick={() => reloadTerminals?.()}>Prøv igjen</button></>}>
-            <Show when={terminalState() === "ready"} fallback={<p class="code-summary-empty" role="status">Henter terminaler…</p>}>
-              <Show when={terminals().length} fallback={<p class="code-summary-empty">Ingen åpne bakgrunnsterminaler.</p>}>
-                <button type="button" class="code-summary-row" onClick={() => run(() => showPanel("terminal"))}><IconTerminal size={15} /><span class="code-summary-name">Bakgrunnsterminal{terminals().length > 1 ? "er" : ""}</span><span class="code-summary-meta">{terminals().length} åpne</span></button>
+          <h3>{t("Bakgrunnsprosesser")}</h3>
+          <p class="code-summary-scope">{t("Terminaler i {project}", { project: project()?.name ?? t("Denne datamaskinen") })}</p>
+          <Show when={terminalState() !== "error"} fallback={<><p class="code-summary-empty" role="status">{t("Kunne ikke hente terminalene.")}</p><button type="button" class="pinned-more" onClick={() => reloadTerminals?.()}>{t("Prøv igjen")}</button></>}>
+            <Show when={terminalState() === "ready"} fallback={<p class="code-summary-empty" role="status">{t("Henter terminaler…")}</p>}>
+              <Show when={terminals().length} fallback={<p class="code-summary-empty">{t("Ingen åpne bakgrunnsterminaler.")}</p>}>
+                <button type="button" class="code-summary-row" onClick={() => run(() => showPanel("terminal"))}><IconTerminal size={15} /><span class="code-summary-name">{plural(terminals().length, "Bakgrunnsterminal", "Bakgrunnsterminaler")}</span><span class="code-summary-meta">{t("{count} åpne", { count: terminals().length })}</span></button>
               </Show>
             </Show>
           </Show>
         </section>
         <Show when={props.thread}>
           {(thread) => <details class="code-summary-details">
-            <summary>Mål, plan og resultater<IconChevron size={12} /></summary>
+            <summary>{t("Mål, plan og resultater")}<IconChevron size={12} /></summary>
             <div class="pinned-body">
-          <Section title="Mål" testid="pinned-goal-section">
-            <Show when={thread().goal} fallback={<p class="pinned-empty">Ingen mål ennå. Skriv /goal og målet i meldingsfeltet.</p>}>
+          <Section title={t("Mål")} testid="pinned-goal-section">
+            <Show when={thread().goal} fallback={<p class="pinned-empty">{t("Ingen mål ennå. Skriv /goal og målet i meldingsfeltet.")}</p>}>
               <GoalLine thread={thread()} variant="pinned" />
             </Show>
           </Section>
           <Show when={thread().plan}>
             <div class="pinned-plan">
-              <span class="pinned-label"><IconList size={12} />Plan</span>
+              <span class="pinned-label"><IconList size={12} />{t("Plan")}</span>
               <p>{excerpt(thread().plan!, 400)}</p>
             </div>
           </Show>
           <Show when={thread().chapters.length}>
-            <Section title="Kapitler" testid="pinned-chapters">
+            <Section title={t("Kapitler")} testid="pinned-chapters">
               <ul class="pinned-list">
                 <For each={thread().chapters}>
                   {(chapter) => (
                     <li class="pinned-chapter">
-                      <button type="button" class="pinned-item" title="Gå til kapittelet" onClick={() => run(() => jumpToMessage(thread().id, chapter.messageId))}>
+                      <button type="button" class="pinned-item" title={t("Gå til kapittelet")} onClick={() => run(() => jumpToMessage(thread().id, chapter.messageId))}>
                         <IconBookmark size={14} />
                         <span class="pinned-item-text">{chapter.title}</span>
                       </button>
                       <button
                         type="button"
                         class="goal-button"
-                        title={`Fjern kapittelet «${chapter.title}»`}
-                        aria-label={`Fjern kapittelet ${chapter.title}`}
+                        title={t("Fjern kapittelet «{title}»", { title: chapter.title })}
+                        aria-label={t("Fjern kapittelet {title}", { title: chapter.title })}
                         onClick={() => patch(`/api/threads/${thread().id}`, { chapter: { messageId: chapter.messageId, title: null } }).catch(report)}
                       >
                         <IconClose size={12} />
@@ -257,8 +258,8 @@ export function PinnedSummary(props: { thread?: Thread }) {
               </ul>
             </Section>
           </Show>
-          <Section title="Resultater" testid="pinned-results">
-            <Show when={results().length} fallback={<p class="pinned-empty">Ingen filer laget eller endret ennå.</p>}>
+          <Section title={t("Resultater")} testid="pinned-results">
+            <Show when={results().length} fallback={<p class="pinned-empty">{t("Ingen filer laget eller endret ennå.")}</p>}>
               <ul class="pinned-list">
                 <For each={allFiles() ? results() : results().slice(0, SHOWN)}>
                   {(file) => (
@@ -266,22 +267,22 @@ export function PinnedSummary(props: { thread?: Thread }) {
                       <button type="button" class="pinned-item" title={file.path} onClick={() => run(() => peekPanelActions().showTurn(file.turnId))}>
                         <IconFile size={14} />
                         <span class="pinned-item-text">{file.path}</span>
-                        <span class="pinned-item-meta">{file.change === "added" ? "ny" : file.change === "deleted" ? "slettet" : ""}</span>
-                        <Show when={file.approximate}><span title="Anslåtte linjetall">≈</span></Show>
+                        <span class="pinned-item-meta">{file.change === "added" ? t("ny") : file.change === "deleted" ? t("slettet") : ""}</span>
+                        <Show when={file.approximate}><span title={t("Anslåtte linjetall")}>≈</span></Show>
                         <Show when={file.text}><span class="diff-add">+{file.additions}</span><span class="diff-del">−{file.deletions}</span></Show>
-                        <Show when={file.binary}><span class="pinned-item-meta">binærfil</span></Show>
+                        <Show when={file.binary}><span class="pinned-item-meta">{t("binærfil")}</span></Show>
                       </button>
                     </li>
                   )}
                 </For>
               </ul>
               <Show when={results().length > SHOWN}>
-                <button type="button" class="pinned-more" onClick={() => setAllFiles(!allFiles())}>{allFiles() ? "Vis færre" : `Vis alle ${results().length}`}</button>
+                <button type="button" class="pinned-more" onClick={() => setAllFiles(!allFiles())}>{allFiles() ? t("Vis færre") : t("Vis alle {count}", { count: results().length })}</button>
               </Show>
             </Show>
           </Section>
-          <Section title="Kilder" testid="pinned-sources">
-            <Show when={stats().sources.length} fallback={<p class="pinned-empty">Ingen vedlegg ennå. Legg ved bilder med + eller filer med @.</p>}>
+          <Section title={t("Kilder")} testid="pinned-sources">
+            <Show when={stats().sources.length} fallback={<p class="pinned-empty">{t("Ingen vedlegg ennå. Legg ved bilder med + eller filer med @.")}</p>}>
               <ul class="pinned-list">
                 <For each={allSources() ? stats().sources : stats().sources.slice(0, SHOWN)}>
                   {(source) => (
@@ -305,14 +306,14 @@ export function PinnedSummary(props: { thread?: Thread }) {
                 </For>
               </ul>
               <Show when={stats().sources.length > SHOWN}>
-                <button type="button" class="pinned-more" onClick={() => setAllSources(!allSources())}>{allSources() ? "Vis færre" : `Vis alle ${stats().sources.length}`}</button>
+                <button type="button" class="pinned-more" onClick={() => setAllSources(!allSources())}>{allSources() ? t("Vis færre") : t("Vis alle {count}", { count: stats().sources.length })}</button>
               </Show>
             </Show>
           </Section>
           <p class="pinned-stats">
-            {model()?.hasOlder() ? "I lastet samtale: " : ""}{stats().messages} {stats().messages === 1 ? "melding" : "meldinger"} · {stats().tools} verktøykall · {results().length} {results().length === 1 ? "fil" : "filer"} endret
+            {model()?.hasOlder() ? t("I lastet samtale: ") : ""}{plural(stats().messages, "{count} melding", "{count} meldinger")} · {t("{count} verktøykall", { count: stats().tools })} · {plural(results().length, "{count} fil endret", "{count} filer endret")}
           </p>
-          <Show when={stats().last}><p class="pinned-last"><span class="pinned-label">Siste svar</span> {stats().last}</p></Show>
+          <Show when={stats().last}><p class="pinned-last"><span class="pinned-label">{t("Siste svar")}</span> {stats().last}</p></Show>
             </div>
           </details>}
         </Show>

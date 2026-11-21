@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, type ChangeSet, type Transaction } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from "@codemirror/view";
 import { bracketMatching, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
@@ -101,7 +102,7 @@ export function createStudioEditor(parent: HTMLElement, options: {
         language.of([]),
         theme,
         EditorView.contentAttributes.of({
-          "aria-label": `Rediger ${options.path}`,
+          "aria-label": t("Rediger {path}", { path: options.path }),
           spellcheck: "false",
           autocorrect: "off",
           autocapitalize: "off",

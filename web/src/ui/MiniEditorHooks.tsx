@@ -2,6 +2,7 @@
 // Endringer call to open it. CodeMirror and the editor itself are in ./MiniEditor, a chunk of its
 // own that loads the first time an editor opens (or a moment before, when the pointer rests on
 // something that opens one).
+import { t } from "../lib/i18n";
 import { Show } from "solid-js";
 import { app } from "../state/app";
 import type { ToolRow } from "../state/thread-model";
@@ -44,7 +45,11 @@ export function toolPath(row: ToolRow): string | null {
   return path && !path.includes("\n") ? path : null;
 }
 
-const VERBS: Record<string, string> = { read_file: "Leste", write_file: "Skrev", edit_file: "Redigerte" };
+const VERBS: Record<string, string> = {
+  get read_file() { return t("Leste"); },
+  get write_file() { return t("Skrev"); },
+  get edit_file() { return t("Redigerte"); },
+};
 
 // "Leste src/app.ts" in a tool row, where the path opens the mini editor. The row's own button
 // still folds the details out everywhere else; this is a span, so there is no button in a button,
@@ -63,7 +68,7 @@ export function ToolLabel(props: { row: ToolRow; fallback: string }) {
   return (
     <>
       {VERBS[props.row.tool]}{" "}
-      <span class="tool-file" title={`Åpne ${path} i mini-editoren`} onClick={open} onPointerEnter={preloadMiniEditor}>{path}</span>
+      <span class="tool-file" title={t("Åpne {path} i mini-editoren", { path })} onClick={open} onPointerEnter={preloadMiniEditor}>{path}</span>
     </>
   );
 }
@@ -78,7 +83,7 @@ export function PathLink(props: { path: string }) {
     if (!projectId) return;
     openMiniEditor({ kind: "file", projectId, path: props.path, threadId, source: target.closest(".row") });
   };
-  return <span class="tool-file step-target mono" title={`Åpne ${props.path} i mini-editoren`} onClick={open} onPointerEnter={preloadMiniEditor}>{props.path}</span>;
+  return <span class="tool-file step-target mono" title={t("Åpne {path} i mini-editoren", { path: props.path })} onClick={open} onPointerEnter={preloadMiniEditor}>{props.path}</span>;
 }
 
 export function ToolOpenButton(props: { row: ToolRow }) {
@@ -94,7 +99,7 @@ export function ToolOpenButton(props: { row: ToolRow }) {
           if (projectId) openMiniEditor({ kind: "file", projectId, path: path!, threadId, source: event.currentTarget });
         }}
       >
-        Åpne i editor
+        {t("Åpne i editor")}
       </button>
     </Show>
   );

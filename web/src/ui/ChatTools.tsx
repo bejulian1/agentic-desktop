@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, t } from "../lib/i18n";
 // Chat (round 7): what a conversation app has besides the conversation. Editing a message in place,
 // search in the conversation with marks on the hits, and export to Markdown. Since round 9 (SPEC
 // 21.8) Kode edits too, after saying that files are not rolled back, and both modes can select
@@ -58,7 +58,7 @@ export function UserEdit(props: { text: string; hasAttachments: boolean; code?: 
       <textarea
         ref={area}
         class="user-edit-input"
-        aria-label="Rediger meldingen"
+        aria-label={t("Rediger meldingen")}
         rows={1}
         spellcheck={false}
         onInput={() => {
@@ -78,9 +78,9 @@ export function UserEdit(props: { text: string; hasAttachments: boolean; code?: 
         }}
       />
       <div class="user-edit-foot">
-        <span class="user-edit-note">{props.code ? "Alt etter meldingen blir erstattet. Filene rulles ikke tilbake." : "Svaret og alt etter meldingen blir erstattet."} Esc avbryter.</span>
-        <button type="button" class="btn btn-small" onClick={props.onCancel}>Avbryt</button>
-        <button type="button" class="btn btn-small btn-primary" disabled={busy() || (empty() && !props.hasAttachments)} onClick={() => void save()}>Lagre og send</button>
+        <span class="user-edit-note">{props.code ? t("Alt etter meldingen blir erstattet. Filene rulles ikke tilbake. Esc avbryter.") : t("Svaret og alt etter meldingen blir erstattet. Esc avbryter.")}</span>
+        <button type="button" class="btn btn-small" onClick={props.onCancel}>{t("Avbryt")}</button>
+        <button type="button" class="btn btn-small btn-primary" disabled={busy() || (empty() && !props.hasAttachments)} onClick={() => void save()}>{t("Lagre og send")}</button>
       </div>
     </div>
   );
@@ -216,8 +216,8 @@ export function ConversationSearch(props: { model: ThreadModel; root: () => HTML
       <input
         ref={input}
         class="chat-search-input"
-        placeholder="Søk i samtalen"
-        aria-label="Søk i samtalen"
+        placeholder={t("Søk i samtalen")}
+        aria-label={t("Søk i samtalen")}
         onInput={(e) => {
           const value = e.currentTarget.value;
           clearTimeout(typing);
@@ -237,20 +237,20 @@ export function ConversationSearch(props: { model: ThreadModel; root: () => HTML
         }}
       />
       <span class="chat-search-count" aria-live="polite" data-testid="chat-search-count">
-        <Show when={query().trim()}>{matches().length ? `${index() + 1} av ${matches().length}` : "Ingen treff"}</Show>
+        <Show when={query().trim()}>{matches().length ? t("{index} av {total}", { index: index() + 1, total: matches().length }) : t("Ingen treff")}</Show>
       </span>
-      <button type="button" class="icon-button" title="Forrige treff (eldre)" aria-label="Forrige treff" disabled={matches().length < 2} onClick={() => step(-1)}>
+      <button type="button" class="icon-button" title={t("Forrige treff (eldre)")} aria-label={t("Forrige treff")} disabled={matches().length < 2} onClick={() => step(-1)}>
         <span class="flip"><IconArrowDown size={14} /></span>
       </button>
-      <button type="button" class="icon-button" title="Neste treff (nyere)" aria-label="Neste treff" disabled={matches().length < 2} onClick={() => step(1)}>
+      <button type="button" class="icon-button" title={t("Neste treff (nyere)")} aria-label={t("Neste treff")} disabled={matches().length < 2} onClick={() => step(1)}>
         <IconArrowDown size={14} />
       </button>
       <Show when={props.model.hasOlder()}>
-        <button type="button" class="btn btn-small btn-ghost chat-search-older" disabled={loading()} title="Last inn resten av samtalen og søk der også" onClick={() => void loadAll()}>
-          {loading() ? "Laster…" : "Søk i eldre"}
+        <button type="button" class="btn btn-small btn-ghost chat-search-older" disabled={loading()} title={t("Last inn resten av samtalen og søk der også")} onClick={() => void loadAll()}>
+          {loading() ? t("Laster…") : t("Søk i eldre")}
         </button>
       </Show>
-      <button type="button" class="icon-button" title="Lukk søket (Esc)" aria-label="Lukk søket" onClick={props.onClose}><IconClose size={14} /></button>
+      <button type="button" class="icon-button" title={t("Lukk søket (Esc)")} aria-label={t("Lukk søket")} onClick={props.onClose}><IconClose size={14} /></button>
     </div>
   );
 }
@@ -261,12 +261,12 @@ export function confirmScript(script: string): Promise<boolean> {
   return new Promise((resolve) => {
     const dialog = document.createElement("dialog");
     dialog.className = "dialog script-confirm";
-    dialog.setAttribute("aria-label", "Kjør skriptet");
+    dialog.setAttribute("aria-label", t("Kjør skriptet"));
     const title = document.createElement("h2");
-    title.textContent = "Kjør hele skriptet?";
+    title.textContent = t("Kjør hele skriptet?");
     const text = document.createElement("p");
     const lines = script.split("\n").length;
-    text.textContent = `Blokken har ${lines} linjer. De kjøres som ett skript i prosjektmappen, med vanlige tillatelser.`;
+    text.textContent = t("Blokken har {count} linjer. De kjøres som ett skript i prosjektmappen, med vanlige tillatelser.", { count: lines });
     const pre = document.createElement("pre");
     pre.className = "script-text";
     pre.textContent = script;
@@ -275,11 +275,11 @@ export function confirmScript(script: string): Promise<boolean> {
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.className = "btn";
-    cancel.textContent = "Avbryt";
+    cancel.textContent = t("Avbryt");
     const run = document.createElement("button");
     run.type = "button";
     run.className = "btn btn-primary";
-    run.textContent = "Kjør skriptet";
+    run.textContent = t("Kjør skriptet");
     actions.append(cancel, run);
     dialog.append(title, text, pre, actions);
     let answer = false;
@@ -302,13 +302,13 @@ export function confirmScript(script: string): Promise<boolean> {
 
 function stamp(at: number): string {
   const date = new Date(at);
-  return `${date.toLocaleDateString(language(), { day: "numeric", month: "long", year: "numeric" })} kl. ${date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" })}`;
+  return t("{date} kl. {time}", { date: date.toLocaleDateString(language(), { day: "numeric", month: "long", year: "numeric" }), time: date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" }) });
 }
 
 // The conversation as Markdown: what you wrote and what the model answered, with times. Thinking
 // and tool output are left out; a line says which tools were used.
 export function threadMarkdown(thread: Thread, events: ThreadEventEnvelope[], now = Date.now()): string {
-  const out: string[] = [`# ${thread.title}`, "", `Eksportert fra Agentic Desktop ${stamp(now)}.`];
+  const out: string[] = [`# ${thread.title}`, "", t("Eksportert fra Agentic Desktop {date}.", { date: stamp(now) })];
   const answers = new Map<string, number>(); // messageId -> index in out
   let model = "";
   let heading = false; // a "Svar" heading is open for this run
@@ -316,7 +316,7 @@ export function threadMarkdown(thread: Thread, events: ThreadEventEnvelope[], no
     switch (event.type) {
       case "user.message": {
         heading = false;
-        out.push("", "---", "", `## Du · ${stamp(at)}`, "", event.text.trim() || "(uten tekst)");
+        out.push("", "---", "", `## Du · ${stamp(at)}`, "", event.text.trim() || t("(uten tekst)"));
         const names = (event.attachments ?? []).map((a) => a.label);
         if (names.length) out.push("", `*Vedlegg: ${names.join(", ")}*`);
         break;
@@ -375,7 +375,7 @@ export async function exportThread(threadId: string): Promise<void> {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    toast(`Lastet ned ${link.download}.`, "info");
+    toast(t("Lastet ned {filename}.", { filename: link.download }), "info");
   } catch (err) {
     report(err);
   }

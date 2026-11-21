@@ -1,5 +1,6 @@
 // Servers the app's own processes started, from the server: the list for Oversikt, a note when a new
 // one shows up (never twice in a row for the same port), and opening one in the Browser panel.
+import { t } from "../lib/i18n";
 import { createSignal } from "solid-js";
 import type { RunningServer } from "../../../shared/protocol";
 import { get, post } from "../lib/api";
@@ -23,9 +24,9 @@ export function openServer(server: RunningServer): void {
 export async function copyServerUrl(server: RunningServer): Promise<void> {
   try {
     await navigator.clipboard.writeText(server.url);
-    toast(`Kopierte ${server.url}.`, "info");
+    toast(t("Kopierte {url}.", { url: server.url }), "info");
   } catch {
-    toast("Nettleseren slapp ikke til utklippstavlen.");
+    toast(t("Nettleseren slapp ikke til utklippstavlen."));
   }
 }
 
@@ -40,7 +41,7 @@ function update(next: RunningServer[], note: boolean): void {
   for (const server of next) {
     if (before.has(server.port) || server.port === lastNoted) continue;
     lastNoted = server.port;
-    toast(`Server kjører på localhost:${server.port}`, "info", { label: "Åpne", run: () => openServer(server) });
+    toast(t("Server kjører på localhost:{port}", { port: server.port }), "info", { label: t("Åpne"), run: () => openServer(server) });
   }
 }
 

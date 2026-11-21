@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import type { ChatProject } from "../../../shared/protocol";
 import { collapsed, report, setApp, toggleCollapsed } from "../state/app";
 import { del } from "../lib/api";
@@ -23,9 +24,9 @@ export async function renameChatProject(project: ChatProject): Promise<void> {
 
 export async function removeChatProject(project: ChatProject): Promise<boolean> {
   const ok = await confirmDialog({
-    title: "Fjerne Chat-prosjektet?",
-    text: `«${project.name}» og prosjektets egne instruksjoner og minner slettes. Chattene beholdes under Chatter. Globale Chat-minner blir stående. Dette kan ikke angres.`,
-    confirm: "Fjern prosjektet",
+    title: t("Fjerne Chat-prosjektet?"),
+    text: t("«{name}» og prosjektets egne instruksjoner og minner slettes. Chattene beholdes under Chatter. Globale Chat-minner blir stående. Dette kan ikke angres.", { name: project.name }),
+    confirm: t("Fjern prosjektet"),
     danger: true,
   });
   if (!ok) return false;

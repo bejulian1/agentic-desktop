@@ -1,4 +1,4 @@
-import { localizedFormat } from "../lib/i18n.ts";
+import { localizedFormat, plural, t } from "../lib/i18n";
 import {ChatFileCards} from "./ChatFileCards";
 // Round 13 (SPEC 27.1): how a Kode turn reads. Each step is one line with an icon for its kind, a
 // short verb, what it was about and the result in a word or two. Steps of the same kind in a row
@@ -89,7 +89,7 @@ function hostOf(url: string): string {
 // sources say so, and are not links: they point nowhere.
 export function SourceCards(props: { sources: WebSource[] }) {
   return (
-    <div class="sources" role="list" aria-label="Kilder" data-testid="sources">
+    <div class="sources" role="list" aria-label={t("Kilder")} data-testid="sources">
       <For each={props.sources}>
         {(source) => {
           const inner = (
@@ -101,7 +101,7 @@ export function SourceCards(props: { sources: WebSource[] }) {
                 <span class="source-title">{source.title}</span>
                 <span class="source-host">{hostOf(source.url)}</span>
               </span>
-              <Show when={source.demo}><span class="source-demo" title="Laget av demo-modellen. Ikke en ekte nettside.">Demo</span></Show>
+              <Show when={source.demo}><span class="source-demo" title={t("Laget av demo-modellen. Ikke en ekte nettside.")}>{t("Demo")}</span></Show>
             </>
           );
           return (
@@ -114,8 +114,6 @@ export function SourceCards(props: { sources: WebSource[] }) {
     </div>
   );
 }
-
-const TAG_WAITING = "Venter på deg";
 
 // One step: the icon of its kind, the verb and what it was about, and the short result. The arrow
 // folds out the details: output, the result as the model got it, or the input.
@@ -168,13 +166,13 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
         <Show when={busy() && lastLine()}><span class="tool-tail">{lastLine()}</span></Show>
         <span class="tool-status" data-status={status()}>
           <Switch>
-            <Match when={waiting()}><span class="step-tag step-waiting">{TAG_WAITING}</span></Match>
-            <Match when={busy()}><span class="spinner" aria-label="Kjører" /></Match>
-            <Match when={status() === "denied"}><span class="step-tag">Avslått</span></Match>
-            <Match when={status() === "cancelled"}><span class="step-tag">Avbrutt</span></Match>
+            <Match when={waiting()}><span class="step-tag step-waiting">{t("Venter på deg")}</span></Match>
+            <Match when={busy()}><span class="spinner" aria-label={t("Kjører")} /></Match>
+            <Match when={status() === "denied"}><span class="step-tag">{t("Avslått")}</span></Match>
+            <Match when={status() === "cancelled"}><span class="step-tag">{t("Avbrutt")}</span></Match>
             <Match when={status() === "error"}>
               <Show when={words().result}><span class="step-result">{words().result}</span></Show>
-              <span class="step-tag step-failed">Feilet</span>
+              <span class="step-tag step-failed">{t("Feilet")}</span>
             </Match>
             <Match when={true}>
               <Show when={words().result}><span class="step-result">{words().result}</span></Show>
@@ -192,7 +190,7 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
         <div class="tool-body">
           <ToolOpenButton row={row} />
           <Show when={hasOutput()}>
-            <pre class="tool-output">{outputCut() ? "… (eldre utdata er kuttet)\n" : ""}{outputText}</pre>
+            <pre class="tool-output">{outputCut() ? t("… (eldre utdata er kuttet)\n") : ""}{outputText}</pre>
           </Show>
           <Show when={(row.rev(), row.result) && !hasOutput()}>
             <pre class="tool-output">{row.result}</pre>
@@ -203,8 +201,8 @@ export function ToolView(props: { row: ToolRow; last?: boolean; chat?: boolean }
         </div>
       </Show>
       <Show when={shot()}>
-        <button type="button" class="step-thumb" title="Vis skjermbildet i full størrelse" aria-label="Vis skjermbildet" onClick={() => showImage(`/api/screenshots/${shot()}`, "Skjermbilde fra nettleseren")}>
-          <img class="tool-shot" loading="lazy" decoding="async" alt="Skjermbilde fra nettleseren" src={`/api/screenshots/${shot()}`} />
+        <button type="button" class="step-thumb" title={t("Vis skjermbildet i full størrelse")} aria-label={t("Vis skjermbildet")} onClick={() => showImage(`/api/screenshots/${shot()}`, t("Skjermbilde fra nettleseren"))}>
+          <img class="tool-shot" loading="lazy" decoding="async" alt={t("Skjermbilde fra nettleseren")} src={`/api/screenshots/${shot()}`} />
         </button>
       </Show>
     </div>
@@ -223,8 +221,8 @@ export function ThinkingStep(props: { row: ThinkingRow; last?: boolean }) {
     const cut = text.indexOf("\n");
     const first = (cut === -1 ? text : text.slice(0, cut)).trim();
     if (summary() && first) return first;
-    if (row.durationMs === null) return "Tenker…";
-    return seconds(row.durationMs) ? `Tenkte i ${seconds(row.durationMs)}` : "Tenkte et øyeblikk";
+    if (row.durationMs === null) return t("Tenker…");
+    return seconds(row.durationMs) ? t("Tenkte i {duration}", { duration: seconds(row.durationMs) }) : t("Tenkte et øyeblikk");
   });
   const meta = createMemo(() => {
     row.rev();
@@ -299,8 +297,8 @@ function RunView(props: { run: Run; last: boolean }) {
         <span class="step-text steps-summary">{label()}</span>
         <span class="tool-status">
           <Switch>
-            <Match when={waiting()}><span class="step-tag step-waiting">{TAG_WAITING}</span></Match>
-            <Match when={running()}><span class="spinner" aria-label="Kjører" /></Match>
+            <Match when={waiting()}><span class="step-tag step-waiting">{t("Venter på deg")}</span></Match>
+            <Match when={running()}><span class="spinner" aria-label={t("Kjører")} /></Match>
             <Match when={true}>
               <Show when={result()}><span class="step-result" classList={{ "step-failed-text": failed() }}>{result()}</span></Show>
               <Show when={duration()}><span class="step-duration">{duration()}</span></Show>
@@ -385,37 +383,37 @@ function agentRunning(task: ActivityTask): boolean {
 export function nowText(activity: Activity): { text: string; waiting: string | null } {
   const tasks = activity.tasks;
   const asking = tasks.find((t) => t.status === "awaiting-approval");
-  if (asking) return { text: "Venter på deg", waiting: stepSentence({ tool: asking.tool!, summary: asking.summary, status: "running" }) };
+  if (asking) return { text: t("Venter på deg"), waiting: stepSentence({ tool: asking.tool!, summary: asking.summary, status: "running" }) };
   const tools = tasks.filter((t) => t.kind === "tool" && BUSY.has(t.status));
   if (tools.length === 1) return { text: `${stepSentence({ tool: tools[0].tool!, summary: tools[0].summary, status: "running" })}…`, waiting: null };
   if (tools.length > 1) {
     const list: StepFacts[] = tools.map((t) => ({ tool: t.tool!, summary: t.summary, status: "running" }));
     const kinds = new Set(list.map(stepKind));
-    return { text: kinds.size === 1 ? `${runLabel([...kinds][0], list, true)}…` : `Gjør ${tools.length} ting samtidig…`, waiting: null };
+    return { text: kinds.size === 1 ? `${runLabel([...kinds][0], list, true)}…` : t("Gjør {count} ting samtidig…", { count: tools.length }), waiting: null };
   }
   const agents = tasks.filter((t) => t.kind === "agent" && agentRunning(t)).length;
-  if (agents) return { text: agents === 1 ? "1 underagent jobber…" : `${agents} underagenter jobber…`, waiting: null };
-  if (activity.phase === "thinking") return { text: "Tenker…", waiting: null };
-  if (activity.phase === "writing") return { text: "Skriver…", waiting: null };
-  return { text: "Jobber…", waiting: null };
+  if (agents) return { text: plural(agents, "{count} underagent jobber…", "{count} underagenter jobber…"), waiting: null };
+  if (activity.phase === "thinking") return { text: t("Tenker…"), waiting: null };
+  if (activity.phase === "writing") return { text: t("Skriver…"), waiting: null };
+  return { text: t("Jobber…"), waiting: null };
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "Venter",
-  "awaiting-approval": TAG_WAITING,
-  running: "Kjører",
-  done: "Ferdig",
-  error: "Feilet",
-  denied: "Avslått",
-  cancelled: "Avbrutt",
+  get pending() { return t("Venter"); },
+  get "awaiting-approval"() { return t("Venter på deg"); },
+  get running() { return t("Kjører"); },
+  get done() { return t("Ferdig"); },
+  get error() { return t("Feilet"); },
+  get denied() { return t("Avslått"); },
+  get cancelled() { return t("Avbrutt"); },
 };
 
 function agentStatus(status: string | null): string {
-  if (status === "done") return "Ferdig";
-  if (status === "error") return "Feilet";
-  if (status === "stopped") return "Stoppet";
-  if (status === "interrupted") return "Avbrutt";
-  return "Venter";
+  if (status === "done") return t("Ferdig");
+  if (status === "error") return t("Feilet");
+  if (status === "stopped") return t("Stoppet");
+  if (status === "interrupted") return t("Avbrutt");
+  return t("Venter");
 }
 
 // Kode: one line under the turn while it runs. It says what the agent does now and how long the
@@ -427,12 +425,12 @@ export function NowLine(props: { activity: Activity; onThread: (id: string) => v
   const waiting = () => now().waiting !== null;
   const tasks = () => props.activity.tasks;
   const statusText = (task: ActivityTask) => {
-    if (task.kind === "agent") return agentRunning(task) ? "Jobber" : agentStatus(app.threads[task.threadId!]?.lastStatus ?? "done");
+    if (task.kind === "agent") return agentRunning(task) ? t("Jobber") : agentStatus(app.threads[task.threadId!]?.lastStatus ?? "done");
     return STATUS_LABELS[task.status] ?? task.status;
   };
   return (
     <div class="now-line" data-testid="now-line" data-state={waiting() ? "waiting" : "working"}>
-      <button type="button" class="now-head" aria-expanded={open()} disabled={!tasks().length} title={tasks().length ? "Vis hva turen har gjort og gjør" : undefined} onClick={() => setOpen(!open())}>
+      <button type="button" class="now-head" aria-expanded={open()} disabled={!tasks().length} title={tasks().length ? t("Vis hva turen har gjort og gjør") : undefined} onClick={() => setOpen(!open())}>
         <span class="now-icon" aria-hidden="true">
           <Show when={waiting()} fallback={<span class="now-dot" />}><IconHand size={14} /></Show>
         </span>
@@ -452,7 +450,7 @@ export function NowLine(props: { activity: Activity; onThread: (id: string) => v
                   when={task.kind === "agent"}
                   fallback={<><span class="step-icon">{KIND_ICON[stepKind({ tool: task.tool!, summary: task.summary })]({ size: 13 })}</span><span class="bg-label">{stepSentence({ tool: task.tool!, summary: task.summary, status: task.status })}</span></>}
                 >
-                  <button type="button" class="bg-agent" title="Åpne tråden" onClick={() => props.onThread(task.threadId!)}>
+                  <button type="button" class="bg-agent" title={t("Åpne tråden")} onClick={() => props.onThread(task.threadId!)}>
                     <IconAgent size={13} /><span class="bg-label">{app.threads[task.threadId!]?.title ?? task.summary}</span>
                   </button>
                 </Show>
@@ -466,29 +464,27 @@ export function NowLine(props: { activity: Activity; onThread: (id: string) => v
   );
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 // After a turn that did something: «Ferdig på 1m 2s · 3 filer endret · 2 kommandoer». A click
 // opens Endringer, on this turn's changes when it made any.
 export function SummaryView(props: { row: SummaryRow }) {
   const { row } = props;
-  const time = row.durationMs < 1000 ? "under ett sekund" : formatElapsed(row.durationMs);
-  const parts = [
-    row.status === "stopped" ? `Stoppet etter ${time}` : `Ferdig på ${time}`,
-    row.files ? `${plural(row.files, "fil", "filer")} endret` : "",
-    row.commands ? `${plural(row.commands, "kommando", "kommandoer")} kjørt` : "",
-  ].filter(Boolean);
+  const summary = () => {
+    const time = row.durationMs < 1000 ? t("under ett sekund") : formatElapsed(row.durationMs);
+    return [
+      row.status === "stopped" ? t("Stoppet etter {time}", { time }) : t("Ferdig på {time}", { time }),
+      row.files ? plural(row.files, "{count} fil endret", "{count} filer endret") : "",
+      row.commands ? plural(row.commands, "{count} kommando kjørt", "{count} kommandoer kjørt") : "",
+    ].filter(Boolean).join(" · ");
+  };
   const open = () => {
     if (row.turnId) peekPanelActions()?.showTurn(row.turnId);
     else showPanel("changes");
   };
   return (
     <div class="row row-summary" data-row="summary" data-testid="turn-summary" data-enter={enter(row.at)}>
-      <button type="button" class="summary-line" data-status={row.status} title="Åpne Endringer" onClick={open}>
+      <button type="button" class="summary-line" data-status={row.status} title={t("Åpne Endringer")} onClick={open}>
         <span class="summary-icon"><IconCheck size={13} /></span>
-        <span class="summary-text">{parts.join(" · ")}</span>
+        <span class="summary-text">{summary()}</span>
         <Show when={row.additions || row.deletions}>
           <span class="summary-diff">
             <Show when={row.additions}><span class="diff-add">+{row.additions}</span></Show>
@@ -496,7 +492,7 @@ export function SummaryView(props: { row: SummaryRow }) {
             <Show when={row.deletions}><span class="diff-del">−{row.deletions}</span></Show>
           </span>
         </Show>
-        <span class="summary-open"><span class="summary-open-text">Endringer</span><IconChevron size={12} /></span>
+        <span class="summary-open"><span class="summary-open-text">{t("Endringer")}</span><IconChevron size={12} /></span>
       </button>
     </div>
   );

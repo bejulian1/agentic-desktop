@@ -1,4 +1,4 @@
-import { localizedFormat } from "../lib/i18n.ts";
+import { language, localizedFormat, plural, t } from "../lib/i18n";
 // One component per row kind. A finished row renders once and has no reactive work left. A live
 // row only reacts to its own rev signal.
 import { createContext, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, useContext } from "solid-js";
@@ -42,7 +42,7 @@ export const ChapterOf = createContext<(key: string) => string | undefined>(() =
 export const ForkStart = createContext<(key: string) => boolean>(() => false);
 
 export function ForkDivider() {
-  return <div class="fork-divider" role="separator" aria-label="Gaffelen starter her" data-testid="fork-divider"><span><IconBranch size={11} />Gaffelen starter her</span></div>;
+  return <div class="fork-divider" role="separator" aria-label={t("Gaffelen starter her")} data-testid="fork-divider"><span><IconBranch size={11} />{t("Gaffelen starter her")}</span></div>;
 }
 
 
@@ -64,7 +64,7 @@ export function shortTime(at: number, now = new Date()): string {
   if (sameDay(date, now)) return time;
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (sameDay(date, yesterday)) return `i går ${time}`;
+  if (sameDay(date, yesterday)) return t("i går {time}", { time });
   const day = (date.getFullYear() === now.getFullYear() ? DAY_MONTH : DAY_MONTH_YEAR).format(date);
   return `${day} ${time}`;
 }
@@ -72,7 +72,7 @@ export function shortTime(at: number, now = new Date()): string {
 // "tirsdag 4. november 2026 kl. 14:32:07".
 export function fullTime(at: number): string {
   const date = new Date(at);
-  return `${LONG_DAY.format(date)} kl. ${HH_MM_SS.format(date)}`;
+  return t("{day} kl. {time}", { day: LONG_DAY.format(date), time: HH_MM_SS.format(date) });
 }
 
 // Chat: while messages are selected, the select box shows under every message.
@@ -103,7 +103,7 @@ function useActions(): { built: () => boolean; build: (event?: FocusEvent) => vo
 // listener on the conversation handles them all, so there is nothing per row to set up.
 function MessageActions(props: { rowKey: string; at: number; kind: "user" | "text"; built: () => boolean; model?: AnswerModel }) {
   return (
-    <div class="msg-actions" role="toolbar" aria-label="Handlinger" tabindex={props.built() ? undefined : 0}>
+    <div class="msg-actions" role="toolbar" aria-label={t("Handlinger")} tabindex={props.built() ? undefined : 0}>
       <Show when={props.built()}>
         <ActionButtons rowKey={props.rowKey} at={props.at} kind={props.kind} model={props.model} />
       </Show>
@@ -127,31 +127,31 @@ function ActionButtons(props: { rowKey: string; at: number; kind: "user" | "text
           aria-checked={selected()}
           data-msg-action="select"
           data-key={props.rowKey}
-          title={selected() ? "Fjern fra utvalget" : "Velg meldingen. Shift+klikk velger alt mellom."}
-          aria-label="Ta med i utvalget"
+          title={selected() ? t("Fjern fra utvalget") : t("Velg meldingen. Shift+klikk velger alt mellom.")}
+          aria-label={t("Ta med i utvalget")}
         >
           <span class="msg-check" aria-hidden="true"><IconCheck size={11} /></span>
         </button>
       </Show>
-      <button type="button" class="msg-action" data-msg-action="copy" data-key={props.rowKey} title="Kopier som Markdown" aria-label="Kopier">
-        <IconCopy size={14} /><span class="copy-ok" aria-hidden="true"><IconCheck size={14} /></span><span class="msg-done" aria-live="polite">Kopiert</span>
+      <button type="button" class="msg-action" data-msg-action="copy" data-key={props.rowKey} title={t("Kopier som Markdown")} aria-label={t("Kopier")}>
+        <IconCopy size={14} /><span class="copy-ok" aria-hidden="true"><IconCheck size={14} /></span><span class="msg-done" aria-live="polite">{t("Kopiert")}</span>
       </button>
       <Show when={chat && props.kind === "user"}>
-        <button type="button" class="msg-action chat-only" data-msg-action="edit" data-key={props.rowKey} title={chat!.code ? "Rediger meldingen og send den på nytt. Filene rulles ikke tilbake." : "Rediger meldingen og send den på nytt"} aria-label="Rediger">
+        <button type="button" class="msg-action chat-only" data-msg-action="edit" data-key={props.rowKey} title={chat!.code ? t("Rediger meldingen og send den på nytt. Filene rulles ikke tilbake.") : t("Rediger meldingen og send den på nytt")} aria-label={t("Rediger")}>
           <IconPencil size={14} />
         </button>
       </Show>
       <Show when={chat && props.kind === "text" && chat.isLastAnswer(props.rowKey)}>
         <span class="msg-regen chat-only">
-          <button type="button" class="msg-action" data-msg-action="regenerate" data-key={props.rowKey} title="Lag svaret på nytt. Det gamle svaret erstattes." aria-label="Lag svaret på nytt">
+          <button type="button" class="msg-action" data-msg-action="regenerate" data-key={props.rowKey} title={t("Lag svaret på nytt. Det gamle svaret erstattes.")} aria-label={t("Lag svaret på nytt")}>
             <IconReload size={14} />
           </button>
-          <button type="button" class="msg-action msg-action-narrow" data-msg-action="regenerate-model" data-key={props.rowKey} title="Lag svaret på nytt med en annen modell" aria-label="Lag svaret på nytt med en annen modell" aria-haspopup="menu">
+          <button type="button" class="msg-action msg-action-narrow" data-msg-action="regenerate-model" data-key={props.rowKey} title={t("Lag svaret på nytt med en annen modell")} aria-label={t("Lag svaret på nytt med en annen modell")} aria-haspopup="menu">
             <IconChevronDown size={12} />
           </button>
         </span>
       </Show>
-      <button type="button" class="msg-action" data-msg-action="fork" data-key={props.rowKey} title="Gaffel herfra: en ny tråd med samtalen til og med denne meldingen" aria-label="Gaffel herfra">
+      <button type="button" class="msg-action" data-msg-action="fork" data-key={props.rowKey} title={t("Gaffel herfra: en ny tråd med samtalen til og med denne meldingen")} aria-label={t("Gaffel herfra")}>
         <IconBranch size={14} />
       </button>
       <button
@@ -160,8 +160,8 @@ function ActionButtons(props: { rowKey: string; at: number; kind: "user" | "text
         classList={{ on: !!chapter() }}
         data-msg-action="chapter"
         data-key={props.rowKey}
-        title={chapter() ? `Fjern kapittelet «${chapter()}»` : "Fest som kapittel: gi meldingen et navn i tidslinjen og sammendraget"}
-        aria-label={chapter() ? "Fjern kapittel" : "Fest som kapittel"}
+        title={chapter() ? t("Fjern kapittelet «{chapter}»", { chapter: chapter()! }) : t("Fest som kapittel: gi meldingen et navn i tidslinjen og sammendraget")}
+        aria-label={chapter() ? t("Fjern kapittel") : t("Fest som kapittel")}
         aria-pressed={!!chapter()}
       >
         <IconBookmark size={14} />
@@ -192,7 +192,7 @@ export function AttachmentChip(props: { attachment: Attachment }) {
     <span class="chip" title={props.attachment.path ?? props.attachment.label}>
       {props.attachment.kind === "thread" ? <IconAt size={12} /> : props.attachment.kind === "dir" ? <IconFolder size={12} /> : props.attachment.kind === "image" ? <IconImage size={12} /> : <IconFile size={12} />}
       <span class="chip-text">{props.attachment.label}</span>
-      <Show when={props.attachment.truncated}><span class="chip-note">utdrag</span></Show>
+      <Show when={props.attachment.truncated}><span class="chip-note">{t("utdrag")}</span></Show>
     </span>
   );
 }
@@ -212,7 +212,7 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
   const actions = useActions();
   const receipt = createMemo(() => (row.rev(), row.receipt));
   const code = useContext(RowThread);
-  const receiptLabel = () => receipt() === "received" ? "Lest av modellen" : receipt() === "blocked" ? "Stoppet av hook" : receipt() === "unsent" ? "Ikke sendt til modellen" : "Ikke bekreftet lest";
+  const receiptLabel = () => receipt() === "received" ? t("Lest av modellen") : receipt() === "blocked" ? t("Stoppet av hook") : receipt() === "unsent" ? t("Ikke sendt til modellen") : t("Ikke bekreftet lest");
   return (
     <div class="row row-user" data-row="user" data-key={row.key} data-enter={enter(row.at)} data-selected={chat?.isSelected(row.key) ? "" : undefined} ref={element} onPointerOver={() => actions.build()} onFocusIn={actions.build}>
       <Show when={forkStart(row.key)}><ForkDivider /></Show>
@@ -221,7 +221,7 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
         <div class="user-images" data-testid="user-images">
           <For each={images}>
             {(image) => (
-              <button type="button" class="user-image" title={`${image.label}: vis i full størrelse`} aria-label={`Vis ${image.label}`} onClick={() => showImage(imageUrl(image.imageId!), image.label)}>
+              <button type="button" class="user-image" title={t("{image}: vis i full størrelse", { image: image.label })} aria-label={t("Vis {image}", { image: image.label })} onClick={() => showImage(imageUrl(image.imageId!), image.label)}>
                 <img src={imageUrl(image.imageId!)} alt={image.label} loading="lazy" decoding="async" />
               </button>
             )}
@@ -230,7 +230,7 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
       </Show>
       <Show when={row.from}>
         <button type="button" class="from-label" onClick={() => props.onThread(row.from!.threadId)}>
-          <IconBranch size={12} /> Fra tråden {row.from!.title}
+          <IconBranch size={12} /> {t("Fra tråden {title}", { title: row.from!.title })}
         </button>
       </Show>
       <Show
@@ -246,7 +246,7 @@ function UserView(props: { row: UserRow; onThread: (id: string) => void }) {
           <div class="user-text">{row.text}</div>
         </div>
         <Show when={code()?.mode === "code" && receipt()}>
-          <span class="message-receipt" data-testid="message-receipt" data-status={receipt()} role="status" aria-label={receiptLabel()} title={receipt() === "received" ? `Modellen har begynt å svare med meldingen i konteksten. ${row.receivedAt ? fullTime(row.receivedAt) : ""}` : receiptLabel()}>
+          <span class="message-receipt" data-testid="message-receipt" data-status={receipt()} role="status" aria-label={receiptLabel()} title={receipt() === "received" ? t("Modellen har begynt å svare med meldingen i konteksten. {time}", { time: row.receivedAt ? fullTime(row.receivedAt) : "" }) : receiptLabel()}>
             <Show when={receipt() === "received"} fallback={<IconSend size={12}/>}><IconEye size={12}/></Show>
             <span>{receiptLabel()}</span>
           </span>
@@ -327,7 +327,7 @@ function LongText(props: { row: TextRow }) {
           root.replaceChildren();
           hugeText(row, root);
         }}>
-          Meldingen er {formatSize(row.text.length)}. Vis hele.
+          {t("Meldingen er {size}. Vis hele.", { size: formatSize(row.text.length) })}
         </button>
       </Show>
       {root}
@@ -375,7 +375,6 @@ function TextBody(props: { row: TextRow }) {
 // and Detaljer for the summary. When the answer comes the line fills, and the card settles: the
 // model on top, and «Tenkte i 4m 12s» under it as the button that opens the summary. Only transform and opacity move, only while
 // the card is on screen, and nothing moves with reduced motion.
-const PREMIUM_DEFAULT = "Tenker gjennom forespørselen…";
 const PROGRESS_TAU_S = 9; // fills to about two thirds in 9 s
 const PROGRESS_CAP = 0.92;
 
@@ -402,7 +401,7 @@ function ThinkingCard(props: { row: ThinkingRow; model: string }) {
     const timer = setTimeout(() => setCompact(true), motionOff() ? 0 : 520);
     onCleanup(() => clearTimeout(timer));
   }));
-  const status = createMemo(() => (row.rev(), latestSentence(row.text)) || PREMIUM_DEFAULT);
+  const status = createMemo(() => (row.rev(), latestSentence(row.text)) || t("Tenker gjennom forespørselen…"));
   // The fill only moves while the card is on screen; a tick a second, eased by a one-second transition.
   let shown = 0.04;
   const progress = createMemo(() => {
@@ -415,15 +414,15 @@ function ThinkingCard(props: { row: ThinkingRow; model: string }) {
   const summary = () => app.settings.thinkingSummary !== false;
   return (
     <div class="row row-thinking row-premium" data-row="thinking" data-enter={enter(row.at)}>
-      <div class="premium-card" classList={{ done: compact(), finishing: done() && !compact(), open: open() }} ref={watch} data-testid="thinking-card" role="group" aria-label={`Forespørsel til ${props.model}`}>
+      <div class="premium-card" classList={{ done: compact(), finishing: done() && !compact(), open: open() }} ref={watch} data-testid="thinking-card" role="group" aria-label={t("Forespørsel til {model}", { model: props.model })}>
         <div class="premium-main">
-          <div class="premium-title">Forespørsel til <span class="premium-model">{props.model}</span></div>
+          <div class="premium-title">{t("Forespørsel til")}{" "}<span class="premium-model">{props.model}</span></div>
           <Show
             when={!compact()}
             fallback={
-              <button type="button" class="premium-meta" aria-expanded={open()} disabled={!summary()} title={summary() ? "Vis tenkesammendraget" : "Tenkesammendraget er slått av i Innstillinger"} onClick={() => setOpen(!open())}>
+              <button type="button" class="premium-meta" aria-expanded={open()} disabled={!summary()} title={summary() ? t("Vis tenkesammendraget") : t("Tenkesammendraget er slått av i Innstillinger")} onClick={() => setOpen(!open())}>
                 <IconThought size={14} />
-                <span>{seconds(row.durationMs) ? `Tenkte i ${formatElapsed(row.durationMs!)}` : "Tenkte et øyeblikk"}</span>
+                <span>{seconds(row.durationMs) ? t("Tenkte i {duration}", { duration: formatElapsed(row.durationMs!) }) : t("Tenkte et øyeblikk")}</span>
                 <Show when={summary()}><span class="fold-chevron" classList={{ open: open() }}><IconChevron size={12} /></span></Show>
               </button>
             }
@@ -432,14 +431,14 @@ function ThinkingCard(props: { row: ThinkingRow; model: string }) {
               <IconThought size={14} />
               <Show when={status()} keyed>{(line) => <span class="premium-line status-text shimmer" ref={whileVisible}>{line}</span>}</Show>
             </div>
-            <div class="premium-progress" role="progressbar" aria-label="Tenker" aria-valuetext="Modellen tenker">
+            <div class="premium-progress" role="progressbar" aria-label={t("Tenker")} aria-valuetext={t("Modellen tenker")}>
               <span class="premium-fill" style={{ transform: `scaleX(${progress()})` }} />
             </div>
           </Show>
         </div>
         {/* While it works: Detaljer. Done, the line «Tenkte i …» is the button (SPEC 23.11). */}
         <Show when={!compact()}>
-          <button type="button" class="btn btn-small premium-details" aria-expanded={open()} disabled={!summary()} title={summary() ? undefined : "Tenkesammendraget er slått av i Innstillinger"} onClick={() => setOpen(!open())}>Detaljer</button>
+          <button type="button" class="btn btn-small premium-details" aria-expanded={open()} disabled={!summary()} title={summary() ? undefined : t("Tenkesammendraget er slått av i Innstillinger")} onClick={() => setOpen(!open())}>{t("Detaljer")}</button>
         </Show>
       </div>
       <Show when={open() && summary()}>
@@ -465,8 +464,8 @@ function ThinkingFold(props: { row: ThinkingRow }) {
   const [open, setOpen] = createSignal(false);
   const label = createMemo(() => {
     row.rev();
-    if (row.durationMs === null) return "Tenker…";
-    return seconds(row.durationMs) ? `Tenkte i ${seconds(row.durationMs)}` : "Tenkte et øyeblikk";
+    if (row.durationMs === null) return t("Tenker…");
+    return seconds(row.durationMs) ? t("Tenkte i {duration}", { duration: seconds(row.durationMs) }) : t("Tenkte et øyeblikk");
   });
   const summary = () => app.settings.thinkingSummary !== false;
   return (
@@ -496,8 +495,8 @@ function WorkView(props: { row: WorkRow }) {
   return (
     <Show when={row.steps() > 0 && ended() !== null}>
       <div class="row row-work" data-row="work">
-        <button type="button" class="work-head" aria-expanded={!row.collapsed()} title={row.collapsed() ? "Vis stegene i turen" : "Fold sammen stegene i turen"} onClick={() => row.setCollapsed(!row.collapsed())}>
-          <span class="work-label status-text">{ended()! - row.startedAt < 1000 ? "Jobbet i under ett sekund" : `Jobbet i ${formatElapsed(ended()! - row.startedAt)}`}</span>
+        <button type="button" class="work-head" aria-expanded={!row.collapsed()} title={row.collapsed() ? t("Vis stegene i turen") : t("Fold sammen stegene i turen")} onClick={() => row.setCollapsed(!row.collapsed())}>
+          <span class="work-label status-text">{ended()! - row.startedAt < 1000 ? t("Jobbet i under ett sekund") : t("Jobbet i {duration}", { duration: formatElapsed(ended()! - row.startedAt) })}</span>
           <span class="work-chevron" classList={{ open: !row.collapsed() }}><IconChevron size={12} /></span>
         </button>
       </div>
@@ -505,7 +504,7 @@ function WorkView(props: { row: WorkRow }) {
   );
 }
 
-const DECISIONS: Record<ApprovalDecision, string> = { allow: "Tillatt", "allow-always": "Tillatt alltid", deny: "Avslått" };
+const DECISIONS: Record<ApprovalDecision, string> = { get allow() { return t("Tillatt"); }, get "allow-always"() { return t("Tillatt alltid"); }, get deny() { return t("Avslått"); } };
 
 // The server sends the tool input as JSON. What the user decides on is what is inside it.
 function approvalText(detail: string): string {
@@ -559,13 +558,13 @@ export function describeApproval(row: Pick<ApprovalRow, "title" | "detail" | "to
   switch (tool) {
     case "write_file": {
       const lines = textLines(str(input.content));
-      return { verb: "Vil skrive", target: str(input.path), meta: lines.length === 1 ? "1 linje" : `${lines.length} linjer`, lines: lines.map((text) => ({ kind: "add", text })), note };
+      return { verb: t("Vil skrive"), target: str(input.path), meta: plural(lines.length, "{count} linje", "{count} linjer"), lines: lines.map((text) => ({ kind: "add", text })), note };
     }
     case "edit_file": {
       const del = str(input.old_string) ? textLines(str(input.old_string)) : [];
       const add = str(input.new_string) ? textLines(str(input.new_string)) : [];
       return {
-        verb: "Vil endre",
+        verb: t("Vil endre"),
         target: str(input.path),
         meta: `+${add.length} −${del.length}`,
         lines: [...del.map((text) => ({ kind: "del" as const, text })), ...add.map((text) => ({ kind: "add" as const, text }))],
@@ -573,12 +572,12 @@ export function describeApproval(row: Pick<ApprovalRow, "title" | "detail" | "to
       };
     }
     case "run_command":
-      return { verb: "Vil kjøre en kommando", command: str(input.command) || row.detail, note };
+      return { verb: t("Vil kjøre en kommando"), command: str(input.command) || row.detail, note };
     case "browser_navigate":
-      return { verb: "Vil åpne", target: str(input.url), meta: "i nettleseren", note };
+      return { verb: t("Vil åpne"), target: str(input.url), meta: t("i nettleseren"), note };
     default: {
       const label = stepSentence({ tool, summary: row.title.slice(tool.length + 1).trim() });
-      return { verb: `Vil gjøre dette: ${label[0].toLowerCase()}${label.slice(1)}`, text: note ?? (row.detail ? approvalText(row.detail) : undefined) };
+      return { verb: t("Vil gjøre dette: {action}", { action: label[0].toLocaleLowerCase(language()) + label.slice(1) }), text: note ?? (row.detail ? approvalText(row.detail) : undefined) };
     }
   }
 }
@@ -587,7 +586,10 @@ export function describeApproval(row: Pick<ApprovalRow, "title" | "detail" | "to
 function approvalSubject(row: ApprovalRow): string {
   const ask = describeApproval(row);
   if (ask.command) return ask.command;
-  return ask.target ? `${ask.verb.replace(/^Vil /, "").replace(/^./, (c) => c.toUpperCase())} ${ask.target}` : ask.verb;
+  if (!ask.target) return ask.verb;
+  if (row.tool === "write_file") return t("Skrive {target}", { target: ask.target });
+  if (row.tool === "edit_file") return t("Endre {target}", { target: ask.target });
+  return t("Åpne {target}", { target: ask.target });
 }
 
 const SHOWN_LINES = 8;
@@ -604,9 +606,9 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
   const { row } = props;
   const [busy, setBusy] = createSignal(false);
   const [all, setAll] = createSignal(false);
-  const ask = describeApproval(row);
-  const lines = ask.lines?.slice(0, MAX_LINES) ?? [];
-  const hidden = (ask.lines?.length ?? 0) - lines.length;
+  const ask = createMemo(() => describeApproval(row));
+  const lines = createMemo(() => ask().lines?.slice(0, MAX_LINES) ?? []);
+  const hidden = () => (ask().lines?.length ?? 0) - lines().length;
   let card!: HTMLDivElement;
   let allow!: HTMLButtonElement;
   let returnTo: HTMLElement | null = null;
@@ -631,13 +633,13 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
       allow.focus({ preventScroll: true });
     }
   });
-  const [dir, name] = splitTarget(ask.target ?? "");
+  const target = createMemo(() => splitTarget(ask().target ?? ""));
   return (
     <div
       class="approval-card"
       data-row="approval"
       role="group"
-      aria-label="Godkjenning"
+      aria-label={t("Godkjenning")}
       ref={card}
       onKeyDown={(e) => {
         if (e.key !== "Escape" || busy()) return;
@@ -649,29 +651,29 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
       <div class="approval-title">
         <IconWarn size={15} />
         <span class="approval-what">
-          {ask.verb}
-          <Show when={ask.target}>{" "}<span class="approval-target" title={ask.target}><span class="approval-dir">{dir}</span><strong>{name}</strong></span></Show>
+          {ask().verb}
+          <Show when={ask().target}>{" "}<span class="approval-target" title={ask().target}><span class="approval-dir">{target()[0]}</span><strong>{target()[1]}</strong></span></Show>
         </span>
-        <Show when={ask.meta}><span class="approval-meta">{ask.meta}</span></Show>
+        <Show when={ask().meta}><span class="approval-meta">{ask().meta}</span></Show>
       </div>
-      <Show when={ask.note}><p class="approval-note">{ask.note}</p></Show>
-      <Show when={ask.command}><pre class="approval-command">{ask.command}</pre></Show>
-      <Show when={lines.length}>
+      <Show when={ask().note}><p class="approval-note">{ask().note}</p></Show>
+      <Show when={ask().command}><pre class="approval-command">{ask().command}</pre></Show>
+      <Show when={lines().length}>
         <div class="approval-diff" classList={{ open: all() }} data-testid="approval-diff">
-          <pre>{lines.map((line) => <span class={`diff-line ${line.kind}`}>{line.kind === "add" ? "+ " : "− "}{line.text}{"\n"}</span>)}{hidden > 0 ? `… ${hidden} linjer til` : ""}</pre>
+          <pre>{lines().map((line) => <span class={`diff-line ${line.kind}`}>{line.kind === "add" ? "+ " : "− "}{line.text}{"\n"}</span>)}{hidden() > 0 ? t("… {count} linjer til", { count: hidden() }) : ""}</pre>
         </div>
-        <Show when={lines.length > SHOWN_LINES}>
-          <button type="button" class="approval-more" aria-expanded={all()} onClick={() => setAll(!all())}>{all() ? "Vis mindre" : `Vis alt (${ask.lines!.length} linjer)`}</button>
+        <Show when={lines().length > SHOWN_LINES}>
+          <button type="button" class="approval-more" aria-expanded={all()} onClick={() => setAll(!all())}>{all() ? t("Vis mindre") : t("Vis alt ({count} linjer)", { count: ask().lines!.length })}</button>
         </Show>
       </Show>
-      <Show when={ask.text}><pre class="approval-detail">{ask.text}</pre></Show>
+      <Show when={ask().text}><pre class="approval-detail">{ask().text}</pre></Show>
       <div class="approval-actions">
-        <button type="button" class="btn" disabled={busy()} onClick={() => void answer("deny")}>Avslå<kbd class="approval-key" aria-hidden="true">Esc</kbd></button>
+        <button type="button" class="btn" disabled={busy()} onClick={() => void answer("deny")}>{t("Avslå")}<kbd class="approval-key" aria-hidden="true">Esc</kbd></button>
         <span class="approval-spacer" />
         <Show when={row.canAllowAlways}>
-          <button type="button" class="btn" disabled={busy()} onClick={() => void answer("allow-always")}>Tillat alltid</button>
+          <button type="button" class="btn" disabled={busy()} onClick={() => void answer("allow-always")}>{t("Tillat alltid")}</button>
         </Show>
-        <button type="button" class="btn btn-primary" disabled={busy()} ref={allow} onClick={() => void answer("allow")}>{row.title.startsWith("Slå på mods")?"Slå på":"Tillat"}<kbd class="approval-key" aria-hidden="true">Enter</kbd></button>
+        <button type="button" class="btn btn-primary" disabled={busy()} ref={allow} onClick={() => void answer("allow")}>{row.title.startsWith("Slå på mods") ? t("Slå på") : t("Tillat")}<kbd class="approval-key" aria-hidden="true">Enter</kbd></button>
       </div>
     </div>
   );
@@ -685,7 +687,7 @@ function ApprovalView(props: { row: ApprovalRow }) {
     // Waiting: the card above the field is enough. After a plain yes, the tool row says what happened.
     <Show when={(decision() !== null || closed()) && decision() !== "allow"}>
       <div class="row row-decided" data-row="approval-done">
-        <span>{decision() ? DECISIONS[decision()!] : "Ikke besvart"}</span>
+        <span>{decision() ? DECISIONS[decision()!] : t("Ikke besvart")}</span>
         <span class="decided-title">{approvalSubject(row)}</span>
       </div>
     </Show>
@@ -724,17 +726,17 @@ function ChangesView(props: { row: ChangesRow }) {
         <div class="changes-head">
           <span class="changes-icon"><IconDiff size={16} /></span>
           <span class="changes-title">
-            <span>{files().length === 1 ? "Endret 1 fil" : `Endret ${files().length} filer`}</span>
-            <Show when={files().some((file) => !file.binary)}><span class="changes-totals"><FileChangeCounts file={totals()} title={totals().countsExact ? "Linjetall for tekstfilene i denne turen" : "Anslåtte linjetall for tekstfilene i denne turen"} /></span></Show>
+            <span>{plural(files().length, "Endret {count} fil", "Endret {count} filer")}</span>
+            <Show when={files().some((file) => !file.binary)}><span class="changes-totals"><FileChangeCounts file={totals()} title={totals().countsExact ? t("Linjetall for tekstfilene i denne turen") : t("Anslåtte linjetall for tekstfilene i denne turen")} /></span></Show>
           </span>
           <Show when={reverted()} fallback={
-            <button type="button" class="btn btn-small btn-ghost" disabled={busy()} title="Angre filendringene fra denne turen" onClick={() => void undo()}>Angre<IconUndo size={13} /></button>
+            <button type="button" class="btn btn-small btn-ghost" disabled={busy()} title={t("Angre filendringene fra denne turen")} onClick={() => void undo()}>{t("Angre")}<IconUndo size={13} /></button>
           }>
-            <span class="changes-reverted">Angret</span>
+            <span class="changes-reverted">{t("Angret")}</span>
           </Show>
-          <button type="button" class="btn btn-small" onClick={show}>Vis endringer</button>
+          <button type="button" class="btn btn-small" onClick={show}>{t("Vis endringer")}</button>
         </div>
-        <Show when={files().some((file) => file.overlapping)}><p class="changes-note">Overlapper annet arbeid. Angre ber om bekreftelse.</p></Show>
+        <Show when={files().some((file) => file.overlapping)}><p class="changes-note">{t("Overlapper annet arbeid. Angre ber om bekreftelse.")}</p></Show>
         <div class="changes-files">
           <For each={shown()}>
             {(file) => {
@@ -749,7 +751,7 @@ function ChangesView(props: { row: ChangesRow }) {
           </For>
           <Show when={files().length > SHOWN_FILES}>
             <button type="button" class="changes-more" aria-expanded={all()} onClick={() => setAll(!all())}>
-              {all() ? "Vis færre" : `Vis ${files().length - SHOWN_FILES} flere`}
+              {all() ? t("Vis færre") : t("Vis {count} flere", { count: files().length - SHOWN_FILES })}
               <span class="work-chevron" classList={{ open: all() }}><IconChevronDown size={12} /></span>
             </button>
           </Show>
@@ -762,7 +764,7 @@ function ChangesView(props: { row: ChangesRow }) {
 function CompactedView(props: { row: CompactedRow }) {
   return (
     <div class="row row-line" data-row="compacted">
-      Konteksten ble komprimert fra {formatTokens(props.row.beforeTokens)} til {formatTokens(props.row.afterTokens)} tokens
+      {t("Konteksten ble komprimert fra {before} til {after} tokens", { before: formatTokens(props.row.beforeTokens), after: formatTokens(props.row.afterTokens) })}
     </div>
   );
 }
@@ -770,24 +772,30 @@ function CompactedView(props: { row: CompactedRow }) {
 // A hook that did something worth seeing: one quiet line, like the compaction line, with what it
 // said underneath. The name is the user's own, so the reader knows which script it was.
 const HOOK_EFFECT: Record<HookRow["effect"], string> = {
-  blocked: "stoppet",
-  feedback: "ga tilbakemelding til modellen",
-  context: "la til kontekst for modellen",
-  error: "feilet",
+  get blocked() { return t("stoppet"); },
+  get feedback() { return t("ga tilbakemelding til modellen"); },
+  get context() { return t("la til kontekst for modellen"); },
+  get error() { return t("feilet"); },
 };
 const HOOK_EVENT_LABEL: Record<HookRow["event"], string> = {
-  PreToolUse: "før verktøykall",
-  PostToolUse: "etter verktøykall",
-  UserPromptSubmit: "ved melding",
-  Stop: "når turen er ferdig",
+  get PreToolUse() { return t("før verktøykall"); },
+  get PostToolUse() { return t("etter verktøykall"); },
+  get UserPromptSubmit() { return t("ved melding"); },
+  get Stop() { return t("når turen er ferdig"); },
 };
 
 function HookView(props: { row: HookRow }) {
   const { row } = props;
-  const what = () => (row.effect === "blocked" ? (row.event === "UserPromptSubmit" ? "stoppet meldingen" : "stoppet verktøykallet") : row.outcome === "timeout" ? "brukte for lang tid" : HOOK_EFFECT[row.effect]);
+  const what = () => row.effect === "blocked" ? (row.event === "UserPromptSubmit" ? t("stoppet meldingen") : t("stoppet verktøykallet")) : row.outcome === "timeout" ? t("brukte for lang tid") : HOOK_EFFECT[row.effect];
+  const summary = () => {
+    const values = { name: row.name, event: HOOK_EVENT_LABEL[row.event], effect: what() };
+    return row.effect === "error" && row.exitCode !== null
+      ? t("Hooken «{name}» ({event}) {effect} (kode {code})", { ...values, code: row.exitCode })
+      : t("Hooken «{name}» ({event}) {effect}", values);
+  };
   return (
     <div class="row row-line" data-row="hook" role={row.effect === "blocked" || row.effect === "error" ? "status" : undefined}>
-      <span>Hooken «{row.name}» ({HOOK_EVENT_LABEL[row.event]}) {what()}{row.effect === "error" && row.exitCode !== null ? ` (kode ${row.exitCode})` : ""}</span>
+      <span>{summary()}</span>
       <Show when={row.message}><div class="muted hook-message">{row.message}</div></Show>
     </div>
   );
@@ -796,7 +804,9 @@ function HookView(props: { row: HookRow }) {
 function UnsentView(props: { row: UnsentRow }) {
   return (
     <div class="row row-line" data-row="unsent" role="status">
-      Meldingen ble ikke sendt: {props.row.reason === "restart" ? "appen stoppet før hookene hadde sjekket den" : "sjekken av hookene ble avbrutt"}. Modellen har ikke sett den. Send den på nytt hvis du vil.
+      {props.row.reason === "restart"
+        ? t("Meldingen ble ikke sendt: appen stoppet før hookene hadde sjekket den. Modellen har ikke sett den. Send den på nytt hvis du vil.")
+        : t("Meldingen ble ikke sendt: sjekken av hookene ble avbrutt. Modellen har ikke sett den. Send den på nytt hvis du vil.")}
     </div>
   );
 }
@@ -813,10 +823,10 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
   const failed = createMemo(() => threads().filter((t) => t.thread && !t.thread.running && t.thread.lastStatus && t.thread.lastStatus !== "done").length);
   const status = () => {
     const parts: string[] = [];
-    if (done()) parts.push(`${done()} ${done() === 1 ? "ferdig" : "ferdige"}`);
-    if (running()) parts.push(`${running()} kjører`);
-    if (failed()) parts.push(`${failed()} stoppet`);
-    return parts.join(" · ") || "Starter";
+    if (done()) parts.push(plural(done(), "{count} ferdig", "{count} ferdige"));
+    if (running()) parts.push(t("{count} kjører", { count: running() }));
+    if (failed()) parts.push(t("{count} stoppet", { count: failed() }));
+    return parts.join(" · ") || t("Starter");
   };
   return (
     <div class="row row-spawned row-agents" data-row="agents" data-testid="agents-card">
@@ -827,7 +837,7 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
             <Show when={row.items().length > 3}><span class="agent-face more">+{row.items().length - 3}</span></Show>
           </span>
           <span class="agents-title">
-            <strong>{row.items().length === 1 ? "1 underagent" : `${row.items().length} underagenter`}</strong>
+            <strong>{plural(row.items().length, "{count} underagent", "{count} underagenter")}</strong>
             <span class="agents-status">{status()}</span>
             <Show when={!open() && assignedModels()}><span class="agent-assignment" title={assignedModels()}>{assignedModels()}</span></Show>
           </span>
@@ -846,9 +856,9 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
                     <span class="agent-title">{entry.thread?.title ?? entry.item.title}</span>
                     <Show when={entry.item.model}>{snapshot => {
                       const label = () => assignment(snapshot());
-                      return <span class="agent-assignment" title={`Modell ved oppstart: ${label()}`}>{label()}</span>;
+                      return <span class="agent-assignment" title={t("Modell ved oppstart: {model}", { model: label() })}>{label()}</span>;
                     }}</Show>
-                    <span class="agent-sub">{entry.thread?.running ? "Kjører…" : agentStatus(entry.thread?.lastStatus ?? null)}</span>
+                    <span class="agent-sub">{entry.thread?.running ? t("Kjører…") : agentStatus(entry.thread?.lastStatus ?? null)}</span>
                   </span>
                   <Show when={entry.thread}>
                     <Show when={entry.thread!.running} fallback={<span class="agent-time">{formatElapsed(entry.thread!.updatedAt - entry.thread!.createdAt)}</span>}>
@@ -867,11 +877,11 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
 }
 
 function agentStatus(status: string | null): string {
-  if (status === "done") return "Ferdig";
-  if (status === "error") return "Feilet";
-  if (status === "stopped") return "Stoppet";
-  if (status === "interrupted") return "Avbrutt";
-  return "Venter";
+  if (status === "done") return t("Ferdig");
+  if (status === "error") return t("Feilet");
+  if (status === "stopped") return t("Stoppet");
+  if (status === "interrupted") return t("Avbrutt");
+  return t("Venter");
 }
 
 type MaybeThread = { createdAt: number; updatedAt: number; running: boolean } | undefined;
@@ -900,14 +910,14 @@ function NoticeView(props: { row: NoticeRow }) {
       when={row.status === "error"}
       fallback={
         <div class="row row-line" data-row="notice">
-          {row.status === "stopped" ? "Stoppet" : "Avbrutt da serveren stoppet. Du kan fortsette tråden."}
+          {row.status === "stopped" ? t("Stoppet") : t("Avbrutt da serveren stoppet. Du kan fortsette tråden.")}
         </div>
       }
     >
       <div class="row error-card" data-row="error" role="alert">
         <IconClose size={14} />
         <div>
-          <strong>Kjøringen feilet</strong>
+          <strong>{t("Kjøringen feilet")}</strong>
           <div class="error-text">{row.error}</div>
         </div>
       </div>
@@ -918,8 +928,10 @@ function NoticeView(props: { row: NoticeRow }) {
 function RowKind(props: { row: Row; onThread: (id: string) => void }) {
   const { row } = props;
   switch (row.kind) {
-    case "model-change":
-      return <div class="row model-change-row" data-row="model-change" role="note"><IconCpu size={12} /><span>Byttet modell: {answerModelInfo(row.from).name} <span aria-hidden="true">→</span><span class="sr-only">til</span> {answerModelInfo(row.to).name}</span></div>;
+    case "model-change": {
+      const models = () => ({ from: answerModelInfo(row.from).name, to: answerModelInfo(row.to).name });
+      return <div class="row model-change-row" data-row="model-change" role="note"><IconCpu size={12} /><span aria-hidden="true">{t("Byttet modell: {from} → {to}", models())}</span><span class="sr-only">{t("Byttet modell: {from} til {to}", models())}</span></div>;
+    }
     case "user":
       return <UserView row={row} onThread={props.onThread} />;
     case "text":
@@ -976,11 +988,11 @@ export function RetryLine(props: { retry: RetryState }) {
     <div class="retry-line" role="status" data-testid="retry-line" title={props.retry.reason}>
       <span class="spinner" aria-hidden="true" />
       <span class="retry-text">
-        <Show when={left() > 0} fallback={<>Prøver igjen nå</>}>
-          Venter på leverandøren, prøver igjen <span aria-hidden="true">om <span class="retry-left">{left()}</span> s</span><span class="sr-only">om litt</span>
+        <Show when={left() > 0} fallback={<>{t("Prøver igjen nå")}</>}>
+          {t("Venter på leverandøren, prøver igjen")}{" "}<span aria-hidden="true">{t("om")}{" "}<span class="retry-left">{left()}</span> s</span><span class="sr-only">{t("om litt")}</span>
         </Show>
       </span>
-      <span class="retry-attempt">(forsøk {props.retry.attempt} av {props.retry.maxAttempts})</span>
+      <span class="retry-attempt">{t("(forsøk {attempt} av {max})", { attempt: props.retry.attempt, max: props.retry.maxAttempts })}</span>
     </div>
   );
 }

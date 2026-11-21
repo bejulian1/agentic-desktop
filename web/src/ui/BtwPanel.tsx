@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, on, onCleanup, Show, type Accessor } from "solid-js";
 import { connection, on as onSocket } from "../lib/socket";
 import { IconChat, IconClose, IconStop } from "./icons";
@@ -40,7 +41,7 @@ export function createBtwController(scope: Accessor<string>): BtwController {
   const ask = async (threadId: string, question: string, accepted: () => void, failed: () => void) => {
     if (connection() !== "online") {
       close();
-      setState({ question, answer: "", status: "error", error: "Vent til appen er tilkoblet før du sender et sidespørsmål. Utkastet er beholdt." });
+      setState({ question, answer: "", status: "error", error: t("Vent til appen er tilkoblet før du sender et sidespørsmål. Utkastet er beholdt.") });
       return;
     }
     active?.abort();
@@ -61,9 +62,9 @@ export function createBtwController(scope: Accessor<string>): BtwController {
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(typeof body?.error === "string" ? body.error : `Kunne ikke starte sidespørsmålet (${response.status}).`);
+        throw new Error(typeof body?.error === "string" ? body.error : t("Kunne ikke starte sidespørsmålet ({status}).", { status: response.status }));
       }
-      if (!response.body) throw new Error("Serveren sendte ikke et svar.");
+      if (!response.body) throw new Error(t("Serveren sendte ikke et svar."));
       reader = response.body.getReader();
       const decoder = new TextDecoder();
       let pending = "";
@@ -81,7 +82,7 @@ export function createBtwController(scope: Accessor<string>): BtwController {
         } else if (part.type === "text" && started && typeof part.text === "string") {
           setState((value) => {
             if (!value) return null;
-            if (value.answer.length + part.text.length > 64_000) throw new Error("Sidesvaret ble for langt.");
+            if (value.answer.length + part.text.length > 64_000) throw new Error(t("Sidesvaret ble for langt."));
             return { ...value, answer: value.answer + part.text };
           });
         } else if (part.type === "done" && started) {
@@ -91,14 +92,14 @@ export function createBtwController(scope: Accessor<string>): BtwController {
           finished = true;
           if (part.code === "scope_changed") { close(); return; }
           failed();
-          setState((value) => value ? { ...value, answer: "", status: "error", error: typeof part.message === "string" ? part.message : "Sidespørsmålet kunne ikke fullføres." } : null);
+          setState((value) => value ? { ...value, answer: "", status: "error", error: typeof part.message === "string" ? part.message : t("Sidespørsmålet kunne ikke fullføres.") } : null);
         }
       };
       while (current() && !finished) {
         const chunk = await reader.read();
         if (!current()) return;
         pending += decoder.decode(chunk.value, { stream: !chunk.done });
-        if (pending.length > 128_000) throw new Error("Serveren sendte et ugyldig sidesvar.");
+        if (pending.length > 128_000) throw new Error(t("Serveren sendte et ugyldig sidesvar."));
         let end: number;
         while ((end = pending.indexOf("\n")) !== -1) {
           take(pending.slice(0, end));
@@ -110,13 +111,13 @@ export function createBtwController(scope: Accessor<string>): BtwController {
           break;
         }
       }
-      if (current() && !finished) throw new Error("Forbindelsen ble brutt før sidesvaret var ferdig.");
+      if (current() && !finished) throw new Error(t("Forbindelsen ble brutt før sidesvaret var ferdig."));
     } catch (error) {
       if (generation === mine) {
         failed();
         setState((value) => value ? {
           ...value, answer: "", status: "error",
-          error: controller.signal.aborted ? "Sidespørsmålet tok for lang tid. Prøv igjen når du er klar." : (error as Error).message || "Kunne ikke hente sidesvaret.",
+          error: controller.signal.aborted ? t("Sidespørsmålet tok for lang tid. Prøv igjen når du er klar.") : (error as Error).message || t("Kunne ikke hente sidesvaret."),
         } : null);
       }
     } finally {
@@ -130,16 +131,16 @@ export function createBtwController(scope: Accessor<string>): BtwController {
 
 export function BtwPanel(props: { controller: BtwController }) {
   return <Show when={props.controller.state()}>{(state) =>
-    <aside class="btw-panel" aria-label="Sidespørsmål" data-testid="btw-panel">
-      <header class="btw-head"><IconChat size={14}/><strong>Sidespørsmål</strong><span class="btw-command">/btw</span><span class="btw-head-spacer"/>
-        <Show when={state().status === "asking"}><button type="button" class="icon-button" aria-label="Avbryt sidespørsmål" title="Avbryt bare sidespørsmålet" onClick={props.controller.cancel}><IconStop size={12}/></button></Show>
-        <button type="button" class="icon-button" aria-label="Lukk sidespørsmål" title="Lukk og fjern sidespørsmålet" onClick={props.controller.close}><IconClose size={14}/></button>
+    <aside class="btw-panel" aria-label={t("Sidespørsmål")} data-testid="btw-panel">
+      <header class="btw-head"><IconChat size={14}/><strong>{t("Sidespørsmål")}</strong><span class="btw-command">/btw</span><span class="btw-head-spacer"/>
+        <Show when={state().status === "asking"}><button type="button" class="icon-button" aria-label={t("Avbryt sidespørsmål")} title={t("Avbryt bare sidespørsmålet")} onClick={props.controller.cancel}><IconStop size={12}/></button></Show>
+        <button type="button" class="icon-button" aria-label={t("Lukk sidespørsmål")} title={t("Lukk og fjern sidespørsmålet")} onClick={props.controller.close}><IconClose size={14}/></button>
       </header>
       <div class="btw-content"><p class="btw-question" data-testid="btw-question">{state().question}</p>
         <Show when={state().answer}><div class="btw-answer" data-testid="btw-answer">{state().answer}</div></Show>
         <Show when={state().error}><p class="btw-error" role="alert">{state().error}</p></Show>
       </div>
-      <footer><span role="status">{state().status === "asking" ? "Svarer…" : state().status === "cancelled" ? "Avbrutt" : state().status === "error" ? "Kunne ikke fullføre" : "Svar ferdig"}</span><Show when={state().model}><span class="btw-model">{state().model}</span></Show><small>Uten verktøy · lagres ikke i samtalehistorikken</small></footer>
+      <footer><span role="status">{state().status === "asking" ? t("Svarer…") : state().status === "cancelled" ? t("Avbrutt") : state().status === "error" ? t("Kunne ikke fullføre") : t("Svar ferdig")}</span><Show when={state().model}><span class="btw-model">{state().model}</span></Show><small>{t("Uten verktøy · lagres ikke i samtalehistorikken")}</small></footer>
     </aside>
   }</Show>;
 }

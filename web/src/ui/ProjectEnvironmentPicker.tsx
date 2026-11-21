@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { createEffect } from "solid-js";
 import type { Project } from "../../../shared/protocol";
 import { gitInfo, loadGitInfo } from "../state/home";
@@ -12,9 +13,9 @@ export function ProjectEnvironmentPicker(props: { project: Project; paneKey: str
   const info = () => gitInfo(props.project.id);
   const branch = () => {
     const current = info();
-    if (!current) return "Leser gren…";
-    if (current.detached) return `Frakoblet HEAD · ${current.branch ?? "ukjent commit"}`;
-    return current.branch ?? "Ingen Git-gren";
+    if (!current) return t("Leser gren…");
+    if (current.detached) return t("Frakoblet HEAD · {branch}", { branch: current.branch ?? t("ukjent commit") });
+    return current.branch ?? t("Ingen Git-gren");
   };
   createEffect(() => { if (menu.open()) loadGitInfo(props.project.id); });
   const closeAndFocus = () => { menu.close(); trigger?.focus({ preventScroll: true }); };
@@ -47,8 +48,8 @@ export function ProjectEnvironmentPicker(props: { project: Project; paneKey: str
         class="context-chip project-environment-button"
         data-testid="project-environment-button"
         ref={trigger}
-        aria-label="Konfigurer lokalt miljø"
-        title="Konfigurer lokalt miljø"
+        aria-label={t("Konfigurer lokalt miljø")}
+        title={t("Konfigurer lokalt miljø")}
         aria-haspopup="dialog"
         aria-expanded={menu.open()}
         onPointerDown={(event) => { if (menu.open()) event.preventDefault(); }}
@@ -59,21 +60,21 @@ export function ProjectEnvironmentPicker(props: { project: Project; paneKey: str
       <div
         class="project-environment-menu"
         role="dialog"
-        aria-label="Konfigurer lokalt miljø"
+        aria-label={t("Konfigurer lokalt miljø")}
         data-testid="project-environment-menu"
         onKeyDown={onKey}
         onFocusOut={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) menu.close(); }}
         ref={(element) => requestAnimationFrame(() => element.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true }))}
       >
-        <div class="menu-heading">Konfigurer lokalt miljø</div>
-        <button type="button" class="project-environment-row menu-item" title="Velg gren eller opprett et arbeidstre" onClick={() => { menu.close(); openGitWorkspace(props.project.id); }}><IconBranch size={14} /><span>Gren</span><span class="project-environment-value" data-testid="project-environment-branch">{branch()}</span><IconChevron size={12} /></button>
-        <div class="project-environment-row"><IconLaptop size={14} /><span>Miljø</span><span class="project-environment-value">Denne datamaskinen</span></div>
-        <button type="button" class="menu-item" onClick={() => { menu.close(); openGitWorkspace(props.project.id, true); }}><IconBranch size={14} /><span class="menu-name">Nytt arbeidstre</span><IconChevron size={12} /></button>
+        <div class="menu-heading">{t("Konfigurer lokalt miljø")}</div>
+        <button type="button" class="project-environment-row menu-item" title={t("Velg gren eller opprett et arbeidstre")} onClick={() => { menu.close(); openGitWorkspace(props.project.id); }}><IconBranch size={14} /><span>{t("Gren")}</span><span class="project-environment-value" data-testid="project-environment-branch">{branch()}</span><IconChevron size={12} /></button>
+        <div class="project-environment-row"><IconLaptop size={14} /><span>{t("Miljø")}</span><span class="project-environment-value">{t("Denne datamaskinen")}</span></div>
+        <button type="button" class="menu-item" onClick={() => { menu.close(); openGitWorkspace(props.project.id, true); }}><IconBranch size={14} /><span class="menu-name">{t("Nytt arbeidstre")}</span><IconChevron size={12} /></button>
         <div class="menu-sep" role="separator" />
         <button type="button" class="menu-item" onClick={() => edit("general")} title={props.project.path}>
-          <IconFolder size={14} /><span class="menu-stack"><span class="menu-name">Prosjektmappe</span><span class="picker-path">{props.project.path}</span></span><IconChevron size={12} />
+          <IconFolder size={14} /><span class="menu-stack"><span class="menu-name">{t("Prosjektmappe")}</span><span class="picker-path">{props.project.path}</span></span><IconChevron size={12} />
         </button>
-        <button type="button" class="menu-item" onClick={() => edit("agent")}><IconSettings size={14} /><span class="menu-name">Prosjektinnstillinger</span><IconChevron size={12} /></button>
+        <button type="button" class="menu-item" onClick={() => edit("agent")}><IconSettings size={14} /><span class="menu-name">{t("Prosjektinnstillinger")}</span><IconChevron size={12} /></button>
       </div>
     </Popover>
   );

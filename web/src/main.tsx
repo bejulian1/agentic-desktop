@@ -4,7 +4,7 @@ import { render } from "solid-js/web";
 import { ApiError, get, post, setUnauthorizedHandler } from "./lib/api";
 import { expire } from "./lib/socket";
 import { app, applyBootstrap, wireServerEvents } from "./state/app";
-import { applyLanguage } from "./lib/i18n";
+import { t, applyLanguage } from "./lib/i18n";
 import { createEffect, createRoot, onCleanup } from "solid-js";
 import { desktop } from "./lib/desktop";
 import { wireGridEvents } from "./state/grid";
@@ -56,10 +56,10 @@ async function bootstrapFromEarly(early: Promise<EarlyBoot>): Promise<Bootstrap>
   try {
     answer = await early;
   } catch {
-    throw new ApiError(0, "Får ikke kontakt med serveren");
+    throw new ApiError(0, t("Får ikke kontakt med serveren"));
   }
   const body = await answer.res.json().catch(() => undefined);
-  if (!answer.res.ok) throw new ApiError(answer.res.status, body?.error ?? `Feil ${answer.res.status}`, body);
+  if (!answer.res.ok) throw new ApiError(answer.res.status, body?.error ?? t("Feil {status}", { status: answer.res.status }), body);
   return body as Bootstrap;
 }
 

@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, t } from "../lib/i18n";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { CHAT_PROJECT_ICONS, MAX_CHAT_FIELD, MAX_CHAT_WORDS, PROJECT_COLORS, type ChatProject, type ChatProjectMemoryMode } from "../../../shared/protocol";
 import { patch, post } from "../lib/api";
@@ -12,9 +12,9 @@ import { removeChatProject } from "./chat-projects";
 import "../styles/chat-projects.css";
 
 const ICON_LABELS: Record<string, string> = {
-  folder: "Mappe", book: "Bok", school: "Utdanning", pencil: "Skriving", brain: "Tanker",
-  spark: "Ideer", globe: "Verden", plane: "Reise", chart: "Diagram", palette: "Kunst",
-  music: "Musikk", health: "Helse", leaf: "Natur", flask: "Forskning", team: "Samarbeid",
+  get folder() { return t("Mappe"); }, get book() { return t("Bok"); }, get school() { return t("Utdanning"); }, get pencil() { return t("Skriving"); }, get brain() { return t("Tanker"); },
+  get spark() { return t("Ideer"); }, get globe() { return t("Verden"); }, get plane() { return t("Reise"); }, get chart() { return t("Diagram"); }, get palette() { return t("Kunst"); },
+  get music() { return t("Musikk"); }, get health() { return t("Helse"); }, get leaf() { return t("Natur"); }, get flask() { return t("Forskning"); }, get team() { return t("Samarbeid"); },
 };
 
 function ChatProjectDialog(props: { request: ChatProjectDialogRequest }) {
@@ -58,7 +58,7 @@ function ChatProjectDialog(props: { request: ChatProjectDialogRequest }) {
       setApp("chatProjects", project.id, project);
       close(project);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunne ikke lagre prosjektet. Prøv igjen.");
+      setError(err instanceof Error ? err.message : t("Kunne ikke lagre prosjektet. Prøv igjen."));
     } finally {
       setBusy(false);
     }
@@ -71,52 +71,52 @@ function ChatProjectDialog(props: { request: ChatProjectDialogRequest }) {
   };
   const memoryModeChanged = () => !!initial && memoryMode() !== (savedProject()?.memoryMode ?? "project");
 
-  return <dialog ref={dialog} class="dialog chat-project-dialog" aria-label={initial ? "Rediger Chat-prosjekt" : "Nytt prosjekt i Chat"} data-testid="chat-project-dialog" onCancel={event => { event.preventDefault(); if (!busy()) close(); }}>
+  return <dialog ref={dialog} class="dialog chat-project-dialog" aria-label={initial ? t("Rediger Chat-prosjekt") : t("Nytt prosjekt i Chat")} data-testid="chat-project-dialog" onCancel={event => { event.preventDefault(); if (!busy()) close(); }}>
     <form class="chat-project-form" onSubmit={event => { event.preventDefault(); void save(); }}>
       <div class="dialog-head">
-        <div class="chat-project-dialog-title"><ChatProjectGlyph project={{ icon: icon(), color: color() }} size={24} /><h2>{initial ? "Rediger Chat-prosjekt" : "Nytt prosjekt i Chat"}</h2></div>
-        <button type="button" class="icon-button" aria-label="Lukk prosjektinnstillinger" disabled={busy()} onClick={() => close()}><IconClose size={17} /></button>
+        <div class="chat-project-dialog-title"><ChatProjectGlyph project={{ icon: icon(), color: color() }} size={24} /><h2>{initial ? t("Rediger Chat-prosjekt") : t("Nytt prosjekt i Chat")}</h2></div>
+        <button type="button" class="icon-button" aria-label={t("Lukk prosjektinnstillinger")} disabled={busy()} onClick={() => close()}><IconClose size={17} /></button>
       </div>
       <div class="chat-project-dialog-body">
-        <label class="field"><span>Prosjektnavn</span><input ref={nameInput} class="input" name="chat-project-name" data-testid="chat-project-name" value={name()} maxLength={200} required disabled={busy()} placeholder="Hva vil du samle her?" onInput={event => setName(event.currentTarget.value)} /></label>
-        <fieldset class="chat-project-fieldset" disabled={busy()}><legend>Prosjektikon</legend>
-          <div class="chat-project-icon-grid" aria-label="15 prosjektikoner">
+        <label class="field"><span>{t("Prosjektnavn")}</span><input ref={nameInput} class="input" name="chat-project-name" data-testid="chat-project-name" value={name()} maxLength={200} required disabled={busy()} placeholder={t("Hva vil du samle her?")} onInput={event => setName(event.currentTarget.value)} /></label>
+        <fieldset class="chat-project-fieldset" disabled={busy()}><legend>{t("Prosjektikon")}</legend>
+          <div class="chat-project-icon-grid" aria-label={t("15 prosjektikoner")}>
             <For each={CHAT_PROJECT_ICONS}>{id => {
               const Icon = iconFor(id);
               return <button type="button" class="chat-project-icon-option" aria-pressed={icon() === id} aria-label={ICON_LABELS[id] ?? id} title={ICON_LABELS[id] ?? id} data-project-icon={id} style={{ color: PROJECT_COLORS.find(c => c.id === color())?.value }} onClick={() => setIcon(id)}>{Icon?.({ size: 21 })}</button>;
             }}</For>
           </div>
         </fieldset>
-        <fieldset class="chat-project-fieldset" disabled={busy()}><legend>Ikonfarge</legend>
+        <fieldset class="chat-project-fieldset" disabled={busy()}><legend>{t("Ikonfarge")}</legend>
           <div class="chat-project-color-grid">
-            <button type="button" class="chat-project-color-option chat-project-color-default" aria-label="Standardfarge" aria-pressed={!color()} title="Standardfarge" onClick={() => setColor(null)}><Show when={!color()}><IconCheck size={15} /></Show></button>
+            <button type="button" class="chat-project-color-option chat-project-color-default" aria-label={t("Standardfarge")} aria-pressed={!color()} title={t("Standardfarge")} onClick={() => setColor(null)}><Show when={!color()}><IconCheck size={15} /></Show></button>
             <For each={PROJECT_COLORS}>{entry => <button type="button" class="chat-project-color-option" aria-label={entry.label} title={entry.label} aria-pressed={color() === entry.id} style={{ "--project-color": entry.value }} onClick={() => setColor(entry.id)}><Show when={color() === entry.id}><IconCheck size={15} /></Show></button>}</For>
           </div>
         </fieldset>
-        <label class="field"><span>Instruksjoner for prosjektet</span>
-          <span class="muted small" id="chat-project-instructions-help">Fortell hvordan modellen skal svare og arbeide i disse chattene. Prosjektet bruker sine egne instruksjoner. Global systeminstruks, profil, tone og personlighet brukes ikke.</span>
-          <textarea class="input chat-project-instructions" name="chat-project-instructions" data-testid="chat-project-instructions" aria-describedby="chat-project-instructions-help chat-project-word-count" aria-invalid={tooLong()} rows={7} value={instructions()} disabled={busy()} placeholder="For eksempel: Svar på norsk. Bruk kildene og begrepene vi har avtalt i prosjektet." onInput={event => setInstructions(event.currentTarget.value)} />
-          <span class="chat-project-word-count" id="chat-project-word-count" classList={{ "chat-project-error": tooLong() }}>{words().toLocaleString(language())} / {MAX_CHAT_WORDS.toLocaleString(language())} ord<Show when={instructions().length > MAX_CHAT_FIELD}> · Maks {MAX_CHAT_FIELD.toLocaleString(language())} tegn</Show></span>
+        <label class="field"><span>{t("Instruksjoner for prosjektet")}</span>
+          <span class="muted small" id="chat-project-instructions-help">{t("Fortell hvordan modellen skal svare og arbeide i disse chattene. Prosjektet bruker sine egne instruksjoner. Global systeminstruks, profil, tone og personlighet brukes ikke.")}</span>
+          <textarea class="input chat-project-instructions" name="chat-project-instructions" data-testid="chat-project-instructions" aria-describedby="chat-project-instructions-help chat-project-word-count" aria-invalid={tooLong()} rows={7} value={instructions()} disabled={busy()} placeholder={t("For eksempel: Svar på norsk. Bruk kildene og begrepene vi har avtalt i prosjektet.")} onInput={event => setInstructions(event.currentTarget.value)} />
+          <span class="chat-project-word-count" id="chat-project-word-count" classList={{ "chat-project-error": tooLong() }}>{t("{used} / {max} ord", { used: words().toLocaleString(language()), max: MAX_CHAT_WORDS.toLocaleString(language()) })}<Show when={instructions().length > MAX_CHAT_FIELD}> · {t("Maks {max} tegn", { max: MAX_CHAT_FIELD.toLocaleString(language()) })}</Show></span>
         </label>
-        <fieldset class="chat-project-fieldset" disabled={busy()}><legend>Minner</legend>
+        <fieldset class="chat-project-fieldset" disabled={busy()}><legend>{t("Minner")}</legend>
           <div class="chat-project-memory-options">
-            <label class="chat-project-memory-option" classList={{ selected: memoryMode() === "project" }}><input type="radio" name="chat-project-memory-mode" value="project" checked={memoryMode() === "project"} onChange={() => setMemoryMode("project")} /><span><strong>Egne prosjektminner</strong><span>Brukes bare i dette prosjektet. Andre Chat-prosjekter og globale Chat-minner holdes utenfor.</span></span><span class="pill">Standard</span></label>
-            <label class="chat-project-memory-option" classList={{ selected: memoryMode() === "shared" }}><input type="radio" name="chat-project-memory-mode" value="shared" checked={memoryMode() === "shared"} onChange={() => setMemoryMode("shared")} /><span><strong>Del globale Chat-minner</strong><span>Les og oppdater de samme minnene som vanlig Chat og andre prosjekter som har valgt dette. Prosjektinstruksjonene forblir egne.</span></span></label>
+            <label class="chat-project-memory-option" classList={{ selected: memoryMode() === "project" }}><input type="radio" name="chat-project-memory-mode" value="project" checked={memoryMode() === "project"} onChange={() => setMemoryMode("project")} /><span><strong>{t("Egne prosjektminner")}</strong><span>{t("Brukes bare i dette prosjektet. Andre Chat-prosjekter og globale Chat-minner holdes utenfor.")}</span></span><span class="pill">{t("Standard")}</span></label>
+            <label class="chat-project-memory-option" classList={{ selected: memoryMode() === "shared" }}><input type="radio" name="chat-project-memory-mode" value="shared" checked={memoryMode() === "shared"} onChange={() => setMemoryMode("shared")} /><span><strong>{t("Del globale Chat-minner")}</strong><span>{t("Les og oppdater de samme minnene som vanlig Chat og andre prosjekter som har valgt dette. Prosjektinstruksjonene forblir egne.")}</span></span></label>
           </div>
-          <p class="muted small">Kode-minner deles aldri. Ved bytte beholdes prosjektets egne minner, klare når du velger dem igjen.</p>
-          <label class="chat-project-auto-memory"><input type="checkbox" name="chat-project-auto-memory" checked={autoMemory()} onChange={event => setAutoMemory(event.currentTarget.checked)} /><span><strong>La modellen lagre nye minner</strong><span class="muted small">Gjelder bare dette prosjektet og den valgte minnetypen. Du kan alltid legge til og endre minner selv.</span></span></label>
+          <p class="muted small">{t("Kode-minner deles aldri. Ved bytte beholdes prosjektets egne minner, klare når du velger dem igjen.")}</p>
+          <label class="chat-project-auto-memory"><input type="checkbox" name="chat-project-auto-memory" checked={autoMemory()} onChange={event => setAutoMemory(event.currentTarget.checked)} /><span><strong>{t("La modellen lagre nye minner")}</strong><span class="muted small">{t("Gjelder bare dette prosjektet og den valgte minnetypen. Du kan alltid legge til og endre minner selv.")}</span></span></label>
         </fieldset>
         <Show when={initial}>
-          <Show when={!memoryModeChanged()} fallback={<p class="chat-project-memory-notice" role="status">Lagre den nye minnetypen før du administrerer minnene. Ingen minner er flyttet eller slettet.</p>}>
+          <Show when={!memoryModeChanged()} fallback={<p class="chat-project-memory-notice" role="status">{t("Lagre den nye minnetypen før du administrerer minnene. Ingen minner er flyttet eller slettet.")}</p>}>
             <ChatProjectMemories projectId={initial!.id} memoryMode={savedProject()?.memoryMode ?? "project"} />
           </Show>
         </Show>
         <Show when={error()}><p class="chat-project-error" role="alert">{error()}</p></Show>
       </div>
       <div class="dialog-actions chat-project-dialog-actions">
-        <Show when={initial}><button type="button" class="btn btn-danger chat-project-delete" disabled={busy()} onClick={() => void remove()}>Fjern prosjektet…</button></Show>
-        <button type="button" class="btn" disabled={busy()} onClick={() => close()}>Avbryt</button>
-        <button type="submit" class="btn btn-primary" data-testid="chat-project-save" disabled={busy() || !valid()}>{busy() ? "Lagrer…" : initial ? "Lagre" : "Lag prosjektet"}</button>
+        <Show when={initial}><button type="button" class="btn btn-danger chat-project-delete" disabled={busy()} onClick={() => void remove()}>{t("Fjern prosjektet…")}</button></Show>
+        <button type="button" class="btn" disabled={busy()} onClick={() => close()}>{t("Avbryt")}</button>
+        <button type="submit" class="btn btn-primary" data-testid="chat-project-save" disabled={busy() || !valid()}>{busy() ? t("Lagrer…") : initial ? t("Lagre") : t("Lag prosjektet")}</button>
       </div>
     </form>
   </dialog>;

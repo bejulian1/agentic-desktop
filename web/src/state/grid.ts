@@ -1,6 +1,7 @@
 // The pane grid of one scope (a project, or "chat"). The tree is plain JSON so it can be stored
 // on the server. Panes render flat and absolutely positioned from it: moving or splitting a pane
 // changes its rectangle, never its place in the DOM, so scroll position and drafts survive.
+import { t } from "../lib/i18n";
 import { createMemo, createRoot, createSignal, type Accessor, type Setter } from "solid-js";
 import { ApiError, get, put } from "../lib/api";
 import { on, onOpen } from "../lib/socket";
@@ -343,7 +344,7 @@ export class Grid {
 
   split(paneId: string, side: Side, threadId: string | null = null, takeFocus = true): string | null {
     if (this.count() >= MAX_PANES) {
-      toast(`Det er plass til ${MAX_PANES} ruter i et vindu.`, "info");
+      toast(t("Det er plass til {count} ruter i et vindu.", { count: MAX_PANES }), "info");
       return null;
     }
     const added = newPane(threadId);
@@ -387,7 +388,7 @@ export class Grid {
   // A new pane along a whole edge of the grid.
   splitEdge(side: Side, threadId: string | null = null): string | null {
     if (this.count() >= MAX_PANES) {
-      toast(`Det er plass til ${MAX_PANES} ruter i et vindu.`, "info");
+      toast(t("Det er plass til {count} ruter i et vindu.", { count: MAX_PANES }), "info");
       return null;
     }
     const added = newPane(threadId);

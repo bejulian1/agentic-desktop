@@ -3,6 +3,7 @@
 // at the start and nothing else reads layout during the drag, and the ghost only moves by transform.
 // The drop target only changes when the pointer crosses into another zone, so the preview, which
 // shows where the pane will land, is worked out a few times per drag and not per pointermove.
+import { t } from "../lib/i18n";
 import { createSignal } from "solid-js";
 import { onNextFrame } from "../lib/frame";
 import { app, scopeOf } from "./app";
@@ -210,8 +211,8 @@ export interface DropPreview {
   full: boolean; // The drop would make a seventh pane, so it does nothing.
 }
 
-const PANE_LABELS: Record<Zone, string> = { center: "", left: "Til venstre", right: "Til høyre", top: "Over", bottom: "Under" };
-const EDGE_LABELS: Record<Side, string> = { left: "Venstre kant", right: "Høyre kant", top: "Øverste kant", bottom: "Nederste kant" };
+const PANE_LABELS: Record<Zone, string> = { center: "", get left() { return t("Til venstre"); }, get right() { return t("Til høyre"); }, get top() { return t("Over"); }, get bottom() { return t("Under"); } };
+const EDGE_LABELS: Record<Side, string> = { get left() { return t("Venstre kant"); }, get right() { return t("Høyre kant"); }, get top() { return t("Øverste kant"); }, get bottom() { return t("Nederste kant"); } };
 
 function rectIn(root: GridNode, paneId: string): Rect | undefined {
   const rects = new Map<string, Rect>();
@@ -233,15 +234,15 @@ export function dropPreview(grid: Grid, source: DragSource, target: DropTarget):
     if (existing) {
       if (target.zone === "center" && !target.edge) {
         const rect = grid.geometry().rects.get(existing.id);
-        return rect ? { rect, label: "Allerede åpen", full: false } : null;
+        return rect ? { rect, label: t("Allerede åpen"), full: false } : null;
       }
       movingId = existing.id;
     } else if (target.zone === "center" && !target.edge) {
       const rect = grid.geometry().rects.get(target.paneId);
-      return rect ? { rect, label: "Åpne her", full: false } : null;
+      return rect ? { rect, label: t("Åpne her"), full: false } : null;
     } else if (collect(root).length >= MAX_PANES) {
       const rect = target.edge ? whole : grid.geometry().rects.get(target.paneId);
-      return rect ? { rect, label: `Maks ${MAX_PANES} ruter`, full: true } : null;
+      return rect ? { rect, label: t("Maks {count} ruter", { count: MAX_PANES }), full: true } : null;
     } else {
       const added = newPane();
       const next = target.edge ? insertAtEdge(root, added, target.zone as Side) : insertBeside(root, target.paneId, added, target.zone as Side);
@@ -253,7 +254,7 @@ export function dropPreview(grid: Grid, source: DragSource, target: DropTarget):
   }
   if (target.zone === "center" && !target.edge) {
     const rect = grid.geometry().rects.get(target.paneId);
-    return rect ? { rect, label: "Bytt plass", full: false } : null;
+    return rect ? { rect, label: t("Bytt plass"), full: false } : null;
   }
   if (movingId === target.paneId) return null;
   const node = collect(root).find((p) => p.id === movingId);

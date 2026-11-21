@@ -6,7 +6,7 @@ import { batch, createMemo, createSignal } from "solid-js";
 import { closeSkills } from "./skills-workspace";
 import { createStore, reconcile } from "solid-js/store";
 import { applyAppIcon } from "../lib/app-icon";
-import { lookupMessage } from "../lib/i18n";
+import { t, lookupMessage } from "../lib/i18n";
 import type {
   Bootstrap,
   BuildInfo,
@@ -22,7 +22,7 @@ import type {
   Usage,
   KeyringStatus,
 } from "../../../shared/protocol";
-import { ApiError, del, get, patch, post } from "../lib/api";
+import { ApiError, del, get, offlineMessage, patch, post } from "../lib/api";
 import { connection, on, startSocket } from "../lib/socket";
 import { setTheme } from "../lib/theme";
 import { closeArtifacts, setArtifacts, wireArtifactEvents } from "./artifacts";
@@ -268,7 +268,7 @@ export const sortedChatProjects = createMemo(() => Object.values(app.chatProject
 
 export function modelName(id: string | null | undefined): string {
   const model = app.models.find((m) => m.id === (id ?? app.settings.defaultModelId));
-  return model?.name ?? "Ingen modell";
+  return model?.name ?? t("Ingen modell");
 }
 
 export function modelFor(id: string | null | undefined): ModelConfig | undefined {
@@ -285,7 +285,6 @@ export interface Toast {
 }
 
 const [toasts, setToasts] = createSignal<Toast[]>([]);
-const OFFLINE_TEXT = "Får ikke kontakt med serveren"; // lib/api.ts
 export { toasts };
 let nextToast = 1;
 
@@ -295,7 +294,7 @@ export function dismissToast(id: number): void {
 
 export function toast(text: string, kind: Toast["kind"] = "error", action?: Toast["action"]): void {
   // Some callers toast the error text themselves; while the banner shows, it says this already.
-  if (text === OFFLINE_TEXT && connection() === "offline") return;
+  if (text === offlineMessage() && connection() === "offline") return;
   const id = nextToast++;
   setToasts([...toasts().slice(-3), { id, text, kind, action }]);
   setTimeout(() => dismissToast(id), kind === "error" || action ? 8000 : 4000);
@@ -305,7 +304,7 @@ export function toast(text: string, kind: Toast["kind"] = "error", action?: Toas
 // so no toast repeats it (it would also cover the panel's tabs). A request that fails while the
 // socket still looks fine waits a moment: if the socket goes down too, the banner says it.
 export function report(err: unknown): void {
-  const message = (err as Error)?.message || "Noe gikk galt";
+  const message = (err as Error)?.message || t("Noe gikk galt");
   if (err instanceof ApiError && err.status === 0) {
     if (connection() !== "online") return;
     setTimeout(() => {

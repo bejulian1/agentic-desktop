@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, t } from "../lib/i18n";
 // Round 12 (SPEC 26.2): Økt, a panel about the thread in focus. Four sections that fold: Miljø,
 // Kontekst (how full the context window is, and what fills it), Tilkoblinger, and Oppgaver i
 // bakgrunnen with Stopp and «Avsluttet: N». Everything comes from GET /api/threads/:id/session
@@ -121,11 +121,11 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
       <Show when={data()} fallback={<SessionSkeleton failed={info.state === "errored"} onRetry={() => void refetch()} />}>
         {(d) => (
           <>
-            <Fold id="env" title="Miljø" open={open().env} onToggle={toggle}>
+            <Fold id="env" title={t("Miljø")} open={open().env} onToggle={toggle}>
               <div class="okt-row" data-testid="okt-local">
                 <IconLaptop size={15} />
-                <span class="okt-label">Denne datamaskinen</span>
-                <span class="okt-meta" title="Tråden kjører lokalt">{d().environment.host}</span>
+                <span class="okt-label">{t("Denne datamaskinen")}</span>
+                <span class="okt-meta" title={t("Tråden kjører lokalt")}>{d().environment.host}</span>
               </div>
               <Show when={d().environment.project}>
                 {(p) => (
@@ -134,13 +134,13 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                     type={props.onOpenFiles ? "button" : undefined}
                     class="okt-row"
                     classList={{ "okt-action": !!props.onOpenFiles, missing: p().folderMissing }}
-                    title={p().folderMissing ? `Fant ikke ${p().path}` : props.onOpenFiles ? `Åpne Filer · ${p().path}` : p().path}
+                    title={p().folderMissing ? t("Fant ikke {path}", { path: p().path }) : props.onOpenFiles ? t("Åpne Filer · {path}", { path: p().path }) : p().path}
                     onClick={props.onOpenFiles}
                     data-testid="okt-project"
                   >
                     <IconFolder size={15} />
                     <span class="okt-label">{p().name}</span>
-                    <span class="okt-meta okt-path">{p().folderMissing ? "Mappen mangler" : shortPath(p().path, 30)}</span>
+                    <span class="okt-meta okt-path">{p().folderMissing ? t("Mappen mangler") : shortPath(p().path, 30)}</span>
                   </Dynamic>
                 )}
               </Show>
@@ -148,7 +148,7 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
 
             <Fold
               id="context"
-              title="Kontekst"
+              title={t("Kontekst")}
               open={open().context}
               onToggle={toggle}
               summary={
@@ -164,10 +164,10 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
             <Show when={d().connections.length}>
               <Fold
                 id="connections"
-                title="Tilkoblinger"
+                title={t("Tilkoblinger")}
                 open={open().connections}
                 onToggle={toggle}
-                summary={<span class="okt-count" data-testid="okt-connected">{connectedCount()} tilkoblet</span>}
+                summary={<span class="okt-count" data-testid="okt-connected">{t("{count} tilkoblet", { count: connectedCount() })}</span>}
               >
                 <For each={d().connections}>
                   {(c) => (
@@ -175,7 +175,7 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                       {c.kind === "model" ? <IconSpark size={15} /> : c.kind === "browser" ? <IconGlobe size={15} /> : <IconPlug size={15} />}
                       <span class="okt-label">{c.label}</span>
                       <span class="okt-meta">{c.detail}</span>
-                      <span class={`okt-status ${c.status}`} role="img" aria-label={c.status === "ok" ? "Tilkoblet" : c.status === "warn" ? "Trenger oppsett" : "Ikke i bruk nå"} />
+                      <span class={`okt-status ${c.status}`} role="img" aria-label={c.status === "ok" ? t("Tilkoblet") : c.status === "warn" ? t("Trenger oppsett") : t("Ikke i bruk nå")} />
                     </div>
                   )}
                 </For>
@@ -184,17 +184,17 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
 
             <LiveCommands threadId={props.threadId} open={open().commands} onToggle={toggle} />
 
-            <Fold id="tasks" title="Oppgaver i bakgrunnen" open={open().tasks} onToggle={toggle} summary={<Show when={d().tasks.length}><span class="okt-count">{d().tasks.length}</span></Show>}>
-              <Show when={d().tasks.length || d().finished.length} fallback={<p class="okt-empty">Ingenting kjører i bakgrunnen.</p>}>
-                <ul class="okt-tasks" aria-label="Kjører nå">
+            <Fold id="tasks" title={t("Oppgaver i bakgrunnen")} open={open().tasks} onToggle={toggle} summary={<Show when={d().tasks.length}><span class="okt-count">{d().tasks.length}</span></Show>}>
+              <Show when={d().tasks.length || d().finished.length} fallback={<p class="okt-empty">{t("Ingenting kjører i bakgrunnen.")}</p>}>
+                <ul class="okt-tasks" aria-label={t("Kjører nå")}>
                   <For each={d().tasks}>
                     {(task) => (
                       <li class="okt-row okt-task" data-testid="okt-task">
                         <TaskIcon task={task} />
                         <TaskTitle task={task} onOpenThread={props.onOpenThread} />
                         <span class="okt-meta okt-detail">{task.detail}</span>
-                        <span class="okt-meta okt-time" title={`Startet ${new Date(task.startedAt).toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" })}`}>{elapsed(now() - task.startedAt)}</span>
-                        <button type="button" class="okt-stop" title="Stopp" aria-label={`Stopp ${task.title}`} disabled={stopping().has(task.id)} onClick={() => void stop(task)}>
+                        <span class="okt-meta okt-time" title={t("Startet {time}", { time: new Date(task.startedAt).toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" }) })}>{elapsed(now() - task.startedAt)}</span>
+                        <button type="button" class="okt-stop" title={t("Stopp")} aria-label={t("Stopp {title}", { title: task.title })} disabled={stopping().has(task.id)} onClick={() => void stop(task)}>
                           <span aria-hidden="true" />
                         </button>
                       </li>
@@ -204,10 +204,10 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                 <Show when={d().finished.length}>
                   <button type="button" class="okt-row okt-action okt-finished-toggle" aria-expanded={open().finished} onClick={() => toggle("finished")} data-testid="okt-finished">
                     <IconChevron size={13} />
-                    <span class="okt-label">Avsluttet: {d().finished.length}</span>
+                    <span class="okt-label">{t("Avsluttet: {count}", { count: d().finished.length })}</span>
                   </button>
                   <Show when={open().finished}>
-                    <ul class="okt-tasks okt-finished" aria-label="Avsluttet">
+                    <ul class="okt-tasks okt-finished" aria-label={t("Avsluttet")}>
                       <For each={d().finished}>
                         {(task) => (
                           <li class="okt-row okt-task ended">
@@ -269,16 +269,16 @@ function LiveCommands(props: { threadId: string; open: boolean; onToggle: (secti
   };
   return (
     <Show when={commands().length}>
-      <Fold id="commands" title="Kommandoer i turen" open={props.open} onToggle={props.onToggle} summary={<span class="okt-count">{commands().length}</span>}>
+      <Fold id="commands" title={t("Kommandoer i turen")} open={props.open} onToggle={props.onToggle} summary={<span class="okt-count">{commands().length}</span>}>
         <For each={commands()}>{(row) => (
           <div class="okt-command" data-testid="okt-command">
             <div class="okt-row">
               <IconTerminal size={15} />
-              <span class="okt-label">{(row.rev(), row.status) === "awaiting-approval" ? "Venter på godkjenning" : "Kjører nå"}</span>
-              <button type="button" class="okt-stop" title="Stopp turen og kommandoen" aria-label="Stopp turen og kommandoen" disabled={stopping()} onClick={() => void stop()}><span aria-hidden="true" /></button>
+              <span class="okt-label">{(row.rev(), row.status) === "awaiting-approval" ? t("Venter på godkjenning") : t("Kjører nå")}</span>
+              <button type="button" class="okt-stop" title={t("Stopp turen og kommandoen")} aria-label={t("Stopp turen og kommandoen")} disabled={stopping()} onClick={() => void stop()}><span aria-hidden="true" /></button>
             </div>
             <pre class="okt-command-input">{row.summary}</pre>
-            <Show when={output(row)} fallback={<p class="okt-note">Ingen utdata ennå.</p>}>
+            <Show when={output(row)} fallback={<p class="okt-note">{t("Ingen utdata ennå.")}</p>}>
               <pre class="okt-command-output" data-testid="okt-command-output">{output(row)}</pre>
             </Show>
           </div>
@@ -310,7 +310,7 @@ function ContextBreakdown(props: { context: SessionInfo["context"] }) {
   return (
     <div class="okt-context" data-testid="okt-context">
       {/* What the used part is made of; the heading has how much of the window it is. */}
-      <div class="okt-stack" role="img" aria-label={`Fordelingen av ${formatTokens(props.context.usedTokens)} tokens i bruk`}>
+      <div class="okt-stack" role="img" aria-label={t("Fordelingen av {count} tokens i bruk", { count: formatTokens(props.context.usedTokens) })}>
         <For each={props.context.parts}>
           {(part) => <span class={`okt-part-${part.id}`} style={{ "flex-grow": part.tokens }} title={`${part.label}: ${formatTokens(part.tokens)}`} />}
         </For>
@@ -327,8 +327,8 @@ function ContextBreakdown(props: { context: SessionInfo["context"] }) {
         </For>
       </ul>
       <p class="okt-note">
-        {formatTokens(props.context.usedTokens)} av {formatTokens(total())} tokens.{" "}
-        {props.context.measured ? "Totalen er målt av leverandøren; fordelingen er estimert." : "Estimert, omtrent fire tegn per token."}
+        {t("{used} av {total} tokens.", { used: formatTokens(props.context.usedTokens), total: formatTokens(total()) })}{" "}
+        {props.context.measured ? t("Totalen er målt av leverandøren; fordelingen er estimert.") : t("Estimert, omtrent fire tegn per token.")}
       </p>
     </div>
   );
@@ -346,7 +346,7 @@ function TaskTitle(props: { task: SessionTask; onOpenThread?: (id: string) => vo
   const label = () => `${props.task.title} · ${props.task.detail}`;
   return (
     <Show when={props.task.threadId && props.onOpenThread} fallback={<span class="okt-label" title={label()}>{props.task.title}</span>}>
-      <button type="button" class="okt-label okt-link" title={`Åpne ${props.task.title}`} onClick={() => props.onOpenThread!(props.task.threadId!)}>{props.task.title}</button>
+      <button type="button" class="okt-label okt-link" title={t("Åpne {title}", { title: props.task.title })} onClick={() => props.onOpenThread!(props.task.threadId!)}>{props.task.title}</button>
     </Show>
   );
 }
@@ -354,9 +354,9 @@ function TaskTitle(props: { task: SessionTask; onOpenThread?: (id: string) => vo
 // Rows of the same height as the real ones, so nothing jumps when the data comes.
 function SessionSkeleton(props: { failed: boolean; onRetry: () => void }) {
   return (
-    <Show when={!props.failed} fallback={<><p class="okt-empty" role="status">Kunne ikke hente økten.</p><button type="button" class="btn btn-small" onClick={props.onRetry}>Prøv igjen</button></>}>
+    <Show when={!props.failed} fallback={<><p class="okt-empty" role="status">{t("Kunne ikke hente økten.")}</p><button type="button" class="btn btn-small" onClick={props.onRetry}>{t("Prøv igjen")}</button></>}>
       <div class="okt-skeleton" role="status">
-        <span class="sr-only">Henter økten…</span>
+        <span class="sr-only">{t("Henter økten…")}</span>
         <For each={[0, 1, 2, 3]}>{() => <span class="skeleton skeleton-line" aria-hidden="true" />}</For>
       </div>
     </Show>

@@ -1,5 +1,6 @@
 // Downloads from the Browser panel: the list from the server, kept up to date by its messages, and
 // a small note when one is done. Fetched once, when first needed.
+import { t } from "../lib/i18n";
 import { createSignal } from "solid-js";
 import type { DownloadItem } from "../../../shared/protocol";
 import { del, get, post } from "../lib/api";
@@ -29,8 +30,8 @@ export function wireDownloads(): () => void {
     on("download.changed", ({ download }) => {
       const before = items().find((i) => i.id === download.id);
       setItems(before ? items().map((i) => (i.id === download.id ? download : i)) : [download, ...items()]);
-      if (download.state === "done" && before?.state !== "done") toast(`Lastet ned «${download.filename}».`, "info");
-      if (download.state === "error" && before?.state !== "error") toast(`Nedlastingen av «${download.filename}» feilet: ${download.error ?? "ukjent feil"}`);
+      if (download.state === "done" && before?.state !== "done") toast(t("Lastet ned «{filename}».", { filename: download.filename }), "info");
+      if (download.state === "error" && before?.state !== "error") toast(t("Nedlastingen av «{filename}» feilet: {error}", { filename: download.filename, error: download.error ?? t("ukjent feil") }));
     }),
     on("download.removed", ({ id }) => setItems(items().filter((i) => i.id !== id))),
     on("settings.changed", () => {

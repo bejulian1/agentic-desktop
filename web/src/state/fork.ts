@@ -1,5 +1,6 @@
 // Round 14 (SPEC 30.3): where a fork came from, for the sidebar, the hover card, the top bar and
 // the top of the conversation.
+import { t } from "../lib/i18n";
 import type { Thread } from "../../../shared/protocol";
 import { app, toast } from "./app";
 import { jumpWhenShown } from "./message-jump";
@@ -19,7 +20,7 @@ export async function openForkSource(thread: Thread): Promise<void> {
   const origin = thread.forkedFrom;
   if (!origin) return;
   const source = forkSource(thread);
-  if (!source) return toast(`«${origin.title}» er slettet.`, "info");
+  if (!source) return toast(t("«{title}» er slettet.", { title: origin.title }), "info");
   await openThread(source);
   if (origin.messageId) jumpWhenShown(source.id, origin.messageId);
 }

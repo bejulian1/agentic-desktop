@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, createUniqueId, For, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { reconcile } from "solid-js/store";
@@ -9,19 +10,19 @@ import { permissionScope } from "./permission-copy";
 
 const MODES: PermissionMode[] = ["ask", "accept-edits", "full"];
 const LABELS: Record<PermissionMode, string> = {
-  ask: "Be om godkjenning",
-  "accept-edits": "Godkjenn for meg",
-  full: "Full tilgang",
+  get ask() { return t("Be om godkjenning"); },
+  get "accept-edits"() { return t("Godkjenn for meg"); },
+  get full() { return t("Full tilgang"); },
 };
 const DESCRIPTIONS: Record<PermissionMode, string> = {
-  ask: "Spør før filendringer, kommandoer og bruk av nettleseren. Lesing er tillatt.",
-  "accept-edits": "Endrer prosjektfiler automatisk. Spør før kommandoer og bruk av nettleseren.",
-  full: "Godkjenner vanlige verktøyhandlinger i prosjektet automatisk. Beskyttede filer spør fortsatt.",
+  get ask() { return t("Spør før filendringer, kommandoer og bruk av nettleseren. Lesing er tillatt."); },
+  get "accept-edits"() { return t("Endrer prosjektfiler automatisk. Spør før kommandoer og bruk av nettleseren."); },
+  get full() { return t("Godkjenner vanlige verktøyhandlinger i prosjektet automatisk. Beskyttede filer spør fortsatt."); },
 };
 const LOCAL_DESCRIPTIONS: Record<PermissionMode, string> = {
-  ask: "Spør før filendringer og kommandoer i hjemmemappen. Lesing er normalt tillatt.",
-  "accept-edits": "Endrer filer i hjemmemappen automatisk. Spør før kommandoer.",
-  full: "Lar agenten endre filer og kjøre kommandoer i hjemmemappen uten å spørre. Beskyttede filer krever fortsatt godkjenning.",
+  get ask() { return t("Spør før filendringer og kommandoer i hjemmemappen. Lesing er normalt tillatt."); },
+  get "accept-edits"() { return t("Endrer filer i hjemmemappen automatisk. Spør før kommandoer."); },
+  get full() { return t("Lar agenten endre filer og kjøre kommandoer i hjemmemappen uten å spørre. Beskyttede filer krever fortsatt godkjenning."); },
 };
 const ICONS = { ask: IconHand, "accept-edits": IconShieldCheck, full: IconAlert };
 
@@ -40,7 +41,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
   const aboveCap = (value: PermissionMode) => !!props.cap && MODES.indexOf(value) > MODES.indexOf(props.cap);
   const effective = () => aboveCap(selected()) ? props.cap! : selected();
   const label = () => LABELS[effective()];
-  const capDescription = () => props.cap ? `Denne tråden er begrenset til ${LABELS[props.cap]}.` : "";
+  const capDescription = () => props.cap ? t("Denne tråden er begrenset til {label}.", { label: LABELS[props.cap] }) : "";
   const close = (restoreFocus = false) => {
     setOpen(false);
     if (restoreFocus) trigger.focus({ preventScroll: true });
@@ -100,7 +101,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
       if (saved?.id === project.id && app.projects[project.id]) setApp("projects", saved.id, reconcile(saved));
       if (props.project?.id === project.id && open()) close(true);
     } catch (err) {
-      setError("Kunne ikke lagre tillatelsene. Prøv igjen.");
+      setError(t("Kunne ikke lagre tillatelsene. Prøv igjen."));
       report(err);
     } finally {
       setSaving(false);
@@ -149,8 +150,8 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
       class="foot-chip permission-chip"
       data-testid="permission-button"
       data-mode={effective()}
-      title={`Tillatelser: ${label()}. ${capDescription()} ${props.project ? "Velg hvordan handlinger godkjennes i prosjektet." : permissionScope()}`}
-      aria-label={`Tillatelser: ${label()}${props.cap ? `. ${capDescription()}` : ""}`}
+      title={t("Tillatelser: {label}. {limit} {scope}", { label: label(), limit: capDescription(), scope: props.project ? t("Velg hvordan handlinger godkjennes i prosjektet.") : permissionScope() })}
+      aria-label={props.cap ? t("Tillatelser: {label}. {limit}", { label: label(), limit: capDescription() }) : t("Tillatelser: {label}", { label: label() })}
       aria-haspopup="menu"
       aria-expanded={open()}
       aria-controls={open() ? id : undefined}
@@ -168,17 +169,17 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
     </button>
     <Show when={open()}>
       <Portal>
-        <div ref={popup} id={id} class="permission-popover permission-menu" role="menu" aria-label="Tillatelser" aria-busy={saving()} style={position()} onKeyDown={onKeyDown}>
+        <div ref={popup} id={id} class="permission-popover permission-menu" role="menu" aria-label={t("Tillatelser")} aria-busy={saving()} style={position()} onKeyDown={onKeyDown}>
           <div class="permission-heading">
-            <span>Hvordan skal handlinger godkjennes?</span>
-            <button type="button" class="permission-more" aria-expanded={expanded()} aria-controls={`${id}-more`} onClick={() => setExpanded(!expanded())}>Les mer</button>
+            <span>{t("Hvordan skal handlinger godkjennes?")}</span>
+            <button type="button" class="permission-more" aria-expanded={expanded()} aria-controls={`${id}-more`} onClick={() => setExpanded(!expanded())}>{t("Les mer")}</button>
           </div>
           <Show when={!props.project}><p class="permission-cap">{permissionScope()}</p></Show>
           <Show when={expanded()}>
-            <p class="permission-explanation" id={`${id}-more`}><Show when={props.project}>Valget gjelder hele prosjektet. </Show>Tråder med en egen grense får aldri høyere tilgang. Lesing er normalt tillatt. Lagrede godkjenninger kan også tillate handlinger. Beskyttede filer som .env, .git/hooks og filer i .ssh krever fortsatt godkjenning.</p>
+            <p class="permission-explanation" id={`${id}-more`}><Show when={props.project}>{t("Valget gjelder hele prosjektet.")}{" "}</Show>{t("Tråder med en egen grense får aldri høyere tilgang. Lesing er normalt tillatt. Lagrede godkjenninger kan også tillate handlinger. Beskyttede filer som .env, .git/hooks og filer i .ssh krever fortsatt godkjenning.")}</p>
           </Show>
           <Show when={props.cap}>
-            <p class="permission-cap">Denne tråden er begrenset til {LABELS[props.cap!]}. Du kan ikke velge høyere tilgang her.<Show when={effective() !== selected()}> {props.project ? "Prosjektets innstilling" : "Standarden"} er {LABELS[selected()]}.</Show></p>
+            <p class="permission-cap">{t("Denne tråden er begrenset til {label}. Du kan ikke velge høyere tilgang her.", { label: LABELS[props.cap!] })}<Show when={effective() !== selected()}> {props.project ? t("Prosjektets innstilling er {label}.", { label: LABELS[selected()] }) : t("Standarden er {label}.", { label: LABELS[selected()] })}</Show></p>
           </Show>
           <For each={MODES}>{(value) => {
             const Icon = ICONS[value];
@@ -190,7 +191,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
               data-mode={value}
               disabled={saving() || aboveCap(value)}
               tabindex={effective() === value ? 0 : -1}
-              title={aboveCap(value) ? "Høyere enn denne trådens tillatelsesgrense" : undefined}
+              title={aboveCap(value) ? t("Høyere enn denne trådens tillatelsesgrense") : undefined}
               onClick={() => void choose(value)}
             >
               <span class="permission-choice-icon"><Icon size={16} /></span>
@@ -198,7 +199,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
               <span class="permission-choice-check"><Show when={selected() === value}><IconCheck size={15} /></Show></span>
             </button>;
           }}</For>
-          <Show when={saving()}><p class="permission-status" role="status">Lagrer tillatelser …</p></Show>
+          <Show when={saving()}><p class="permission-status" role="status">{t("Lagrer tillatelser …")}</p></Show>
           <Show when={error()}><p class="permission-error" role="alert">{error()}</p></Show>
         </div>
       </Portal>

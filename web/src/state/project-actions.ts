@@ -1,3 +1,4 @@
+import { plural, t } from "../lib/i18n";
 import type { PlaytestState } from "../../../shared/protocol";
 import { ApiError, post } from "../lib/api";
 import { app, report, setApp, toast } from "./app";
@@ -26,7 +27,7 @@ export async function stopPlaytest(projectId: string): Promise<void> {
 export async function openVscode(projectId: string): Promise<void> {
   try {
     await post(`/api/projects/${projectId}/open-vscode`);
-    toast("Åpnet i VS Code.", "info");
+    toast(t("Åpnet i VS Code."), "info");
   } catch (err) {
     report(err);
   }
@@ -35,7 +36,7 @@ export async function openVscode(projectId: string): Promise<void> {
 export async function stopAll(projectId: string): Promise<void> {
   try {
     const { stopped } = await post<{ stopped: number }>(`/api/projects/${projectId}/stop-all`);
-    toast(stopped === 1 ? "Stoppet 1 tråd." : `Stoppet ${stopped} tråder.`, "info");
+    toast(plural(stopped, "Stoppet {count} tråd.", "Stoppet {count} tråder."), "info");
   } catch (err) {
     report(err);
   }
@@ -50,9 +51,9 @@ export async function revertTurn(turnId: string): Promise<boolean> {
       const conflicts: string[] = err.body?.conflicts ?? [];
       if (!conflicts.length) { report(err); return false; }
       const overwrite = await confirmDialog({
-        title: "Angre kan overskrive annet arbeid",
-        text: `${conflicts.join(", ")} har endringer fra under eller etter denne turen. Vil du likevel overskrive dem?`,
-        confirm: "Overskriv",
+        title: t("Angre kan overskrive annet arbeid"),
+        text: t("{files} har endringer fra under eller etter denne turen. Vil du likevel overskrive dem?", { files: conflicts.join(", ") }),
+        confirm: t("Overskriv"),
         danger: true,
       });
       if (!overwrite) return false;
@@ -71,7 +72,7 @@ export async function revertTurn(turnId: string): Promise<boolean> {
 
 export async function revertLastTurn(threadId: string | null): Promise<void> {
   const last = threadId ? peekModel(threadId)?.changes().filter((c) => !c.reverted).at(-1) : undefined;
-  if (!last) return toast("Det er ingen tur å angre.", "info");
+  if (!last) return toast(t("Det er ingen tur å angre."), "info");
   await revertTurn(last.turnId);
 }
 

@@ -1,4 +1,6 @@
-import { lookupMessage } from "./i18n.ts";
+import { lookupMessage, t } from "./i18n.ts";
+
+export const offlineMessage = () => t("Får ikke kontakt med serveren");
 // fetch against the app's own origin. The session cookie and Origin header come with it.
 export class ApiError extends Error {
   status: number;
@@ -28,7 +30,7 @@ export async function apiWithHeaders<T = any>(method: string, url: string, body?
       credentials: "same-origin",
     });
   } catch {
-    throw new ApiError(0, "Får ikke kontakt med serveren");
+    throw new ApiError(0, offlineMessage());
   }
   const text = await res.text();
   let parsed: any;
@@ -39,7 +41,7 @@ export async function apiWithHeaders<T = any>(method: string, url: string, body?
   }
   if (!res.ok) {
     if (res.status === 401 && url !== "/api/auth/exchange") onUnauthorized();
-    throw new ApiError(res.status, parsed?.error ?? `Feil ${res.status}`, parsed);
+    throw new ApiError(res.status, parsed?.error ?? t("Feil {status}", { status: res.status }), parsed);
   }
   return { data: parsed as T, headers: res.headers };
 }

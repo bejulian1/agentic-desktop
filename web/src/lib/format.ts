@@ -1,4 +1,4 @@
-import { language, localizedFormat } from "./i18n.ts";
+import { language, localizedFormat, t } from "./i18n.ts";
 const numbers = localizedFormat(locale => new Intl.NumberFormat(locale));
 const compact = localizedFormat(locale => new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }));
 
@@ -37,7 +37,7 @@ export function relativeTime(at: number, now = Date.now()): string {
     if (minutes < 1440) return format.format(-Math.round(minutes / 60), "hour");
     return format.format(-Math.round(minutes / 1440), "day");
   }
-  if (minutes < 1) return "nå";
+  if (minutes < 1) return t("nå");
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} t`;

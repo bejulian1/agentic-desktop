@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import {createSignal} from 'solid-js';
 import type {UiMod,UiModsState} from '../../../shared/ui-mods';
 import type {Mode} from '../../../shared/protocol';
@@ -22,5 +23,5 @@ export async function modPreferences(patch:Partial<Pick<UiModsState,'enabled'|'a
 export type GlassChoice='backdrop'|'panels'|'off';
 export const glassChoice=():GlassChoice=>uiMods().glass===false?'off':uiMods().glassStyle==='panels'?'panels':'backdrop';
 export const setGlassChoice=(choice:GlassChoice)=>modPreferences(choice==='off'?{glass:false}:{glass:true,glassStyle:choice});
-export const GLASS_CHOICES:Array<{value:GlassChoice;label:string}>=[{value:'backdrop',label:'Hele bakgrunnen uskarp'},{value:'panels',label:'Flater bak svar'},{value:'off',label:'Ingen uskarphet eller flater'}];
+export const GLASS_CHOICES:Array<{value:GlassChoice;label:string}>=[{value:'backdrop',get label() { return t("Hele bakgrunnen uskarp"); }},{value:'panels',get label() { return t("Flater bak svar"); }},{value:'off',get label() { return t("Ingen uskarphet eller flater"); }}];
 export async function wallpaperPreferences(patch:{opacity?:number;blur?:number}){await put('/api/ui-mods/preferences',{wallpaper:patch});await refreshUiMods();}

@@ -1,5 +1,6 @@
 // Icons for the v0.5 navigation round, on the same 16-unit grid and 1.5 stroke as icons.tsx. Kept
 // in their own file so the round's agents do not edit the same lines. Our own drawings.
+import { t } from "../lib/i18n";
 import type { JSX } from "solid-js";
 
 function Svg(props: { children: JSX.Element; size?: number }) {
@@ -75,23 +76,23 @@ export const PICKER_ICONS: Record<string, (p: P) => JSX.Element> = {
 
 // Norwegian names, so the icon search finds them.
 export const ICON_NAMES: Record<string, string> = {
-  folder: "mappe", code: "kode", globe: "verden nett", terminal: "terminal", spark: "gnist ki", game: "spill", branch: "gren git", team: "team folk",
-  dollar: "penger dollar økonomi", book: "bok", school: "skole utdanning", pencil: "blyant skriv", pen: "penn design", braces: "klammer json",
-  music: "musikk", cup: "kopp kaffe", brush: "pensel", palette: "palett farge kunst", health: "helse lege", flower: "blomst", bag: "veske jobb",
-  chart: "diagram statistikk", dumbbell: "trening", notes: "notater", scale: "vekt jus", planet: "planet rom", plane: "fly reise",
-  wrench: "verktøy fiks", paw: "pote dyr", flask: "kolbe forskning", brain: "hjerne", heart: "hjerte", gift: "gave", rocket: "rakett",
-  camera: "kamera bilde", home: "hjem hus", star: "stjerne", bug: "feil insekt", database: "database", lock: "lås sikkerhet", leaf: "blad natur",
-  puzzle: "puslespill", cloud: "sky", map: "kart",
+  get folder() { return t("mappe"); }, get code() { return t("kode"); }, get globe() { return t("verden nett"); }, get terminal() { return t("terminal"); }, get spark() { return t("gnist ki"); }, get game() { return t("spill"); }, get branch() { return t("gren git"); }, get team() { return t("team folk"); },
+  get dollar() { return t("penger dollar økonomi"); }, get book() { return t("bok"); }, get school() { return t("skole utdanning"); }, get pencil() { return t("blyant skriv"); }, get pen() { return t("penn design"); }, get braces() { return t("klammer json"); },
+  get music() { return t("musikk"); }, get cup() { return t("kopp kaffe"); }, get brush() { return t("pensel"); }, get palette() { return t("palett farge kunst"); }, get health() { return t("helse lege"); }, get flower() { return t("blomst"); }, get bag() { return t("veske jobb"); },
+  get chart() { return t("diagram statistikk"); }, get dumbbell() { return t("trening"); }, get notes() { return t("notater"); }, get scale() { return t("vekt jus"); }, get planet() { return t("planet rom"); }, get plane() { return t("fly reise"); },
+  get wrench() { return t("verktøy fiks"); }, get paw() { return t("pote dyr"); }, get flask() { return t("kolbe forskning"); }, get brain() { return t("hjerne"); }, get heart() { return t("hjerte"); }, get gift() { return t("gave"); }, get rocket() { return t("rakett"); },
+  get camera() { return t("kamera bilde"); }, get home() { return t("hjem hus"); }, get star() { return t("stjerne"); }, get bug() { return t("feil insekt"); }, get database() { return t("database"); }, get lock() { return t("lås sikkerhet"); }, get leaf() { return t("blad natur"); },
+  get puzzle() { return t("puslespill"); }, get cloud() { return t("sky"); }, get map() { return t("kart"); },
 };
 
 // A small set for the emoji tab, with Norwegian search words.
-export const EMOJIS: Array<[string, string]> = [
-  ["🚀", "rakett"], ["🎮", "spill"], ["🧩", "puslespill"], ["⚙️", "tannhjul"], ["🛠️", "verktøy"], ["🧪", "forsøk"], ["📚", "bøker"], ["📝", "notat"],
-  ["💡", "ide lys"], ["🔥", "ild"], ["⭐", "stjerne"], ["🌍", "verden"], ["🌱", "plante"], ["🌸", "blomst"], ["🍕", "pizza mat"], ["☕", "kaffe"],
-  ["🎵", "musikk"], ["🎨", "kunst"], ["📷", "kamera"], ["🎬", "film"], ["🏠", "hjem"], ["🏔️", "fjell"], ["🌊", "bølge hav"], ["❄️", "snø"],
-  ["🐱", "katt"], ["🐶", "hund"], ["🦊", "rev"], ["🐉", "drage"], ["🤖", "robot"], ["👾", "romvesen"], ["🧠", "hjerne"], ["❤️", "hjerte"],
-  ["💰", "penger"], ["📈", "graf"], ["🔒", "lås"], ["🔑", "nøkkel"], ["🧭", "kompass"], ["🗺️", "kart"], ["⚡", "lyn"], ["🎯", "mål blink"],
-  ["🏆", "pokal"], ["⛏️", "hakke minecraft"], ["🪐", "planet"], ["🌙", "måne"], ["☀️", "sol"], ["🍀", "kløver"], ["🎲", "terning"], ["🧱", "murstein"],
+export const emojiOptions = (): Array<[string, string]> => [
+  ["🚀", t("rakett")], ["🎮", t("spill")], ["🧩", t("puslespill")], ["⚙️", t("tannhjul")], ["🛠️", t("verktøy")], ["🧪", t("forsøk")], ["📚", t("bøker")], ["📝", t("notat")],
+  ["💡", t("ide lys")], ["🔥", t("ild")], ["⭐", t("stjerne")], ["🌍", t("verden")], ["🌱", t("plante")], ["🌸", t("blomst")], ["🍕", t("pizza mat")], ["☕", t("kaffe")],
+  ["🎵", t("musikk")], ["🎨", t("kunst")], ["📷", t("kamera")], ["🎬", t("film")], ["🏠", t("hjem")], ["🏔️", t("fjell")], ["🌊", t("bølge hav")], ["❄️", t("snø")],
+  ["🐱", t("katt")], ["🐶", t("hund")], ["🦊", t("rev")], ["🐉", t("drage")], ["🤖", t("robot")], ["👾", t("romvesen")], ["🧠", t("hjerne")], ["❤️", t("hjerte")],
+  ["💰", t("penger")], ["📈", t("graf")], ["🔒", t("lås")], ["🔑", t("nøkkel")], ["🧭", t("kompass")], ["🗺️", t("kart")], ["⚡", t("lyn")], ["🎯", t("mål blink")],
+  ["🏆", t("pokal")], ["⛏️", t("hakke minecraft")], ["🪐", t("planet")], ["🌙", t("måne")], ["☀️", t("sol")], ["🍀", t("kløver")], ["🎲", t("terning")], ["🧱", t("murstein")],
 ];
 // Round 10: full view for the panel (four corners), and back from it (corners turned in).
 export const IconFullView = (p: P) => <Svg {...p}><path d="M2.5 6V3.5a1 1 0 0 1 1-1H6M10 2.5h2.5a1 1 0 0 1 1 1V6M13.5 10v2.5a1 1 0 0 1-1 1H10M6 13.5H3.5a1 1 0 0 1-1-1V10" /></Svg>;

@@ -1,17 +1,18 @@
 // Round 13 (SPEC 27.1): one set of words for what a thread is doing, used by the sidebar, the
 // smart sidebar, the hover card, the pane head and the window title, so it reads the same
 // everywhere: «Jobber…» while it runs, «Venter på deg» while an approval waits.
+import { t } from "../lib/i18n";
 import type { Thread } from "../../../shared/protocol";
 import { finished } from "./home";
 
 export type ThreadState = "waiting" | "running" | "error" | "stopped" | "new" | "idle";
 
 export const STATE_LABEL: Record<ThreadState, string> = {
-  waiting: "Venter på deg",
-  running: "Jobber…",
-  error: "Feilet",
-  stopped: "Stoppet",
-  new: "Ulest",
+  get waiting() { return t("Venter på deg"); },
+  get running() { return t("Jobber…"); },
+  get error() { return t("Feilet"); },
+  get stopped() { return t("Stoppet"); },
+  get new() { return t("Ulest"); },
   idle: "",
 };
 
@@ -30,5 +31,5 @@ export function threadState(thread: Thread, seen = true): ThreadState {
 export function windowTitle(thread: Thread | undefined, untitled: boolean): string {
   if (!thread || untitled) return "Agentic Desktop";
   const state = threadState(thread);
-  return state === "running" || state === "waiting" ? `${STATE_LABEL[state]} · ${thread.title}` : thread.title;
+  return state === "running" || state === "waiting" ? t("{status} · {title}", { status: STATE_LABEL[state], title: thread.title }) : thread.title;
 }

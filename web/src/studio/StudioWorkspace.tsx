@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { createEffect, createSignal, For, lazy, onCleanup, Show, Suspense, type Accessor, type JSX } from "solid-js";
 import { app, mode, setFolderPickerOpen, setMode, setProjectId, settingsOpen, sortedProjects } from "../state/app";
 import { studioOpen, setStudioOpen, studioTool, setStudioTool, studioAgentOpen, setStudioAgentOpen, studioMobileView, setStudioMobileView, type StudioTool } from "../state/studio";
@@ -60,46 +61,46 @@ export default function StudioWorkspace(props: { active: Accessor<boolean>; proj
         <header class="studio-toolbar">
           <div class="studio-identity">
             <IconStudio size={17} />
-            <strong>Kode Studio</strong>
+            <strong>{t("Kode Studio")}</strong>
             <Show when={props.project}>
               <span class="studio-project-name" title={props.project?.path}>{props.project?.name}</span>
             </Show>
           </div>
           <div class="studio-toolbar-actions">
             <Show when={props.project}>
-              <div class="studio-mobile-switch" role="group" aria-label="Studio-visning">
-                <button type="button" aria-pressed={studioMobileView() === "files"} onClick={() => setStudioMobileView("files")}>Filer og editor</button>
-                <button type="button" aria-pressed={studioMobileView() === "agent"} onClick={() => { setStudioMobileView("agent"); setStudioAgentOpen(true); }}>Kodeagent</button>
+              <div class="studio-mobile-switch" role="group" aria-label={t("Studio-visning")}>
+                <button type="button" aria-pressed={studioMobileView() === "files"} onClick={() => setStudioMobileView("files")}>{t("Filer og editor")}</button>
+                <button type="button" aria-pressed={studioMobileView() === "agent"} onClick={() => { setStudioMobileView("agent"); setStudioAgentOpen(true); }}>{t("Kodeagent")}</button>
               </div>
-              <button type="button" class="studio-tool-button" aria-label="Terminal" aria-pressed={studioTool() === "terminal"} aria-controls="studio-dock" onClick={() => openTool("terminal")}>
-                <IconTerminal size={14} /><span>Terminal</span>
+              <button type="button" class="studio-tool-button" aria-label={t("Terminal")} aria-pressed={studioTool() === "terminal"} aria-controls="studio-dock" onClick={() => openTool("terminal")}>
+                <IconTerminal size={14} /><span>{t("Terminal")}</span>
               </button>
-              <button type="button" class="studio-tool-button" aria-label="Forhåndsvisning" aria-pressed={studioTool() === "browser"} aria-controls="studio-dock" onClick={() => openTool("browser")}>
-                <IconGlobe size={14} /><span>Forhåndsvisning</span>
+              <button type="button" class="studio-tool-button" aria-label={t("Forhåndsvisning")} aria-pressed={studioTool() === "browser"} aria-controls="studio-dock" onClick={() => openTool("browser")}>
+                <IconGlobe size={14} /><span>{t("Forhåndsvisning")}</span>
               </button>
-              <button type="button" class="studio-tool-button" aria-label="Endringer" aria-pressed={studioTool() === "changes"} aria-controls="studio-dock" onClick={() => openTool("changes")}>
-                <IconDiff size={14} /><span>Endringer</span>
+              <button type="button" class="studio-tool-button" aria-label={t("Endringer")} aria-pressed={studioTool() === "changes"} aria-controls="studio-dock" onClick={() => openTool("changes")}>
+                <IconDiff size={14} /><span>{t("Endringer")}</span>
               </button>
-              <button type="button" class="studio-tool-button studio-agent-toggle" aria-label="Agent" aria-pressed={studioAgentOpen()} onClick={() => setStudioAgentOpen(!studioAgentOpen())}>
-                <IconAgent size={14} /><span>Agent</span>
+              <button type="button" class="studio-tool-button studio-agent-toggle" aria-label={t("Agent")} aria-pressed={studioAgentOpen()} onClick={() => setStudioAgentOpen(!studioAgentOpen())}>
+                <IconAgent size={14} /><span>{t("Agent")}</span>
               </button>
             </Show>
-            <button type="button" class="studio-tool-button" aria-label="Åpne prosjektmappe" title="Åpne prosjektmappe" onClick={() => setFolderPickerOpen(true)}>
+            <button type="button" class="studio-tool-button" aria-label={t("Åpne prosjektmappe")} title={t("Åpne prosjektmappe")} onClick={() => setFolderPickerOpen(true)}>
               <IconFolderOpen size={15} />
             </button>
           </div>
         </header>
         <Show when={!props.project}>
-          <section class="studio-landing" data-testid="studio-landing" aria-label="Velg prosjekt for Kode Studio">
+          <section class="studio-landing" data-testid="studio-landing" aria-label={t("Velg prosjekt for Kode Studio")}>
             <div class="studio-landing-mark"><IconStudio size={30} /></div>
-            <h1>Prosjektet ditt, mens det blir til</h1>
-            <p>Åpne filer i faner, rediger kode og jobb sammen med agenten på samme arbeidsflate. Nye filer og lagrede endringer dukker opp fortløpende.</p>
+            <h1>{t("Prosjektet ditt, mens det blir til")}</h1>
+            <p>{t("Åpne filer i faner, rediger kode og jobb sammen med agenten på samme arbeidsflate. Nye filer og lagrede endringer dukker opp fortløpende.")}</p>
             <button type="button" class="btn primary" onClick={() => setFolderPickerOpen(true)}>
-              <IconFolderOpen size={16} />Åpne prosjektmappe
+              <IconFolderOpen size={16} />{t("Åpne prosjektmappe")}
             </button>
             <Show when={sortedProjects().length}>
               <div class="studio-projects">
-                <h2>Dine prosjekter</h2>
+                <h2>{t("Dine prosjekter")}</h2>
                 <For each={sortedProjects()}>
                   {(project) => (
                     <button type="button" class="studio-project-card" aria-label={project.name} title={project.path} onClick={() => selectProject(project.id)}>
@@ -113,7 +114,7 @@ export default function StudioWorkspace(props: { active: Accessor<boolean>; proj
                 </For>
               </div>
             </Show>
-            <small class="studio-landing-note">Bruker Kodes modeller, verktøy og godkjenninger. Chat og vanlig Kode er fortsatt tilgjengelig.</small>
+            <small class="studio-landing-note">{t("Bruker Kodes modeller, verktøy og godkjenninger. Chat og vanlig Kode er fortsatt tilgjengelig.")}</small>
           </section>
         </Show>
       </Show>
@@ -121,21 +122,21 @@ export default function StudioWorkspace(props: { active: Accessor<boolean>; proj
         {(id) => (
           <section class="studio-canvas" hidden={!props.active()}>
             <div class="studio-file-surface">
-              <Suspense fallback={<div class="studio-loading" role="status">Åpner arbeidsflaten…</div>}>
+              <Suspense fallback={<div class="studio-loading" role="status">{t("Åpner arbeidsflaten…")}</div>}>
                 <StudioFiles projectId={id} threadId={props.threadId} active={visible} />
               </Suspense>
             </div>
             <Show when={props.active() && studioTool()}>
               {(tool) => (
-                <section id="studio-dock" class="studio-dock" data-testid="studio-dock" aria-label="Studio-verktøy">
+                <section id="studio-dock" class="studio-dock" data-testid="studio-dock" aria-label={t("Studio-verktøy")}>
                   <header>
-                    <strong>{tool() === "terminal" ? "Terminal" : tool() === "browser" ? "Forhåndsvisning" : "Endringer"}</strong>
-                    <button type="button" class="icon-button" aria-label="Lukk Studio-verktøy" title="Lukk verktøyet" onClick={() => setStudioTool(null)}>
+                    <strong>{tool() === "terminal" ? t("Terminal") : tool() === "browser" ? t("Forhåndsvisning") : t("Endringer")}</strong>
+                    <button type="button" class="icon-button" aria-label={t("Lukk Studio-verktøy")} title={t("Lukk verktøyet")} onClick={() => setStudioTool(null)}>
                       <IconClose size={14} />
                     </button>
                   </header>
                   <div class="studio-dock-content">
-                    <Suspense fallback={<div class="studio-loading" role="status">Laster verktøy…</div>}>
+                    <Suspense fallback={<div class="studio-loading" role="status">{t("Laster verktøy…")}</div>}>
                       <Show when={tool() === "terminal"}><Terminal projectId={id} visible={visible()} /></Show>
                       <Show when={tool() === "browser"}><Browser projectId={id} visible={visible()} /></Show>
                       <Show when={tool() === "changes"}><Changes threadId={props.threadId} /></Show>
@@ -151,12 +152,12 @@ export default function StudioWorkspace(props: { active: Accessor<boolean>; proj
         <div
           class="studio-divider"
           role="separator"
-          aria-label="Bredde på kodeagent"
+          aria-label={t("Bredde på kodeagent")}
           aria-orientation="vertical"
           aria-valuemin={300}
           aria-valuemax={maxWidth()}
           aria-valuenow={Math.round(agentWidth())}
-          title="Dra for å endre bredden. Dobbeltklikk for standard."
+          title={t("Dra for å endre bredden. Dobbeltklikk for standard.")}
           tabindex="0"
           onPointerDown={(event) => {
             drag = { x: event.clientX, width: agentWidth() };
@@ -182,12 +183,12 @@ export default function StudioWorkspace(props: { active: Accessor<boolean>; proj
           }}
         />
       </Show>
-      <section class="studio-agent" hidden={props.active() && (!props.project || !studioAgentOpen())} aria-label={props.active() ? "Kodeagent" : undefined}>
+      <section class="studio-agent" hidden={props.active() && (!props.project || !studioAgentOpen())} aria-label={props.active() ? t("Kodeagent") : undefined}>
         <Show when={props.active()}>
           <header class="studio-agent-heading">
             <IconAgent size={14} />
-            <span>Kodeagent</span>
-            <small>Samme samtale som i Kode</small>
+            <span>{t("Kodeagent")}</span>
+            <small>{t("Samme samtale som i Kode")}</small>
           </header>
         </Show>
         {props.children}

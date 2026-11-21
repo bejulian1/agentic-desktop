@@ -3,6 +3,7 @@
 // npm test · exit 0». Steps of the same kind in a row are one line, «Leste 6 filer». The style
 // guide for new tools is docs/research/kode-steg.md; keep the two in step.
 import type { ToolStatus, WebSource } from "../../../shared/protocol";
+import { plural, t } from "../lib/i18n";
 
 export type StepKind = "read" | "search" | "web" | "command" | "create" | "edit" | "delete" | "team" | "memory" | "plan" | "skill" | "other";
 
@@ -54,10 +55,6 @@ export function summaryPath(summary: string): string {
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 const field = (input: unknown, key: string) => str((input as Record<string, unknown> | undefined)?.[key]);
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 // «+12 −3» from the first line of a file tool's result («src/app.ts +12 -3»).
 function lineCounts(result: string | undefined): { add: number; del: number } | null {
   const match = /\+(\d+) -(\d+)/.exec(result?.split("\n")[0] ?? "");
@@ -82,11 +79,16 @@ function hostAndPath(url: string): string {
 }
 
 function commandResult(result: string | undefined, status: string | undefined): string {
-  if (status === "cancelled" || /\[Avbrutt\]\s*$/.test(result ?? "")) return "avbrutt";
-  if (/\[Tidsavbrudd etter/.test(result ?? "")) return "tidsavbrudd";
+  if (status === "cancelled" || /\[Avbrutt\]\s*$/.test(result ?? "")) return t("avbrutt");
+  if (/\[Tidsavbrudd etter/.test(result ?? "")) return t("tidsavbrudd");
   const code = /\[Avslutningskode (-?\d+)\]\s*$/.exec(result ?? "");
   if (code) return `exit ${code[1]}`;
   return status === "done" ? "exit 0" : "";
+}
+
+function readLineCount(result: string | undefined): number {
+  const total = /av (\d+) linjer\.?\]/.exec(result ?? "")?.[1];
+  return total ? Number(total) : (result?.match(/^\d+\t/gm) ?? []).length;
 }
 
 function resultOf(s: StepFacts): string {
@@ -95,22 +97,20 @@ function resultOf(s: StepFacts): string {
   if (s.status === "error" && s.tool !== "run_command") return "";
   switch (s.tool) {
     case "read_file": {
-      const total = /av (\d+) linjer\.?\]/.exec(r ?? "")?.[1];
-      const shown = (r?.match(/^\d+\t/gm) ?? []).length;
-      if (r === "(tom fil)") return "tom";
-      const n = total ? Number(total) : shown;
-      return n ? plural(n, "linje", "linjer") : "";
+      if (r === "(tom fil)") return t("tom");
+      const count = readLineCount(r);
+      return count ? plural(count, "{count} linje", "{count} linjer") : "";
     }
     case "list_dir":
       if (!r) return "";
-      return r === "(tom mappe)" ? "tom" : plural(r.split("\n").filter(Boolean).length, "oppføring", "oppføringer");
+      return r === "(tom mappe)" ? t("tom") : plural(r.split("\n").filter(Boolean).length, "{count} oppføring", "{count} oppføringer");
     case "glob":
       if (!r) return "";
-      return /^Ingen filer/.test(r) ? "ingen filer" : plural(r.split("\n").filter((l) => l && !l.startsWith("[")).length, "fil", "filer");
+      return /^Ingen filer/.test(r) ? t("ingen filer") : plural(r.split("\n").filter((l) => l && !l.startsWith("[")).length, "{count} fil", "{count} filer");
     case "search":
       if (!r) return "";
-      if (r === "Ingen treff") return "ingen treff";
-      return plural(r.split("\n").filter((l) => l && !l.startsWith("[") && l !== "--").length, "treff", "treff");
+      if (r === "Ingen treff") return t("ingen treff");
+      return t("{count} treff", { count: r.split("\n").filter((l) => l && !l.startsWith("[") && l !== "--").length });
     case "run_command":
       return commandResult(r, s.status);
     case "write_file":
@@ -122,55 +122,53 @@ function resultOf(s: StepFacts): string {
       return planned ? `+${planned}` : "";
     }
     case "web_search":
-      return s.sources ? (s.sources.length ? plural(s.sources.length, "kilde", "kilder") : "ingen treff") : "";
+      return s.sources ? (s.sources.length ? plural(s.sources.length, "{count} kilde", "{count} kilder") : t("ingen treff")) : "";
     case "update_plan":
       return s.summary;
     case "thread_wait":
-      return s.status === "done" ? "ferdig" : "";
+      return s.status === "done" ? t("ferdig") : "";
     default:
       return "";
   }
 }
 
 // [past, present]: «Leste», «Leser».
-const VERBS: Record<string, [string, string]> = {
-  request_user_input: ["Spurte deg", "Venter på svaret ditt"],
-  ui_mod: ["Tilpasset", "Tilpasser"],
-  create_document: ["Laget fil", "Lager fil"],
-  run_python: ["Kjørte Python", "Kjører Python"],
-  list_chat_files: ["Viste Chat-filer", "Ser på Chat-filer"],
-  read_file: ["Leste", "Leser"],
-  list_dir: ["Så i", "Ser i"],
-  glob: ["Fant filer", "Finner filer"],
-  search: ["Søkte etter", "Søker etter"],
-  web_search: ["Søkte på nettet etter", "Søker på nettet etter"],
-  web_fetch: ["Leste nettsiden", "Leser nettsiden"],
-  browser_navigate: ["Åpnet", "Åpner"],
-  browser_snapshot: ["Leste siden", "Leser siden"],
-  browser_click: ["Klikket på", "Klikker på"],
-  browser_type: ["Skrev i", "Skriver i"],
-  browser_screenshot: ["Tok et skjermbilde", "Tar et skjermbilde"],
-  browser_console: ["Leste konsollen", "Leser konsollen"],
-  run_command: ["Kjørte", "Kjører"],
-  edit_file: ["Endret", "Endrer"],
-  delete_file: ["Slettet", "Sletter"],
-  thread_create: ["Startet underagenten", "Starter underagenten"],
-  thread_send: ["Sendte en melding", "Sender en melding"],
-  thread_wait: ["Ventet på underagenten", "Venter på underagenten"],
-  thread_read: ["Leste en tråd", "Leser en tråd"],
-  thread_models: ["Søkte etter modeller", "Søker etter modeller"],
-  thread_list: ["Så på trådene", "Ser på trådene"],
-  task_list: ["Leste oppgavelisten", "Leser oppgavelisten"],
-  task_add: ["La til oppgaven", "Legger til oppgaven"],
-  task_update: ["Oppdaterte oppgaven", "Oppdaterer oppgaven"],
-  remember: ["Lagret et minne", "Lagrer et minne"],
-  forget: ["Glemte et minne", "Glemmer et minne"],
-  update_plan: ["Oppdaterte planen", "Oppdaterer planen"],
-  use_skill: ["Brukte skillen", "Bruker skillen"],
-  propose_skill: ["Foreslo skillen", "Foreslår skillen"],
+const VERBS: Partial<Record<string, string[]>> = {
+  get request_user_input() { return [t("Spurte deg"), t("Venter på svaret ditt")]; },
+  get ui_mod() { return [t("Tilpasset"), t("Tilpasser")]; },
+  get create_document() { return [t("Laget fil"), t("Lager fil")]; },
+  get run_python() { return [t("Kjørte Python"), t("Kjører Python")]; },
+  get list_chat_files() { return [t("Viste Chat-filer"), t("Ser på Chat-filer")]; },
+  get read_file() { return [t("Leste"), t("Leser")]; },
+  get list_dir() { return [t("Så i"), t("Ser i")]; },
+  get glob() { return [t("Fant filer"), t("Finner filer")]; },
+  get search() { return [t("Søkte etter"), t("Søker etter")]; },
+  get web_search() { return [t("Søkte på nettet etter"), t("Søker på nettet etter")]; },
+  get web_fetch() { return [t("Leste nettsiden"), t("Leser nettsiden")]; },
+  get browser_navigate() { return [t("Åpnet"), t("Åpner")]; },
+  get browser_snapshot() { return [t("Leste siden"), t("Leser siden")]; },
+  get browser_click() { return [t("Klikket på"), t("Klikker på")]; },
+  get browser_type() { return [t("Skrev i"), t("Skriver i")]; },
+  get browser_screenshot() { return [t("Tok et skjermbilde"), t("Tar et skjermbilde")]; },
+  get browser_console() { return [t("Leste konsollen"), t("Leser konsollen")]; },
+  get run_command() { return [t("Kjørte"), t("Kjører")]; },
+  get edit_file() { return [t("Endret"), t("Endrer")]; },
+  get delete_file() { return [t("Slettet"), t("Sletter")]; },
+  get thread_create() { return [t("Startet underagenten"), t("Starter underagenten")]; },
+  get thread_send() { return [t("Sendte en melding"), t("Sender en melding")]; },
+  get thread_wait() { return [t("Ventet på underagenten"), t("Venter på underagenten")]; },
+  get thread_read() { return [t("Leste en tråd"), t("Leser en tråd")]; },
+  get thread_models() { return [t("Søkte etter modeller"), t("Søker etter modeller")]; },
+  get thread_list() { return [t("Så på trådene"), t("Ser på trådene")]; },
+  get task_list() { return [t("Leste oppgavelisten"), t("Leser oppgavelisten")]; },
+  get task_add() { return [t("La til oppgaven"), t("Legger til oppgaven")]; },
+  get task_update() { return [t("Oppdaterte oppgaven"), t("Oppdaterer oppgaven")]; },
+  get remember() { return [t("Lagret et minne"), t("Lagrer et minne")]; },
+  get forget() { return [t("Glemte et minne"), t("Glemmer et minne")]; },
+  get update_plan() { return [t("Oppdaterte planen"), t("Oppdaterer planen")]; },
+  get use_skill() { return [t("Brukte skillen"), t("Bruker skillen")]; },
+  get propose_skill() { return [t("Foreslo skillen"), t("Foreslår skillen")]; },
 };
-
-const TASK_STATUS: Record<string, string> = { todo: "til å gjøre", doing: "påbegynt", done: "ferdig" };
 
 function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolean } {
   const plain = (target: string) => ({ target, mono: false, quoted: false });
@@ -180,7 +178,7 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
     case "request_user_input":
       return plain("");
     case "ui_mod":
-      return plain("utseendet");
+      return plain(t("utseendet"));
     case "create_document":
       return plain(s.summary);
     case "run_python":
@@ -192,7 +190,7 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
     case "delete_file":
       return mono(summaryPath(s.summary));
     case "list_dir":
-      return !s.summary || s.summary === "." || s.summary === "./" ? plain("prosjektmappen") : mono(s.summary);
+      return !s.summary || s.summary === "." || s.summary === "./" ? plain(t("prosjektmappen")) : mono(s.summary);
     case "glob":
     case "search":
     case "run_command":
@@ -221,7 +219,7 @@ function targetOf(s: StepFacts): { target: string; mono: boolean; quoted: boolea
       return quoted(s.summary);
     case "task_update": {
       const status = field(s.input, "status");
-      return plain(TASK_STATUS[status] ? `som ${TASK_STATUS[status]}` : "");
+      return plain(status === "todo" ? t("som til å gjøre") : status === "doing" ? t("som påbegynt") : status === "done" ? t("som ferdig") : "");
     }
     case "use_skill":
     case "propose_skill":
@@ -237,8 +235,8 @@ export function describeStep(s: StepFacts): StepWords {
   const running = isRunning(s.status);
   const where = targetOf(s);
   let verb: string;
-  if (s.tool === "write_file") verb = running ? (isNewFile(s) ? "Oppretter" : "Skriver") : isNewFile(s) ? "Opprettet" : "Skrev om";
-  else if (s.tool === "web_search" && !s.summary) verb = running ? "Søker på nettet" : "Søkte på nettet";
+  if (s.tool === "write_file") verb = running ? (isNewFile(s) ? t("Oppretter") : t("Skriver")) : isNewFile(s) ? t("Opprettet") : t("Skrev om");
+  else if (s.tool === "web_search" && !s.summary) verb = running ? t("Søker på nettet") : t("Søkte på nettet");
   else verb = (VERBS[s.tool] ?? [s.tool, s.tool])[running ? 1 : 0];
   return { verb, ...where, result: running ? "" : resultOf(s) };
 }
@@ -246,8 +244,8 @@ export function describeStep(s: StepFacts): StepWords {
 // «Leste src/app.ts», as one line of plain text, for titles and the now-line.
 export function stepSentence(s: StepFacts): string {
   const w = describeStep(s);
-  const target = w.quoted ? `«${w.target}»` : w.target;
-  return target ? `${w.verb} ${target}` : w.verb;
+  const target = w.quoted ? t("«{target}»", { target: w.target }) : w.target;
+  return target ? t("{verb} {target}", { verb: w.verb, target }) : w.verb;
 }
 
 // The line over several steps of the same kind in a row: «Leste 6 filer», «Kjørte 3 kommandoer».
@@ -257,40 +255,47 @@ export function runLabel(kind: StepKind, items: StepFacts[], running: boolean): 
     case "read": {
       const dirs = items.filter((i) => i.tool === "list_dir").length;
       const files = n - dirs;
-      const parts = [files ? plural(files, "fil", "filer") : "", dirs ? plural(dirs, "mappe", "mapper") : ""].filter(Boolean);
-      return `${running ? "Leser" : "Leste"} ${parts.join(" og ")}`;
+      if (!dirs) return running ? plural(files, "Leser {count} fil", "Leser {count} filer") : plural(files, "Leste {count} fil", "Leste {count} filer");
+      if (!files) return running ? plural(dirs, "Leser {count} mappe", "Leser {count} mapper") : plural(dirs, "Leste {count} mappe", "Leste {count} mapper");
+      const fileCount = plural(files, "{count} fil", "{count} filer");
+      const dirCount = plural(dirs, "{count} mappe", "{count} mapper");
+      return running ? t("Leser {files} og {dirs}", { files: fileCount, dirs: dirCount }) : t("Leste {files} og {dirs}", { files: fileCount, dirs: dirCount });
     }
     case "search":
-      return `${running ? "Søker" : "Søkte"} ${n} ganger`;
+      return running ? t("Søker {count} ganger", { count: n }) : t("Søkte {count} ganger", { count: n });
     case "web":
-      if (items.every((i) => i.tool === "web_search")) return `${running ? "Søker" : "Søkte"} på nettet ${n} ganger`;
-      if (items.every((i) => i.tool === "web_fetch")) return `${running ? "Leser" : "Leste"} ${n} nettsider`;
-      return `${running ? "Bruker" : "Brukte"} nettleseren i ${n} steg`;
+      if (items.every((i) => i.tool === "web_search")) return running ? t("Søker på nettet {count} ganger", { count: n }) : t("Søkte på nettet {count} ganger", { count: n });
+      if (items.every((i) => i.tool === "web_fetch")) return running ? t("Leser {count} nettsider", { count: n }) : t("Leste {count} nettsider", { count: n });
+      return running ? t("Bruker nettleseren i {count} steg", { count: n }) : t("Brukte nettleseren i {count} steg", { count: n });
     case "command":
-      return `${running ? "Kjører" : "Kjørte"} ${n} kommandoer`;
+      return running ? t("Kjører {count} kommandoer", { count: n }) : t("Kjørte {count} kommandoer", { count: n });
     case "create":
-      return `${running ? "Oppretter" : "Opprettet"} ${n} filer`;
+      return running ? t("Oppretter {count} filer", { count: n }) : t("Opprettet {count} filer", { count: n });
     case "edit":
-      return `${running ? "Endrer" : "Endret"} ${new Set(items.map((i) => summaryPath(i.summary))).size === 1 ? `${summaryPath(items[0].summary)} ${n} ganger` : `${n} filer`}`;
+      if (new Set(items.map((i) => summaryPath(i.summary))).size === 1) {
+        const path = summaryPath(items[0].summary);
+        return running ? t("Endrer {path} {count} ganger", { path, count: n }) : t("Endret {path} {count} ganger", { path, count: n });
+      }
+      return running ? t("Endrer {count} filer", { count: n }) : t("Endret {count} filer", { count: n });
     case "delete":
-      return `${running ? "Sletter" : "Slettet"} ${n} filer`;
+      return running ? t("Sletter {count} filer", { count: n }) : t("Slettet {count} filer", { count: n });
     case "team":
-      return `${running ? "Jobber" : "Jobbet"} med teamet i ${n} steg`;
+      return running ? t("Jobber med teamet i {count} steg", { count: n }) : t("Jobbet med teamet i {count} steg", { count: n });
     case "memory":
-      return `${running ? "Oppdaterer" : "Oppdaterte"} minnet i ${n} steg`;
+      return running ? t("Oppdaterer minnet i {count} steg", { count: n }) : t("Oppdaterte minnet i {count} steg", { count: n });
     case "plan":
-      return `${running ? "Oppdaterer" : "Oppdaterte"} planen ${n} ganger`;
+      return running ? t("Oppdaterer planen {count} ganger", { count: n }) : t("Oppdaterte planen {count} ganger", { count: n });
     case "skill":
-      return `${running ? "Bruker" : "Brukte"} ${n} skills`;
+      return running ? t("Bruker {count} skills", { count: n }) : t("Brukte {count} skills", { count: n });
     default:
-      return `${running ? "Bruker" : "Brukte"} ${n} verktøy`;
+      return running ? t("Bruker {count} verktøy", { count: n }) : t("Brukte {count} verktøy", { count: n });
   }
 }
 
 // The short result of a run: the sum of the lines changed, the sources found, or how many failed.
 export function runResult(kind: StepKind, items: StepFacts[]): string {
   const failed = items.filter((i) => i.status === "error").length;
-  if (failed) return `${failed} feilet`;
+  if (failed) return t("{count} feilet", { count: failed });
   if (kind === "create" || kind === "edit" || kind === "delete") {
     let add = 0;
     let del = 0;
@@ -305,13 +310,13 @@ export function runResult(kind: StepKind, items: StepFacts[]): string {
   }
   if (kind === "web") {
     const sources = items.reduce((sum, i) => sum + (i.sources?.length ?? 0), 0);
-    return sources ? plural(sources, "kilde", "kilder") : "";
+    return sources ? plural(sources, "{count} kilde", "{count} kilder") : "";
   }
   if (kind === "read") {
-    const lines = items.reduce((sum, i) => sum + (i.tool === "read_file" ? Number(/^(\d+) linje/.exec(resultOf(i))?.[1] ?? 0) : 0), 0);
-    return lines ? plural(lines, "linje", "linjer") : "";
+    const lines = items.reduce((sum, i) => sum + (i.tool === "read_file" && i.status !== "error" && i.status !== "denied" ? readLineCount(i.result) : 0), 0);
+    return lines ? plural(lines, "{count} linje", "{count} linjer") : "";
   }
-  if (kind === "command") return items.every((i) => commandResult(i.result, i.status) === "exit 0") ? "alle exit 0" : "";
+  if (kind === "command") return items.every((i) => commandResult(i.result, i.status) === "exit 0") ? t("alle exit 0") : "";
   return "";
 }
 

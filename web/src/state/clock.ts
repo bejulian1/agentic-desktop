@@ -1,6 +1,7 @@
 // One shared second clock for the live timers (the goal, "Jobber…", subagents). It only ticks
 // while a mounted timer needs it, so an idle app has no timer at all.
 import { createSignal, onCleanup } from "solid-js";
+import { t } from "../lib/i18n";
 
 const [now, setNow] = createSignal(Date.now());
 let users = 0;
@@ -29,9 +30,9 @@ export function formatElapsed(ms: number): string {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  if (h) return `${h}t ${m}m`;
-  if (m) return `${m}m ${s}s`;
-  return `${s}s`;
+  if (h) return t("{hours}t {minutes}m", { hours: h, minutes: m });
+  if (m) return t("{minutes}m {seconds}s", { minutes: m, seconds: s });
+  return t("{seconds}s", { seconds: s });
 }
 
 // How long a goal has run, with the clock standing still while paused.

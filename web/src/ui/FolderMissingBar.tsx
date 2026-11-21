@@ -3,6 +3,7 @@
 // connect the project to the folder again (it goes on with the same threads, and the field comes
 // back at once), or archive its chats (with Angre in the toast). Nothing runs until then; the
 // server refuses too (SPEC 26.1).
+import { t } from "../lib/i18n";
 import { createSignal } from "solid-js";
 import type { Project } from "../../../shared/protocol";
 import { app, relinkProject, report, toast } from "../state/app";
@@ -35,12 +36,12 @@ export function FolderMissingBar(props: { project: Project; onRelinked?: () => v
   const live = () => Object.values(app.threads).filter((t) => t && t.projectId === props.project.id && !t.archived && !t.temporary).length;
   const relink = async () => {
     if (busy()) return;
-    const folder = await pickFolder(parentOf(props.project.path), `Velg mappen for «${props.project.name}»`);
+    const folder = await pickFolder(parentOf(props.project.path), t("Velg mappen for «{name}»", { name: props.project.name }));
     if (!folder) return;
     setBusy(true);
     try {
       await relinkProject(props.project.id, folder);
-      toast(`«${props.project.name}» bruker nå ${homeShort(folder, 60)}.`, "info");
+      toast(t("«{name}» bruker nå {path}.", { name: props.project.name, path: homeShort(folder, 60) }), "info");
       props.onRelinked?.();
     } catch (err) {
       report(err);
@@ -58,11 +59,11 @@ export function FolderMissingBar(props: { project: Project; onRelinked?: () => v
     }
   };
   return (
-    <div class="composer folder-bar" role="group" aria-label="Prosjektmappen mangler" data-testid="folder-missing">
+    <div class="composer folder-bar" role="group" aria-label={t("Prosjektmappen mangler")} data-testid="folder-missing">
       <p class="folder-bar-text">
         <span class="folder-bar-icon" aria-hidden="true"><IconWarn size={15} /></span>
         <span>
-          Fant ikke mappen <bdo dir="ltr" class="folder-bar-path" title={props.project.path}>{homeShort(props.project.path)}</bdo>. Den er flyttet, har fått nytt navn eller er slettet.
+          {t("Fant ikke mappen")}{" "}<bdo dir="ltr" class="folder-bar-path" title={props.project.path}>{homeShort(props.project.path)}</bdo>{t(". Den er flyttet, har fått nytt navn eller er slettet.")}
         </span>
       </p>
       <div class="folder-bar-foot">
@@ -70,13 +71,13 @@ export function FolderMissingBar(props: { project: Project; onRelinked?: () => v
           type="button"
           class="btn btn-small folder-bar-archive"
           disabled={busy() || !live()}
-          title={live() ? "Chattene forsvinner fra sidefanen, men ingenting slettes. Angre i meldingen som kommer." : "Chattene i prosjektet er allerede arkivert"}
+          title={live() ? t("Chattene forsvinner fra sidefanen, men ingenting slettes. Angre i meldingen som kommer.") : t("Chattene i prosjektet er allerede arkivert")}
           onClick={() => void archive()}
         >
-          <IconArchive size={14} />Arkiver chattene
+          <IconArchive size={14} />{t("Arkiver chattene")}
         </button>
-        <button type="button" class="btn btn-small btn-primary" disabled={busy()} title={`Koble «${props.project.name}» til mappen der den er nå`} onClick={() => void relink()}>
-          <IconFolderOpen size={14} />Velg prosjektmappe
+        <button type="button" class="btn btn-small btn-primary" disabled={busy()} title={t("Koble «{name}» til mappen der den er nå", { name: props.project.name })} onClick={() => void relink()}>
+          <IconFolderOpen size={14} />{t("Velg prosjektmappe")}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 // line of scroll code: it opens at the bottom on the first frame, it stays pinned there while text
 // grows, and loading older messages above does not move what is on screen. Nothing listens to
 // scroll events. Position is read by an IntersectionObserver.
+import { plural, t } from "../lib/i18n";
 import { createEffect, createMemo, createSelector, createSignal, createUniqueId, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { frameBudget } from "../lib/frame";
 import { motionOff } from "./Motion";
@@ -81,12 +82,12 @@ function Timeline(props: { marks: Mark[]; current: string | null; jump: (row: Ro
   const questions = createMemo(() => props.marks.reduce((n, m) => n + (m.kind === "user" ? 1 : 0), 0));
   const answerText = (mark: Mark) => {
     mark.answer?.rev(); // The open preview refreshes when the answer completes.
-    return shorten(mark.answer?.text ?? "", 360) || "Venter på svar …";
+    return shorten(mark.answer?.text ?? "", 360) || t("Venter på svar …");
   };
   return (
     <nav
       class="minimap"
-      aria-label="Tidslinje"
+      aria-label={t("Tidslinje")}
       data-testid="minimap"
       onPointerLeave={() => setHover(null)}
       onKeyDown={(e) => { if (e.key === "Escape") setHover(null); }}
@@ -95,14 +96,14 @@ function Timeline(props: { marks: Mark[]; current: string | null; jump: (row: Ro
         {(bucket, index) => {
           const mark = bucket[0];
           // Not «melding» in the name: tests and assistive tech find the field by «Melding».
-          const label = () => (mark.kind === "user" ? `Spørsmål ${mark.n} av ${questions()}` : "Svar");
+          const label = () => (mark.kind === "user" ? t("Spørsmål {number} av {total}", { number: mark.n, total: questions() }) : t("Svar"));
           return (
             <button
               type="button"
               class="minimap-tick"
               data-kind={mark.kind}
               classList={{ current: index() === currentIndex(), chapter: mark.kind === "user" && bucket.some((m) => m.kind === "user" && props.chapter(m.row as UserRow)) }}
-              title={mark.kind === "user" && props.chapter(mark.row as UserRow) ? `Gå til kapittelet «${props.chapter(mark.row as UserRow)}»` : "Gå til meldingen"}
+          title={mark.kind === "user" && props.chapter(mark.row as UserRow) ? t("Gå til kapittelet «{chapter}»", { chapter: props.chapter(mark.row as UserRow)! }) : t("Gå til meldingen")}
               aria-label={`${label()}: ${shorten(mark.row.text, 60)}`}
               aria-current={index() === currentIndex() ? "true" : undefined}
               aria-describedby={hovered()?.mark.row.key === mark.row.key ? tooltipId : undefined}
@@ -318,18 +319,18 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
   };
   const retryLast = async () => {
     if (running() || rewinding) {
-      toast("Vent til svaret er ferdig, eller stopp det først.", "info");
+      toast(t("Vent til svaret er ferdig, eller stopp det først."), "info");
       return;
     }
     const key = lastAnswer();
     if (!key || !users().length) {
-      toast("Det finnes ikke et svar å prøve på nytt.", "info");
+      toast(t("Det finnes ikke et svar å prøve på nytt."), "info");
       return;
     }
-    const ok = await confirmDialog({ title: "Lag siste svar på nytt?", text: "Det siste svaret erstattes ved et nytt modellkall.", confirm: "Lag svaret på nytt" });
+    const ok = await confirmDialog({ title: t("Lag siste svar på nytt?"), text: t("Det siste svaret erstattes ved et nytt modellkall."), confirm: t("Lag svaret på nytt") });
     if (!ok) return;
     if (!root.isConnected || lastAnswer() !== key || rewinding) {
-      toast("Samtalen har endret seg. Skriv /retry igjen hvis du vil prøve det nye svaret på nytt.", "info");
+      toast(t("Samtalen har endret seg. Skriv /retry igjen hvis du vil prøve det nye svaret på nytt."), "info");
       return;
     }
     await rewind(key, { latestOnly: true });
@@ -361,9 +362,9 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
         // Kode with changed files: say first that they stay as they are. Esc cancels.
         if (!chat && props.model.changes().length) {
           const ok = await confirmDialog({
-            title: "Sende meldingen på nytt?",
-            text: "Svarene etter meldingen blir borte, men filene som er endret i prosjektet, rulles ikke tilbake. Bruk Angre i Endringer om du vil ha dem tilbake.",
-            confirm: "Send på nytt",
+            title: t("Sende meldingen på nytt?"),
+            text: t("Svarene etter meldingen blir borte, men filene som er endret i prosjektet, rulles ikke tilbake. Bruk Angre i Endringer om du vil ha dem tilbake."),
+            confirm: t("Send på nytt"),
           });
           if (!ok) return;
         }
@@ -400,12 +401,12 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
     const who = modelName(thread()?.modelId);
     const rows = selectable().filter((r) => selected().has(r.key));
     const parts = rows.map((r) => {
-      const name = r.kind === "user" ? "Du" : who;
+      const name = r.kind === "user" ? t("Du") : who;
       return format === "markdown" ? `**${name}:**\n\n${r.text.trim()}` : `${name}:\n${plainText(r.text)}`;
     });
     try {
       await navigator.clipboard.writeText(parts.join(format === "markdown" ? "\n\n---\n\n" : "\n\n"));
-      toast(rows.length === 1 ? "Kopierte 1 melding." : `Kopierte ${rows.length} meldinger.`, "info");
+      toast(plural(rows.length, "Kopierte {count} melding.", "Kopierte {count} meldinger."), "info");
       clearSelection();
     } catch (err) {
       report(err);
@@ -418,14 +419,14 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
     if (!button || !scroller.contains(button)) return;
     const block = button.closest<HTMLElement>(".md-code");
     if (!block) return;
-    if (block.closest(".md-live")) return toast("Vent til svaret er ferdig.", "info");
+    if (block.closest(".md-live")) return toast(t("Vent til svaret er ferdig."), "info");
     if (!props.model.code || !thread()?.projectId) return;
     const command = shellCommand(block.querySelector("code")?.textContent ?? "");
     if (!command) return;
     if (command.includes("\n") && !(await confirmScript(command))) return;
     try {
       const sent = await post<{ queued: boolean }>(`/api/threads/${props.model.id}/messages`, { text: "", shell: command });
-      if (sent.queued) toast("Kommandoen står i kø til turen er ferdig.", "info");
+      if (sent.queued) toast(t("Kommandoen står i kø til turen er ferdig."), "info");
     } catch (err) {
       report(err);
     }
@@ -472,11 +473,11 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
         case "fork": {
           const copy = await post<Thread>(`/api/threads/${props.model.id}/fork`, { messageId: key });
           await openThread(copy);
-          toast(`Laget «${copy.title}» med samtalen til og med meldingen.`, "info");
+          toast(t("Laget «{title}» med samtalen til og med meldingen.", { title: copy.title }), "info");
           break;
         }
         case "edit":
-          if (running()) return toast("Vent til svaret er ferdig, eller stopp det først.", "info");
+          if (running()) return toast(t("Vent til svaret er ferdig, eller stopp det først."), "info");
           setEditing(key);
           break;
         case "regenerate":
@@ -497,7 +498,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
             break;
           }
           const start = row.text.replace(/\s+/g, " ").trim().slice(0, 60);
-          const title = await promptDialog({ title: "Fest som kapittel", value: start || "Kapittel", confirm: "Fest" });
+          const title = await promptDialog({ title: t("Fest som kapittel"), value: start || t("Kapittel"), confirm: t("Fest") });
           if (title?.trim()) await patch(`/api/threads/${props.model.id}`, { chapter: { messageId: key, title } });
           break;
         }
@@ -683,7 +684,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
         <div
           class="select-bar"
           role="toolbar"
-          aria-label="Utvalg"
+          aria-label={t("Utvalg")}
           data-testid="select-bar"
           onKeyDown={(e) => {
             if (e.key === "Escape") {
@@ -692,22 +693,22 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
             }
           }}
         >
-          <span class="select-count">{selected().size === 1 ? "1 melding valgt" : `${selected().size} meldinger valgt`}</span>
-          <button type="button" class="btn btn-small" onClick={() => void copySelected("text")}>Kopier som tekst</button>
-          <button type="button" class="btn btn-small" onClick={() => void copySelected("markdown")}>Kopier som Markdown</button>
-          <button type="button" class="icon-button" title="Fjern utvalget (Esc)" aria-label="Fjern utvalget" onClick={clearSelection}><IconClose size={14} /></button>
+          <span class="select-count">{plural(selected().size, "{count} melding valgt", "{count} meldinger valgt")}</span>
+          <button type="button" class="btn btn-small" onClick={() => void copySelected("text")}>{t("Kopier som tekst")}</button>
+          <button type="button" class="btn btn-small" onClick={() => void copySelected("markdown")}>{t("Kopier som Markdown")}</button>
+          <button type="button" class="icon-button" title={t("Fjern utvalget (Esc)")} aria-label={t("Fjern utvalget")} onClick={clearSelection}><IconClose size={14} /></button>
         </div>
       </Show>
       <Show when={searching()}>
         <ConversationSearch model={props.model} root={() => scroller} jump={jump} onClose={() => setSearching(false)} register={(focus) => (focusSearch = focus)} />
       </Show>
       <Show when={thread()?.temporary}>
-        <div class="temp-banner" data-testid="temp-banner"><IconClock size={12} />Midlertidig chat. Vises ikke i historikken, og slettes når du lukker den.</div>
+        <div class="temp-banner" data-testid="temp-banner"><IconClock size={12} />{t("Midlertidig chat. Vises ikke i historikken, og slettes når du lukker den.")}</div>
       </Show>
       <Show when={regen()} keyed>
         {(menu) => (
-          <div class="popover regen-menu" role="menu" aria-label="Lag svaret på nytt med" style={{ left: `${menu.left}px`, bottom: `${menu.bottom}px` }} data-testid="regen-menu">
-            <div class="menu-heading">Lag svaret på nytt med</div>
+          <div class="popover regen-menu" role="menu" aria-label={t("Lag svaret på nytt med")} style={{ left: `${menu.left}px`, bottom: `${menu.bottom}px` }} data-testid="regen-menu">
+            <div class="menu-heading">{t("Lag svaret på nytt med")}</div>
             <For each={app.models}>
               {(model) => {
                 const current = () => (thread()?.modelId ?? app.settings.defaultModelId) === model.id;
@@ -716,11 +717,11 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
                     type="button"
                     role="menuitem"
                     class="menu-item"
-                    title={current() ? `Samme modell: ${model.name}` : `Bytt chatten til ${model.name} og lag svaret på nytt`}
+                    title={current() ? t("Samme modell: {model}", { model: model.name }) : t("Bytt chatten til {model} og lag svaret på nytt", { model: model.name })}
                     onClick={() => {
                       setRegen(null);
                       rewind(menu.key, current() ? {} : { modelId: model.id }).then(
-                        () => !current() && toast(`Nytt svar fra ${modelName(model.id)}.`, "info"),
+                        () => !current() && toast(t("Nytt svar fra {model}.", { model: modelName(model.id) }), "info"),
                         report,
                       );
                     }}
@@ -765,7 +766,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
         <Timeline marks={marks()} current={current()} jump={jump} chapter={(row) => chapterOf(row.key) ?? turnChapters().get(row.key)} />
       </Show>
       <Show when={!atBottom()}>
-        <button type="button" class="to-bottom" title="Til bunnen" aria-label="Til bunnen" onClick={() => (scroller.scrollTop = 0)}>
+        <button type="button" class="to-bottom" title={t("Til bunnen")} aria-label={t("Til bunnen")} onClick={() => (scroller.scrollTop = 0)}>
           <IconArrowDown />
         </button>
       </Show>
@@ -780,16 +781,16 @@ function ForkBanner(props: { thread: Thread }) {
   const gone = () => !forkSource(props.thread);
   const what = () => {
     const from = origin().from;
-    const copied = from === "message" ? "Samtalen til og med meldingen er kopiert herfra" : from === "last" ? "Den siste meldingen og svaret er kopiert herfra" : "Hele samtalen er kopiert herfra";
-    return props.thread.mode === "code" && props.thread.projectId ? `${copied}. Filene i prosjektet er de samme.` : `${copied}.`;
+    const copied = from === "message" ? t("Samtalen til og med meldingen er kopiert herfra") : from === "last" ? t("Den siste meldingen og svaret er kopiert herfra") : t("Hele samtalen er kopiert herfra");
+    return props.thread.mode === "code" && props.thread.projectId ? t("{copied}. Filene i prosjektet er de samme.", { copied }) : `${copied}.`;
   };
   return (
     <div class="fork-banner" data-testid="fork-banner">
       <span class="fork-banner-line">
         <IconBranch size={13} />
-        <span>Gaffel av</span>
-        <Show when={!gone()} fallback={<span class="fork-banner-gone" title="Tråden er slettet">{origin().title}</span>}>
-          <button type="button" class="fork-banner-link" title={origin().messageId ? "Åpne tråden ved meldingen gaffelen kom fra" : "Åpne tråden gaffelen kom fra"} onClick={() => void openForkSource(props.thread)}>{forkSourceTitle(props.thread)}</button>
+        <span>{t("Gaffel av")}</span>
+        <Show when={!gone()} fallback={<span class="fork-banner-gone" title={t("Tråden er slettet")}>{origin().title}</span>}>
+          <button type="button" class="fork-banner-link" title={origin().messageId ? t("Åpne tråden ved meldingen gaffelen kom fra") : t("Åpne tråden gaffelen kom fra")} onClick={() => void openForkSource(props.thread)}>{forkSourceTitle(props.thread)}</button>
         </Show>
       </span>
       <span class="fork-banner-note">{what()}</span>
