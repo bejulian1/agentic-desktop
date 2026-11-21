@@ -325,6 +325,7 @@ export function threadMarkdown(thread: Thread, events: ThreadEventEnvelope[], no
         model = modelName(event.modelId);
         heading = false;
         break;
+      case "history.answer":
       case "text.delta": {
         if (!heading) {
           out.push("", `## Svar${model ? ` · ${model}` : ""}`);

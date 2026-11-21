@@ -33,6 +33,7 @@ import { SettingsView } from "./lazy-views";
 import { closeSkills, skillsOpen } from "../state/skills-workspace";
 import { studioOpen } from "../state/studio";
 import StudioWorkspace from "../studio/StudioWorkspace";
+import { openWelcome, welcomeView } from "../state/welcome";
 
 const UiModsDialogHost=lazy(()=>import("./UiModsDialog"));
 const ArtifactsRoom = lazy(() => import("./ArtifactsRoom"));
@@ -40,6 +41,7 @@ const ArtifactPanel = lazy(() => import("./ArtifactPanel")); // round 15, the fi
 const ProfilePage = lazy(() => import("./ProfilePage"));
 const SkillsRoom = lazy(() => import("./SkillsRoom"));
 const ChatProjectPage = lazy(() => import("./ChatProjectPage"));
+const Welcome = lazy(() => import("./Welcome"));
 
 export function ExpiredScreen() {
   return (
@@ -66,6 +68,7 @@ const Nordlys = lazy(() => import("./Nordlys"));
 function Shortcuts() {
   const [quiet, setQuiet] = createSignal(false);
   const onKey = (event: KeyboardEvent) => {
+    if (welcomeView()) return;
     handleShortcut(event);
     if (!quiet()) onQuietWord(event, () => setQuiet(true));
   };
@@ -195,7 +198,7 @@ export function App() {
       class="app"
       classList={{ "sidebar-open": sidebarOpen(), "rail-open": !sidebarOpen() && railEnabled(), "panel-open": panelShown(), "panel-full": panelShown() && panelFull(), "artifact-open": artifactShown(), "artifact-big": artifactShown() && artifactBig() }}
       style={`--sidebar-w:${sidebarWidth()}px;--panel-w:${panelWidth()}px;--artifact-w:${artifactWidth()}px`}
-      inert={!!settingsOpen() || undefined}
+      inert={!!(settingsOpen() || welcomeView()) || undefined}
     >
       <UiModRoot threadId={threadId} mode={mode}/>
       <TopBar />
@@ -247,13 +250,14 @@ export function App() {
 // Settings replace the whole window, so they sit beside the app rather than inside it. The app
 // stays mounted underneath, inert, so drafts and scroll positions are there when you come back.
 export function Shell() {
+  if (!app.settings.welcomeDone && !app.providers.some((provider) => provider.kind !== "mock") && !Object.keys(app.threads).length) {
+    openWelcome("welcome");
+  }
   return (
     <>
       <GlobalWallpaper/>
       <App />
-      <Show when={settingsOpen()}>
-        <Suspense><SettingsView /></Suspense>
-      </Show>
+      <SettingsAndWelcome />
       <Show when={modsOpen()}><Suspense><UiModsDialogHost/></Suspense></Show>
       <GlobalLayers />
     </>
@@ -274,7 +278,7 @@ export function SoloApp(props: { threadId: string }) {
     <>
     <GlobalWallpaper/>
     <UiModRoot threadId={()=>props.threadId} mode={()=>thread()?.mode??"chat"}/>
-    <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!settingsOpen() || undefined}>
+    <div class="app solo" classList={{ "artifact-open": !!artifactPanel(), "artifact-big": !!artifactPanel() && artifactBig() }} style={`--artifact-w:${artifactWidth()}px`} inert={!!(settingsOpen() || welcomeView()) || undefined}>
       <main class="main">
         <OfflineBanner />
         <div class="grid-area">
@@ -289,12 +293,23 @@ export function SoloApp(props: { threadId: string }) {
         <Suspense fallback={<aside class="artifact-panel" aria-busy="true" />}><ArtifactPanel /></Suspense>
       </Show>
     </div>
-    <Show when={settingsOpen()}>
-      <Suspense><SettingsView /></Suspense>
-    </Show>
+    <SettingsAndWelcome />
     <Show when={modsOpen()}><Suspense><UiModsDialogHost/></Suspense></Show>
     <GlobalLayers />
     </>
   );
+}
+
+function SettingsAndWelcome() {
+  return <>
+    <Show when={settingsOpen()}>
+      <div hidden={!!welcomeView()}>
+        <Suspense><SettingsView /></Suspense>
+      </div>
+    </Show>
+    <Show when={welcomeView()} keyed>
+      {(view) => <Suspense fallback={<div class="welcome-window" aria-busy="true" />}><Welcome importOnly={view === "import"} /></Suspense>}
+    </Show>
+  </>;
 }
 

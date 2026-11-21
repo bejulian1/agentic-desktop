@@ -357,6 +357,13 @@ function TextView(props: { row: TextRow }) {
 
 function TextBody(props: { row: TextRow }) {
   const { row } = props;
+  if (row.importedNote) {
+    const { kind, tool, summary } = row.importedNote;
+    return <div class="row row-text imported-tool-note muted" data-row="text" data-message-id={row.key}>
+      {kind === "call" ? t("Verktøykall") : t("Verktøyresultat")}
+      <Show when={tool}> · {tool}</Show><Show when={summary}> · {summary}</Show>
+    </div>;
+  }
   if (row.done && row.text.length > HUGE_MESSAGE) return <LongText row={row} />;
   const root = document.createElement("div");
   root.className = "row row-text md";

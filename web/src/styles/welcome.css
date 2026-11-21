@@ -1,0 +1,85 @@
+.welcome-window {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+
+.welcome-window-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  min-height: 14px;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--bg);
+}
+
+:root[data-shell="electron"] .welcome-window-chrome {
+  min-height: 40px;
+  -webkit-app-region: drag;
+}
+
+.welcome-content {
+  box-sizing: content-box;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: clamp(12px, 5vh, 56px) clamp(16px, 5vw, 52px) 42px;
+}
+
+.welcome-header { margin-bottom: var(--space-6); }
+.welcome-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.welcome-header h1 { font-size: var(--text-hero); font-weight: var(--weight-semibold); }
+.welcome-header h1:focus { outline: none; }
+.welcome-content h2 { margin-bottom: var(--space-2); font-size: var(--text-lg); font-weight: var(--weight-medium); }
+.welcome-content .settings-group { margin-bottom: var(--space-5); }
+.welcome-content .settings-group-head h2 { margin-bottom: 0; }
+.welcome-content .connect-view { padding: var(--space-5) var(--space-3); }
+.welcome-ready { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); }
+.welcome-status, .welcome-content .provider-detect-status { padding: 9px var(--space-3); font-size: var(--text-sm); }
+.welcome-review-button { margin: var(--space-2) var(--space-3); }
+
+.welcome-import-list, .welcome-import-threads { list-style: none; margin: 0; padding: 0; }
+.welcome-import-list { margin: 0 var(--space-3); max-height: 42vh; overflow: auto; }
+.welcome-import-project { border-top: 1px solid var(--border); padding: var(--space-2) 4px; }
+.welcome-import-project-head { display: flex; align-items: center; gap: var(--space-2); }
+.welcome-import-project-head .icon { flex: none; color: var(--text-3); }
+.welcome-import-project-head > div { min-width: 0; }
+.welcome-project-path { display: block; overflow-wrap: anywhere; }
+.welcome-import-project .muted { display: block; font-size: var(--text-xs); }
+.welcome-import-threads { margin: var(--space-2) 0 0 calc(var(--space-4) + 4px); }
+.welcome-import-threads > li { padding: 5px var(--space-2); overflow-wrap: anywhere; }
+.welcome-import-threads label { display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; }
+.welcome-window input[type="checkbox"] { flex: none; }
+.welcome-window input[type="checkbox"]:indeterminate { border-color: var(--accent); background: var(--accent); }
+.welcome-window input[type="checkbox"]:indeterminate::before {
+  width: 8px;
+  height: 2px;
+  clip-path: none;
+  transform: none;
+}
+
+.welcome-result { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
+.welcome-result[role="alert"] { color: var(--danger); }
+.welcome-progress { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.welcome-progress progress { accent-color: var(--accent); }
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
