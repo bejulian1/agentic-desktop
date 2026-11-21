@@ -391,9 +391,9 @@ dialog.mini-editor:not([open]) { display: none; }
 .github-skeleton-row .short { width: 45%; }
 /* The GitHub tab is an icon with a tooltip, also when chosen: the panel shows the name, and the
    six tabs before it already fill a panel at its standard width. */
-.panel-tab[aria-label="GitHub"] { padding: 0 7px; }
-.panel-tab[aria-label="GitHub"] > span { display: none; }
-.panel-tab[aria-label="GitHub"] > .icon { display: block; }
+.panel-tab[data-panel-tab="github"] { padding: 0 7px; }
+.panel-tab[data-panel-tab="github"] > span { display: none; }
+.panel-tab[data-panel-tab="github"] > .icon { display: block; }
 .nav-beta { margin-left: auto; }
 .github-beta-note { display: flex; align-items: baseline; gap: 8px; margin-top: 0; }
 .github-beta-note .beta-badge { margin-left: 0; flex: none; }
@@ -423,5 +423,5 @@ dialog.mini-editor:not([open]) { display: none; }
 @container (max-width: 520px) and (min-width: 381px) {
   .panel-tabs { gap: 0; }
   .panel-tab { padding: 0 5px; }
-  .panel-tab[aria-label="GitHub"] { padding: 0 6px; }
+  .panel-tab[data-panel-tab="github"] { padding: 0 6px; }
 }

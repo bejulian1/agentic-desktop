@@ -1235,7 +1235,7 @@ label.setting { cursor: pointer; }
 }
 
 @container (max-width: 420px) {
-  .pane-head .icon-button[aria-label="Del nedover"], .origin-tag span { display: none; }
+  .pane-head .icon-button[data-action="split-down"], .origin-tag span { display: none; }
   .row { padding-inline: var(--space-3); }
   .error-card { width: calc(100% - 24px); }
   .composer-wrap, .approval-dock { padding-inline: var(--space-2); }
@@ -1245,7 +1245,7 @@ label.setting { cursor: pointer; }
 }
 
 @container (max-width: 320px) {
-  .pane-head .icon-button[aria-label="Del til høyre"] { display: none; }
+  .pane-head .icon-button[data-action="split-right"] { display: none; }
   .tool-summary, .tool-tail { display: none; }
   .model-label { max-width: 90px; }
   .composer-context .context-chip:not([data-testid="project-picker"]) { display: none; }
@@ -1282,7 +1282,7 @@ label.setting { cursor: pointer; }
 }
 
 @media (max-width: 720px) {
-  .pane-head .icon-button[aria-label="Del til høyre"], .pane-head .icon-button[aria-label="Del nedover"] { display: none; }
+  .pane-head .icon-button[data-action="split-right"], .pane-head .icon-button[data-action="split-down"] { display: none; }
   .settings-page { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .settings-nav { flex-direction: row; flex-wrap: wrap; max-height: 40vh; padding: var(--space-2); }
   .settings-nav .nav-item { width: auto; height: 30px; }
@@ -1299,8 +1299,7 @@ label.setting { cursor: pointer; }
 @media (max-width: 520px) {
   .topbar { grid-template-columns: auto auto minmax(0, 1fr); gap: var(--space-1); padding: 0 var(--space-1); }
   .topbar-right { overflow: hidden; gap: 0; }
-  .topbar-right .icon-button[aria-label="Ny rute"], .topbar-right .icon-button[aria-label="Terminal"], .topbar-right .icon-button[aria-label="Åpne i VS Code"] { display: none; }
-  .topbar-nav .icon-button[aria-label="Neste tråd"] { display: none; }
+  .topbar-nav .icon-button[data-action="thread-forward"] { display: none; }
   .mode-button { min-width: 30px; padding: 0 6px; }
   .topbar-right .topbar-divider { display: none; }
 }

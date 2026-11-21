@@ -4,7 +4,7 @@ import {modVariables} from "../lib/ui-mod-theme";
 import {UiModBand} from "./UiModBand";
 // One pane: a header, a conversation and a message field. It subscribes to its own thread only.
 import { createEffect, createMemo, createSignal, lazy, Suspense, For, onCleanup, Show } from "solid-js";
-import { app, renameThread, report, scopeOf, untitled, EMPTY_THREAD_NAME } from "../state/app";
+import { app, renameThread, report, scopeOf, untitled, emptyThreadName } from "../state/app";
 import { beginDrag, applyDrop } from "../state/drag";
 import type { Grid, PaneState } from "../state/grid";
 import { chatProjectFor, openThread } from "../state/navigate";
@@ -83,7 +83,7 @@ export function Pane(props: {
     const { grid } = props;
     if (!grid) return;
     beginDrag(event, {
-      source: { kind: "pane", paneId: props.pane.id, label: untitled(thread()) ? EMPTY_THREAD_NAME : thread()!.title },
+      source: { kind: "pane", paneId: props.pane.id, label: untitled(thread()) ? emptyThreadName() : thread()!.title },
       onDetach: detach,
       onDrop: (source, target) => applyDrop(grid, source, target),
     });
@@ -142,7 +142,7 @@ export function Pane(props: {
             />
           }
         >
-          <span class="pane-title" classList={{ empty: untitled(thread()) }} title={untitled(thread()) ? undefined : thread()!.title} onDblClick={() => !untitled(thread()) && setRenaming(true)}>{untitled(thread()) ? <span class="sr-only">{EMPTY_THREAD_NAME}</span> : thread()!.title}</span>
+          <span class="pane-title" classList={{ empty: untitled(thread()) }} title={untitled(thread()) ? undefined : thread()!.title} onDblClick={() => !untitled(thread()) && setRenaming(true)}>{untitled(thread()) ? <span class="sr-only">{emptyThreadName()}</span> : thread()!.title}</span>
         </Show>
         <Show when={parent()}>
           <button type="button" class="origin-tag" title={t("Laget av {title}", { title: parent()!.title })} onClick={() => showThread(parent()!.id)}>

@@ -71,7 +71,7 @@
   .app.artifact-open > .main { display: none; }
   .artifact-panel { border-left: 0; }
   .artifact-panel .panel-resize { display: none; }
-  .artifact-panel [aria-label="Åpne stort"], .artifact-panel [aria-label="Vanlig størrelse"] { display: none; }
+  .artifact-panel .artifact-expand { display: none; }
 }
 
 /* The Artifacts room: what kind each one is, on its tile. */

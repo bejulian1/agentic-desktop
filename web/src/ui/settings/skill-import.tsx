@@ -2,7 +2,7 @@
 // drag them in. The files are read here and sent as text; the server checks each one and says what
 // is wrong per file. A name that is taken asks: replace, keep both or skip. Nothing is written
 // before «Importer».
-import { plural, t } from "../../lib/i18n";
+import { lookupMessage, plural, t } from "../../lib/i18n";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { SkillImportFile, SkillImportResult, SkillImportRow } from "../../../../shared/protocol";
 import { post } from "../../lib/api";
@@ -149,7 +149,7 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
       const failed = results.filter((r) => r.status === "error" && rows()?.find((row) => row.key === r.key)?.status !== "invalid");
       const imported = plural(made, "Én skill er importert.", "{count} skills er importert.");
       if (failed.length) {
-        const failures = failed.map((f) => `${f.file} (${f.message})`).join(", ");
+        const failures = failed.map((f) => `${f.file} (${lookupMessage(f.errorMessage?.key ?? f.message, f.errorMessage?.values)})`).join(", ");
         toast(t("{imported} {count} feilet: {failures}", { imported, count: failed.length, failures }), "error");
       } else toast(imported, "info");
       props.onClose(made > 0);
@@ -203,9 +203,9 @@ export function SkillImport(props: { picked: Picked[]; folder: boolean; onClose:
                     <span class={`pill import-pill import-pill-${row.status}`}>{STATUS[row.status]}</span>
                   </strong>
                   <Show when={row.description}><span class="muted">{row.description}</span></Show>
-                  <Show when={row.error}><span class={row.status === "invalid" ? "import-error" : "muted"}>{row.error}</span></Show>
-                  <Show when={row.status === "conflict"}><span class="muted">{t("Finnes i {path}.", { path: row.conflictWith ?? "" })}</span></Show>
-                  <Show when={row.note}><span class="muted">{row.note}</span></Show>
+                  <Show when={row.error}><span class={row.status === "invalid" ? "import-error" : "muted"}>{lookupMessage(row.errorMessage?.key ?? row.error, row.errorMessage?.values)}</span></Show>
+                  <Show when={row.status === "conflict"}><span class="muted">{t("Finnes i {path}.", { path: row.conflictProject ? t("Prosjektet {name}", { name: row.conflictProject }) : row.conflictFile ? t("En annen fil i importen ({file})", { file: row.conflictFile }) : lookupMessage(row.conflictWith) })}</span></Show>
+                  <Show when={row.note}><span class="muted">{lookupMessage(row.note)}</span></Show>
                   <span class="muted skill-path" title={row.file}><IconFolderOpen size={11} /> {row.file}</span>
                 </div>
                 <Show when={row.status === "ok" || row.status === "conflict"}>

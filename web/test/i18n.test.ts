@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { pluralKey, resolveLanguage, translate } from "../../shared/i18n.ts";
-import { flow } from "./harness.ts";
+import english from "../src/locales/en.json" with { type: "json" };
+import { flow, openProject, openTool } from "./harness.ts";
 
 test("system language matching, fallback, placeholders and plurals", () => {
   for (const locale of ["nb-NO", "nn-NO", "no"]) assert.equal(resolveLanguage(undefined, [locale]), "nb");
@@ -31,4 +32,30 @@ flow("changing language updates settings and navigation without a reload and sur
   await page.reload();
   await page.getByRole("button", { name: "Code", exact: true }).first().waitFor();
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
+});
+
+flow("English composer, settings and side panel retain responsive controls", async (harness) => {
+  const { page } = harness;
+  await openProject(harness);
+  await openTool(page, "Oversikt");
+  await page.route(/\/assets\/en-[^/]+\.js$/, route => route.fulfill({
+    contentType: "application/javascript",
+    body: `export default ${JSON.stringify({ ...english, Melding: "Message", Snakkeboble: "Speech bubble" })};`,
+  }));
+  await page.getByTestId("settings-gear").click();
+  await page.locator(".settings-nav").getByRole("button", { name: "Generelt", exact: true }).click();
+  await page.getByRole("button", { name: "Språk", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: "English", exact: true }).click();
+  await page.getByRole("heading", { name: "General", exact: true }).waitFor();
+  assert.equal((await harness.api("GET", "/api/bootstrap")).settings.language, "en");
+  await page.locator(".settings-nav").getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.getByTestId("app-icon-cards").getByRole("radio", { name: "Speech bubble", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Back to the app", exact: true }).click();
+  await page.getByRole("textbox", { name: "Message", exact: true }).waitFor();
+  await page.locator(".right-panel").getByRole("tab", { name: "Overview", exact: true }).waitFor();
+  const split = page.locator('[data-action="split-down"]');
+  assert.equal(await split.getAttribute("aria-label"), "Split down");
+  assert.notEqual(await split.evaluate(button => getComputedStyle(button).display), "none");
+  await page.setViewportSize({ width: 480, height: 850 });
+  assert.equal(await split.evaluate(button => getComputedStyle(button).display), "none");
 });

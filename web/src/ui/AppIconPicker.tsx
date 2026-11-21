@@ -11,7 +11,7 @@ import { app, toast } from "../state/app";
 import { IconCheck } from "./icons";
 import { save } from "./settings/parts";
 
-import { t } from "../lib/i18n";
+import { lookupMessage, t } from "../lib/i18n";
 export function AppIconPicker() {
   const current = (): AppIconId => app.settings.appIcon ?? DEFAULT_APP_ICON;
   // In the app: can the app library's icon follow? A failed copy is said once, in a toast.
@@ -56,7 +56,7 @@ export function AppIconPicker() {
               aria-checked={current() === icon.id}
               tabindex={current() === icon.id ? 0 : -1}
               data-icon-id={icon.id}
-              aria-label={icon.name}
+              aria-label={lookupMessage(icon.name)}
               aria-describedby={`app-icon-text-${icon.id}`}
               onClick={() => void choose(icon.id)}
             >
@@ -65,12 +65,12 @@ export function AppIconPicker() {
                 <img class="app-icon-large" src={appIconUrl(icon.id)} alt="" width="52" height="52" draggable={false} />
               </span>
               <span class="app-icon-name">
-                <span class="app-icon-label">{icon.name}</span>
+                <span class="app-icon-label">{lookupMessage(icon.name)}</span>
                 <span class="app-icon-check"><IconCheck size={12} /></span>
               </span>
               <span class="app-icon-text" id={`app-icon-text-${icon.id}`}>
                 <Show when={icon.id === DEFAULT_APP_ICON}>{t("Standard.")} </Show>
-                {icon.note}
+                {lookupMessage(icon.note)}
               </span>
             </button>
           )}

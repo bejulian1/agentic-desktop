@@ -257,7 +257,7 @@ export const currentProject = createMemo(() => {
 // and the top bar and the pane show none. The server's placeholder title is UNTITLED; screen
 // readers get «Tom tråd» where a name is needed.
 export const UNTITLED = "Ny tråd";
-export const EMPTY_THREAD_NAME = "Tom tråd";
+export const emptyThreadName = () => t("Tom tråd");
 export const untitled = (t: Thread | undefined | null): boolean => !t || t.title === UNTITLED;
 export const listed = (t: Thread | undefined): t is Thread => !!t && !t.temporary && !untitled(t);
 

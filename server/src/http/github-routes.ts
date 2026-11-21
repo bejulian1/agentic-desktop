@@ -1,3 +1,4 @@
+import { sourceText } from "../../../shared/i18n.ts";
 // Round 8 (agent G): GitHub (Beta), read only, and saving from the mini editor. Kept apart from
 // api.ts so the round's agents do not edit the same lines.
 //
@@ -147,9 +148,9 @@ async function editable(project: Project, input: string, dataDir: string): Promi
   let text = data && !binary ? new TextDecoder().decode(data) : null;
   const eol: EditableFile["eol"] = text && /\r\n/.test(text.slice(0, 64 * 1024)) ? "crlf" : "lf";
   let reason: string | undefined;
-  if (!data) reason = "Filen er for stor til å redigeres her.";
-  else if (binary) reason = "Binærfil.";
-  else if (isProtectedPath(rel)) reason = "Beskyttet fil. Den kan leses, men ikke lagres herfra.";
+  if (!data) reason = sourceText("Filen er for stor til å redigeres her.");
+  else if (binary) reason = sourceText("Binærfil.");
+  else if (isProtectedPath(rel)) reason = sourceText("Beskyttet fil. Den kan leses, men ikke lagres herfra.");
   if (text === null && data && !binary) text = "";
   return {
     path: rel,

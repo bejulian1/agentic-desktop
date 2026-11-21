@@ -1,4 +1,4 @@
-import { language, plural, t } from "../../lib/i18n.ts";
+import { lookupMessage, language, plural, t } from "../../lib/i18n.ts";
 // Lagring: how much room the app's data folder takes, per category, and cleaning up what is not
 // needed. The server measures and deletes (server/src/storage.ts); this page shows the numbers,
 // lets you pick what to clean, says what will be deleted, and asks before it does.
@@ -169,7 +169,7 @@ export function StoragePage() {
               <For each={ORDER}>
                 {(id) => {
                   const a = () => action(id);
-                  const reason = () => a()?.reason ?? (!usable(a()) ? t("Ingenting å rydde") : undefined);
+                  const reason = () => lookupMessage(a()?.reason) || (!usable(a()) ? t("Ingenting å rydde") : undefined);
                   return (
                     <label class="setting storage-action" classList={{ disabled: !usable(a()) }} data-action={id}>
                       <input type="checkbox" role="switch" class="switch" checked={chosen().has(id)} disabled={!usable(a()) || busy()} onChange={(e) => toggle(id, e.currentTarget.checked)} />

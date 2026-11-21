@@ -5,7 +5,7 @@ const [current, setCurrent] = createSignal<{ language: Language; catalog: Catalo
 let revision = 0;
 export const language = () => current().language;
 export const t = (source: string, values?: Values) => translate(current().catalog, source, values);
-export const lookupMessage = t;
+export const lookupMessage = (source: string | null | undefined, values?: Values) => source == null ? "" : t(source, values);
 export const plural = (count: number, one: string, other: string, values?: Values) =>
   translate(current().catalog, pluralKey(language(), count, one, other), { ...values, count });
 

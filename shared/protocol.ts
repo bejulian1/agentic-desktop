@@ -1270,6 +1270,7 @@ export interface HarnessPartInfo {
 }
 
 export interface PromptLayerInfo {
+  sourceMessage?: DisplayMessage;
   id: string;
   title: string;
   source: string;
@@ -1420,7 +1421,12 @@ export interface SkillImportFile {
   text: string;
 }
 
+export interface DisplayMessage { key: string; values?: Record<string, string | number> }
+
 export interface SkillImportRow {
+  errorMessage?: DisplayMessage;
+  conflictFile?: string;
+  conflictProject?: string;
   key: string;
   file: string;
   name: string;
@@ -1434,6 +1440,7 @@ export interface SkillImportRow {
 }
 
 export interface SkillImportResult {
+  errorMessage?: DisplayMessage;
   key: string;
   file: string;
   status: "created" | "replaced" | "skipped" | "error";
@@ -1502,6 +1509,9 @@ export interface SessionContextPart {
   tokens: number;
 }
 export interface SessionConnection {
+  localizeLabel?: boolean;
+  detailMessage?: DisplayMessage;
+  signedInSites?: number;
   id: string;
   kind: "model" | "github" | "browser";
   label: string;
@@ -1509,6 +1519,7 @@ export interface SessionConnection {
   status: "ok" | "warn" | "off";
 }
 export interface SessionTask {
+  detailMessage?: DisplayMessage;
   id: string; // "agent:<threadId>", "terminal:<id>" or "server:<id>"
   kind: "agent" | "terminal" | "server";
   title: string;

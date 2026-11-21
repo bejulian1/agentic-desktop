@@ -8,7 +8,7 @@
 // file, and refuses when the file changed on disk since it was opened (409).
 //
 // This module is a chunk of its own with CodeMirror in it. ./MiniEditorHooks is the light half.
-import { plural, t } from "../lib/i18n";
+import { lookupMessage, plural, t } from "../lib/i18n";
 import { Annotation, ChangeSet, Compartment, EditorSelection, EditorState, RangeSetBuilder, StateEffect, StateField, Text, type Extension, type RangeSet, type Transaction } from "@codemirror/state";
 import { Decoration, drawSelection, EditorView, gutter, GutterMarker, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, type DecorationSet } from "@codemirror/view";
 import { bracketMatching, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
@@ -488,7 +488,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
       const loaded = await get<EditableFile>(`/api/projects/${req.projectId}/file/edit?path=${encodeURIComponent(path)}`);
       if (loaded.binary || loaded.text === null) {
         setRetryable(false);
-        throw new Error(loaded.binary ? t("Binærfilen kan ikke vises her.") : (loaded.reason ?? t("Filen kan ikke vises her.")));
+        throw new Error(loaded.binary ? t("Binærfilen kan ikke vises her.") : (lookupMessage(loaded.reason) || t("Filen kan ikke vises her.")));
       }
       return loaded;
     } catch (err) {
@@ -810,7 +810,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
           <span class="mini-path"><Show when={dir}><span class="mini-dir">{dir}</span></Show><span class="mini-name">{name()}</span></span>
           <Show when={dirty()}><span class="mini-dirty" title={t("Ikke lagret")} aria-label={t("Ikke lagret")} /></Show>
           <Show when={!isFile || (file() && !file()!.editable)}>
-            <span class="pill mini-pill" title={file()?.reason ?? t("Kodeblokker fra samtalen kan ikke lagres.")}>{t("Bare lesing")}</span>
+            <span class="pill mini-pill" title={lookupMessage(file()?.reason) || t("Kodeblokker fra samtalen kan ikke lagres.")}>{t("Bare lesing")}</span>
           </Show>
         </div>
         <div class="mini-tools" role="toolbar" aria-label={t("Editorverktøy")}>
@@ -968,7 +968,7 @@ function MiniEditor(props: { request: EditorRequest; onDone: () => void; registe
         </Show>
         <span>{language.name}</span>
         <Show when={isFile && file()}><span>{file()!.eol === "crlf" ? "CRLF" : "LF"}</span></Show>
-        <Show when={isFile && file() && !file()!.editable}><span>{file()!.reason}</span></Show>
+        <Show when={isFile && file() && !file()!.editable}><span>{lookupMessage(file()!.reason)}</span></Show>
       </footer>
     </dialog>
   );

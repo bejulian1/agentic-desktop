@@ -1,4 +1,4 @@
-import { language, plural, t } from "../../lib/i18n.ts";
+import { lookupMessage, language, plural, t } from "../../lib/i18n.ts";
 // Innstillinger → Kode-harness (SPEC 22.2): what the model always gets in Kode, in layers. The
 // built-in base can be switched off in parts but not edited; the global AGENTS.md is the user's
 // own file, with «Gjenopprett standard» that shows the difference and keeps a backup first; and a
@@ -14,6 +14,18 @@ import { IconChevronDown, IconCopy, IconPencil, IconReset } from "../icons";
 import { Select } from "../Select";
 import { openProjectSettings } from "../ProjectSettings";
 import { Group, Page, Rich, Row, Segmented, SkeletonRows } from "./parts";
+
+function layerTitle(layer: PromptLayerInfo): string {
+  if (layer.id === "agentic") return layer.title;
+  if (layer.id === "project") return t("Prosjektets {file}", { file: layer.source });
+  return lookupMessage(layer.title);
+}
+
+function layerSource(layer: PromptLayerInfo): string {
+  if (layer.id === "project" || layer.id === "agentic" || layer.id === "global") return layer.source;
+  if (layer.sourceMessage) return lookupMessage(layer.sourceMessage.key, layer.sourceMessage.values);
+  return lookupMessage(layer.source);
+}
 
 interface Preview {
   mode: "code" | "chat";
@@ -67,7 +79,7 @@ export function DiffView(props: { lines: DiffLineInfo[]; label: string }) {
 
 function PartRow(props: { part: HarnessPartInfo; busy: boolean; onChange: (on: boolean) => void }) {
   return (
-    <Row as="label" label={props.part.title} text={props.part.text} badge={props.part.locked ? <span class="pill harness-locked">{t("Alltid på")}</span> : undefined}>
+    <Row as="label" label={lookupMessage(props.part.title)} text={lookupMessage(props.part.text)} badge={props.part.locked ? <span class="pill harness-locked">{t("Alltid på")}</span> : undefined}>
       <input type="checkbox" role="switch" class="switch" checked={props.part.on} disabled={props.part.locked || props.busy} onChange={(e) => props.onChange(e.currentTarget.checked)} />
     </Row>
   );
@@ -149,7 +161,7 @@ export function HarnessPage() {
     });
   };
   const resetLayer = async (layer: PromptLayerInfo) => {
-    if (!(await confirmDialog({ title: t("Tilbakestille «{title}»?", { title: layer.title }), text: t("Din egen tekst for {variant} fjernes, og appens innebygde tekst brukes igjen.", { variant: variant() }), confirm: t("Tilbakestill"), danger: true }))) return;
+    if (!(await confirmDialog({ title: t("Tilbakestille «{title}»?", { title: layerTitle(layer) }), text: t("Din egen tekst for {variant} fjernes, og appens innebygde tekst brukes igjen.", { variant: variant() }), confirm: t("Tilbakestill"), danger: true }))) return;
     await run(async () => {
       await del(`/api/harness/overrides?${overrideQuery(layer.id)}`);
       if (editing()?.id === layer.id) setEditing(null);
@@ -367,9 +379,9 @@ export function HarnessPage() {
                       >
                         <summary>
                           <span class={`layer-dot layer-${layer.id}`} aria-hidden="true" />
-                          <span class="layer-title">{layer.title}</span>
+                          <span class="layer-title">{layerTitle(layer)}</span>
                           <Show when={layer.overridden}><span class="layer-own">{t("Endret")}</span></Show>
-                          <span class="muted layer-source" title={layer.source}>{layer.source}</span>
+                          <span class="muted layer-source" title={layerSource(layer)}>{layerSource(layer)}</span>
                           <span class="layer-tokens">{formatTokens(layer.tokens)}</span>
                           <IconChevronDown size={13} />
                         </summary>
@@ -391,7 +403,7 @@ export function HarnessPage() {
                           <div class="harness-layer-editor">
                             <textarea
                               class="input code-area"
-                              aria-label={t("Egen tekst for {title}", { title: layer.title })}
+                              aria-label={t("Egen tekst for {title}", { title: layerTitle(layer) })}
                               rows={18}
                               spellcheck={false}
                               value={editing()!.text}

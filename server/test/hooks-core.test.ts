@@ -205,6 +205,8 @@ test("«Test» runs a draft or a saved hook once with a sample payload and says 
   assert.equal(draft.exitCode, 2);
   assert.equal(draft.stderr.trim(), "sett");
   assert.match(draft.effect, /stoppet verktøykallet/);
+  assert.equal(draft.effectKey, "Ville stoppet verktøykallet. Modellen ville fått: {text}");
+  assert.deepEqual(draft.effectValues, { text: "sett" });
   assert.equal(hooks.state().hooks.length, 0, "a draft is not saved");
   const saved = hooks.create({ event: "UserPromptSubmit", command: "echo ekstra" }).hooks[0];
   const { lastRun: _lastRun, ...savedDraft } = saved;

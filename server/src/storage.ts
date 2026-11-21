@@ -1,3 +1,4 @@
+import { sourceText } from "../../shared/i18n.ts";
 // Lagring: how much room the app's own data folder takes, and cleaning up what is not needed.
 //
 // Safety rules, all enforced here:
@@ -282,12 +283,12 @@ export class Storage {
       { id: "browser-cache", bytes: caches, count: 0, available: caches > 0 },
       { id: "browser-all", bytes: sizes.browser.bytes, count: sizes.browser.files, available: sizes.browser.bytes > 0 },
       { id: "orphans", bytes: sum(orphans), count: orphans.length, available: orphans.length > 0 },
-      { id: "archived", bytes: sum(archived), count: archived.length, available: archived.length > 0 && !busy, ...(busy && archived.length ? { reason: "En tråd kjører" } : {}) },
-      { id: "vacuum", bytes: store.freeBytes() + wal, count: 0, available: !busy, ...(busy ? { reason: "En tråd kjører" } : {}) },
+      { id: "archived", bytes: sum(archived), count: archived.length, available: archived.length > 0 && !busy, ...(busy && archived.length ? { reason: sourceText("En tråd kjører") } : {}) },
+      { id: "vacuum", bytes: store.freeBytes() + wal, count: 0, available: !busy, ...(busy ? { reason: sourceText("En tråd kjører") } : {}) },
       { id: "logs", bytes: sum(logs), count: logs.length, available: logs.length > 0 },
     ];
     for (const action of actions) {
-      if ((action.id === "browser-cache" || action.id === "browser-all") && browserOpen && action.available) action.reason = "Nettleseren lukkes først";
+      if ((action.id === "browser-cache" || action.id === "browser-all") && browserOpen && action.available) action.reason = sourceText("Nettleseren lukkes først");
     }
 
     let downloads: StorageReport["downloads"] = null;

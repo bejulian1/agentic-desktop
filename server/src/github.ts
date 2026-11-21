@@ -1,3 +1,4 @@
+import { sourceText } from "../../shared/i18n.ts";
 // GitHub, read only (round 8, Beta). A personal access token is kept in the keyring next to the
 // provider keys (secrets.ts), is sent only to the GitHub API, and never goes back to the browser.
 // The repo comes from .git/config, read as a file: no git command is ever run.
@@ -138,17 +139,17 @@ export function parseGitHubUrl(url: string): { owner: string; repo: string } | n
 // The project's GitHub repo: origin when it is on GitHub, else the first remote that is.
 export function readGitHubRemote(root: string, web = WEB): { remote: GitHubRemote | null; reason?: string } {
   const file = configFile(root);
-  if (!file) return { remote: null, reason: "Prosjektmappen er ikke en git-mappe." };
+  if (!file) return { remote: null, reason: sourceText("Prosjektmappen er ikke en git-mappe.") };
   const text = readSmall(file, MAX_CONFIG);
-  if (text === null) return { remote: null, reason: "Fant ikke .git/config, eller filen kunne ikke leses." };
+  if (text === null) return { remote: null, reason: sourceText("Fant ikke .git/config, eller filen kunne ikke leses.") };
   const remotes = parseRemotes(text);
-  if (!remotes.length) return { remote: null, reason: "Git-mappen har ingen remote." };
+  if (!remotes.length) return { remote: null, reason: sourceText("Git-mappen har ingen remote.") };
   const ordered = [...remotes.filter((r) => r.name === "origin"), ...remotes.filter((r) => r.name !== "origin")];
   for (const candidate of ordered) {
     const found = parseGitHubUrl(candidate.url);
     if (found) return { remote: { ...found, remote: candidate.name, url: `${web}/${found.owner}/${found.repo}` } };
   }
-  return { remote: null, reason: "Ingen remote peker til GitHub." };
+  return { remote: null, reason: sourceText("Ingen remote peker til GitHub.") };
 }
 
 // 2. The API

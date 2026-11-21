@@ -2,7 +2,7 @@
 // the icon and colour, the folder, and removing the project from the app (nothing on disk is ever
 // deleted). Agent: the default model, the permission mode and the project's own instructions in
 // .agentic/AGENTS.md. Kilder: where each setting comes from, in words. Lagre saves it all at once.
-import { t } from "../lib/i18n";
+import { lookupMessage, t } from "../lib/i18n";
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
 import { del, get, patch, put } from "../lib/api";
 import type { PermissionMode, Project, ProjectConfig } from "../../../shared/protocol";
@@ -55,7 +55,7 @@ export function IconPicker(props: { icon: string | null; color: string | null; o
       <div class="icon-picker-colors" role="radiogroup" aria-label={t("Farge")}>
         <button type="button" role="radio" class="swatch swatch-none" aria-checked={!props.color} aria-label={t("Ingen farge")} title={t("Ingen farge")} onClick={() => props.onColor(null)} />
         <For each={PROJECT_COLORS}>
-          {(c) => <button type="button" role="radio" class="swatch" aria-checked={props.color === c.id} aria-label={c.label} title={c.label} style={`--swatch:${c.value}`} onClick={() => props.onColor(c.id)} />}
+          {(c) => <button type="button" role="radio" class="swatch" aria-checked={props.color === c.id} aria-label={lookupMessage(c.label)} title={lookupMessage(c.label)} style={`--swatch:${c.value}`} onClick={() => props.onColor(c.id)} />}
         </For>
       </div>
       <div class="icon-picker-grid" role="radiogroup" aria-label={tab() === "emoji" ? t("Emoji") : t("Ikoner")}>

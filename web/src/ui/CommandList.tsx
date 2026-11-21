@@ -1,4 +1,4 @@
-import { t } from "../lib/i18n";
+import { lookupMessage, t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, onMount, Show, type JSX } from "solid-js";
 import type { CommandInfo } from "../../../shared/protocol";
 import { COMMAND_GROUPS, commandGroup } from "../../../shared/slash-commands";
@@ -21,7 +21,7 @@ export function CommandList(props: { commands: CommandInfo[]; initialQuery?: str
     const entries = input.startsWith("$") ? props.commands.filter(command => command.kind === "skill") : props.commands;
     if (!search) return entries;
     return entries.filter(command =>
-      [command.name, ...(command.aliases ?? []), command.args ?? "", command.description].some(value => value.toLowerCase().includes(search))
+      [command.name, ...(command.aliases ?? []), command.args ?? "", command.kind === "builtin" ? lookupMessage(command.description) : command.description].some(value => value.toLowerCase().includes(search))
     );
   });
   const groups = createMemo(() => Object.entries(COMMAND_GROUPS).flatMap(([id, label]) => {
@@ -38,7 +38,7 @@ export function CommandList(props: { commands: CommandInfo[]; initialQuery?: str
       <For each={groups()} fallback={<p role="status" class="muted">{t("Ingen kommandoer eller skills funnet.")}</p>}>
         {group => (
           <section class="command-guide-section">
-            <h3>{group.label}</h3>
+            <h3>{lookupMessage(group.label)}</h3>
             <dl>
               <For each={group.commands}>
                 {command => (
@@ -47,7 +47,7 @@ export function CommandList(props: { commands: CommandInfo[]; initialQuery?: str
                       <Show when={command.args}> <span class="command-guide-args">{command.args}</span></Show>
                     </dt>
                     <dd>
-                      {command.description}
+                      {command.kind === "builtin" ? lookupMessage(command.description) : command.description}
                       <Show when={command.aliases?.length}><div class="muted">{t("Også {aliases}", { aliases: command.aliases!.map(alias => `/${alias}`).join(", ") })}</div></Show>
                       <Show when={command.slashReserved}><div class="muted">{t("Bruk $ for denne skillen. Skråstrek-navnet tilhører en innebygd kommando.")}</div></Show>
                     </dd>

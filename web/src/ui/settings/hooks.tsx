@@ -14,7 +14,7 @@ import { Select } from "../Select";
 import { Group, Page, Rich, Row, SkeletonRows } from "./parts";
 import "../../styles/hooks.css";
 
-import { t } from "../../lib/i18n";
+import { lookupMessage, t } from "../../lib/i18n";
 // Getters, so a label is translated when it is read and follows the active language.
 export const HOOK_EVENT_LABELS: Record<HookEvent, string> = {
   get PreToolUse() { return t("Før verktøykall"); },
@@ -269,7 +269,7 @@ export function HooksPage() {
                     <strong>{result().exitCode !== null
                       ? t("{outcome}, avslutningskode {code}, {ms} ms", { outcome: outcomeLabel(result().outcome), code: result().exitCode!, ms: result().durationMs })
                       : t("{outcome}, {ms} ms", { outcome: outcomeLabel(result().outcome), ms: result().durationMs })}</strong>
-                    <span>{result().effect}</span>
+                    <span>{lookupMessage(result().effectKey ?? result().effect, result().effectValues)}</span>
                     <Show when={result().stdout}><span class="muted small">stdout</span><pre class="hook-output">{result().stdout}</pre></Show>
                     <Show when={result().stderr}><span class="muted small">stderr</span><pre class="hook-output">{result().stderr}</pre></Show>
                   </div>

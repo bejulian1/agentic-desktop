@@ -1,4 +1,4 @@
-import { language, t } from "../lib/i18n";
+import { lookupMessage, language, plural, t } from "../lib/i18n";
 // Round 12 (SPEC 26.2): Økt, a panel about the thread in focus. Four sections that fold: Miljø,
 // Kontekst (how full the context window is, and what fills it), Tilkoblinger, and Oppgaver i
 // bakgrunnen with Stopp and «Avsluttet: N». Everything comes from GET /api/threads/:id/session
@@ -7,7 +7,7 @@ import { language, t } from "../lib/i18n";
 // It is the tool «Økt» in the side panel (ui/panel-tools.tsx), on the start page, in + and as
 // Øktpanel among the separate panel buttons.
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js";
-import type { SessionInfo, SessionTask } from "../../../shared/protocol";
+import type { SessionConnection, SessionInfo, SessionTask } from "../../../shared/protocol";
 import { Dynamic } from "solid-js/web";
 import { get, post } from "../lib/api";
 import { formatTokens } from "../lib/format";
@@ -173,8 +173,8 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                   {(c) => (
                     <div class="okt-row" data-testid={`okt-connection-${c.id}`}>
                       {c.kind === "model" ? <IconSpark size={15} /> : c.kind === "browser" ? <IconGlobe size={15} /> : <IconPlug size={15} />}
-                      <span class="okt-label">{c.label}</span>
-                      <span class="okt-meta">{c.detail}</span>
+                      <span class="okt-label">{c.localizeLabel ? lookupMessage(c.label) : c.label}</span>
+                      <span class="okt-meta">{connectionDetail(c)}</span>
                       <span class={`okt-status ${c.status}`} role="img" aria-label={c.status === "ok" ? t("Tilkoblet") : c.status === "warn" ? t("Trenger oppsett") : t("Ikke i bruk nå")} />
                     </div>
                   )}
@@ -192,7 +192,7 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                       <li class="okt-row okt-task" data-testid="okt-task">
                         <TaskIcon task={task} />
                         <TaskTitle task={task} onOpenThread={props.onOpenThread} />
-                        <span class="okt-meta okt-detail">{task.detail}</span>
+                        <span class="okt-meta okt-detail">{sessionDetail(task)}</span>
                         <span class="okt-meta okt-time" title={t("Startet {time}", { time: new Date(task.startedAt).toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" }) })}>{elapsed(now() - task.startedAt)}</span>
                         <button type="button" class="okt-stop" title={t("Stopp")} aria-label={t("Stopp {title}", { title: task.title })} disabled={stopping().has(task.id)} onClick={() => void stop(task)}>
                           <span aria-hidden="true" />
@@ -213,7 +213,7 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                           <li class="okt-row okt-task ended">
                             <TaskIcon task={task} />
                             <TaskTitle task={task} onOpenThread={props.onOpenThread} />
-                            <span class="okt-meta okt-detail">{task.detail}</span>
+                            <span class="okt-meta okt-detail">{sessionDetail(task)}</span>
                             <span class="okt-meta okt-time">{task.finishedAt ? elapsed(task.finishedAt - task.startedAt) : ""}</span>
                           </li>
                         )}
@@ -312,7 +312,7 @@ function ContextBreakdown(props: { context: SessionInfo["context"] }) {
       {/* What the used part is made of; the heading has how much of the window it is. */}
       <div class="okt-stack" role="img" aria-label={t("Fordelingen av {count} tokens i bruk", { count: formatTokens(props.context.usedTokens) })}>
         <For each={props.context.parts}>
-          {(part) => <span class={`okt-part-${part.id}`} style={{ "flex-grow": part.tokens }} title={`${part.label}: ${formatTokens(part.tokens)}`} />}
+          {(part) => <span class={`okt-part-${part.id}`} style={{ "flex-grow": part.tokens }} title={`${lookupMessage(part.label)}: ${formatTokens(part.tokens)}`} />}
         </For>
       </div>
       <ul class="okt-parts">
@@ -320,7 +320,7 @@ function ContextBreakdown(props: { context: SessionInfo["context"] }) {
           {(part) => (
             <li>
               <span class={`okt-swatch okt-part-${part.id}`} aria-hidden="true" />
-              <span class="okt-label">{part.label}</span>
+              <span class="okt-label">{lookupMessage(part.label)}</span>
               <span class="okt-meta">{formatTokens(part.tokens)}</span>
             </li>
           )}
@@ -334,6 +334,16 @@ function ContextBreakdown(props: { context: SessionInfo["context"] }) {
   );
 }
 
+function sessionDetail(item: SessionTask | SessionConnection) {
+  return item.detailMessage ? lookupMessage(item.detailMessage.key, item.detailMessage.values) : item.detail;
+}
+
+function connectionDetail(connection: SessionConnection) {
+  if (connection.kind !== "browser" || connection.signedInSites == null) return sessionDetail(connection);
+  const status = connection.status === "ok" ? t("Kjører") : t("Starter ved første bruk");
+  return connection.signedInSites ? plural(connection.signedInSites, "{status}, innlogget på {count} nettsted", "{status}, innlogget på {count} nettsteder", { status }) : status;
+}
+
 function TaskIcon(props: { task: SessionTask }) {
   return (
     <span class="okt-task-icon" classList={{ running: props.task.running }}>
@@ -343,7 +353,7 @@ function TaskIcon(props: { task: SessionTask }) {
 }
 
 function TaskTitle(props: { task: SessionTask; onOpenThread?: (id: string) => void }) {
-  const label = () => `${props.task.title} · ${props.task.detail}`;
+  const label = () => `${props.task.title} · ${sessionDetail(props.task)}`;
   return (
     <Show when={props.task.threadId && props.onOpenThread} fallback={<span class="okt-label" title={label()}>{props.task.title}</span>}>
       <button type="button" class="okt-label okt-link" title={t("Åpne {title}", { title: props.task.title })} onClick={() => props.onOpenThread!(props.task.threadId!)}>{props.task.title}</button>

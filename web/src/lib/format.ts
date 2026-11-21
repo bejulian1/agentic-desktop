@@ -38,10 +38,10 @@ export function relativeTime(at: number, now = Date.now()): string {
     return format.format(-Math.round(minutes / 1440), "day");
   }
   if (minutes < 1) return t("nå");
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return t("{count} min", { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} t`;
+  if (hours < 24) return t("{count} t", { count: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days} d`;
+  if (days < 7) return t("{count} d", { count: days });
   return new Date(at).toLocaleDateString(language(), { day: "numeric", month: "short" });
 }

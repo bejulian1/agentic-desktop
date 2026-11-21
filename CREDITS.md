@@ -57,7 +57,7 @@ Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrette
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.
 
-Codex (GPT 6.2 Astra) implementerte språkvalget, katalogverktøyene og de første oversatte flatene i nettgrensesnittet og Electron.
+Codex (GPT 6.2 Astra) implementerte språkvalget, katalogverktøyene og de første oversatte flatene i nettgrensesnittet og Electron. Codex gjorde også meldingsfeltet, agentvisningene, sidepanelene og skallet oversettbare, integrerte endringene og testet språkbytte og responsiv layout. Claude Fable 5.2 gjorde blant annet innstillingene, Git- og GitHub-visningene oversettbare og la til `Rich` for setninger med innebygde elementer.
 
 ## Om GitHubs Contributors-graf
 

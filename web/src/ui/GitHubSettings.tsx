@@ -11,7 +11,7 @@ import { resetText } from "./GitHubShared";
 import { Group, Page, Rich, Row } from "./settings/parts";
 import { SecretInput } from "./SecretInput";
 
-import { t } from "../lib/i18n";
+import { lookupMessage, t } from "../lib/i18n";
 export function GitHubSettings() {
   const [status, { mutate }] = createResource(() => get<GitHubStatus>("/api/github"));
   const project = currentProject;
@@ -101,7 +101,7 @@ export function GitHubSettings() {
         <Show when={project()} fallback={<Row label={t("Ingen prosjekt valgt")} text={t("Velg et prosjekt i Kode for å se repoet.")} />}>
           <Row
             label={repo()?.remote ? `${repo()!.remote!.owner}/${repo()!.remote!.repo}` : project()!.name}
-            text={repo.loading ? t("Leser .git/config…") : repo()?.remote ? t("Fra remoten «{remote}» i .git/config. Åpne GitHub-fanen i panelet til høyre i Kode.", { remote: repo()!.remote!.remote }) : (repo()?.reason ?? t("Kunne ikke lese .git/config."))}
+            text={repo.loading ? t("Leser .git/config…") : repo()?.remote ? t("Fra remoten «{remote}» i .git/config. Åpne GitHub-fanen i panelet til høyre i Kode.", { remote: repo()!.remote!.remote }) : (lookupMessage(repo()?.reason) || t("Kunne ikke lese .git/config."))}
           />
         </Show>
       </Group>

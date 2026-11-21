@@ -1,4 +1,4 @@
-import { language, plural, t } from "../lib/i18n.ts";
+import { lookupMessage, language, plural, t } from "../lib/i18n.ts";
 // GitHub (Beta) in the right panel (round 8, agent G): the project's repo from .git/config, and its
 // open pull requests and issues, read only. A link opens in the Nettleser panel. The token never
 // reaches the browser; the server asks GitHub and sends back only what is shown here.
@@ -96,7 +96,7 @@ export default function GitHubPanel(props: { projectId: string }) {
           <div class="github-empty">
             <IconPullRequest size={20} />
             <p class="github-empty-title">{data()!.error?.code === "offline" ? t("Ingen kontakt med serveren") : t("Ikke et GitHub-repo")}</p>
-            <p>{data()!.error?.code === "offline" ? data()!.error!.message : data()!.reason}</p>
+            <p>{data()!.error?.code === "offline" ? lookupMessage(data()!.error!.message) : lookupMessage(data()!.reason)}</p>
             <p class="muted"><Rich text={t("Repoet leses fra {file} i prosjektmappen. Appen kjører aldri git-kommandoer.")} parts={{ file: <code>.git/config</code> }} /></p>
             <Show when={data()!.error?.code === "offline"}><button type="button" class="btn btn-small" onClick={() => void refresh()}>{t("Prøv igjen")}</button></Show>
           </div>
@@ -116,7 +116,7 @@ export default function GitHubPanel(props: { projectId: string }) {
             {(error) => (
               <div class="github-error" role="alert" data-code={error().code}>
                 <strong>{errorTitle(error())}</strong>
-                <span>{error().code === "rate-limit" ? `${error().message} ${resetText(error().resetAt, now())}` : error().message}</span>
+                <span>{error().code === "rate-limit" ? `${lookupMessage(error().message)} ${resetText(error().resetAt, now())}` : lookupMessage(error().message)}</span>
                 <span class="github-error-actions">
                   <Show when={error().code === "not-connected" || error().code === "bad-token"}>
                     <button type="button" class="btn btn-small btn-primary" onClick={() => setSettingsOpen("github")}>{error().code === "not-connected" ? t("Koble til…") : t("Nytt token…")}</button>

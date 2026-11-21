@@ -7,6 +7,8 @@ export type LanguageSetting = Language | "system";
 export type Catalog = Record<string, string>;
 export type Values = Record<string, number | string>;
 
+export const sourceText = (text: string): string => text;
+
 export function isLanguage(value: unknown): value is Language {
   return typeof value === "string" && Object.hasOwn(languages, value);
 }

@@ -1,3 +1,4 @@
+import { sourceText } from "../../../shared/i18n.ts";
 // Provider presets and model discovery. The catalogue links to the vendors' own setup
 // documentation. Compatibility depends on the endpoint and model selected by the user.
 import type { DetectedLocalProvider, ListedModel, LocalProviderKind, ProviderKind, ProviderPreset } from "../../../shared/protocol.ts";
@@ -11,18 +12,18 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   // 2026-11-14 and requested removing provider Beta labels. This is not evidence of live
   // OpenAI/Anthropic testing; connection checks remain available for each saved provider.
   // https://openrouter.ai/docs/api-reference/models/get-models
-  { id: "openrouter", name: "OpenRouter", kind: "openai-compatible", category: "gateway", modelDiscovery: "auto", baseUrl: "https://openrouter.ai/api/v1", apiKeyEnv: "OPENROUTER_API_KEY", keyRequired: true, docsUrl: "https://openrouter.ai/docs", checked: true, beta: false, note: "Mange modeller fra ulike leverandører med én nøkkel" },
+  { id: "openrouter", name: "OpenRouter", kind: "openai-compatible", category: "gateway", modelDiscovery: "auto", baseUrl: "https://openrouter.ai/api/v1", apiKeyEnv: "OPENROUTER_API_KEY", keyRequired: true, docsUrl: "https://openrouter.ai/docs", checked: true, beta: false, note: sourceText("Mange modeller fra ulike leverandører med én nøkkel") },
   // https://docs.abliteration.ai/api/introduction (checked 2026-11-04): base https://api.abliteration.ai/v1,
   // "Authorization: Bearer", OpenAI surface with /v1/chat/completions and /v1/models. The page does
   // not say which fields /v1/models returns, so the context size comes from the table or the default.
-  { id: "abliteration", name: "abliteration.ai", kind: "openai-compatible", category: "cloud", modelDiscovery: "auto", baseUrl: "https://api.abliteration.ai/v1", apiKeyEnv: "ABLITERATION_API_KEY", keyRequired: true, docsUrl: "https://docs.abliteration.ai/api/introduction", checked: true, beta: false, note: "Direkte tilgang til modellene fra abliteration.ai" },
+  { id: "abliteration", name: "abliteration.ai", kind: "openai-compatible", category: "cloud", modelDiscovery: "auto", baseUrl: "https://api.abliteration.ai/v1", apiKeyEnv: "ABLITERATION_API_KEY", keyRequired: true, docsUrl: "https://docs.abliteration.ai/api/introduction", checked: true, beta: false, note: sourceText("Direkte tilgang til modellene fra abliteration.ai") },
   // https://platform.claude.com/docs/en/api/models/list. The Anthropic provider adds /v1 itself.
-  { id: "anthropic", name: "Anthropic", kind: "anthropic", category: "cloud", modelDiscovery: "auto", baseUrl: "https://api.anthropic.com", apiKeyEnv: "ANTHROPIC_API_KEY", keyRequired: true, docsUrl: "https://platform.claude.com/docs/en/api/overview", checked: true, beta: false, note: "Direkte tilgang til modellene fra Anthropic" },
+  { id: "anthropic", name: "Anthropic", kind: "anthropic", category: "cloud", modelDiscovery: "auto", baseUrl: "https://api.anthropic.com", apiKeyEnv: "ANTHROPIC_API_KEY", keyRequired: true, docsUrl: "https://platform.claude.com/docs/en/api/overview", checked: true, beta: false, note: sourceText("Direkte tilgang til modellene fra Anthropic") },
   // https://developers.openai.com/api/reference/resources/models/methods/list
-  { id: "openai", name: "OpenAI", kind: "openai-compatible", category: "cloud", modelDiscovery: "auto", baseUrl: "https://api.openai.com/v1", apiKeyEnv: "OPENAI_API_KEY", keyRequired: true, docsUrl: "https://developers.openai.com/api/docs/models", checked: true, beta: false, note: "Direkte tilgang til modellene fra OpenAI" },
-  { id: "azure-openai", name: "Azure OpenAI", kind: "openai-compatible", category: "cloud", modelDiscovery: "manual", authHeader: "api-key", baseUrl: "", keyRequired: true, docsUrl: "https://learn.microsoft.com/en-us/azure/foundry/openai/api-version-lifecycle", checked: true, note: "Bruk ressursens adresse med /openai/v1 og modellens deployment-navn." },
+  { id: "openai", name: "OpenAI", kind: "openai-compatible", category: "cloud", modelDiscovery: "auto", baseUrl: "https://api.openai.com/v1", apiKeyEnv: "OPENAI_API_KEY", keyRequired: true, docsUrl: "https://developers.openai.com/api/docs/models", checked: true, beta: false, note: sourceText("Direkte tilgang til modellene fra OpenAI") },
+  { id: "azure-openai", name: "Azure OpenAI", kind: "openai-compatible", category: "cloud", modelDiscovery: "manual", authHeader: "api-key", baseUrl: "", keyRequired: true, docsUrl: "https://learn.microsoft.com/en-us/azure/foundry/openai/api-version-lifecycle", checked: true, note: sourceText("Bruk ressursens adresse med /openai/v1 og modellens deployment-navn.") },
   ...ADDITIONAL_PROVIDER_PRESETS,
-  { id: "custom", name: "Egendefinert", kind: "openai-compatible", baseUrl: "", keyRequired: false, checked: false, note: "Alle tjenester med et OpenAI-kompatibelt API" },
+  { id: "custom", name: "Egendefinert", kind: "openai-compatible", baseUrl: "", keyRequired: false, checked: false, note: sourceText("Alle tjenester med et OpenAI-kompatibelt API") },
 ];
 
 const CUSTOM_LOCAL_PRESET: ProviderPreset = {

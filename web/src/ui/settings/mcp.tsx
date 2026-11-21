@@ -12,7 +12,7 @@ import { SecretInput } from "../SecretInput";
 import { Group, Page, Rich, Row, Segmented } from "./parts";
 import "../../styles/mcp.css";
 
-import { plural, t } from "../../lib/i18n";
+import { lookupMessage, plural, t } from "../../lib/i18n";
 interface PairDraft {
   name: string;
   value: string;
@@ -97,7 +97,7 @@ export function McpPage() {
         <Row label={t("Velg et utgangspunkt")} text={t("Skjemaet fylles ut. Ingenting kobles til før du lagrer.")}>
           <div class="mcp-presets">
             <For each={MCP_PRESETS}>
-              {(preset) => <button type="button" class="btn btn-small" onClick={() => setDraft(fromPreset(preset))}><Show when={preset.id === "custom"}><IconPlus size={13} /></Show>{preset.label}</button>}
+              {(preset) => <button type="button" class="btn btn-small" onClick={() => setDraft(fromPreset(preset))}><Show when={preset.id === "custom"}><IconPlus size={13} /></Show>{lookupMessage(preset.label)}</button>}
             </For>
           </div>
         </Row>
@@ -274,7 +274,7 @@ function ServerForm(props: { draft: Draft; onDone: () => void }) {
   };
   return (
     <form class="form" onSubmit={submit} aria-label={t("MCP-server")}>
-      <Show when={draft().hint}><p class="muted">{draft().hint}</p></Show>
+      <Show when={draft().hint}><p class="muted">{lookupMessage(draft().hint)}</p></Show>
       <div class="field"><label for={ids.name}>{t("Navn")}</label><input id={ids.name} class="input" required maxLength={60} value={draft().name} onInput={(e) => set({ name: e.currentTarget.value })} placeholder={t("Min server")} /></div>
       <div class="field"><span>{t("Tilkobling")}</span>
         <Segmented label={t("Tilkobling")} value={draft().transport} options={[{ value: "stdio", label: t("Kommando (stdio)") }, { value: "http", label: t("Adresse (HTTP)") }]} onChange={(transport) => set({ transport })} />

@@ -1,3 +1,4 @@
+import { sourceText, translate } from "../../shared/i18n.ts";
 // Hooks (Innstillinger → Hooks): shell commands the user sets up, run by the app on agent events in
 // Kode and Chat. Modelled on Claude Code's hooks, so the habits and most scripts carry over:
 //
@@ -180,19 +181,22 @@ function samplePayload(event: HookEvent, matcher: string): { toolName?: string; 
   return { payload: { status: "done", last_assistant_message: "Ferdig med testen.", stop_hook_active: false } };
 }
 
-function testEffect(event: HookEvent, result: HookResult): string {
+function testEffect(event: HookEvent, result: HookResult) {
+  const message = (effectKey: string, effectValues?: Record<string, string | number>) => ({ effectKey, effectValues, effect: translate({}, effectKey, effectValues) });
   const { run } = result;
-  if (run.outcome === "timeout") return `Brukte mer enn tidsgrensen og ble stoppet. Arbeidet ville gått videre.`;
-  if (run.outcome === "cancelled") return "Avbrutt.";
-  if (run.outcome === "error") return `Ikke-blokkerende feil (avslutningskode ${run.exitCode ?? "ingen"}). Feilen ville blitt vist, og arbeidet ville gått videre.`;
-  if (event === "Stop") return "Kjørt. Stop kan ikke stoppe noe i denne versjonen.";
+  if (run.outcome === "timeout") return message(sourceText("Brukte mer enn tidsgrensen og ble stoppet. Arbeidet ville gått videre."));
+  if (run.outcome === "cancelled") return message(sourceText("Avbrutt."));
+  if (run.outcome === "error") return run.exitCode == null
+    ? message(sourceText("Ikke-blokkerende feil (avslutningskode ingen). Feilen ville blitt vist, og arbeidet ville gått videre."))
+    : message(sourceText("Ikke-blokkerende feil (avslutningskode {code}). Feilen ville blitt vist, og arbeidet ville gått videre."), { code: run.exitCode });
+  if (event === "Stop") return message(sourceText("Kjørt. Stop kan ikke stoppe noe i denne versjonen."));
   if (result.block !== undefined) {
-    if (event === "PreToolUse") return `Ville stoppet verktøykallet. Modellen ville fått: ${result.block}`;
-    if (event === "UserPromptSubmit") return `Ville stoppet meldingen. Du ville sett: ${result.block}`;
+    if (event === "PreToolUse") return message(sourceText("Ville stoppet verktøykallet. Modellen ville fått: {text}"), { text: result.block });
+    if (event === "UserPromptSubmit") return message(sourceText("Ville stoppet meldingen. Du ville sett: {text}"), { text: result.block });
   }
-  if (result.feedback) return `Ville lagt dette til i verktøyresultatet: ${result.feedback}`;
-  if (result.context) return `Ville lagt til kontekst for modellen: ${result.context}`;
-  return event === "UserPromptSubmit" ? "Ingen virkning: meldingen ville gått videre." : event === "PostToolUse" ? "Ingen virkning: resultatet ville gått uendret til modellen." : "Ingen virkning: verktøykallet ville kjørt.";
+  if (result.feedback) return message(sourceText("Ville lagt dette til i verktøyresultatet: {text}"), { text: result.feedback });
+  if (result.context) return message(sourceText("Ville lagt til kontekst for modellen: {text}"), { text: result.context });
+  return event === "UserPromptSubmit" ? message(sourceText("Ingen virkning: meldingen ville gått videre.")) : event === "PostToolUse" ? message(sourceText("Ingen virkning: resultatet ville gått uendret til modellen.")) : message(sourceText("Ingen virkning: verktøykallet ville kjørt."));
 }
 
 export class Hooks {
@@ -334,7 +338,7 @@ export class Hooks {
     const sample = samplePayload(hook.event, hook.matcher);
     const abort = new AbortController();
     const result = await this.runOne(hook, { event: hook.event, mode: hook.modes[0], threadId: "test", signal: abort.signal, toolName: sample.toolName, payload: sample.payload }, true, savedId === undefined);
-    return { ...result.run, stdout: tail(result.stdout, TAIL_CHARS), stderr: tail(result.stderr, TAIL_CHARS), effect: testEffect(hook.event, result) };
+    return { ...result.run, stdout: tail(result.stdout, TAIL_CHARS), stderr: tail(result.stderr, TAIL_CHARS), ...testEffect(hook.event, result) };
   }
 
   private async runOne(hook: HookConfig, call: HookCall, test: boolean, unsaved = false): Promise<HookResult> {

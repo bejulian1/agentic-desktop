@@ -4,7 +4,7 @@
 // animates width, height, top or left, and a splitter that is being dragged does not animate at all.
 import { t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, Index, onCleanup, Show, type Accessor } from "solid-js";
-import { app, EMPTY_THREAD_NAME, untitled } from "../state/app";
+import { app, emptyThreadName, untitled } from "../state/app";
 import { dragging, dropPreview, dropTarget } from "../state/drag";
 import type { Grid, Handle, Rect } from "../state/grid";
 import { cancelFrameTask, onNextFrame } from "../lib/frame";
@@ -334,7 +334,7 @@ export function GridView(props: { grid: Grid; projectId: string | null; code?: b
                 role="tab"
                 class="pane-tab"
                 aria-selected={grid.focused() === pane.id}
-                aria-label={untitled(app.threads[pane.threadId() ?? ""]) ? EMPTY_THREAD_NAME : undefined}
+                aria-label={untitled(app.threads[pane.threadId() ?? ""]) ? emptyThreadName() : undefined}
                 classList={{ on: grid.focused() === pane.id, empty: untitled(app.threads[pane.threadId() ?? ""]) }}
                 onClick={() => grid.focus(pane.id)}
               >

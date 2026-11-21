@@ -52,6 +52,8 @@ export interface HooksState {
 export interface HookTestResult extends HookRun {
   stdout: string;
   stderr: string;
+  effectKey?: string;
+  effectValues?: Record<string, string | number>;
   effect: string; // in Norwegian, for example «Ville stoppet verktøykallet: …»
 }
 

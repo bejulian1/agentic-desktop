@@ -1,3 +1,4 @@
+import { sourceText } from "../../../shared/i18n.ts";
 // The user's own text for a built-in layer of the system prompt (Innstillinger → Konfigurasjon →
 // Forhåndsvisning). A layer is generated at run time, so an edited copy would freeze what was true
 // when it was edited: the project, the tools on, the date. The live parts are therefore
@@ -65,6 +66,6 @@ export function overlay(layers: PromptLayer[], overrides: Record<string, string>
     const saved = overrides[`${prefix}/${layer.id}`];
     const placeholders = Object.keys(live);
     if (typeof saved !== "string" || !saved.trim()) return { ...layer, editable: true, overridden: false, template: toTemplate(layer.text, live), placeholders };
-    return { ...layer, text: fromTemplate(saved, live), source: "Din egen tekst, lagret i Forhåndsvisning", editable: true, overridden: true, template: saved, placeholders };
+    return { ...layer, text: fromTemplate(saved, live), source: sourceText("Din egen tekst, lagret i Forhåndsvisning"), sourceMessage: undefined, editable: true, overridden: true, template: saved, placeholders };
   });
 }

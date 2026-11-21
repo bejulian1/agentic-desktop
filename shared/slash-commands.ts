@@ -1,3 +1,4 @@
+import { sourceText, translate, type Values } from "./i18n.ts";
 import type { CommandInfo } from "./protocol.ts";
 import { CODE_SLASH_COMMANDS } from "./slash-code.ts";
 import { THREAD_SLASH_COMMANDS } from "./slash-thread.ts";
@@ -76,21 +77,21 @@ export interface CommandScope {
 
 const mainWindowActions = new Set(["new", "sessions", "palette", "mode", "task", "side", "fork", "fork-last", "temporary", "skills", "artifacts"]);
 
-export function commandUnavailable(command: CommandInfo, scope: CommandScope): string | undefined {
+export function commandUnavailable(command: CommandInfo, scope: CommandScope, format: (source: string, values?: Values) => string = (source, values) => translate({}, source, values)): string | undefined {
   if (command.kind === "skill") {
     if (command.mode && command.mode !== (scope.code ? "code" : "chat")) {
-      return `/${command.name} er bare tilgjengelig i ${command.mode === "code" ? "Kode" : "Chat"}.`;
+      return format(sourceText("/{name} er bare tilgjengelig i {mode}."), { name: command.name, mode: command.mode === "code" ? format(sourceText("Kode")) : format(sourceText("Chat")) });
     }
-    if (scope.chatProject && command.source !== "app") return "Chat-prosjekter bruker bare innebygde app-skills og prosjektets egne instruksjoner.";
+    if (scope.chatProject && command.source !== "app") return format(sourceText("Chat-prosjekter bruker bare innebygde app-skills og prosjektets egne instruksjoner."));
   }
-  if (command.scope === "project" && (!scope.code || !scope.project)) return `/${command.name} krever Kode-modus og et prosjekt.`;
-  if (command.scope === "code" && !scope.code) return `/${command.name} er bare tilgjengelig i Kode.`;
-  if ((command.scope === "chat" || command.scope === "plain-chat") && scope.code) return `/${command.name} er bare tilgjengelig i Chat.`;
-  if (scope.chatProject && command.scope === "plain-chat") return `/${command.name} er tilgjengelig i Chat utenfor et prosjekt.`;
+  if (command.scope === "project" && (!scope.code || !scope.project)) return format(sourceText("/{name} krever Kode-modus og et prosjekt."), { name: command.name });
+  if (command.scope === "code" && !scope.code) return format(sourceText("/{name} er bare tilgjengelig i Kode."), { name: command.name });
+  if ((command.scope === "chat" || command.scope === "plain-chat") && scope.code) return format(sourceText("/{name} er bare tilgjengelig i Chat."), { name: command.name });
+  if (scope.chatProject && command.scope === "plain-chat") return format(sourceText("/{name} er tilgjengelig i Chat utenfor et prosjekt."), { name: command.name });
   if (scope.detached && command.kind === "builtin" && (command.group === "workspace" || mainWindowActions.has(command.name))) {
-    return `Bruk /${command.name} i hovedvinduet.`;
+    return format(sourceText("Bruk /{name} i hovedvinduet."), { name: command.name });
   }
-  if (scope.chatProject && command.name === "personality" && command.kind === "builtin") return "Dette prosjektet bruker sine egne instruksjoner. Endre dem i Rediger prosjekt.";
+  if (scope.chatProject && command.name === "personality" && command.kind === "builtin") return format(sourceText("Dette prosjektet bruker sine egne instruksjoner. Endre dem i Rediger prosjekt."));
 }
 
 export function visibleCommands(commands: CommandInfo[], scope: CommandScope): CommandInfo[] {

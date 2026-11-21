@@ -12,7 +12,7 @@ import { CodeAppearance } from "./code-appearance";
 import { newChatProject } from "../chat-projects";
 import { activeChatPersonality, type ChatPersonalityContext } from "../../state/chat-personality";
 
-import { plural, t } from "../../lib/i18n";
+import { lookupMessage, plural, t } from "../../lib/i18n";
 interface StartOption<T extends string> {
   value: T;
   label: string;
@@ -219,12 +219,12 @@ function ChatPersonalitySettings() {
       <div class="chat-personality-options" role="radiogroup" aria-label={t("Personlighet for aktiv chat")} aria-describedby={`${name}-scope`} aria-busy={saving() ? "true" : undefined} aria-disabled={!activeChatPersonality() || saving() ? "true" : undefined}>
         <For each={CHAT_PERSONALITIES}>
           {(personality) => (
-            <Row as="label" label={personality.label} text={<span id={`${name}-${personality.id}`}>{personality.id === "standard" ? t("Følger standardvalget i Chat-personalisering") : personality.text}</span>}>
+            <Row as="label" label={lookupMessage(personality.label)} text={<span id={`${name}-${personality.id}`}>{personality.id === "standard" ? t("Følger standardvalget i Chat-personalisering") : lookupMessage(personality.text)}</span>}>
               <input
                 type="radio"
                 name={name}
                 value={personality.id}
-                aria-label={personality.label}
+                aria-label={lookupMessage(personality.label)}
                 aria-describedby={`${name}-${personality.id}`}
                 checked={selected() === personality.id}
                 disabled={!activeChatPersonality() || saving()}

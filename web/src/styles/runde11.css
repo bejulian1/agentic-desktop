@@ -51,7 +51,7 @@
 .window-controls { flex: none; width: var(--window-controls-w, 0px); height: 100%; }
 .window-controls:empty { margin: 0; }
 @media (max-width: 520px) {
-  .topbar-right .pane-buttons [aria-label="Del nedover"] { display: none; }
+  .topbar-right .pane-buttons [data-action="split-down"] { display: none; }
   .topbar-right > .topbar-divider { display: none; }
 }
 

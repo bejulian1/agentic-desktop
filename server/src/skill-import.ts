@@ -1,3 +1,4 @@
+import { sourceText, translate, type Values } from "../../shared/i18n.ts";
 // Import of many skills at once (SPEC 22.5): .md files chosen one by one, a folder, or dragged in.
 // The browser sends the text of each file; nothing is read from a path the client names. Each file
 // is checked on its own, against the Agent Skills rules (name and description in the frontmatter,
@@ -47,33 +48,33 @@ function baseName(file: SkillImportFile): { stem: string; parent: string; label:
 function checkFile(file: SkillImportFile, index: number, skillFolders: Set<string>): Parsed {
   const { stem, parent, label } = baseName(file);
   const row: SkillImportRow = { key: String(index), file: label, name: "", description: "", status: "invalid" };
-  const fail = (error: string): Parsed => ({ row: { ...row, error }, description: "", body: "", extra: {} });
-  if (typeof file.text !== "string") return fail("Fila kunne ikke leses som tekst.");
-  if (!/\.md$/i.test(file.name)) return fail("Ikke en .md-fil. Bare Markdown-filer kan bli skills.");
+  const fail = (key: string, values?: Values): Parsed => ({ row: { ...row, error: translate({}, key, values), ...(values ? { errorMessage: { key, values } } : {}) }, description: "", body: "", extra: {} });
+  if (typeof file.text !== "string") return fail(sourceText("Fila kunne ikke leses som tekst."));
+  if (!/\.md$/i.test(file.name)) return fail(sourceText("Ikke en .md-fil. Bare Markdown-filer kan bli skills."));
   // In a folder with a SKILL.md, the other .md files are the skill's own references.
   const dir = label.split("/").slice(0, -1).join("/");
   if (stem.toUpperCase() !== "SKILL" && [...skillFolders].some((f) => dir === f || dir.startsWith(`${f}/`))) {
-    return { ...fail("Hører til skillen i samme mappe. Bare SKILL.md importeres; andre filer må kopieres for hånd."), row: { ...row, status: "ignored", error: "Hører til skillen i samme mappe. Bare SKILL.md importeres; andre filer må kopieres for hånd." } };
+    return { ...fail(sourceText("Hører til skillen i samme mappe. Bare SKILL.md importeres; andre filer må kopieres for hånd.")), row: { ...row, status: "ignored", error: "Hører til skillen i samme mappe. Bare SKILL.md importeres; andre filer må kopieres for hånd." } };
   }
-  if (file.text.length > MAX_FILE_CHARS) return fail(`Fila er for stor (${Math.round(file.text.length / 1024)} KB, maks ${MAX_SKILL_BODY / 1024} KB).`);
+  if (file.text.length > MAX_FILE_CHARS) return fail(sourceText("Fila er for stor ({size} KB, maks {max} KB)."), { size: Math.round(file.text.length / 1024), max: MAX_SKILL_BODY / 1024 });
   const text = file.text.replace(/^﻿/, "").replace(/\r\n/g, "\n");
-  if (!/^---\n[\s\S]*?\n---(?:\n|$)/.test(text)) return fail("Mangler frontmatter. Fila må starte med --- og ha name og description, avsluttet med ---.");
+  if (!/^---\n[\s\S]*?\n---(?:\n|$)/.test(text)) return fail(sourceText("Mangler frontmatter. Fila må starte med --- og ha name og description, avsluttet med ---."));
   const meta = parseFrontmatter(text);
   const fromFile = stem.toUpperCase() === "SKILL" ? parent : stem;
   const name = (meta.name ?? "").trim() || slugName(fromFile);
   row.name = name;
   row.description = (meta.description ?? "").replace(/\s+/g, " ").trim();
-  if (!meta.name && !name) return fail("Mangler name i frontmatter, og filnavnet kan ikke brukes som navn.");
-  if (!SKILL_NAME.test(name)) return fail(`Navnet «${name}» er ugyldig: bare små bokstaver a–z, tall og bindestrek, maks 64 tegn, ikke bindestrek først eller sist.`);
-  if (!row.description) return fail("Mangler description i frontmatter: hva skillen gjør og når den skal brukes.");
-  if (row.description.length > MAX_DESCRIPTION) return fail(`Beskrivelsen er for lang (${row.description.length} tegn, maks ${MAX_DESCRIPTION}).`);
+  if (!meta.name && !name) return fail(sourceText("Mangler name i frontmatter, og filnavnet kan ikke brukes som navn."));
+  if (!SKILL_NAME.test(name)) return fail(sourceText("Navnet «{name}» er ugyldig: bare små bokstaver a–z, tall og bindestrek, maks 64 tegn, ikke bindestrek først eller sist."), { name });
+  if (!row.description) return fail(sourceText("Mangler description i frontmatter: hva skillen gjør og når den skal brukes."));
+  if (row.description.length > MAX_DESCRIPTION) return fail(sourceText("Beskrivelsen er for lang ({count} tegn, maks {max})."), { count: row.description.length, max: MAX_DESCRIPTION });
   const body = text.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
-  if (!body) return fail("Skillen har ikke noe innhold under frontmatter.");
-  if (body.length > MAX_SKILL_BODY) return fail("Innholdet er for stort.");
-  if (looksSecret(row.description) || looksSecret(body)) return fail("Fila ser ut til å inneholde en nøkkel, et token eller et passord, og blir ikke importert.");
+  if (!body) return fail(sourceText("Skillen har ikke noe innhold under frontmatter."));
+  if (body.length > MAX_SKILL_BODY) return fail(sourceText("Innholdet er for stort."));
+  if (looksSecret(row.description) || looksSecret(body)) return fail(sourceText("Fila ser ut til å inneholde en nøkkel, et token eller et passord, og blir ikke importert."));
   const extra: Record<string, string> = {};
   for (const [key, value] of Object.entries(meta)) if (!["name", "description", "created-by"].includes(key)) extra[key] = value;
-  return { row: { ...row, status: "ok", ...(meta.name ? {} : { note: "Navnet er laget av filnavnet." }) }, description: row.description, body, extra };
+  return { row: { ...row, status: "ok", ...(meta.name ? {} : { note: sourceText("Navnet er laget av filnavnet.") }) }, description: row.description, body, extra };
 }
 
 function inTarget(skill: SkillInfo, target: ImportTarget): boolean {
@@ -104,8 +105,8 @@ function checkAll(files: unknown, target: ImportTarget, existing: SkillInfo[]): 
     const there = taken.get(name);
     const earlier = seen.get(name);
     const names = new Set([...taken.keys(), ...seen.keys()]);
-    if (there) parsed.row = { ...parsed.row, status: "conflict", conflictWith: there.projectName ? `Prosjektet ${there.projectName}` : "Dine skills", conflictId: there.id, suggested: freeName(name, names) };
-    else if (earlier) parsed.row = { ...parsed.row, status: "conflict", conflictWith: `En annen fil i importen (${earlier})`, suggested: freeName(name, names) };
+    if (there) parsed.row = { ...parsed.row, status: "conflict", conflictWith: there.projectName ? `Prosjektet ${there.projectName}` : sourceText("Dine skills"), conflictProject: there.projectName ?? undefined, conflictId: there.id, suggested: freeName(name, names) };
+    else if (earlier) parsed.row = { ...parsed.row, status: "conflict", conflictWith: `En annen fil i importen (${earlier})`, conflictFile: earlier, suggested: freeName(name, names) };
     seen.set(name, parsed.row.file);
     return parsed;
   });
@@ -128,7 +129,7 @@ export function runImport(files: unknown, target: ImportTarget, store: SkillStor
   for (const item of parsed) {
     const { row } = item;
     if (row.status === "invalid" || row.status === "ignored") {
-      results.push({ key: row.key, file: row.file, status: row.status === "ignored" ? "skipped" : "error", message: row.error ?? "Ugyldig fil" });
+      results.push({ key: row.key, file: row.file, status: row.status === "ignored" ? "skipped" : "error", message: row.error ?? sourceText("Ugyldig fil"), errorMessage: row.errorMessage });
       continue;
     }
     try {
@@ -147,7 +148,7 @@ export function runImport(files: unknown, target: ImportTarget, store: SkillStor
         id = newId(target, name);
         store.writeImported(id, renderSkillFile({ name, description: item.description, extra: item.extra }, item.body), false);
       } else if (there || (row.status === "conflict" && decision !== "replace")) {
-        results.push({ key: row.key, file: row.file, status: "skipped", message: "Hoppet over: navnet er tatt." });
+        results.push({ key: row.key, file: row.file, status: "skipped", message: sourceText("Hoppet over: navnet er tatt.") });
         continue;
       } else {
         id = newId(target, name);

@@ -197,6 +197,8 @@ GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API com
 
 GPT 6.2 Astra implemented [dictation](docs/diktering.md) and [scheduled tasks](docs/planlagte-oppgaver.md) and removed nonfunctional controls.
 
+Claude Fable 5.2 made the settings, Git, and GitHub views translatable. Codex converted the composer, agent views, side panels, and shell, integrated the UI changes, and tested English rendering and responsive controls.
+
 Codex also contributed the [i18n foundation and contributor guide](docs/I18N.md), inline charts, [model selection for Code helpers](docs/MODELLDELEGERING.md), and [reviewable memory and skill suggestions](docs/MINNEFORSLAG.md).
 
 Crediting AI models describes development assistance only and implies no official endorsement or affiliation with Anthropic, OpenAI, or Google.

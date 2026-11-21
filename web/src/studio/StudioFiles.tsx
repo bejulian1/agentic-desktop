@@ -1,4 +1,4 @@
-import { t } from "../lib/i18n";
+import { lookupMessage, t } from "../lib/i18n";
 import { batch, createEffect, createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import { createMutable } from "solid-js/store";
 import type { ChangedFile, EditableFile, FileEntry, MentionItem } from "../../../shared/protocol";
@@ -955,7 +955,7 @@ function StudioFilesRoot(props: StudioFilesProps & { rootPath: string }) {
                   </div>
                 </Show>
                 <Show when={file().error && !file().conflict}><div class="studio-error" role="alert">{file().error}</div></Show>
-                <Show when={file().file.reason}><div class="studio-readonly-reason">{file().file.reason}</div></Show>
+                <Show when={file().file.reason}><div class="studio-readonly-reason">{lookupMessage(file().file.reason)}</div></Show>
               </>
             )}
           </Show>

@@ -1,6 +1,6 @@
 // The message field. The textarea is uncontrolled, so typing costs what typing costs in a plain
 // textarea: nothing reactive runs on a keystroke unless the word under the caret starts with / or @.
-import { language, t } from "../lib/i18n";
+import { lookupMessage, language, t } from "../lib/i18n";
 import { Dictation } from './Dictation';
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import type { Accessor } from "solid-js";
@@ -1123,7 +1123,7 @@ export function Composer(props: {
 
   const exactCommandRestriction = (query: string) => {
     const exact = commands().find(command => command.kind === "builtin" && (command.name === query || command.aliases?.includes(query)));
-    return exact && commandUnavailable(exact, commandScope());
+    return exact && commandUnavailable(exact, commandScope(), lookupMessage);
   };
 
   const commandItems = createMemo(() => {
@@ -1134,7 +1134,7 @@ export function Composer(props: {
     const entries = availableCommands().filter((command) => current.kind === "skill" ? command.kind === "skill" : !command.slashReserved);
     if (!query) return Object.keys(COMMAND_GROUPS).flatMap(group => entries.filter(command => commandGroup(command) === group));
     return entries.flatMap((command) => {
-      const score = matchScore(command, query) ?? (query.length >= 3 && command.description.toLowerCase().includes(query) ? 5 : null);
+      const score = matchScore(command, query) ?? (query.length >= 3 && (command.kind === "builtin" ? lookupMessage(command.description) : command.description).toLowerCase().includes(query) ? 5 : null);
       return score === null ? [] : [{ command, score }];
     }).sort((a, b) => a.score - b.score).map(item => item.command);
   });
@@ -1253,7 +1253,7 @@ export function Composer(props: {
         [t("Tokens"), usage ? t("{input} inn, {output} ut", { input: formatTokens(usage.inputTokens), output: formatTokens(usage.outputTokens) }) : t("Ingen ennå")],
         [t("Kostnad"), usage?.costUsd != null ? formatCost(usage.costUsd) : t("Ingen pris satt")],
         [t("Tenkning"), effortLabel(current?.reasoning) || t("Modellens standard")],
-        [inChatProject() ? t("Instruksjoner") : t("Personlighet"), inChatProject() ? t("Prosjektets egne instruksjoner") : personalities().find((p) => p.id === personality())?.label ?? t("Standard")],
+        [inChatProject() ? t("Instruksjoner") : t("Personlighet"), inChatProject() ? t("Prosjektets egne instruksjoner") : lookupMessage(personalities().find((p) => p.id === personality())?.label) || t("Standard")],
         [t("Planmodus"), current?.planMode ? t("På") : t("Av")],
         [t("Grenser"), provider?.kind === "mock" ? t("Demo-modellen har ingen grenser") : t("Leverandøren rapporterer ikke grenser til appen ennå")],
       ],
@@ -1487,16 +1487,16 @@ export function Composer(props: {
           await openSide();
           break;
         case "personality": {
-          const found = personalities().find((p) => p.id === arg.toLowerCase() || p.label.toLowerCase() === arg.toLowerCase());
+          const found = personalities().find((p) => p.id === arg.toLowerCase() || p.label.toLowerCase() === arg.toLowerCase() || lookupMessage(p.label).toLowerCase() === arg.toLowerCase());
           const apply = async (value: string) => {
             await patchThread({ personality: value });
-            toast(t("Personlighet: {personality}.", { personality: personalities().find((p) => p.id === value)!.label }), "info");
+            toast(t("Personlighet: {personality}.", { personality: lookupMessage(personalities().find((p) => p.id === value)!.label) }), "info");
           };
           if (found) await apply(found.id);
           else {
             setPicker({
               title: t("Personlighet"),
-              items: personalities().map((p) => ({ id: p.id, label: p.label, detail: !kode() && p.id === "standard" ? t("Følger standardvalget i Chat-personalisering") : p.text ?? (p.prompt || t("Ingen ekstra stil")), selected: personality() === p.id })),
+              items: personalities().map((p) => ({ id: p.id, label: lookupMessage(p.label), detail: !kode() && p.id === "standard" ? t("Følger standardvalget i Chat-personalisering") : p.text ? lookupMessage(p.text) : (p.prompt || t("Ingen ekstra stil")), selected: personality() === p.id })),
               pick: (value) => void apply(value).catch(report),
             });
           }
@@ -1807,7 +1807,7 @@ export function Composer(props: {
       }
       const known = findCommand(word, available, text.startsWith("$"));
       if (known) {
-        const reason = commandUnavailable(known, commandScope());
+        const reason = commandUnavailable(known, commandScope(), lookupMessage);
         if (reason) { closeMenu(); return toast(reason, "info"); }
       }
       if (known?.kind === "builtin") {
@@ -2148,7 +2148,7 @@ export function Composer(props: {
                 {(item, index) => (
                   <>
                   <Show when={!menu()!.query && (index() === 0 || commandGroup(commandItems()[index() - 1]) !== commandGroup(item))}>
-                    <div class="menu-heading slash-category" aria-hidden="true">{COMMAND_GROUPS[commandGroup(item)]}</div>
+                    <div class="menu-heading slash-category" aria-hidden="true">{lookupMessage(COMMAND_GROUPS[commandGroup(item)])}</div>
                   </Show>
                   <button
                     type="button"
@@ -2167,7 +2167,7 @@ export function Composer(props: {
                     })()}
                     <span class="menu-name">{menu()!.kind === "skill" ? "$" : "/"}{item.name}</span>
                     <Show when={item.args && index() === selected()}><span class="menu-args">{item.kind === "skill" ? item.args : argsText(item.args!)}</span></Show>
-                    <span class="menu-desc">{item.description}</span>
+                    <span class="menu-desc">{item.kind === "builtin" ? lookupMessage(item.description) : item.description}</span>
                     <Show when={item.kind === "skill"}><span class="menu-tag">{item.source === "project" ? t("prosjekt") : item.source === "app" ? t("app") : t("skill")}</span></Show>
                   </button>
                   </>

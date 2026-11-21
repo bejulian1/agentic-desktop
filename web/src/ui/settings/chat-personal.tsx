@@ -1,4 +1,4 @@
-import { language, plural, t } from "../../lib/i18n";
+import { lookupMessage, language, plural, t } from "../../lib/i18n";
 // Innstillinger → Chat-personalisering (SPEC 22.4): Chat's own place, apart from Kode. A system
 // instruction, a few lines about you, a personality with characteristics that can be turned down
 // or up, and Chat memories with «Oppdater minnet av seg selv».
@@ -162,14 +162,14 @@ export function ChatPersonalSettings() {
         </Group>
 
         <Group title={t("Personlighet og stil")}>
-          <Row label={t("Personlighet")} text={t("{description} Gjelder nye og eksisterende chatter som ikke har valgt sin egen med /personality.", { description: CHAT_PERSONALITIES.find((p) => p.id === state()!.personal.tone)?.text ?? "" })}>
-            <Select<ChatTone> label={t("Personlighet")} value={state()!.personal.tone} options={CHAT_PERSONALITIES.map((p) => ({ value: p.id, label: p.label }))} onChange={(tone) => void setPersonal({ tone })} />
+          <Row label={t("Personlighet")} text={t("{description} Gjelder nye og eksisterende chatter som ikke har valgt sin egen med /personality.", { description: lookupMessage(CHAT_PERSONALITIES.find((p) => p.id === state()!.personal.tone)?.text) })}>
+            <Select<ChatTone> label={t("Personlighet")} value={state()!.personal.tone} options={CHAT_PERSONALITIES.map((p) => ({ value: p.id, label: lookupMessage(p.label) }))} onChange={(tone) => void setPersonal({ tone })} />
           </Row>
           <For each={CHAT_TRAITS}>
             {(trait) => (
-              <Row label={trait.label} text={trait.text}>
+              <Row label={lookupMessage(trait.label)} text={lookupMessage(trait.text)}>
                 <Segmented<ChatTraitLevel>
-                  label={trait.label}
+                  label={lookupMessage(trait.label)}
                   value={state()!.personal.traits?.[trait.id] ?? 0}
                   options={TRAIT_LEVELS}
                   onChange={(level) => void setPersonal({ traits: { [trait.id]: level } as Record<ChatTraitId, ChatTraitLevel> })}

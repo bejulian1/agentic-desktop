@@ -204,7 +204,7 @@ function PaneButtons() {
         classList={{ "is-disabled": away() || full() }}
         data-testid="new-pane"
         title={tip(t("Del til høyre: ny rute ved siden av"), displayKeys(keysFor("pane.new")))}
-        aria-label={t("Del til høyre")}
+        data-action="split-right" aria-label={t("Del til høyre")}
         aria-disabled={away() ? "true" : undefined}
         onClick={() => split("right")}
       >
@@ -215,7 +215,7 @@ function PaneButtons() {
         class="icon-button"
         classList={{ "is-disabled": away() || full() }}
         title={tip(t("Del nedover: ny rute under"))}
-        aria-label={t("Del nedover")}
+        data-action="split-down" aria-label={t("Del nedover")}
         aria-disabled={away() ? "true" : undefined}
         onClick={() => split("bottom")}
       >
@@ -437,7 +437,7 @@ export function TopBar() {
             <button type="button" class="icon-button" title={t("Sidefane ({keys})", { keys: displayKeys(keysFor("view.sidebar")) })} aria-label={t("Vis eller skjul sidefanen")} aria-pressed={sidebarOpen()} onClick={() => setSidebarOpen(!sidebarOpen())}><IconSidebar /></button>
           </Show>
           <button type="button" class="icon-button" title={t("Tilbake ({keys})", { keys: displayKeys(keysFor("thread.back")) })} aria-label={t("Forrige tråd")} disabled={!actions.canGoBack()} onClick={actions.back}><IconBack /></button>
-          <button type="button" class="icon-button" title={t("Frem ({keys})", { keys: displayKeys(keysFor("thread.forward")) })} aria-label={t("Neste tråd")} disabled={!actions.canGoForward()} onClick={actions.forward}><IconForward /></button>
+          <button type="button" class="icon-button" title={t("Frem ({keys})", { keys: displayKeys(keysFor("thread.forward")) })} data-action="thread-forward" aria-label={t("Neste tråd")} disabled={!actions.canGoForward()} onClick={actions.forward}><IconForward /></button>
         </div>
         <Show when={!sidebarOpen()}><StartCrumb /></Show>
       </div>

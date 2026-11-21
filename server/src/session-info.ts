@@ -1,3 +1,4 @@
+import { sourceText, translate, type Values } from "../../shared/i18n.ts";
 // Round 12 (SPEC 26.2): Økt, the panel about the thread in focus. Everything here is read from
 // what the app already has: the thread's project, the harness that builds the system prompt, the
 // model and its provider, GitHub, the Browser panel, team agents, terminals and servers. What is
@@ -62,12 +63,12 @@ const LAYER_PART: Record<string, SessionContextPart["id"]> = {
 };
 
 const PART_LABELS: Record<SessionContextPart["id"], string> = {
-  system: "Systemprompt og harness",
-  agents: "AGENTS.md",
-  memories: "Minner",
-  skills: "Skills",
-  tools: "Verktøy",
-  messages: "Meldinger",
+  system: sourceText("Systemprompt og harness"),
+  agents: sourceText("AGENTS.md"),
+  memories: sourceText("Minner"),
+  skills: sourceText("Skills"),
+  tools: sourceText("Verktøy"),
+  messages: sourceText("Meldinger"),
 };
 
 const ORDER: SessionContextPart["id"][] = ["system", "agents", "memories", "skills", "tools", "messages"];
@@ -101,6 +102,10 @@ export function sessionContext(deps: SessionDeps, thread: Thread, project: Proje
   };
 }
 
+function displayDetail(key: string, values?: Values) {
+  return { detail: translate({}, key, values), detailMessage: { key, values } };
+}
+
 function connections(deps: SessionDeps, thread: Thread, project: Project | undefined): SessionConnection[] {
   const { store, secrets } = deps;
   const out: SessionConnection[] = [];
@@ -112,21 +117,22 @@ function connections(deps: SessionDeps, thread: Thread, project: Project | undef
     out.push({
       id: "model",
       kind: "model",
-      label: provider.kind === "mock" ? "Demo-modellen" : provider.name,
-      detail: provider.kind === "mock" ? "Lokalt, uten nettverk" : keyed || local ? model.name : `${model.name} · ingen nøkkel`,
+      label: provider.kind === "mock" ? sourceText("Demo-modellen") : provider.name,
+      localizeLabel: provider.kind === "mock",
+      ...(provider.kind === "mock" ? displayDetail(sourceText("Lokalt, uten nettverk")) : keyed || local ? { detail: model.name } : displayDetail(sourceText("{name} · ingen nøkkel"), { name: model.name })),
       status: keyed || local ? "ok" : "warn",
     });
   }
   // Only the stored token is looked at; GitHub itself is not asked from here.
   const github = new GitHub(secrets).status();
-  if (github.connected) out.push({ id: "github", kind: "github", label: "GitHub", detail: github.login ? `Tilkoblet som ${github.login}` : "Tilkoblet", status: "ok" });
+  if (github.connected) out.push({ id: "github", kind: "github", label: "GitHub", ...(github.login ? displayDetail(sourceText("Tilkoblet som {login}"), { login: github.login }) : displayDetail(sourceText("Tilkoblet"))), status: "ok" });
   // The Browser panel is a tool in Kode threads with a project.
   if (thread.mode === "code" && project && deps.browser) {
     const signedIn = deps.importedCookies?.list().length ?? 0;
     const running = deps.browser.running;
     const parts = [running ? "Kjører" : "Starter ved første bruk"];
     if (signedIn) parts.push(`innlogget på ${signedIn === 1 ? "1 nettsted" : `${signedIn} nettsteder`}`);
-    out.push({ id: "browser", kind: "browser", label: "Nettleserpanelet", detail: parts.join(", "), status: running ? "ok" : "off" });
+    out.push({ id: "browser", kind: "browser", label: sourceText("Nettleserpanelet"), localizeLabel: true, signedInSites: signedIn, detail: parts.join(", "), status: running ? "ok" : "off" });
   }
   return out;
 }
@@ -144,7 +150,7 @@ function tasks(deps: SessionDeps, thread: Thread, project: Project | undefined):
       id: `agent:${child.id}`,
       kind: "agent",
       title: child.title,
-      detail: model ? `Team-agent · ${model.name}` : "Team-agent",
+      ...(model ? displayDetail(sourceText("Team-agent · {name}"), { name: model.name }) : displayDetail(sourceText("Team-agent"))),
       startedAt: times?.startedAt ?? child.createdAt,
       finishedAt: running ? null : (times?.finishedAt ?? child.updatedAt),
       running,
@@ -157,7 +163,7 @@ function tasks(deps: SessionDeps, thread: Thread, project: Project | undefined):
         id: `terminal:${terminal.terminalId}`,
         kind: "terminal",
         title: terminal.title,
-        detail: terminal.title === "Terminal" ? "i prosjektmappen" : "Terminal",
+        ...displayDetail(terminal.title === "Terminal" ? sourceText("i prosjektmappen") : sourceText("Terminal")),
         startedAt: terminal.startedAt,
         finishedAt: terminal.exited ? (terminal.exitedAt ?? terminal.startedAt) : null,
         running: !terminal.exited,

@@ -18,7 +18,7 @@ import { Choice, Group, Page, Row, Segmented, Toggle, save } from "./parts";
 import { Select } from "../Select";
 import { LocalModelAdvisor } from "./local-model-advisor";
 
-import { plural, t } from "../../lib/i18n";
+import { lookupMessage, plural, t } from "../../lib/i18n";
 const MOCK_PROVIDER = (p: ProviderConfig) => p.kind === "mock";
 
 const disconnect = async (provider: ProviderConfig) => {
@@ -468,7 +468,7 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
         when={provider()}
         fallback={
           <form class="connect-form" onSubmit={submit} aria-label={t("Koble til {name}", { name: props.preset.name })}>
-            <Show when={props.preset.note}><p class="connect-text">{props.preset.note}</p></Show>
+            <Show when={props.preset.note}><p class="connect-text">{lookupMessage(props.preset.note)}</p></Show>
             <Show when={props.preset.docsUrl}><a class="provider-docs-link" href={props.preset.docsUrl} target="_blank" rel="noreferrer noopener">{t("Dokumentasjon for {name}", { name: props.preset.name })}</a></Show>
             <Show when={custom}>
               <label class="field"><span class="connect-label">{t("Navn")}</span><input ref={nameInput} class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} /></label>
@@ -540,7 +540,7 @@ function ProviderCatalog(props: {
     return props.presets.filter((preset) => {
       const group = categoryOf(preset);
       if (category() !== "all" && group !== category()) return false;
-      const text = [preset.name, preset.id, preset.baseUrl, preset.note, categoryLabel(group)].join(" ").toLowerCase();
+      const text = [preset.name, preset.id, preset.baseUrl, lookupMessage(preset.note), categoryLabel(group)].join(" ").toLowerCase();
       return words.every((word) => text.includes(word));
     }).sort((left, right) => Number(detectedById().has(right.id)) - Number(detectedById().has(left.id)));
   });
@@ -608,7 +608,7 @@ function ProviderCatalog(props: {
             };
             return (
               <li>
-                <Row label={preset.name} text={[categoryLabel(categoryOf(preset)), preset.note, detectedText()].filter(Boolean).join(" · ")}>
+                <Row label={preset.name} text={[categoryLabel(categoryOf(preset)), lookupMessage(preset.note), detectedText()].filter(Boolean).join(" · ")}>
                   <button type="button" class="btn btn-small" aria-label={connected() ? t("Vis oppsett for {name}", { name: preset.name }) : t("Koble til {name}", { name: preset.name })} onClick={(e) => open(e.currentTarget)}>
                     <Show when={connected()} fallback={<><IconPlus size={14} /> {t("Koble til")}</>}>{t("Vis oppsett")}</Show>
                   </button>

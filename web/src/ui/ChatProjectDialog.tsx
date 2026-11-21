@@ -1,4 +1,4 @@
-import { language, t } from "../lib/i18n";
+import { lookupMessage, language, t } from "../lib/i18n";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { CHAT_PROJECT_ICONS, MAX_CHAT_FIELD, MAX_CHAT_WORDS, PROJECT_COLORS, type ChatProject, type ChatProjectMemoryMode } from "../../../shared/protocol";
 import { patch, post } from "../lib/api";
@@ -90,7 +90,7 @@ function ChatProjectDialog(props: { request: ChatProjectDialogRequest }) {
         <fieldset class="chat-project-fieldset" disabled={busy()}><legend>{t("Ikonfarge")}</legend>
           <div class="chat-project-color-grid">
             <button type="button" class="chat-project-color-option chat-project-color-default" aria-label={t("Standardfarge")} aria-pressed={!color()} title={t("Standardfarge")} onClick={() => setColor(null)}><Show when={!color()}><IconCheck size={15} /></Show></button>
-            <For each={PROJECT_COLORS}>{entry => <button type="button" class="chat-project-color-option" aria-label={entry.label} title={entry.label} aria-pressed={color() === entry.id} style={{ "--project-color": entry.value }} onClick={() => setColor(entry.id)}><Show when={color() === entry.id}><IconCheck size={15} /></Show></button>}</For>
+            <For each={PROJECT_COLORS}>{entry => <button type="button" class="chat-project-color-option" aria-label={lookupMessage(entry.label)} title={lookupMessage(entry.label)} aria-pressed={color() === entry.id} style={{ "--project-color": entry.value }} onClick={() => setColor(entry.id)}><Show when={color() === entry.id}><IconCheck size={15} /></Show></button>}</For>
           </div>
         </fieldset>
         <label class="field"><span>{t("Instruksjoner for prosjektet")}</span>
