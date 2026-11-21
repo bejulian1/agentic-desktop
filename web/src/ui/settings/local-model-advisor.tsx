@@ -1,4 +1,4 @@
-import { localizedFormat } from "../../lib/i18n.ts";
+import { localizedFormat, t } from "../../lib/i18n.ts";
 import { createSignal, createUniqueId, For, Show } from "solid-js";
 import {
   LOCAL_MODEL_CONTEXT_OPTIONS,
@@ -13,7 +13,7 @@ import { Choice, Row } from "./parts";
 
 const decimal = localizedFormat(locale => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }));
 const gib = (value: number) => `${decimal.format(value)} GiB`;
-const contextLabel = (tokens: number) => `${formatTokens(tokens)} tokens`;
+const contextLabel = (tokens: number) => t("{tokens} tokens", { tokens: formatTokens(tokens) });
 
 function RecommendationCard(props: { suggestion: LocalModelSuggestion; recommended: boolean }) {
   const model = () => props.suggestion;
@@ -23,15 +23,15 @@ function RecommendationCard(props: { suggestion: LocalModelSuggestion; recommend
         <strong>{model().name}</strong>
         <span class="muted">
           {model().placement === "gpu"
-            ? `Anslått ${gib(model().estimatedGpuGiB!)} GPU-minne + ${gib(model().estimatedRamGiB)} RAM`
-            : `Anslått ${gib(model().estimatedRamGiB)} RAM · kan gå tregere på CPU`}
+            ? t("Anslått {gpu} GPU-minne + {ram} RAM", { gpu: gib(model().estimatedGpuGiB!), ram: gib(model().estimatedRamGiB) })
+            : t("Anslått {ram} RAM · kan gå tregere på CPU", { ram: gib(model().estimatedRamGiB) })}
         </span>
       </div>
-      <Show when={props.recommended}><span class="tag">Anbefalt</span></Show>
+      <Show when={props.recommended}><span class="tag">{t("Anbefalt")}</span></Show>
       <div class="local-model-sources">
         <a href={`https://ollama.com/library/${model().ollamaId}`} target="_blank" rel="noreferrer">Ollama · <code>{model().ollamaId}</code></a>
         <a href={model().ggufUrl} target="_blank" rel="noreferrer">GGUF · {model().ggufQuantization}</a>
-        <Show when={model().supportsTools}><span class="muted">Verktøystøtte*</span></Show>
+        <Show when={model().supportsTools}><span class="muted">{t("Verktøystøtte*")}</span></Show>
       </div>
     </li>
   );
@@ -57,7 +57,7 @@ export function LocalModelAdvisor(props: { active?: boolean }) {
     const availableRamGiB = source() === "manual" ? toNumber(ram()) : undefined;
     const freeGpuGiB = source() === "manual" && gpu().trim() ? toNumber(gpu()) : undefined;
     if ([availableRamGiB, freeGpuGiB].some((value) => value !== undefined && (!Number.isFinite(value) || value > 65_536))) {
-      setError("Skriv inn tilgjengelig RAM og eventuelt GPU-minne som tall fra 0 til 65 536 GiB.");
+      setError(t("Skriv inn tilgjengelig RAM og eventuelt GPU-minne som tall fra 0 til 65 536 GiB."));
       return;
     }
     setBusy(true);
@@ -74,43 +74,43 @@ export function LocalModelAdvisor(props: { active?: boolean }) {
 
   return (
     <>
-      <Row label="Modellanbefaling" text="Finn en modell som kan passe maskinvaren og konteksten du trenger.">
+      <Row label={t("Modellanbefaling")} text={t("Finn en modell som kan passe maskinvaren og konteksten du trenger.")}>
         <button type="button" class="btn btn-small" aria-expanded={open()} aria-controls={id} onClick={() => setOpen(!open())}>
-          {open() ? "Lukk anbefaling" : "Anbefal modell"}
+          {open() ? t("Lukk anbefaling") : t("Anbefal modell")}
         </button>
       </Row>
       <Show when={open()}>
         <div id={id} class="local-model-advisor">
-          <form class="form" aria-label="Anbefal lokal modell" onSubmit={submit}>
+          <form class="form" aria-label={t("Anbefal lokal modell")} onSubmit={submit}>
             <fieldset disabled={busy()} class="local-model-inputs">
-              <Row label="Maskinvare">
-                <Choice<"host" | "manual"> active={props.active} label="Maskinvare" value={source()}
-                  options={[{ value: "host", label: "Denne maskinen" }, { value: "manual", label: "Oppgi minne selv" }]}
+              <Row label={t("Maskinvare")}>
+                <Choice<"host" | "manual"> active={props.active} label={t("Maskinvare")} value={source()}
+                  options={[{ value: "host", label: t("Denne maskinen") }, { value: "manual", label: t("Oppgi minne selv") }]}
                   onChange={(value) => { setSource(value); reset(); }} />
               </Row>
               <Show when={source() === "manual"}>
-                <p class="muted">Bruk målingene fra maskinen som skal kjøre modellen. Oppgi GPU-minnet for ett kort.</p>
+                <p class="muted">{t("Bruk målingene fra maskinen som skal kjøre modellen. Oppgi GPU-minnet for ett kort.")}</p>
                 <div class="field-row">
-                  <label class="field"><span>Tilgjengelig RAM (GiB)</span>
+                  <label class="field"><span>{t("Tilgjengelig RAM (GiB)")}</span>
                     <input class="input" inputmode="decimal" required value={ram()} onInput={(e) => { setRam(e.currentTarget.value); reset(); }} />
                   </label>
-                  <label class="field"><span>Ledig GPU-minne (GiB, valgfritt)</span>
+                  <label class="field"><span>{t("Ledig GPU-minne (GiB, valgfritt)")}</span>
                     <input class="input" inputmode="decimal" value={gpu()} onInput={(e) => { setGpu(e.currentTarget.value); reset(); }} />
                   </label>
                 </div>
               </Show>
-              <Row label="Bruk">
-                <Choice<Mode> active={props.active} label="Bruk" value={mode()}
-                  options={[{ value: "chat", label: "Chat" }, { value: "code", label: "Kode" }]}
+              <Row label={t("Bruk")}>
+                <Choice<Mode> active={props.active} label={t("Bruk")} value={mode()}
+                  options={[{ value: "chat", label: t("Chat") }, { value: "code", label: t("Kode") }]}
                   onChange={(value) => { setMode(value); setContextTokens(value === "code" ? 16_384 : 8_192); reset(); }} />
               </Row>
-              <Row label="Kontekst">
-                <Choice<number> active={props.active} label="Kontekst" value={contextTokens()}
+              <Row label={t("Kontekst")}>
+                <Choice<number> active={props.active} label={t("Kontekst")} value={contextTokens()}
                   options={LOCAL_MODEL_CONTEXT_OPTIONS.map((tokens) => ({ value: tokens, label: contextLabel(tokens) }))}
                   onChange={(value) => { setContextTokens(value); reset(); }} />
               </Row>
               <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? "Beregner…" : "Vis anbefaling"}</button>
+                <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? t("Beregner…") : t("Vis anbefaling")}</button>
               </div>
             </fieldset>
           </form>
@@ -118,20 +118,22 @@ export function LocalModelAdvisor(props: { active?: boolean }) {
           <Show when={result()}>{(value) => (
             <div class="local-model-advice" aria-live="polite">
               <p class="muted">
-                {source() === "host" ? "Målt nå" : "Oppgitt minne"} · {gib(value().hardware.availableRamGiB)} tilgjengelig RAM
-                {value().hardware.freeGpuGiB === undefined ? " · Ledig GPU-minne ukjent" : ` · ${gib(value().hardware.freeGpuGiB!)} ledig GPU-minne`}
+                {[
+                  source() === "host" ? t("Målt nå") : t("Oppgitt minne"),
+                  t("{ram} tilgjengelig RAM", { ram: gib(value().hardware.availableRamGiB) }),
+                  value().hardware.freeGpuGiB === undefined ? t("Ledig GPU-minne ukjent") : t("{gpu} ledig GPU-minne", { gpu: gib(value().hardware.freeGpuGiB!) }),
+                ].join(" · ")}
               </p>
               <Show when={value().suggestions.length} fallback={
-                <p>Ingen av modellene i katalogen er anslått å få plass ved {contextLabel(value().contextTokens)} med {LOCAL_MODEL_RAM_RESERVE_GIB} GiB RAM i reserve.</p>
+                <p>{t("Ingen av modellene i katalogen er anslått å få plass ved {context} med {reserve} GiB RAM i reserve.", { context: contextLabel(value().contextTokens), reserve: LOCAL_MODEL_RAM_RESERVE_GIB })}</p>
               }>
-                <ol aria-label="Anbefalte lokale modeller">
+                <ol aria-label={t("Anbefalte lokale modeller")}>
                   <For each={value().suggestions}>{(suggestion, index) => (
                     <RecommendationCard suggestion={suggestion} recommended={index() === 0} />
                   )}</For>
                 </ol>
                 <p class="muted">
-                  Anslag ved {contextLabel(value().contextTokens)} og {LOCAL_MODEL_RAM_RESERVE_GIB} GiB RAM i reserve. Sett konteksten på modellserveren.
-                  *Verktøykall avhenger av serverens oppsett.
+                  {t("Anslag ved {context} og {reserve} GiB RAM i reserve. Sett konteksten på modellserveren. *Verktøykall avhenger av serverens oppsett.", { context: contextLabel(value().contextTokens), reserve: LOCAL_MODEL_RAM_RESERVE_GIB })}
                 </p>
               </Show>
             </div>

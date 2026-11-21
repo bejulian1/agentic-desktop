@@ -1,4 +1,4 @@
-import { language } from "../../lib/i18n.ts";
+import { language, t } from "../../lib/i18n.ts";
 // Optional context is stored per mode. Saving a switch never performs an IP lookup.
 import { createSignal, onCleanup, Show } from "solid-js";
 import { modelContextOf, type ModelContextModeSettings, type Settings } from "../../../../shared/protocol";
@@ -43,30 +43,30 @@ export function ModelContextSettings(props: { mode: Mode }) {
       if (alive) setError((err as Error).message);
     } finally { if (alive) { setBusy(false); setLocating(false); } }
   };
-  return <Group title="Kontekst til modellen">
-    <div class="setting setting-block"><span class="muted">Gjelder bare {props.mode === "code" ? "Kode" : "Chat"}, fra neste tur. Modus, verktøy og tillatelsesgrenser beskrives alltid.</span></div>
-    <Row as="label" label="Lokal dato og tid" text="Del maskinens ukedag, dato, klokkeslett og tidssone, slik at modellen har riktig tidskontekst.">
-      <input type="checkbox" role="switch" class="switch" aria-label="Lokal dato og tid" checked={checked("dateTime")} disabled={busy()} onChange={(event) => void save({ dateTime: event.currentTarget.checked })} />
+  return <Group title={t("Kontekst til modellen")}>
+    <div class="setting setting-block"><span class="muted">{t("Gjelder bare {mode}, fra neste tur. Modus, verktøy og tillatelsesgrenser beskrives alltid.", { mode: props.mode === "code" ? t("Kode") : t("Chat") })}</span></div>
+    <Row as="label" label={t("Lokal dato og tid")} text={t("Del maskinens ukedag, dato, klokkeslett og tidssone, slik at modellen har riktig tidskontekst.")}>
+      <input type="checkbox" role="switch" class="switch" aria-label={t("Lokal dato og tid")} checked={checked("dateTime")} disabled={busy()} onChange={(event) => void save({ dateTime: event.currentTarget.checked })} />
     </Row>
-    <Row as="label" label="Modell og leverandør" text="Del valgt modellnavn, modell-ID, leverandør og endepunkt. Nøkler og innlogging sendes ikke med.">
-      <input type="checkbox" role="switch" class="switch" aria-label="Modell og leverandør" checked={checked("model")} disabled={busy()} onChange={(event) => void save({ model: event.currentTarget.checked })} />
+    <Row as="label" label={t("Modell og leverandør")} text={t("Del valgt modellnavn, modell-ID, leverandør og endepunkt. Nøkler og innlogging sendes ikke med.")}>
+      <input type="checkbox" role="switch" class="switch" aria-label={t("Modell og leverandør")} checked={checked("model")} disabled={busy()} onChange={(event) => void save({ model: event.currentTarget.checked })} />
     </Row>
-    <Row as="label" label="Omtrentlig posisjon" text="Del byen eller landet som er lagret under. Av som standard. Å slå på henter ingen posisjon automatisk.">
-      <input type="checkbox" role="switch" class="switch" aria-label="Omtrentlig posisjon" checked={checked("location")} disabled={busy()} onChange={(event) => void save({ location: event.currentTarget.checked })} />
+    <Row as="label" label={t("Omtrentlig posisjon")} text={t("Del byen eller landet som er lagret under. Av som standard. Å slå på henter ingen posisjon automatisk.")}>
+      <input type="checkbox" role="switch" class="switch" aria-label={t("Omtrentlig posisjon")} checked={checked("location")} disabled={busy()} onChange={(event) => void save({ location: event.currentTarget.checked })} />
     </Row>
     <Show when={value().location}>
       <div class="setting setting-block model-context-location">
-        <label class="field"><span>By eller land</span><input class="input" aria-label="Posisjon til modellen" value={location()} maxLength={160} placeholder="For eksempel Bergen, Norge" onInput={(event) => setDraft(event.currentTarget.value)} /></label>
+        <label class="field"><span>{t("By eller land")}</span><input class="input" aria-label={t("Posisjon til modellen")} value={location()} maxLength={160} placeholder={t("For eksempel Bergen, Norge")} onInput={(event) => setDraft(event.currentTarget.value)} /></label>
         <div class="model-context-actions">
-          <button type="button" class="btn btn-small" disabled={busy() || !dirty()} onClick={() => void save({ locationText: location(), locationSource: "manual" })}>Lagre posisjon</button>
-          <button type="button" class="btn btn-small" disabled={busy() || dirty()} title={dirty() ? "Lagre endringen før du henter fra IP" : "Hent omtrentlig by og land fra appmaskinens offentlige IP"} onClick={() => void locate()}>Hent fra IP</button>
+          <button type="button" class="btn btn-small" disabled={busy() || !dirty()} onClick={() => void save({ locationText: location(), locationSource: "manual" })}>{t("Lagre posisjon")}</button>
+          <button type="button" class="btn btn-small" disabled={busy() || dirty()} title={dirty() ? t("Lagre endringen før du henter fra IP") : t("Hent omtrentlig by og land fra appmaskinens offentlige IP")} onClick={() => void locate()}>{t("Hent fra IP")}</button>
         </div>
-        <span class="muted small">IP-oppslag kontakter ipapi.co med appmaskinens offentlige IP. Bare by og land lagres som posisjon. VPN og nettverk kan gi feil sted.</span>
-        <Show when={dirty()} fallback={<Show when={value().locationText}><span class="muted small">{value().locationSource === "ip" ? "Omtrentlig posisjon hentet fra IP" : "Posisjon oppgitt av deg"}{value().locationSource === "ip" && value().locationUpdatedAt ? ` · ${new Date(value().locationUpdatedAt!).toLocaleString(language())}` : ""}</span></Show>}><span class="muted small">Endringen er ikke lagret.</span></Show>
-        <Show when={!location().trim()}><span class="muted small">Ingen posisjon deles før du lagrer et sted eller velger «Hent fra IP».</span></Show>
+        <span class="muted small">{t("IP-oppslag kontakter ipapi.co med appmaskinens offentlige IP. Bare by og land lagres som posisjon. VPN og nettverk kan gi feil sted.")}</span>
+        <Show when={dirty()} fallback={<Show when={value().locationText}><span class="muted small">{value().locationSource === "ip" ? t("Omtrentlig posisjon hentet fra IP") : t("Posisjon oppgitt av deg")}{value().locationSource === "ip" && value().locationUpdatedAt ? ` · ${new Date(value().locationUpdatedAt!).toLocaleString(language())}` : ""}</span></Show>}><span class="muted small">{t("Endringen er ikke lagret.")}</span></Show>
+        <Show when={!location().trim()}><span class="muted small">{t("Ingen posisjon deles før du lagrer et sted eller velger «Hent fra IP».")}</span></Show>
       </div>
     </Show>
-    <Show when={busy()}><div class="setting" role="status">{locating() ? "Henter omtrentlig posisjon …" : "Lagrer kontekstvalg …"}</div></Show>
+    <Show when={busy()}><div class="setting" role="status">{locating() ? t("Henter omtrentlig posisjon …") : t("Lagrer kontekstvalg …")}</div></Show>
     <Show when={error()}><div class="setting model-context-error" role="alert">{error()}</div></Show>
   </Group>;
 }

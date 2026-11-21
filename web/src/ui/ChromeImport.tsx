@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, plural, t } from "../lib/i18n.ts";
 // Round 10 (SPEC 23.1): Importer fra Chrome. A dialog where you pick a Chrome or Chromium profile on
 // this machine, choose whether history comes too, and see what will be imported before anything
 // is. The server reads only Bookmarks and History, and only when this dialog asks; never
@@ -25,7 +25,7 @@ export async function removeImported(): Promise<void> {
   try {
     await del("/api/browser/imported");
     setImported({ importedAt: null, source: null, bookmarks: [], history: [] });
-    toast("Det importerte er fjernet.", "info");
+    toast(t("Det importerte er fjernet."), "info");
   } catch (err) {
     report(err);
   }
@@ -39,20 +39,21 @@ export { openChromeImport } from "./dialog-state";
 // «nå nettopp», «for 5 min siden», «i dag kl. 14.05» or «3. nov.».
 function when(at: number): string {
   const minutes = Math.round((Date.now() - at) / 60_000);
-  if (minutes < 1) return "nå nettopp";
-  if (minutes < 60) return `for ${minutes} min siden`;
+  if (minutes < 1) return t("nå nettopp");
+  if (minutes < 60) return t("for {minutes} min siden", { minutes });
   const date = new Date(at);
-  if (date.toDateString() === new Date().toDateString()) return `i dag kl. ${date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" })}`;
+  if (date.toDateString() === new Date().toDateString()) return t("i dag kl. {time}", { time: date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" }) });
   return date.toLocaleDateString(language(), { day: "numeric", month: "short", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 }
 
-const count = (n: number, one: string, many: string) => `${n.toLocaleString(language())} ${n === 1 ? one : many}`;
+// The number is grouped for the active language, so it is passed as {n} and not as plural's own {count}.
+const bookmarkCount = (n: number) => plural(n, "{n} bokmerke", "{n} bokmerker", { n: n.toLocaleString(language()) });
+const historyCount = (n: number) => plural(n, "{n} side fra historikken", "{n} sider fra historikken", { n: n.toLocaleString(language()) });
 
 export function importedSummary(data: BrowserImported | null): string {
-  if (!data?.importedAt) return "Ingenting er importert ennå.";
-  const parts = [count(data.bookmarks.length, "bokmerke", "bokmerker")];
-  if (data.history.length) parts.push(count(data.history.length, "side fra historikken", "sider fra historikken"));
-  return `${parts.join(" og ")} fra ${data.source?.label ?? "Chrome"}, importert ${when(data.importedAt)}.`;
+  if (!data?.importedAt) return t("Ingenting er importert ennå.");
+  const values = { bookmarks: bookmarkCount(data.bookmarks.length), history: historyCount(data.history.length), source: data.source?.label ?? "Chrome", when: when(data.importedAt) };
+  return data.history.length ? t("{bookmarks} og {history} fra {source}, importert {when}.", values) : t("{bookmarks} fra {source}, importert {when}.", values);
 }
 
 function hostOf(url: string): string {
@@ -90,7 +91,7 @@ function ImportDialog() {
     const mine = ++seq;
     post<ChromeImportPreview>("/api/browser/chrome-import/preview", { browser: profile.browser, profile: profile.profile, history: history && profile.history })
       .then((result) => mine === seq && setPreview(result))
-      .catch((err: Error) => mine === seq && setPreviewError(err.message || "Kunne ikke lese profilen."));
+      .catch((err: Error) => mine === seq && setPreviewError(err.message || t("Kunne ikke lese profilen.")));
   }));
 
   const nothing = () => !!preview() && preview()!.bookmarks === 0 && preview()!.history === 0;
@@ -101,9 +102,8 @@ function ImportDialog() {
     try {
       const result = await post<{ bookmarks: number; history: number }>("/api/browser/chrome-import", { browser: profile.browser, profile: profile.profile, history: withHistory() && profile.history });
       await loadImported(true);
-      const parts = [count(result.bookmarks, "bokmerke", "bokmerker")];
-      if (result.history) parts.push(count(result.history, "side", "sider") + " fra historikken");
-      toast(`Importerte ${parts.join(" og ")}.`, "info");
+      const values = { bookmarks: bookmarkCount(result.bookmarks), history: historyCount(result.history) };
+      toast(result.history ? t("Importerte {bookmarks} og {history}.", values) : t("Importerte {bookmarks}.", values), "info");
       close();
     } catch (err) {
       report(err);
@@ -114,11 +114,11 @@ function ImportDialog() {
 
   return (
     <dialog ref={dialog} class="dialog chrome-import" aria-labelledby="chrome-import-title" onCancel={(e) => { e.preventDefault(); close(); }}>
-      <h2 id="chrome-import-title">Importer fra Chrome</h2>
-      <p class="chrome-import-lead"><IconShield size={14} /><span>Leser bare bokmerker og, hvis du vil, historikk fra profilen du velger. Aldri passord, informasjonskapsler, kort eller økter.</span></p>
-      <Show when={!profiles.loading} fallback={<p class="muted">Ser etter profiler…</p>}>
-        <Show when={profiles()?.length} fallback={<p class="chrome-import-none" data-testid="chrome-import-none">Fant ingen Chrome- eller Chromium-profil med bokmerker eller historikk på denne maskinen.</p>}>
-          <div class="chrome-import-profiles" role="radiogroup" aria-label="Profil">
+      <h2 id="chrome-import-title">{t("Importer fra Chrome")}</h2>
+      <p class="chrome-import-lead"><IconShield size={14} /><span>{t("Leser bare bokmerker og, hvis du vil, historikk fra profilen du velger. Aldri passord, informasjonskapsler, kort eller økter.")}</span></p>
+      <Show when={!profiles.loading} fallback={<p class="muted">{t("Ser etter profiler…")}</p>}>
+        <Show when={profiles()?.length} fallback={<p class="chrome-import-none" data-testid="chrome-import-none">{t("Fant ingen Chrome- eller Chromium-profil med bokmerker eller historikk på denne maskinen.")}</p>}>
+          <div class="chrome-import-profiles" role="radiogroup" aria-label={t("Profil")}>
             <For each={profiles()}>
               {(profile) => (
                 <button
@@ -131,7 +131,7 @@ function ImportDialog() {
                   <IconGlobe size={15} />
                   <span class="chrome-import-profile-text">
                     <span class="chrome-import-profile-name">{profile.label}</span>
-                    <span class="muted">{[profile.bookmarks && "Bokmerker", profile.history && "Historikk"].filter(Boolean).join(" · ")}</span>
+                    <span class="muted">{[profile.bookmarks && t("Bokmerker"), profile.history && t("Historikk")].filter(Boolean).join(" · ")}</span>
                   </span>
                 </button>
               )}
@@ -139,16 +139,18 @@ function ImportDialog() {
           </div>
           <label class="chrome-import-check" classList={{ disabled: !chosen()?.history }}>
             <input type="checkbox" checked={withHistory()} disabled={!chosen()?.history} onChange={(e) => setWithHistory(e.currentTarget.checked)} />
-            <span>Ta med historikken <span class="muted">(de siste 1 000 sidene)</span></span>
+            <span>{t("Ta med historikken")} <span class="muted">{t("(de siste 1 000 sidene)")}</span></span>
           </label>
           <div class="chrome-import-preview" data-testid="chrome-import-preview" aria-live="polite">
             <Show when={!previewError()} fallback={<p class="chrome-import-error">{previewError()}</p>}>
-              <Show when={preview()} fallback={<p class="muted">Leser profilen…</p>}>
+              <Show when={preview()} fallback={<p class="muted">{t("Leser profilen…")}</p>}>
                 {(p) => (
                   <>
                     <p class="chrome-import-counts">
-                      <strong>Blir importert:</strong> {count(p().bookmarks, "bokmerke", "bokmerker")}
-                      <Show when={withHistory()}>{` og ${count(p().history, "side", "sider")} fra historikken`}</Show>.
+                      <strong>{t("Blir importert:")}</strong>{" "}
+                      {withHistory()
+                        ? t("{bookmarks} og {history}.", { bookmarks: bookmarkCount(p().bookmarks), history: historyCount(p().history) })
+                        : t("{bookmarks}.", { bookmarks: bookmarkCount(p().bookmarks) })}
                     </p>
                     <ul class="chrome-import-sample">
                       <For each={p().sampleBookmarks}>
@@ -160,7 +162,7 @@ function ImportDialog() {
                         </For>
                       </Show>
                     </ul>
-                    <Show when={imported()?.importedAt}><p class="muted chrome-import-replace">Erstatter det du importerte {when(imported()!.importedAt!)}.</p></Show>
+                    <Show when={imported()?.importedAt}><p class="muted chrome-import-replace">{t("Erstatter det du importerte {when}.", { when: when(imported()!.importedAt!) })}</p></Show>
                   </>
                 )}
               </Show>
@@ -169,8 +171,8 @@ function ImportDialog() {
         </Show>
       </Show>
       <div class="dialog-actions">
-        <button type="button" class="btn" onClick={close}>Avbryt</button>
-        <button type="button" class="btn btn-primary" disabled={!preview() || nothing() || busy()} onClick={() => void run()}>{busy() ? "Importerer…" : "Importer"}</button>
+        <button type="button" class="btn" onClick={close}>{t("Avbryt")}</button>
+        <button type="button" class="btn btn-primary" disabled={!preview() || nothing() || busy()} onClick={() => void run()}>{busy() ? t("Importerer…") : t("Importer")}</button>
       </div>
     </dialog>
   );

@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, plural, t } from "../lib/i18n.ts";
 // Round 12 (SPEC 26.4): Forbli innlogget på nettstedene dine. Cookies from Chrome, Chromium or Firefox
 // on this machine into the app's own Browser panel, so the user is signed in there too.
 //
@@ -15,7 +15,7 @@ import { del, get, post } from "../lib/api";
 import { app, report, saveSettings, toast } from "../state/app";
 import { confirmDialog } from "./dialogs";
 import { IconCheck, IconGlobe, IconSearch, IconShieldCheck, IconTrash, IconWarn } from "./icons";
-import { Group, Row } from "./settings/parts";
+import { Group, Rich, Row } from "./settings/parts";
 import { cookieDialog, openCookieImport, setCookieDialog } from "./dialog-state";
 import { IconCookie } from "./nav-icons";
 import "../styles/cookies.css";
@@ -24,19 +24,21 @@ import "../styles/cookies.css";
 export { IconCookie };
 
 const n = (value: number) => value.toLocaleString(language());
-const count = (value: number, one: string, many: string) => `${n(value)} ${value === 1 ? one : many}`;
+// The number is grouped for the active language, so it is passed as {n} and not as plural's own {count}.
+const cookieCount = (value: number) => plural(value, "{n} informasjonskapsel", "{n} informasjonskapsler", { n: n(value) });
+const siteCount = (value: number) => plural(value, "{n} nettsted", "{n} nettsteder", { n: n(value) });
 
 // «i dag», «i går», «for 3 dager siden», «for 2 måneder siden».
 export function since(at: number | null): string {
   if (!at) return "";
   const days = Math.floor((Date.now() - at) / 86_400_000);
-  if (days <= 0) return "i dag";
-  if (days === 1) return "i går";
-  if (days < 30) return `for ${days} dager siden`;
+  if (days <= 0) return t("i dag");
+  if (days === 1) return t("i går");
+  if (days < 30) return plural(days, "for {count} dag siden", "for {count} dager siden");
   const months = Math.floor(days / 30);
-  if (months < 12) return `for ${months === 1 ? "en måned" : `${months} måneder`} siden`;
+  if (months < 12) return plural(months, "for en måned siden", "for {count} måneder siden");
   const years = Math.floor(months / 12);
-  return `for ${years === 1 ? "ett år" : `${years} år`} siden`;
+  return plural(years, "for ett år siden", "for {count} år siden");
 }
 
 // What has been imported, per site, for Innstillinger → Nettleser and the agent's check.
@@ -50,7 +52,7 @@ export async function forgetSite(site: string): Promise<void> {
   try {
     await del(`/api/browser/cookies/${encodeURIComponent(site)}`);
     setImportedSites((list) => list?.filter((s) => s.site !== site) ?? null);
-    toast(`Glemte informasjonskapslene for ${site}.`, "info");
+    toast(t("Glemte informasjonskapslene for {site}.", { site }), "info");
   } catch (err) {
     report(err);
   }
@@ -59,16 +61,16 @@ export async function forgetSite(site: string): Promise<void> {
 export async function forgetAllCookies(): Promise<void> {
   const total = importedSites()?.length ?? 0;
   const ok = await confirmDialog({
-    title: "Glemme importerte informasjonskapsler?",
-    text: `Nettleserpanelet logges ut av ${count(total, "nettsted", "nettsteder")} du har importert. Nettleseren din på maskinen røres ikke.`,
-    confirm: "Glem",
+    title: t("Glemme importerte informasjonskapsler?"),
+    text: plural(total, "Nettleserpanelet logges ut av {n} nettsted du har importert. Nettleseren din på maskinen røres ikke.", "Nettleserpanelet logges ut av {n} nettsteder du har importert. Nettleseren din på maskinen røres ikke.", { n: n(total) }),
+    confirm: t("Glem"),
     danger: true,
   });
   if (!ok) return;
   try {
     await del("/api/browser/cookies");
     setImportedSites([]);
-    toast("De importerte informasjonskapslene er glemt.", "info");
+    toast(t("De importerte informasjonskapslene er glemt."), "info");
   } catch (err) {
     report(err);
   }
@@ -145,7 +147,7 @@ function CookieDialog(props: { firstRun: boolean }) {
       if (mine === seq) setList(sites);
       requestAnimationFrame(() => search?.focus());
     } catch (err) {
-      if (mine === seq) setListError((err as Error).message || "Kunne ikke lese profilen.");
+      if (mine === seq) setListError((err as Error).message || t("Kunne ikke lese profilen."));
     }
   };
 
@@ -211,29 +213,29 @@ function CookieDialog(props: { firstRun: boolean }) {
         <Match when={step() === "intro"}>
           <div class="cookie-intro cookie-step">
             <div class="cookie-badge" aria-hidden="true"><IconCookie size={22} /></div>
-            <h2 id="cookie-title">Forbli innlogget på nettstedene dine</h2>
-            <p class="cookie-lead">Importer informasjonskapsler fra nettleseren din, slik at du er logget inn når nettstedene dine åpnes i nettleserpanelet, her og i alle tråder.</p>
+            <h2 id="cookie-title">{t("Forbli innlogget på nettstedene dine")}</h2>
+            <p class="cookie-lead">{t("Importer informasjonskapsler fra nettleseren din, slik at du er logget inn når nettstedene dine åpnes i nettleserpanelet, her og i alle tråder.")}</p>
             <ul class="cookie-promises">
-              <li><IconCheckCircle />Bare informasjonskapsler og nettstedsdata. Passord importeres ikke.</li>
-              <li><IconCheckCircle />Du velger nettstedene.</li>
-              <li><IconCheckCircle />Ingenting forlater denne datamaskinen.</li>
+              <li><IconCheckCircle />{t("Bare informasjonskapsler og nettstedsdata. Passord importeres ikke.")}</li>
+              <li><IconCheckCircle />{t("Du velger nettstedene.")}</li>
+              <li><IconCheckCircle />{t("Ingenting forlater denne datamaskinen.")}</li>
             </ul>
             <div class="cookie-actions">
               <Show when={props.firstRun}>
-                <button type="button" class="cookie-never" onClick={never}>Ikke vis igjen</button>
+                <button type="button" class="cookie-never" onClick={never}>{t("Ikke vis igjen")}</button>
               </Show>
               <span class="cookie-spacer" />
-              <button type="button" class="btn" onClick={() => (props.firstRun ? later() : close())}>Ikke nå</button>
-              <button type="button" class="btn btn-primary" disabled={profiles.loading} onClick={start}>Importer informasjonskapsler</button>
+              <button type="button" class="btn" onClick={() => (props.firstRun ? later() : close())}>{t("Ikke nå")}</button>
+              <button type="button" class="btn btn-primary" disabled={profiles.loading} onClick={start}>{t("Importer informasjonskapsler")}</button>
             </div>
           </div>
         </Match>
 
         <Match when={step() === "profile"}>
           <div class="cookie-step">
-            <StepHead step={step()} title="Velg nettleserprofil" />
-            <Show when={profiles()?.length} fallback={<p class="cookie-empty" data-testid="cookie-no-profiles">Fant ingen profil fra Chrome, Chromium eller Firefox med informasjonskapsler på denne maskinen.</p>}>
-              <div class="cookie-profiles" role="radiogroup" aria-label="Nettleserprofil">
+            <StepHead step={step()} title={t("Velg nettleserprofil")} />
+            <Show when={profiles()?.length} fallback={<p class="cookie-empty" data-testid="cookie-no-profiles">{t("Fant ingen profil fra Chrome, Chromium eller Firefox med informasjonskapsler på denne maskinen.")}</p>}>
+              <div class="cookie-profiles" role="radiogroup" aria-label={t("Nettleserprofil")}>
                 <For each={profiles()}>
                   {(p) => (
                     <button type="button" role="radio" class="cookie-profile" aria-checked={profile()?.browser === p.browser && profile()?.profile === p.profile} onClick={() => setProfile(p)} onDblClick={() => { setProfile(p); void loadSites(); }}>
@@ -245,38 +247,38 @@ function CookieDialog(props: { firstRun: boolean }) {
                 </For>
               </div>
             </Show>
-            <p class="cookie-note"><IconShieldCheck size={14} /><span>Bare databasen med informasjonskapsler i profilen leses. Passord, kort og autofyll åpnes aldri.</span></p>
+            <p class="cookie-note"><IconShieldCheck size={14} /><span>{t("Bare databasen med informasjonskapsler i profilen leses. Passord, kort og autofyll åpnes aldri.")}</span></p>
             <div class="cookie-actions">
-              <button type="button" class="btn" onClick={() => setStep("intro")}>Tilbake</button>
+              <button type="button" class="btn" onClick={() => setStep("intro")}>{t("Tilbake")}</button>
               <span class="cookie-spacer" />
-              <button type="button" class="btn btn-primary" disabled={!profile()} onClick={() => void loadSites()}>Neste</button>
+              <button type="button" class="btn btn-primary" disabled={!profile()} onClick={() => void loadSites()}>{t("Neste")}</button>
             </div>
           </div>
         </Match>
 
         <Match when={step() === "sites"}>
           <div class="cookie-step">
-            <StepHead step={step()} title="Velg nettsteder" detail={list()?.source.label ?? profile()?.label} />
+            <StepHead step={step()} title={t("Velg nettsteder")} detail={list()?.source.label ?? profile()?.label} />
             <div class="cookie-toolbar">
               <label class="cookie-search">
                 <IconSearch size={14} />
-                <input ref={search} class="search-input" type="search" placeholder="Søk etter nettsted" aria-label="Søk etter nettsted" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} autocomplete="off" spellcheck={false} />
+                <input ref={search} class="search-input" type="search" placeholder={t("Søk etter nettsted")} aria-label={t("Søk etter nettsted")} value={query()} onInput={(e) => setQuery(e.currentTarget.value)} autocomplete="off" spellcheck={false} />
               </label>
               <label class="cookie-all" classList={{ disabled: !visible().length }}>
                 <input type="checkbox" checked={allVisibleChosen()} ref={(el) => createEffect(() => (el.indeterminate = !allVisibleChosen() && someVisibleChosen()))} disabled={!visible().length} onChange={toggleAll} />
-                <span>{query().trim() ? "Velg alle treff" : "Velg alle"}</span>
+                <span>{query().trim() ? t("Velg alle treff") : t("Velg alle")}</span>
               </label>
             </div>
-            <div class="cookie-sites" role="group" aria-label="Nettsteder" data-testid="cookie-sites">
+            <div class="cookie-sites" role="group" aria-label={t("Nettsteder")} data-testid="cookie-sites">
               <Show when={!listError()} fallback={<p class="cookie-error" role="alert">{listError()}</p>}>
-                <Show when={list()} fallback={<div class="cookie-loading" role="status">Leser profilen…</div>}>
-                  <Show when={visible().length} fallback={<p class="cookie-empty">{query().trim() ? `Ingen nettsteder med «${query().trim()}».` : "Profilen har ingen informasjonskapsler som gjelder nå."}</p>}>
+                <Show when={list()} fallback={<div class="cookie-loading" role="status">{t("Leser profilen…")}</div>}>
+                  <Show when={visible().length} fallback={<p class="cookie-empty">{query().trim() ? t("Ingen nettsteder med «{query}».", { query: query().trim() }) : t("Profilen har ingen informasjonskapsler som gjelder nå.")}</p>}>
                     <For each={visible()}>
                       {(s) => (
                         <label class="cookie-site" classList={{ chosen: chosen().has(s.site) }}>
                           <input type="checkbox" checked={chosen().has(s.site)} onChange={() => toggle(s.site)} />
                           <span class="cookie-site-name">{s.site}</span>
-                          <span class="cookie-site-meta">{count(s.cookies, "informasjonskapsel", "informasjonskapsler")}<Show when={s.lastUsed}> · brukt {since(s.lastUsed)}</Show></span>
+                          <span class="cookie-site-meta">{s.lastUsed ? t("{cookies} · brukt {when}", { cookies: cookieCount(s.cookies), when: since(s.lastUsed) }) : cookieCount(s.cookies)}</span>
                         </label>
                       )}
                     </For>
@@ -285,41 +287,41 @@ function CookieDialog(props: { firstRun: boolean }) {
               </Show>
             </div>
             <Show when={keyring() === "missing"}>
-              <p class="cookie-warning" role="note" data-testid="cookie-keyring-missing"><IconWarn size={14} /><span>{browserName()} låser informasjonskapslene med en nøkkel i systemets nøkkelring, men <code>secret-tool</code> finnes ikke på maskinen. De som er låst slik, kan ikke importeres. Pakken heter <code>libsecret-tools</code>.</span></p>
+              <p class="cookie-warning" role="note" data-testid="cookie-keyring-missing"><IconWarn size={14} /><span><Rich text={t("{browser} låser informasjonskapslene med en nøkkel i systemets nøkkelring, men {tool} finnes ikke på maskinen. De som er låst slik, kan ikke importeres. Pakken heter {package}.", { browser: browserName() })} parts={{ tool: <code>secret-tool</code>, package: <code>libsecret-tools</code> }} /></span></p>
             </Show>
             <div class="cookie-actions">
-              <button type="button" class="btn" onClick={() => setStep("profile")}>Tilbake</button>
-              <span class="cookie-count" aria-live="polite">{chosen().size ? `${count(chosen().size, "nettsted", "nettsteder")} valgt` : "Ingen valgt"}</span>
-              <button type="button" class="btn btn-primary" disabled={!chosen().size} onClick={() => setStep("summary")}>Neste</button>
+              <button type="button" class="btn" onClick={() => setStep("profile")}>{t("Tilbake")}</button>
+              <span class="cookie-count" aria-live="polite">{chosen().size ? plural(chosen().size, "{n} nettsted valgt", "{n} nettsteder valgt", { n: n(chosen().size) }) : t("Ingen valgt")}</span>
+              <button type="button" class="btn btn-primary" disabled={!chosen().size} onClick={() => setStep("summary")}>{t("Neste")}</button>
             </div>
           </div>
         </Match>
 
         <Match when={step() === "summary"}>
           <div class="cookie-step">
-            <StepHead step={step()} title="Se over og importer" />
+            <StepHead step={step()} title={t("Se over og importer")} />
             <div class="cookie-summary" data-testid="cookie-summary">
-              <p class="cookie-summary-line"><strong>{count(chosenCookies(), "informasjonskapsel", "informasjonskapsler")}</strong> fra {count(chosenSites().length, "nettsted", "nettsteder")} i {list()?.source.label}.</p>
+              <p class="cookie-summary-line"><Rich text={t("{cookies} fra {sites} i {source}.", { sites: siteCount(chosenSites().length), source: list()?.source.label ?? "" })} parts={{ cookies: <strong>{cookieCount(chosenCookies())}</strong> }} /></p>
               <ul class="cookie-chosen">
                 <For each={chosenSites()}>{(s) => <li><span class="cookie-site-name">{s.site}</span><span class="cookie-site-meta">{n(s.cookies)}</span></li>}</For>
               </ul>
             </div>
             <ul class="cookie-facts">
-              <li><IconShieldCheck size={14} /><span>Lagres bare i appens egen nettleserprofil, i datamappen. Du kan glemme dem igjen i Innstillinger → Nettleser.</span></li>
+              <li><IconShieldCheck size={14} /><span>{t("Lagres bare i appens egen nettleserprofil, i datamappen. Du kan glemme dem igjen i Innstillinger → Nettleser.")}</span></li>
               <Show when={keyring() === "needed"}>
-                <li><IconShieldCheck size={14} /><span>{browserName()} låser informasjonskapslene med en nøkkel i systemets nøkkelring. Nøkkelen hentes med <code>secret-tool</code> når du trykker Importer, og brukes bare til dette.</span></li>
+                <li><IconShieldCheck size={14} /><span><Rich text={t("{browser} låser informasjonskapslene med en nøkkel i systemets nøkkelring. Nøkkelen hentes med {tool} når du trykker Importer, og brukes bare til dette.", { browser: browserName() })} parts={{ tool: <code>secret-tool</code> }} /></span></li>
               </Show>
               <Show when={keyring() === "missing"}>
-                <li class="warn"><IconWarn size={14} /><span>Uten <code>secret-tool</code> kan ikke informasjonskapsler som er låst med nøkkelringen, leses. Resten importeres.</span></li>
+                <li class="warn"><IconWarn size={14} /><span><Rich text={t("Uten {tool} kan ikke informasjonskapsler som er låst med nøkkelringen, leses. Resten importeres.")} parts={{ tool: <code>secret-tool</code> }} /></span></li>
               </Show>
               <Show when={app.settings.browserAskSignedIn !== false}>
-                <li><IconShieldCheck size={14} /><span>Agenter spør før de bruker et nettsted du er innlogget på.</span></li>
+                <li><IconShieldCheck size={14} /><span>{t("Agenter spør før de bruker et nettsted du er innlogget på.")}</span></li>
               </Show>
             </ul>
             <div class="cookie-actions">
-              <button type="button" class="btn" disabled={busy()} onClick={() => setStep("sites")}>Tilbake</button>
+              <button type="button" class="btn" disabled={busy()} onClick={() => setStep("sites")}>{t("Tilbake")}</button>
               <span class="cookie-spacer" />
-              <button type="button" class="btn btn-primary" disabled={busy()} onClick={() => void run()}>{busy() ? "Importerer…" : "Importer"}</button>
+              <button type="button" class="btn btn-primary" disabled={busy()} onClick={() => void run()}>{busy() ? t("Importerer…") : t("Importer")}</button>
             </div>
           </div>
         </Match>
@@ -328,14 +330,16 @@ function CookieDialog(props: { firstRun: boolean }) {
           {(done) => (
             <div class="cookie-intro cookie-step" data-testid="cookie-done">
               <div class="cookie-badge ok" aria-hidden="true"><IconCheck size={22} /></div>
-              <h2 id="cookie-title">Du er logget inn</h2>
-              <p class="cookie-lead">Importerte {count(done().cookies, "informasjonskapsel", "informasjonskapsler")} fra {count(done().sites, "nettsted", "nettsteder")}. De gjelder i nettleserpanelet fra nå av.</p>
+              <h2 id="cookie-title">{t("Du er logget inn")}</h2>
+              <p class="cookie-lead">{t("Importerte {cookies} fra {sites}. De gjelder i nettleserpanelet fra nå av.", { cookies: cookieCount(done().cookies), sites: siteCount(done().sites) })}</p>
               <Show when={done().skipped}>
-                <p class="cookie-warning"><IconWarn size={14} /><span>{count(done().skipped, "informasjonskapsel", "informasjonskapsler")} kunne ikke {done().keyringMissing ? "låses opp uten nøkkelen fra nøkkelringen" : "leses eller ble avvist av nettleseren"}, og ble hoppet over.</span></p>
+                <p class="cookie-warning"><IconWarn size={14} /><span>{done().keyringMissing
+                  ? plural(done().skipped, "{n} informasjonskapsel kunne ikke låses opp uten nøkkelen fra nøkkelringen, og ble hoppet over.", "{n} informasjonskapsler kunne ikke låses opp uten nøkkelen fra nøkkelringen, og ble hoppet over.", { n: n(done().skipped) })
+                  : plural(done().skipped, "{n} informasjonskapsel kunne ikke leses eller ble avvist av nettleseren, og ble hoppet over.", "{n} informasjonskapsler kunne ikke leses eller ble avvist av nettleseren, og ble hoppet over.", { n: n(done().skipped) })}</span></p>
               </Show>
               <div class="cookie-actions">
                 <span class="cookie-spacer" />
-                <button type="button" class="btn btn-primary" onClick={close}>Ferdig</button>
+                <button type="button" class="btn btn-primary" onClick={close}>{t("Ferdig")}</button>
               </div>
             </div>
           )}
@@ -348,7 +352,7 @@ function CookieDialog(props: { firstRun: boolean }) {
 function StepHead(props: { step: Step; title: string; detail?: string }) {
   return (
     <div class="cookie-head">
-      <span class="cookie-steps" aria-label={`Steg ${STEP_NUMBER[props.step]} av 3`}>
+      <span class="cookie-steps" aria-label={t("Steg {step} av 3", { step: STEP_NUMBER[props.step] ?? 0 })}>
         <For each={[1, 2, 3]}>{(i) => <span class="cookie-dot" classList={{ on: i <= (STEP_NUMBER[props.step] ?? 0) }} aria-hidden="true" />}</For>
       </span>
       <h2 id="cookie-title">{props.title}</h2>
@@ -373,30 +377,30 @@ export function CookieSettings() {
   const sites = () => importedSites() ?? [];
   return (
     <>
-      <Group title="Informasjonskapsler">
-        <Row label="Forbli innlogget på nettstedene dine" icon={IconCookie} text="Importer informasjonskapsler fra Chrome, Chromium eller Firefox på denne maskinen. Bare informasjonskapsler, aldri passord, og bare nettstedene du velger.">
-          <button type="button" class="btn btn-small" data-testid="cookie-import-open" onClick={openCookieImport}>Importer…</button>
+      <Group title={t("Informasjonskapsler")}>
+        <Row label={t("Forbli innlogget på nettstedene dine")} icon={IconCookie} text={t("Importer informasjonskapsler fra Chrome, Chromium eller Firefox på denne maskinen. Bare informasjonskapsler, aldri passord, og bare nettstedene du velger.")}>
+          <button type="button" class="btn btn-small" data-testid="cookie-import-open" onClick={openCookieImport}>{t("Importer…")}</button>
         </Row>
-        <Row as="label" label="Spør før agenter bruker innloggede nettsteder" icon={IconShieldCheck} text="Vil en agent åpne, lese eller klikke på et nettsted du er innlogget på, spør appen først. Et ja gjelder nettstedet resten av tråden.">
-          <input type="checkbox" role="switch" class="switch" aria-label="Spør før agenter bruker innloggede nettsteder" checked={app.settings.browserAskSignedIn !== false} onChange={(e) => void saveSettings({ browserAskSignedIn: e.currentTarget.checked }).catch(report)} />
+        <Row as="label" label={t("Spør før agenter bruker innloggede nettsteder")} icon={IconShieldCheck} text={t("Vil en agent åpne, lese eller klikke på et nettsted du er innlogget på, spør appen først. Et ja gjelder nettstedet resten av tråden.")}>
+          <input type="checkbox" role="switch" class="switch" aria-label={t("Spør før agenter bruker innloggede nettsteder")} checked={app.settings.browserAskSignedIn !== false} onChange={(e) => void saveSettings({ browserAskSignedIn: e.currentTarget.checked }).catch(report)} />
         </Row>
       </Group>
       <Show when={sites().length}>
         <Group
-          title="Importerte nettsteder"
-          action={<button type="button" class="btn btn-small btn-quiet btn-quiet-danger" data-testid="cookie-forget-all" onClick={() => void forgetAllCookies()}>Glem importerte informasjonskapsler</button>}
+          title={t("Importerte nettsteder")}
+          action={<button type="button" class="btn btn-small btn-quiet btn-quiet-danger" data-testid="cookie-forget-all" onClick={() => void forgetAllCookies()}>{t("Glem importerte informasjonskapsler")}</button>}
         >
-          <ul class="cookie-imported" aria-label="Importerte nettsteder" data-testid="cookie-imported">
+          <ul class="cookie-imported" aria-label={t("Importerte nettsteder")} data-testid="cookie-imported">
             <For each={sites()}>
               {(s) => (
                 <li class="setting cookie-imported-row">
                   <span class="cookie-favicon" aria-hidden="true">{s.site.slice(0, 1).toUpperCase()}</span>
                   <div class="setting-text">
                     <strong>{s.site}</strong>
-                    <span class="muted">{count(s.cookies, "informasjonskapsel", "informasjonskapsler")} fra {s.source}, importert {since(s.importedAt)}</span>
+                    <span class="muted">{t("{cookies} fra {source}, importert {when}", { cookies: cookieCount(s.cookies), source: s.source, when: since(s.importedAt) })}</span>
                   </div>
                   <div class="setting-control">
-                    <button type="button" class="icon-button" title={`Glem ${s.site}`} aria-label={`Glem informasjonskapslene for ${s.site}`} onClick={() => void forgetSite(s.site)}><IconTrash size={15} /></button>
+                    <button type="button" class="icon-button" title={t("Glem {site}", { site: s.site })} aria-label={t("Glem informasjonskapslene for {site}", { site: s.site })} onClick={() => void forgetSite(s.site)}><IconTrash size={15} /></button>
                   </div>
                 </li>
               )}

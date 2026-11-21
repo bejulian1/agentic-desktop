@@ -8,9 +8,10 @@ import { ApiError, del, get, put } from "../lib/api";
 import { app, currentProject, report, toast } from "../state/app";
 import { confirmDialog } from "./dialogs";
 import { resetText } from "./GitHubShared";
-import { Group, Page, Row } from "./settings/parts";
+import { Group, Page, Rich, Row } from "./settings/parts";
 import { SecretInput } from "./SecretInput";
 
+import { t } from "../lib/i18n";
 export function GitHubSettings() {
   const [status, { mutate }] = createResource(() => get<GitHubStatus>("/api/github"));
   const project = currentProject;
@@ -30,7 +31,7 @@ export function GitHubSettings() {
       const next = await put<GitHubStatus>("/api/github/token", { token: value });
       setToken("");
       mutate(next);
-      toast(`Koblet til GitHub som ${next.login}.`, "info");
+      toast(t("Koblet til GitHub som {login}.", { login: next.login ?? "" }), "info");
     } catch (err) {
       if (err instanceof ApiError) {
         const body = err.body as { code?: string; resetAt?: number } | undefined;
@@ -44,7 +45,7 @@ export function GitHubSettings() {
   };
 
   const disconnect = async () => {
-    const ok = await confirmDialog({ title: "Koble fra GitHub?", text: "Tokenet slettes fra denne maskinen. Det trekkes ikke tilbake på GitHub; det gjør du under Developer settings der.", confirm: "Koble fra", danger: true });
+    const ok = await confirmDialog({ title: t("Koble fra GitHub?"), text: t("Tokenet slettes fra denne maskinen. Det trekkes ikke tilbake på GitHub; det gjør du under Developer settings der."), confirm: t("Koble fra"), danger: true });
     if (!ok) return;
     try {
       mutate(await del<GitHubStatus>("/api/github/token"));
@@ -56,27 +57,26 @@ export function GitHubSettings() {
   return (
     <Page
       title="GitHub"
-      intro="Se prosjektets åpne pull requests og issues i panelet til høyre, og åpne dem i Nettleser. Bare lesing i denne versjonen."
+      intro={t("Se prosjektets åpne pull requests og issues i panelet til høyre, og åpne dem i Nettleser. Bare lesing i denne versjonen.")}
     >
-      <p class="beta-note github-beta-note"><span class="beta-badge">Beta</span> Prøvd mot en lokal testserver, ennå ikke mot github.com. Si fra hvis noe ser rart ut.</p>
-      <Group title="Konto">
+      <p class="beta-note github-beta-note"><span class="beta-badge">{t("Beta")}</span> {t("Prøvd mot en lokal testserver, ennå ikke mot github.com. Si fra hvis noe ser rart ut.")}</p>
+      <Group title={t("Konto")}>
         <Show
           when={status()?.connected}
           fallback={
             <form class="setting setting-block github-connect" onSubmit={connect}>
               <div class="setting-text">
-                <strong>Personlig tilgangstoken</strong>
+                <strong>{t("Personlig tilgangstoken")}</strong>
                 <span class="muted">
-                  Lag et token på GitHub under Settings → Developer settings → Personal access tokens. Et finkornet token med lesetilgang til
-                  Contents, Issues og Pull requests holder. For private repoer må tokenet ha tilgang til dem.
+                  {t("Lag et token på GitHub under Settings → Developer settings → Personal access tokens. Et finkornet token med lesetilgang til Contents, Issues og Pull requests holder. For private repoer må tokenet ha tilgang til dem.")}
                 </span>
               </div>
               <div class="github-token-row">
                 <SecretInput
                   ref={(el) => (input = el)}
                   name="github-token"
-                  label="GitHub-token"
-                  placeholder="github_pat_… eller ghp_…"
+                  label={t("GitHub-token")}
+                  placeholder={t("github_pat_… eller ghp_…")}
                   value={token()}
                   invalid={!!error()}
                   describedBy={error() ? "github-token-error" : undefined}
@@ -85,23 +85,23 @@ export function GitHubSettings() {
                     setError("");
                   }}
                 />
-                <button type="submit" class="btn btn-primary" disabled={!token().trim() || busy()}>{busy() ? "Sjekker…" : "Koble til"}</button>
+                <button type="submit" class="btn btn-primary" disabled={!token().trim() || busy()}>{busy() ? t("Sjekker…") : t("Koble til")}</button>
               </div>
               <Show when={error()}><p class="form-error" id="github-token-error" role="alert">{error()}</p></Show>
             </form>
           }
         >
-          <Row label={<>Tilkoblet som <span class="github-login">{status()!.login ?? "ukjent konto"}</span></>} text={status()!.name ? `${status()!.name}. ${scopeText(status()!)}` : scopeText(status()!)}>
-            <button type="button" class="btn btn-small btn-quiet-danger" onClick={() => void disconnect()}>Koble fra</button>
+          <Row label={<Rich text={t("Tilkoblet som {login}")} parts={{ login: <span class="github-login">{status()!.login ?? t("ukjent konto")}</span> }} />} text={status()!.name ? `${status()!.name}. ${scopeText(status()!)}` : scopeText(status()!)}>
+            <button type="button" class="btn btn-small btn-quiet-danger" onClick={() => void disconnect()}>{t("Koble fra")}</button>
           </Row>
         </Show>
-        <Row label="Lagring" text={app.keyring?.store === "session" ? "Tokenet gjelder til appen lukkes, fordi nøkkelringen ikke kan brukes nå. Det sendes bare til GitHub, aldri tilbake til nettleseren, og aldri til kommandoer agenten kjører." : "Tokenet lagres kryptert i systemets nøkkelring, sammen med API-nøklene. Det sendes bare til GitHub, aldri tilbake til nettleseren, og aldri til kommandoer agenten kjører."} />
+        <Row label={t("Lagring")} text={app.keyring?.store === "session" ? t("Tokenet gjelder til appen lukkes, fordi nøkkelringen ikke kan brukes nå. Det sendes bare til GitHub, aldri tilbake til nettleseren, og aldri til kommandoer agenten kjører.") : t("Tokenet lagres kryptert i systemets nøkkelring, sammen med API-nøklene. Det sendes bare til GitHub, aldri tilbake til nettleseren, og aldri til kommandoer agenten kjører.")} />
       </Group>
-      <Group title="Dette prosjektet">
-        <Show when={project()} fallback={<Row label="Ingen prosjekt valgt" text="Velg et prosjekt i Kode for å se repoet." />}>
+      <Group title={t("Dette prosjektet")}>
+        <Show when={project()} fallback={<Row label={t("Ingen prosjekt valgt")} text={t("Velg et prosjekt i Kode for å se repoet.")} />}>
           <Row
             label={repo()?.remote ? `${repo()!.remote!.owner}/${repo()!.remote!.repo}` : project()!.name}
-            text={repo.loading ? "Leser .git/config…" : repo()?.remote ? `Fra remoten «${repo()!.remote!.remote}» i .git/config. Åpne GitHub-fanen i panelet til høyre i Kode.` : (repo()?.reason ?? "Kunne ikke lese .git/config.")}
+            text={repo.loading ? t("Leser .git/config…") : repo()?.remote ? t("Fra remoten «{remote}» i .git/config. Åpne GitHub-fanen i panelet til høyre i Kode.", { remote: repo()!.remote!.remote }) : (repo()?.reason ?? t("Kunne ikke lese .git/config."))}
           />
         </Show>
       </Group>
@@ -110,6 +110,6 @@ export function GitHubSettings() {
 }
 
 function scopeText(status: GitHubStatus): string {
-  if (status.scopes === undefined) return "Tokenet er lagret.";
-  return status.scopes ? `Klassisk token med tilgangene ${status.scopes}.` : "Finkornet token.";
+  if (status.scopes === undefined) return t("Tokenet er lagret.");
+  return status.scopes ? t("Klassisk token med tilgangene {scopes}.", { scopes: status.scopes }) : t("Finkornet token.");
 }

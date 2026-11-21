@@ -1,4 +1,4 @@
-import { language } from "../lib/i18n.ts";
+import { language, t } from "../lib/i18n.ts";
 // Small pieces for GitHub (Beta) shared by the panel and Innstillinger (round 8, agent G). The icons
 // are plain line drawings of a pull request and an issue, not anyone's logo.
 import type { GitHubProject } from "../../../shared/protocol";
@@ -26,19 +26,19 @@ export const IconDraft = (p: P) => (
 
 // "om 25 min" or "kl. 14:32", for when the rate limit lifts.
 export function resetText(resetAt: number | undefined, now = Date.now()): string {
-  if (!resetAt) return "Prøv igjen om litt.";
+  if (!resetAt) return t("Prøv igjen om litt.");
   const minutes = Math.max(1, Math.ceil((resetAt - now) / 60_000));
   const clock = new Date(resetAt).toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" });
-  return minutes < 60 ? `Grensen nullstilles om ${minutes} min, kl. ${clock}.` : `Grensen nullstilles kl. ${clock}.`;
+  return minutes < 60 ? t("Grensen nullstilles om {minutes} min, kl. {clock}.", { minutes, clock }) : t("Grensen nullstilles kl. {clock}.", { clock });
 }
 
 export function errorTitle(error: NonNullable<GitHubProject["error"]>): string {
   switch (error.code) {
-    case "bad-token": return "Tokenet virker ikke lenger";
-    case "rate-limit": return "For mange forespørsler";
-    case "offline": return "Ingen kontakt med GitHub";
-    case "not-found": return "Fant ikke repoet";
-    case "not-connected": return "Ikke koblet til GitHub";
-    default: return "GitHub svarte med en feil";
+    case "bad-token": return t("Tokenet virker ikke lenger");
+    case "rate-limit": return t("For mange forespørsler");
+    case "offline": return t("Ingen kontakt med GitHub");
+    case "not-found": return t("Fant ikke repoet");
+    case "not-connected": return t("Ikke koblet til GitHub");
+    default: return t("GitHub svarte med en feil");
   }
 }

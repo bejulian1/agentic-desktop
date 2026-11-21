@@ -11,6 +11,7 @@ import { app, toast } from "../state/app";
 import { IconCheck } from "./icons";
 import { save } from "./settings/parts";
 
+import { t } from "../lib/i18n";
 export function AppIconPicker() {
   const current = (): AppIconId => app.settings.appIcon ?? DEFAULT_APP_ICON;
   // In the app: can the app library's icon follow? A failed copy is said once, in a toast.
@@ -24,13 +25,13 @@ export function AppIconPicker() {
     const result = await desktop.appIcon(id).catch(() => null);
     if (result?.launcher === "failed" && !failed()) {
       setFailed(true);
-      toast("Ikonet i appbiblioteket kunne ikke byttes. Vinduet og statusfeltet har det nye.", "info");
+      toast(t("Ikonet i appbiblioteket kunne ikke byttes. Vinduet og statusfeltet har det nye."), "info");
     }
   };
   const scope = () => {
-    if (!desktop) return "Gjelder fanen i nettleseren. I appen gjelder valget også vinduet og statusfeltet.";
-    if (launcher() === "not-installed" || !desktop.appIcon) return "Gjelder vinduet og statusfeltet. Ikonet i appbiblioteket følger med når appen er installert med install-local.";
-    return "Gjelder vinduet, statusfeltet og ikonet i appbiblioteket. GNOME kan bruke et øyeblikk på å vise det nye ikonet der.";
+    if (!desktop) return t("Gjelder fanen i nettleseren. I appen gjelder valget også vinduet og statusfeltet.");
+    if (launcher() === "not-installed" || !desktop.appIcon) return t("Gjelder vinduet og statusfeltet. Ikonet i appbiblioteket følger med når appen er installert med install-local.");
+    return t("Gjelder vinduet, statusfeltet og ikonet i appbiblioteket. GNOME kan bruke et øyeblikk på å vise det nye ikonet der.");
   };
   let group!: HTMLDivElement;
   const onKey = (event: KeyboardEvent) => {
@@ -45,7 +46,7 @@ export function AppIconPicker() {
   return (
     <div class="setting setting-block app-icon-setting">
       <span class="muted" data-testid="app-icon-scope">{scope()}</span>
-      <div class="app-icon-cards" role="radiogroup" aria-label="Appikon" ref={group} onKeyDown={onKey} data-testid="app-icon-cards">
+      <div class="app-icon-cards" role="radiogroup" aria-label={t("Appikon")} ref={group} onKeyDown={onKey} data-testid="app-icon-cards">
         <For each={APP_ICONS}>
           {(icon) => (
             <button
@@ -68,7 +69,7 @@ export function AppIconPicker() {
                 <span class="app-icon-check"><IconCheck size={12} /></span>
               </span>
               <span class="app-icon-text" id={`app-icon-text-${icon.id}`}>
-                <Show when={icon.id === DEFAULT_APP_ICON}>Standard. </Show>
+                <Show when={icon.id === DEFAULT_APP_ICON}>{t("Standard.")} </Show>
                 {icon.note}
               </span>
             </button>

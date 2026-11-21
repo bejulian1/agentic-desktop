@@ -11,41 +11,43 @@ import { confirmDialog } from "../dialogs";
 import { IconChevronDown, IconPencil, IconPlay, IconPlus, IconTrash } from "../icons";
 import { Popover } from "../Popover";
 import { Select } from "../Select";
-import { Group, Page, Row, SkeletonRows } from "./parts";
+import { Group, Page, Rich, Row, SkeletonRows } from "./parts";
 import "../../styles/hooks.css";
 
+import { t } from "../../lib/i18n";
+// Getters, so a label is translated when it is read and follows the active language.
 export const HOOK_EVENT_LABELS: Record<HookEvent, string> = {
-  PreToolUse: "Før verktøykall",
-  PostToolUse: "Etter verktøykall",
-  UserPromptSubmit: "Når du sender en melding",
-  Stop: "Når turen er ferdig",
+  get PreToolUse() { return t("Før verktøykall"); },
+  get PostToolUse() { return t("Etter verktøykall"); },
+  get UserPromptSubmit() { return t("Når du sender en melding"); },
+  get Stop() { return t("Når turen er ferdig"); },
 };
 
-const EVENT_HELP: Record<HookEvent, string> = {
-  PreToolUse: "Kjører etter appens egen godkjenning, rett før verktøyet. Avslutningskode 2 stopper kallet, og stderr går til modellen som verktøyets feil.",
-  PostToolUse: "Kjører når verktøyet er ferdig. Avslutningskode 2 legger stderr til i verktøyresultatet som tilbakemelding til modellen.",
-  UserPromptSubmit: "Kjører før meldingen når modellen. Avslutningskode 2 stopper meldingen og viser stderr til deg. Stdout ved kode 0 legges til som kontekst.",
-  Stop: "Kjører når agenten er ferdig med turen, også når den feilet, men ikke når du trykker Stopp. Kan ikke stoppe noe, men passer til varsler.",
-};
+const eventHelp = (event: HookEvent): string => ({
+  PreToolUse: t("Kjører etter appens egen godkjenning, rett før verktøyet. Avslutningskode 2 stopper kallet, og stderr går til modellen som verktøyets feil."),
+  PostToolUse: t("Kjører når verktøyet er ferdig. Avslutningskode 2 legger stderr til i verktøyresultatet som tilbakemelding til modellen."),
+  UserPromptSubmit: t("Kjører før meldingen når modellen. Avslutningskode 2 stopper meldingen og viser stderr til deg. Stdout ved kode 0 legges til som kontekst."),
+  Stop: t("Kjører når agenten er ferdig med turen, også når den feilet, men ikke når du trykker Stopp. Kan ikke stoppe noe, men passer til varsler."),
+})[event];
 
-const OUTCOME_LABELS: Record<HookRun["outcome"], string> = {
-  ok: "OK",
-  blocked: "Stoppet",
-  error: "Feil",
-  timeout: "Tidsavbrudd",
-  cancelled: "Avbrutt",
-};
+const outcomeLabel = (outcome: HookRun["outcome"]): string => ({
+  ok: t("OK"),
+  blocked: t("Stoppet"),
+  error: t("Feil"),
+  timeout: t("Tidsavbrudd"),
+  cancelled: t("Avbrutt"),
+})[outcome];
 
-const MODE_LABELS: Record<HookMode, string> = { code: "Kode", chat: "Chat" };
+const modeLabel = (mode: HookMode): string => (mode === "code" ? t("Kode") : t("Chat"));
 
 // Ready-made hooks to start from. They open in the form, so nothing is saved before the user has
-// read the command.
-const EXAMPLES: Array<{ title: string; text: string; draft: HookDraft }> = [
+// read the command. A function, so the texts follow the active language; the commands stay as they are.
+const exampleHooks = (): Array<{ title: string; text: string; draft: HookDraft }> => [
   {
-    title: "Formater etter filendringer",
-    text: "Kjører Prettier på filen agenten skrev eller endret. Bruker jq.",
+    title: t("Formater etter filendringer"),
+    text: t("Kjører Prettier på filen agenten skrev eller endret. Bruker jq."),
     draft: {
-      name: "Formater med Prettier",
+      name: t("Formater med Prettier"),
       event: "PostToolUse",
       matcher: "edit_file|write_file",
       command: `f=$(jq -r '.tool_input.path // empty'); [ -n "$f" ] && npx --no-install prettier --write "$f" >/dev/null 2>&1 || true`,
@@ -55,10 +57,10 @@ const EXAMPLES: Array<{ title: string; text: string; draft: HookDraft }> = [
     },
   },
   {
-    title: "Skrivebordsvarsel når turen er ferdig",
-    text: "Et varsel med notify-send, så du ser det når en lang oppgave er ferdig.",
+    title: t("Skrivebordsvarsel når turen er ferdig"),
+    text: t("Et varsel med notify-send, så du ser det når en lang oppgave er ferdig."),
     draft: {
-      name: "Varsel når ferdig",
+      name: t("Varsel når ferdig"),
       event: "Stop",
       matcher: "",
       command: `notify-send "Agentic Desktop" "Agenten er ferdig med turen"`,
@@ -68,10 +70,10 @@ const EXAMPLES: Array<{ title: string; text: string; draft: HookDraft }> = [
     },
   },
   {
-    title: "Stopp rm -rf i kommandoer",
-    text: "Stopper run_command når kommandoen inneholder rm -rf, og sier fra til modellen hvorfor.",
+    title: t("Stopp rm -rf i kommandoer"),
+    text: t("Stopper run_command når kommandoen inneholder rm -rf, og sier fra til modellen hvorfor."),
     draft: {
-      name: "Ingen rm -rf",
+      name: t("Ingen rm -rf"),
       event: "PreToolUse",
       matcher: "run_command",
       command: `if grep -Eq 'rm[[:space:]]+-[[:alpha:]]*(r[[:alpha:]]*f|f[[:alpha:]]*r)'; then echo "rm -rf er sperret av en hook. Slett filer enkeltvis, eller spør brukeren." >&2; exit 2; fi`,
@@ -81,6 +83,8 @@ const EXAMPLES: Array<{ title: string; text: string; draft: HookDraft }> = [
     },
   },
 ];
+
+const code = (text: string) => <code>{text}</code>;
 
 const EMPTY: HookDraft = { name: "", event: "PreToolUse", matcher: "", command: "", timeoutSeconds: HOOK_TIMEOUT_DEFAULT, enabled: true, modes: ["code", "chat"] };
 
@@ -95,13 +99,15 @@ function draftOf(hook: HookInfo): HookDraft {
 }
 
 function RunLine(props: { run: HookRun }) {
-  return (
-    <span class="muted hook-run">
-      Sist kjørt {relativeTime(props.run.at) === "nå" ? "nå" : `for ${relativeTime(props.run.at)} siden`}
-      {props.run.test ? " (test)" : ""} · {OUTCOME_LABELS[props.run.outcome]}
-      {props.run.exitCode !== null ? ` · kode ${props.run.exitCode}` : ""} · {props.run.durationMs} ms
-    </span>
-  );
+  // The same limit as relativeTime()'s «nå». Outside Norwegian relativeTime() answers with a whole
+  // phrase («5 min. ago»), so {time} in these texts is translated as that phrase alone.
+  const when = () => {
+    const time = relativeTime(props.run.at);
+    if (Math.round((Date.now() - props.run.at) / 60_000) < 1) return props.run.test ? t("Sist kjørt nå (test)") : t("Sist kjørt nå");
+    return props.run.test ? t("Sist kjørt for {time} siden (test)", { time }) : t("Sist kjørt for {time} siden", { time });
+  };
+  const parts = () => [when(), outcomeLabel(props.run.outcome), props.run.exitCode !== null ? t("kode {code}", { code: props.run.exitCode }) : "", t("{ms} ms", { ms: props.run.durationMs })];
+  return <span class="muted hook-run">{parts().filter(Boolean).join(" · ")}</span>;
 }
 
 export function HooksPage() {
@@ -142,9 +148,9 @@ export function HooksPage() {
   const update = (change: Partial<HookDraft>) => setEditing({ ...editing()!, draft: { ...editing()!.draft, ...change } });
 
   const check = (d: HookDraft): string => {
-    if (!d.command.trim()) return "Skriv kommandoen som skal kjøres.";
-    if (!Number.isInteger(d.timeoutSeconds) || d.timeoutSeconds < 1 || d.timeoutSeconds > HOOK_TIMEOUT_MAX) return `Tidsgrensen må være fra 1 til ${HOOK_TIMEOUT_MAX} sekunder.`;
-    if (!d.modes.length) return "Velg Kode, Chat eller begge.";
+    if (!d.command.trim()) return t("Skriv kommandoen som skal kjøres.");
+    if (!Number.isInteger(d.timeoutSeconds) || d.timeoutSeconds < 1 || d.timeoutSeconds > HOOK_TIMEOUT_MAX) return t("Tidsgrensen må være fra 1 til {max} sekunder.", { max: HOOK_TIMEOUT_MAX });
+    if (!d.modes.length) return t("Velg Kode, Chat eller begge.");
     return "";
   };
 
@@ -154,7 +160,7 @@ export function HooksPage() {
     const problem = check(e.draft);
     if (problem) return setError(problem);
     setError("");
-    const ok = await run(() => (e.id ? updateHook(e.id, e.draft) : createHook(e.draft)), e.id ? "Hooken er lagret." : "Hooken er laget.");
+    const ok = await run(() => (e.id ? updateHook(e.id, e.draft) : createHook(e.draft)), e.id ? t("Hooken er lagret.") : t("Hooken er laget."));
     if (ok) setEditing(null);
   };
 
@@ -175,8 +181,8 @@ export function HooksPage() {
   };
 
   const remove = async (hook: HookInfo) => {
-    const ok = await confirmDialog({ title: `Slette hooken ${hook.name}?`, text: "Den kjøres ikke lenger. Det kan ikke angres.", confirm: "Slett", danger: true });
-    if (ok) await run(() => deleteHook(hook.id), `${hook.name} er slettet.`);
+    const ok = await confirmDialog({ title: t("Slette hooken {name}?", { name: hook.name }), text: t("Den kjøres ikke lenger. Det kan ikke angres."), confirm: t("Slett"), danger: true });
+    if (ok) await run(() => deleteHook(hook.id), t("{name} er slettet.", { name: hook.name }));
   };
 
   // Hooks for one event run in list order, and the first that stops something wins.
@@ -189,23 +195,23 @@ export function HooksPage() {
   };
 
   return (
-    <Page title="Hooks" intro={<>Kommandoer appen kjører på hendelser i Kode og Chat, for eksempel formatering etter hver filendring eller et varsel når agenten er ferdig. Hendelsene og JSON-en på stdin følger Claude Codes hooks, så skript derfra virker stort sett her også.</>}>
-      <Group title="Sikkerhet">
-        <Row label="Full tilgang til maskinen din" text="En hook kjører med dine rettigheter, akkurat som en kommando du skriver i terminalen. Lag bare hooks du forstår." />
-        <Row label="Bare du kan lage og endre dem" text="Modellen har ikke noe verktøy for hooks, og de leses aldri fra prosjektmapper, så et klonet repo kan ikke legge inn en. API-nøklene til leverandørene er ikke med i miljøet." />
+    <Page title={t("Hooks")} intro={t("Kommandoer appen kjører på hendelser i Kode og Chat, for eksempel formatering etter hver filendring eller et varsel når agenten er ferdig. Hendelsene og JSON-en på stdin følger Claude Codes hooks, så skript derfra virker stort sett her også.")}>
+      <Group title={t("Sikkerhet")}>
+        <Row label={t("Full tilgang til maskinen din")} text={t("En hook kjører med dine rettigheter, akkurat som en kommando du skriver i terminalen. Lag bare hooks du forstår.")} />
+        <Row label={t("Bare du kan lage og endre dem")} text={t("Modellen har ikke noe verktøy for hooks, og de leses aldri fra prosjektmapper, så et klonet repo kan ikke legge inn en. API-nøklene til leverandørene er ikke med i miljøet.")} />
       </Group>
 
       <Show when={editing()}>
         {(e) => (
-          <Group title={e().id ? `Endre ${e().draft.name || "hook"}` : "Ny hook"}>
+          <Group title={e().id ? t("Endre {name}", { name: e().draft.name || t("hook") }) : t("Ny hook")}>
             <form class="setting setting-block skill-form hook-form" onSubmit={(ev) => { ev.preventDefault(); void submit(); }}>
               <div class="field-row">
-                <div class="field"><label for={ids.name}>Navn</label>
-                  <input id={ids.name} class="input" value={e().draft.name} maxLength={80} placeholder="For eksempel Formater med Prettier" onInput={(ev) => update({ name: ev.currentTarget.value })} />
+                <div class="field"><label for={ids.name}>{t("Navn")}</label>
+                  <input id={ids.name} class="input" value={e().draft.name} maxLength={80} placeholder={t("For eksempel Formater med Prettier")} onInput={(ev) => update({ name: ev.currentTarget.value })} />
                 </div>
-                <div class="field"><span>Hendelse</span>
+                <div class="field"><span>{t("Hendelse")}</span>
                   <Select<HookEvent>
-                    label="Hendelse"
+                    label={t("Hendelse")}
                     class="field-select"
                     value={e().draft.event}
                     options={HOOK_EVENTS.map((event) => ({ value: event, label: `${HOOK_EVENT_LABELS[event]} (${event})` }))}
@@ -213,31 +219,44 @@ export function HooksPage() {
                   />
                 </div>
               </div>
-              <p class="muted small hook-help">{EVENT_HELP[e().draft.event]}</p>
+              <p class="muted small hook-help">{eventHelp(e().draft.event)}</p>
               <Show when={isToolEvent(e().draft.event)}>
-                <div class="field"><label for={ids.matcher}>Verktøy</label>
-                  <input id={ids.matcher} class="input code-input" value={e().draft.matcher} maxLength={500} spellcheck={false} placeholder="Tomt eller * for alle verktøy" onInput={(ev) => update({ matcher: ev.currentTarget.value })} />
+                <div class="field"><label for={ids.matcher}>{t("Verktøy")}</label>
+                  <input id={ids.matcher} class="input code-input" value={e().draft.matcher} maxLength={500} spellcheck={false} placeholder={t("Tomt eller * for alle verktøy")} onInput={(ev) => update({ matcher: ev.currentTarget.value })} />
                 </div>
                 <p class="muted small hook-help">
-                  Et verktøynavn som <code>run_command</code>, flere med <code>|</code> som <code>edit_file|write_file</code>, eller <code>*</code> som jokertegn, som <code>mcp__github__*</code>. Navnet må stemme helt. Verktøyene i Kode heter blant annet <code>read_file</code>, <code>write_file</code>, <code>edit_file</code>, <code>delete_file</code> og <code>run_command</code>; i Chat blant annet <code>web_search</code>, <code>web_fetch</code> og <code>run_python</code>.
+                  <Rich
+                    text={t("Et verktøynavn som {one}, flere med {pipe} som {several}, eller {star} som jokertegn, som {wildcard}. Navnet må stemme helt. Verktøyene i Kode heter blant annet {read}, {write}, {edit}, {remove} og {run}; i Chat blant annet {search}, {fetch} og {python}.")}
+                    parts={{
+                      one: code("run_command"), pipe: code("|"), several: code("edit_file|write_file"), star: code("*"), wildcard: code("mcp__github__*"),
+                      read: code("read_file"), write: code("write_file"), edit: code("edit_file"), remove: code("delete_file"), run: code("run_command"),
+                      search: code("web_search"), fetch: code("web_fetch"), python: code("run_python"),
+                    }}
+                  />
                 </p>
               </Show>
-              <div class="field"><label for={ids.command}>Kommando (bash)</label>
+              <div class="field"><label for={ids.command}>{t("Kommando (bash)")}</label>
                 <textarea id={ids.command} class="input code-area hook-command" rows={4} spellcheck={false} value={e().draft.command} maxLength={4000} placeholder={`jq -r '.tool_input.path' >> ~/hooks.log`} onInput={(ev) => update({ command: ev.currentTarget.value })} />
               </div>
               <p class="muted small hook-help">
-                Får hendelsen som JSON på stdin, med blant annet <code>hook_event_name</code>, <code>session_id</code>, <code>cwd</code>, <code>mode</code>, <code>tool_name</code>, <code>tool_input</code>, <code>tool_response</code> og <code>prompt</code>. Kjører i prosjektmappen, eller hjemmemappen når det ikke er noen.
+                <Rich
+                  text={t("Får hendelsen som JSON på stdin, med blant annet {event}, {session}, {cwd}, {mode}, {tool}, {input}, {response} og {prompt}. Kjører i prosjektmappen, eller hjemmemappen når det ikke er noen.")}
+                  parts={{
+                    event: code("hook_event_name"), session: code("session_id"), cwd: code("cwd"), mode: code("mode"),
+                    tool: code("tool_name"), input: code("tool_input"), response: code("tool_response"), prompt: code("prompt"),
+                  }}
+                />
               </p>
               <div class="field-row">
-                <div class="field hook-timeout"><label for={ids.timeout}>Tidsgrense (sekunder)</label>
+                <div class="field hook-timeout"><label for={ids.timeout}>{t("Tidsgrense (sekunder)")}</label>
                   <input id={ids.timeout} class="input" type="number" min={1} max={HOOK_TIMEOUT_MAX} step={1} value={e().draft.timeoutSeconds} onInput={(ev) => update({ timeoutSeconds: Number(ev.currentTarget.value) })} />
                 </div>
-                <fieldset class="field hook-modes"><legend>Gjelder i</legend>
+                <fieldset class="field hook-modes"><legend>{t("Gjelder i")}</legend>
                   <For each={["code", "chat"] as HookMode[]}>
                     {(mode) => (
                       <label class="hook-mode">
                         <input type="checkbox" checked={e().draft.modes.includes(mode)} onChange={(ev) => update({ modes: ev.currentTarget.checked ? [...new Set([...e().draft.modes, mode])] : e().draft.modes.filter((m) => m !== mode) })} />
-                        {MODE_LABELS[mode]}
+                        {modeLabel(mode)}
                       </label>
                     )}
                   </For>
@@ -245,19 +264,21 @@ export function HooksPage() {
               </div>
               <Show when={error()}><p class="form-error" role="alert">{error()}</p></Show>
               <Show when={tested()}>
-                {(t) => (
+                {(result) => (
                   <div class="hook-test" role="status">
-                    <strong>{OUTCOME_LABELS[t().outcome]}{t().exitCode !== null ? `, avslutningskode ${t().exitCode}` : ""}, {t().durationMs} ms</strong>
-                    <span>{t().effect}</span>
-                    <Show when={t().stdout}><span class="muted small">stdout</span><pre class="hook-output">{t().stdout}</pre></Show>
-                    <Show when={t().stderr}><span class="muted small">stderr</span><pre class="hook-output">{t().stderr}</pre></Show>
+                    <strong>{result().exitCode !== null
+                      ? t("{outcome}, avslutningskode {code}, {ms} ms", { outcome: outcomeLabel(result().outcome), code: result().exitCode!, ms: result().durationMs })
+                      : t("{outcome}, {ms} ms", { outcome: outcomeLabel(result().outcome), ms: result().durationMs })}</strong>
+                    <span>{result().effect}</span>
+                    <Show when={result().stdout}><span class="muted small">stdout</span><pre class="hook-output">{result().stdout}</pre></Show>
+                    <Show when={result().stderr}><span class="muted small">stderr</span><pre class="hook-output">{result().stderr}</pre></Show>
                   </div>
                 )}
               </Show>
               <div class="form-actions">
-                <button type="button" class="btn btn-small" disabled={testing()} title="Kjører kommandoen én gang med en eksempelhendelse, i hjemmemappen" onClick={() => void test()}><IconPlay size={12} />{testing() ? "Tester…" : "Test"}</button>
-                <button type="button" class="btn btn-small" onClick={() => setEditing(null)}>Avbryt</button>
-                <button type="submit" class="btn btn-small btn-primary" disabled={busy()}>{e().id ? "Lagre" : "Lag hook"}</button>
+                <button type="button" class="btn btn-small" disabled={testing()} title={t("Kjører kommandoen én gang med en eksempelhendelse, i hjemmemappen")} onClick={() => void test()}><IconPlay size={12} />{testing() ? t("Tester…") : t("Test")}</button>
+                <button type="button" class="btn btn-small" onClick={() => setEditing(null)}>{t("Avbryt")}</button>
+                <button type="submit" class="btn btn-small btn-primary" disabled={busy()}>{e().id ? t("Lagre") : t("Lag hook")}</button>
               </div>
             </form>
           </Group>
@@ -265,7 +286,7 @@ export function HooksPage() {
       </Show>
 
       <Group
-        title="Dine hooks"
+        title={t("Dine hooks")}
         action={
           <div class="memory-actions">
             <Popover
@@ -274,10 +295,10 @@ export function HooksPage() {
               align="right"
               below
               panelClass="hook-examples-popover"
-              trigger={<button type="button" class="btn btn-small" aria-haspopup="menu" aria-expanded={examples()} disabled={!!editing()} onClick={() => setExamples(!examples())}>Eksempler<IconChevronDown size={12} /></button>}
+              trigger={<button type="button" class="btn btn-small" aria-haspopup="menu" aria-expanded={examples()} disabled={!!editing()} onClick={() => setExamples(!examples())}>{t("Eksempler")}<IconChevronDown size={12} /></button>}
             >
-              <div class="menu-list hook-examples" role="menu" aria-label="Eksempler på hooks">
-                <For each={EXAMPLES}>
+              <div class="menu-list hook-examples" role="menu" aria-label={t("Eksempler på hooks")}>
+                <For each={exampleHooks()}>
                   {(example) => (
                     <button type="button" role="menuitem" class="menu-item menu-item-tall hook-example" onClick={() => { setExamples(false); open({ id: null, draft: { ...example.draft, modes: [...example.draft.modes] } }); }}>
                       <span class="menu-stack">
@@ -287,22 +308,22 @@ export function HooksPage() {
                     </button>
                   )}
                 </For>
-                <div class="menu-note muted hook-examples-note">Åpnes i skjemaet, så du kan lese og endre kommandoen før du lagrer.</div>
+                <div class="menu-note muted hook-examples-note">{t("Åpnes i skjemaet, så du kan lese og endre kommandoen før du lagrer.")}</div>
               </div>
             </Popover>
-            <button type="button" class="btn btn-small" disabled={!!editing()} onClick={() => open({ id: null, draft: { ...EMPTY, modes: [...EMPTY.modes] } })}><IconPlus size={13} />Ny hook</button>
+            <button type="button" class="btn btn-small" disabled={!!editing()} onClick={() => open({ id: null, draft: { ...EMPTY, modes: [...EMPTY.modes] } })}><IconPlus size={13} />{t("Ny hook")}</button>
           </div>
         }
       >
-        <Show when={hooksState()} fallback={<SkeletonRows label="Henter hooks…" />}>
+        <Show when={hooksState()} fallback={<SkeletonRows label={t("Henter hooks…")} />}>
           {(state) => (
             <>
               <For each={state().warnings}>{(warning) => <div class="setting"><span class="form-error">{warning}</span></div>}</For>
               <Show
                 when={state().hooks.length}
-                fallback={<div class="setting memory-empty"><span class="muted">Ingen hooks ennå. Lag en, eller start fra et av eksemplene.</span></div>}
+                fallback={<div class="setting memory-empty"><span class="muted">{t("Ingen hooks ennå. Lag en, eller start fra et av eksemplene.")}</span></div>}
               >
-                <ul class="skill-list hook-list" aria-label="Hooks">
+                <ul class="skill-list hook-list" aria-label={t("Hooks")}>
                   <For each={state().hooks}>
                     {(hook, index) => (
                       <li class="setting skill-row hook-row" classList={{ off: !hook.enabled }}>
@@ -311,11 +332,11 @@ export function HooksPage() {
                             <span class="skill-name">{hook.name}</span>
                             <span class="pill">{HOOK_EVENT_LABELS[hook.event]}</span>
                             <Show when={isToolEvent(hook.event)}><span class="pill"><code>{hook.matcher || "*"}</code></span></Show>
-                            <Show when={hook.modes.length === 1}><span class="pill">Bare {MODE_LABELS[hook.modes[0]]}</span></Show>
-                            <Show when={!hook.enabled}><span class="pill">Av</span></Show>
+                            <Show when={hook.modes.length === 1}><span class="pill">{t("Bare {mode}", { mode: modeLabel(hook.modes[0]) })}</span></Show>
+                            <Show when={!hook.enabled}><span class="pill">{t("Av")}</span></Show>
                           </strong>
                           <code class="hook-command-line" title={hook.command}>{hook.command}</code>
-                          <Show when={hook.lastRun} fallback={<span class="muted hook-run">Ikke kjørt siden appen startet</span>}>
+                          <Show when={hook.lastRun} fallback={<span class="muted hook-run">{t("Ikke kjørt siden appen startet")}</span>}>
                             {(last) => (
                               <>
                                 <RunLine run={last()} />
@@ -326,10 +347,10 @@ export function HooksPage() {
                         </div>
                         <div class="setting-control">
                           {/* Never disabled while saving: a disabled control loses the keyboard focus. */}
-                          <input type="checkbox" role="switch" class="switch" aria-label={`Slå ${hook.name} av eller på`} checked={hook.enabled} onChange={(ev) => { const box = ev.currentTarget; void updateHook(hook.id, { enabled: box.checked }).catch((err) => { box.checked = hook.enabled; report(err); }); }} />
-                          <button type="button" class="icon-button hook-up" aria-label={`Flytt ${hook.name} opp`} title="Flytt opp: hooks for samme hendelse kjøres i rekkefølge" disabled={busy() || index() === 0} onClick={() => move(index())}><IconChevronDown size={14} /></button>
-                          <button type="button" class="icon-button" aria-label={`Endre ${hook.name}`} title="Endre" disabled={busy() || !!editing()} onClick={() => open({ id: hook.id, draft: draftOf(hook) })}><IconPencil size={14} /></button>
-                          <button type="button" class="icon-button" aria-label={`Slett ${hook.name}`} title="Slett" disabled={busy()} onClick={() => void remove(hook)}><IconTrash size={14} /></button>
+                          <input type="checkbox" role="switch" class="switch" aria-label={t("Slå {name} av eller på", { name: hook.name })} checked={hook.enabled} onChange={(ev) => { const box = ev.currentTarget; void updateHook(hook.id, { enabled: box.checked }).catch((err) => { box.checked = hook.enabled; report(err); }); }} />
+                          <button type="button" class="icon-button hook-up" aria-label={t("Flytt {name} opp", { name: hook.name })} title={t("Flytt opp: hooks for samme hendelse kjøres i rekkefølge")} disabled={busy() || index() === 0} onClick={() => move(index())}><IconChevronDown size={14} /></button>
+                          <button type="button" class="icon-button" aria-label={t("Endre {name}", { name: hook.name })} title={t("Endre")} disabled={busy() || !!editing()} onClick={() => open({ id: hook.id, draft: draftOf(hook) })}><IconPencil size={14} /></button>
+                          <button type="button" class="icon-button" aria-label={t("Slett {name}", { name: hook.name })} title={t("Slett")} disabled={busy()} onClick={() => void remove(hook)}><IconTrash size={14} /></button>
                         </div>
                       </li>
                     )}
@@ -341,7 +362,7 @@ export function HooksPage() {
         </Show>
       </Group>
       <p class="muted small memory-files">
-        Hooks ligger i <code>{hooksState()?.file ?? "hooks.json i datamappen"}</code>, og leses når appen starter. Endre dem her, ikke i filen. Sist kjørt nullstilles når appen starter på nytt.
+        <Rich text={t("Hooks ligger i {file}, og leses når appen starter. Endre dem her, ikke i filen. Sist kjørt nullstilles når appen starter på nytt.")} parts={{ file: <code>{hooksState()?.file ?? t("hooks.json i datamappen")}</code> }} />
       </p>
     </Page>
   );

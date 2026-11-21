@@ -18,10 +18,11 @@ import { Choice, Group, Page, Row, Segmented, Toggle, save } from "./parts";
 import { Select } from "../Select";
 import { LocalModelAdvisor } from "./local-model-advisor";
 
+import { plural, t } from "../../lib/i18n";
 const MOCK_PROVIDER = (p: ProviderConfig) => p.kind === "mock";
 
 const disconnect = async (provider: ProviderConfig) => {
-  if (await confirmDialog({ title: `Koble fra ${provider.name}?`, text: "Nøkkelen og modellene herfra fjernes fra appen. Tråder som brukte en av modellene, bytter til standardmodellen.", confirm: "Koble fra", danger: true })) {
+  if (await confirmDialog({ title: t("Koble fra {name}?", { name: provider.name }), text: t("Nøkkelen og modellene herfra fjernes fra appen. Tråder som brukte en av modellene, bytter til standardmodellen."), confirm: t("Koble fra"), danger: true })) {
     del(`/api/providers/${provider.id}`).catch(report);
   }
 };
@@ -52,19 +53,19 @@ function ProviderForm(props: { provider: ProviderConfig; onDone: () => void }) {
     } finally { setBusy(false); }
   };
   return (
-    <form class="form" onSubmit={submit} aria-label="Leverandør">
-      <label class="field"><span>Navn</span><input class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="Min server" /></label>
-      <label class="field"><span>Adresse (baseUrl)</span><input class="input" type="url" required={props.provider.kind === "openai-compatible"} value={baseUrl()} onInput={(e) => setBaseUrl(e.currentTarget.value)} placeholder={props.provider.kind === "anthropic" ? "Standard" : "http://127.0.0.1:8080/v1"} spellcheck={false} /></label>
-      <Show when={props.provider.hasKey && baseUrl().trim() !== (props.provider.baseUrl ?? "")}><p class="provider-model-hint">Den lagrede nøkkelen følger ikke med til en ny adresse. Skriv inn nøkkelen for den nye adressen hvis den krever det.</p></Show>
-      <label class="field"><span>Miljøvariabel for nøkkel</span><input class="input" value={apiKeyEnv()} onInput={(e) => { setApiKeyEnv(e.currentTarget.value); setClearKey(false); }} placeholder="MIN_API_KEY" spellcheck={false} /></label>
-      <label class="field"><span>Nøkkel</span><SecretInput label="Nøkkel" value={apiKey()} onInput={(value) => { setApiKey(value); setClearKey(false); }} placeholder={clearKey() ? "Fjernes når du lagrer" : props.provider.hasKey ? "Satt. Skriv for å bytte." : "Lagres i nøkkelringen"} /></label>
+    <form class="form" onSubmit={submit} aria-label={t("Leverandør")}>
+      <label class="field"><span>{t("Navn")}</span><input class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder={t("Min server")} /></label>
+      <label class="field"><span>{t("Adresse (baseUrl)")}</span><input class="input" type="url" required={props.provider.kind === "openai-compatible"} value={baseUrl()} onInput={(e) => setBaseUrl(e.currentTarget.value)} placeholder={props.provider.kind === "anthropic" ? t("Standard") : "http://127.0.0.1:8080/v1"} spellcheck={false} /></label>
+      <Show when={props.provider.hasKey && baseUrl().trim() !== (props.provider.baseUrl ?? "")}><p class="provider-model-hint">{t("Den lagrede nøkkelen følger ikke med til en ny adresse. Skriv inn nøkkelen for den nye adressen hvis den krever det.")}</p></Show>
+      <label class="field"><span>{t("Miljøvariabel for nøkkel")}</span><input class="input" value={apiKeyEnv()} onInput={(e) => { setApiKeyEnv(e.currentTarget.value); setClearKey(false); }} placeholder={t("MIN_API_KEY")} spellcheck={false} /></label>
+      <label class="field"><span>{t("Nøkkel")}</span><SecretInput label={t("Nøkkel")} value={apiKey()} onInput={(value) => { setApiKey(value); setClearKey(false); }} placeholder={clearKey() ? t("Fjernes når du lagrer") : props.provider.hasKey ? t("Satt. Skriv for å bytte.") : t("Lagres i nøkkelringen")} /></label>
       <Show when={props.provider.hasKey || props.provider.apiKeyEnv}>
-        <label class="field-check"><input type="checkbox" checked={clearKey()} onChange={(e) => { setClearKey(e.currentTarget.checked); if (clearKey()) setApiKey(""); }} /><span>Fjern nøkkelen fra dette oppsettet</span></label>
+        <label class="field-check"><input type="checkbox" checked={clearKey()} onChange={(e) => { setClearKey(e.currentTarget.checked); if (clearKey()) setApiKey(""); }} /><span>{t("Fjern nøkkelen fra dette oppsettet")}</span></label>
       </Show>
       <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
       <div class="form-actions">
-        <button type="button" class="btn" onClick={props.onDone}>Avbryt</button>
-        <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? "Lagrer…" : "Lagre"}</button>
+        <button type="button" class="btn" onClick={props.onDone}>{t("Avbryt")}</button>
+        <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? t("Lagrer…") : t("Lagre")}</button>
       </div>
     </form>
   );
@@ -112,38 +113,38 @@ function ModelForm(props: { model?: ModelConfig; providerId: string; onDone: () 
     } finally { setBusy(false); }
   };
   return (
-    <form class="form" onSubmit={submit} aria-label="Modell">
-      <label class="field"><span>Navn</span><input class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} /></label>
-      <label class="field"><span>Modell-ID</span><input class="input" required value={model()} onInput={(e) => setModel(e.currentTarget.value)} spellcheck={false} /></label>
-      <label class="field"><span>Kontekstvindu (tokens)</span><input class="input" inputmode="numeric" value={contextWindow()} onInput={(e) => setContextWindow(e.currentTarget.value)} /></label>
+    <form class="form" onSubmit={submit} aria-label={t("Modell")}>
+      <label class="field"><span>{t("Navn")}</span><input class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} /></label>
+      <label class="field"><span>{t("Modell-ID")}</span><input class="input" required value={model()} onInput={(e) => setModel(e.currentTarget.value)} spellcheck={false} /></label>
+      <label class="field"><span>{t("Kontekstvindu (tokens)")}</span><input class="input" inputmode="numeric" value={contextWindow()} onInput={(e) => setContextWindow(e.currentTarget.value)} /></label>
       <div class="field-row">
-        <label class="field"><span>Pris inn per million ($)</span><input class="input" inputmode="decimal" value={input()} onInput={(e) => setInput(e.currentTarget.value)} /></label>
-        <label class="field"><span>Pris ut per million ($)</span><input class="input" inputmode="decimal" value={output()} onInput={(e) => setOutput(e.currentTarget.value)} /></label>
+        <label class="field"><span>{t("Pris inn per million ($)")}</span><input class="input" inputmode="decimal" value={input()} onInput={(e) => setInput(e.currentTarget.value)} /></label>
+        <label class="field"><span>{t("Pris ut per million ($)")}</span><input class="input" inputmode="decimal" value={output()} onInput={(e) => setOutput(e.currentTarget.value)} /></label>
       </div>
       <label class="field-check">
         <input type="checkbox" role="switch" class="switch" checked={supportsTools()} onChange={(e) => setSupportsTools(e.currentTarget.checked)} />
         <span class="field-check-text">
-          <span>Verktøykall</span>
-          <span class="muted">Slå av for modeller som bare skal svare med tekst. Da kan modellen verken bruke filer, kjøre kommandoer eller styre nettleseren.</span>
+          <span>{t("Verktøykall")}</span>
+          <span class="muted">{t("Slå av for modeller som bare skal svare med tekst. Da kan modellen verken bruke filer, kjøre kommandoer eller styre nettleseren.")}</span>
         </span>
       </label>
       <Show when={kind() === "openai-compatible"}>
         <label class="field-check">
           <input type="checkbox" role="switch" class="switch" checked={supportsImages()} onChange={(e) => setSupportsImages(e.currentTarget.checked)} />
-          <span class="field-check-text"><span>Bildestøtte</span><span class="muted">Slå på hvis modellserveren støtter bildevedlegg for denne modellen.</span></span>
+          <span class="field-check-text"><span>{t("Bildestøtte")}</span><span class="muted">{t("Slå på hvis modellserveren støtter bildevedlegg for denne modellen.")}</span></span>
         </label>
       </Show>
       <Show when={!provider()?.localKind}><label class="field-check">
         <input type="checkbox" role="switch" class="switch" checked={supportsTools() && webSearch()} disabled={!supportsTools()} onChange={(e) => setWebSearch(e.currentTarget.checked)} />
         <span class="field-check-text">
-          <span>Eget nettsøk hos leverandøren</span>
-          <span class="muted">Brukes av Nettsøk i Chat. Slå av hvis modellen ikke har det; da søker appens nettleser i stedet, når en søkeside er satt opp.</span>
+          <span>{t("Eget nettsøk hos leverandøren")}</span>
+          <span class="muted">{t("Brukes av Nettsøk i Chat. Slå av hvis modellen ikke har det; da søker appens nettleser i stedet, når en søkeside er satt opp.")}</span>
         </span>
       </label></Show>
       <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
       <div class="form-actions">
-        <button type="button" class="btn" onClick={props.onDone}>Avbryt</button>
-        <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? "Lagrer…" : "Lagre"}</button>
+        <button type="button" class="btn" onClick={props.onDone}>{t("Avbryt")}</button>
+        <button type="submit" class="btn btn-primary" disabled={busy()}>{busy() ? t("Lagrer…") : t("Lagre")}</button>
       </div>
     </form>
   );
@@ -177,14 +178,14 @@ function ProviderCard(props: { provider: ProviderConfig; preset?: ProviderPreset
       <div class="card-head">
         <div class="card-title">
           <strong>{provider().name}</strong>
-          <span class="muted">{mock() ? "Innebygd · uten nettverk" : `${models().length === 1 ? "1 modell" : `${models().length} modeller`} · ${provider().baseUrl ? provider().baseUrl!.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : "standardadresse"}`}</span>
-          <Show when={!mock()}><span class="key-tag">{provider().hasKey ? "API-nøkkel" : local() || props.preset?.keyRequired === false ? "Valgfri nøkkel" : "Ingen nøkkel satt"}</span></Show>
+          <span class="muted">{mock() ? t("Innebygd · uten nettverk") : `${plural(models().length, "{count} modell", "{count} modeller")} · ${provider().baseUrl ? provider().baseUrl!.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : t("standardadresse")}`}</span>
+          <Show when={!mock()}><span class="key-tag">{provider().hasKey ? t("API-nøkkel") : local() || props.preset?.keyRequired === false ? t("Valgfri nøkkel") : t("Ingen nøkkel satt")}</span></Show>
         </div>
         <div class="provider-actions">
-          <Show when={!manual()}><button type="button" class="btn btn-small" disabled={!!testing()} aria-label="Test tilkobling" onClick={() => void test()}>{testing() ? "Tester…" : "Test tilkobling"}</button></Show>
+          <Show when={!manual()}><button type="button" class="btn btn-small" disabled={!!testing()} aria-label={t("Test tilkobling")} onClick={() => void test()}>{testing() ? t("Tester…") : t("Test tilkobling")}</button></Show>
           <Show when={!mock()}>
-            <button type="button" class="btn btn-small btn-quiet" aria-label={`Rediger ${provider().name}`} aria-expanded={editing()} onClick={() => setEditing(!editing())}>Rediger leverandør</button>
-            <button type="button" class="btn btn-small btn-quiet" aria-label={`Koble fra ${provider().name}`} onClick={() => disconnect(provider())}>Koble fra</button>
+            <button type="button" class="btn btn-small btn-quiet" aria-label={t("Rediger {name}", { name: provider().name })} aria-expanded={editing()} onClick={() => setEditing(!editing())}>{t("Rediger leverandør")}</button>
+            <button type="button" class="btn btn-small btn-quiet" aria-label={t("Koble fra {name}", { name: provider().name })} onClick={() => disconnect(provider())}>{t("Koble fra")}</button>
           </Show>
         </div>
       </div>
@@ -192,26 +193,26 @@ function ProviderCard(props: { provider: ProviderConfig; preset?: ProviderPreset
       <Show when={editing()}>
         <div class="provider-edit"><ProviderForm provider={provider()} onDone={() => setEditing(false)} /></div>
       </Show>
-      <Show when={(manual() || local()) && models().length > 0}><p class="provider-model-hint" id={costNoteId}>{local() ? "«Test modell» sender en kort melding. Med verktøy på sjekkes også et testkall uten å utføre det." : "«Test modell» sender en kort melding til modellen og kan koste penger."}</p></Show>
-      <ul class="model-list" aria-label={`Modeller fra ${provider().name}`}>
+      <Show when={(manual() || local()) && models().length > 0}><p class="provider-model-hint" id={costNoteId}>{local() ? t("«Test modell» sender en kort melding. Med verktøy på sjekkes også et testkall uten å utføre det.") : t("«Test modell» sender en kort melding til modellen og kan koste penger.")}</p></Show>
+      <ul class="model-list" aria-label={t("Modeller fra {name}", { name: provider().name })}>
         <For each={models()}>
           {(model) => (
             <li class="model-row">
               <div class="card-title">
                 <span>{model.name}</span>
                 {/* The provider's own id in mono, for when you set it up; the demo model has none worth showing. */}
-                <Show when={!mock()} fallback={<span class="muted">Svarer lokalt, uten nettverk</span>}>
-                  <span class="muted"><code class="model-id">{model.model}</code>{model.inputPricePerMTok !== undefined ? `, $${model.inputPricePerMTok} inn og $${model.outputPricePerMTok ?? 0} ut per million` : ""}</span>
+                <Show when={!mock()} fallback={<span class="muted">{t("Svarer lokalt, uten nettverk")}</span>}>
+                  <span class="muted"><code class="model-id">{model.model}</code>{model.inputPricePerMTok !== undefined ? t(", ${input} inn og ${output} ut per million", { input: model.inputPricePerMTok, output: model.outputPricePerMTok ?? 0 }) : ""}</span>
                 </Show>
-                <Show when={local()}><span class="muted">{modelAllowsTools(model, provider().localKind) ? "Verktøy på" : "Verktøy av"}</span></Show>
+                <Show when={local()}><span class="muted">{modelAllowsTools(model, provider().localKind) ? t("Verktøy på") : t("Verktøy av")}</span></Show>
               </div>
-              <Show when={app.settings.defaultModelId === model.id} fallback={<button type="button" class="btn btn-small" onClick={() => save({ defaultModelId: model.id })}>Bruk som standard</button>}>
-                <span class="tag">Standard</span>
+              <Show when={app.settings.defaultModelId === model.id} fallback={<button type="button" class="btn btn-small" onClick={() => save({ defaultModelId: model.id })}>{t("Bruk som standard")}</button>}>
+                <span class="tag">{t("Standard")}</span>
               </Show>
               <Show when={!mock()}>
-                <Show when={manual() || local()}><button type="button" class="btn btn-small" disabled={!!testing()} aria-describedby={costNoteId} aria-label={`Test modell ${model.name}`} onClick={() => void test(model)}>{testing() === model.id ? "Tester…" : "Test modell"}</button></Show>
-                <button type="button" class="btn btn-small" onClick={() => setModelForm(model)}>Rediger</button>
-                <button type="button" class="btn btn-small" onClick={() => del(`/api/models/${model.id}`).catch(report)}>Slett</button>
+                <Show when={manual() || local()}><button type="button" class="btn btn-small" disabled={!!testing()} aria-describedby={costNoteId} aria-label={t("Test modell {name}", { name: model.name })} onClick={() => void test(model)}>{testing() === model.id ? t("Tester…") : t("Test modell")}</button></Show>
+                <button type="button" class="btn btn-small" onClick={() => setModelForm(model)}>{t("Rediger")}</button>
+                <button type="button" class="btn btn-small" onClick={() => del(`/api/models/${model.id}`).catch(report)}>{t("Slett")}</button>
               </Show>
             </li>
           )}
@@ -223,8 +224,8 @@ function ProviderCard(props: { provider: ProviderConfig; preset?: ProviderPreset
       <Show when={fetching()}><ModelFetcher provider={provider()} onDone={() => setFetching(false)} onManual={() => { setFetching(false); setModelForm("new"); }} /></Show>
       <Show when={!mock() && !modelForm() && !fetching()}>
         <div class="card-actions">
-          <Show when={!manual()}><button type="button" class="btn btn-small btn-primary" onClick={() => setFetching(true)}>Hent modeller</button></Show>
-          <button type="button" class="btn btn-small" classList={{ "btn-primary": manual() }} onClick={() => setModelForm("new")}>Legg til modell</button>
+          <Show when={!manual()}><button type="button" class="btn btn-small btn-primary" onClick={() => setFetching(true)}>{t("Hent modeller")}</button></Show>
+          <button type="button" class="btn btn-small" classList={{ "btn-primary": manual() }} onClick={() => setModelForm("new")}>{t("Legg til modell")}</button>
         </div>
       </Show>
     </div>
@@ -261,28 +262,28 @@ function ModelFetcher(props: { provider: ProviderConfig; onDone: () => void; onM
     setSaving(true);
     try {
       await post(`/api/providers/${props.provider.id}/models`, { models: chosen.map((m) => ({ model: m.id, name: m.name, contextWindow: m.contextWindow, supportsTools: m.supportsTools, supportsImages: m.supportsImages })) });
-      toast(chosen.length === 1 ? "La til 1 modell." : `La til ${chosen.length} modeller.`, "info");
+      toast(plural(chosen.length, "La til {count} modell.", "La til {count} modeller."), "info");
       props.onDone();
     } catch (err) {
       report(err);
     } finally { setSaving(false); }
   };
   return (
-    <div class="fetcher" aria-label="Modeller fra leverandøren">
-      <Show when={!busy()} fallback={<p class="muted" role="status">Henter modeller fra {props.provider.name}…</p>}>
+    <div class="fetcher" aria-label={t("Modeller fra leverandøren")}>
+      <Show when={!busy()} fallback={<p class="muted" role="status">{t("Henter modeller fra {name}…", { name: props.provider.name })}</p>}>
         <Show when={!error()} fallback={<p class="test-result bad" role="alert">{error()}</p>}>
-          <input class="input" placeholder="Filtrer modeller" aria-label="Filtrer modeller" value={filter()} onInput={(e) => setFilter(e.currentTarget.value)} />
+          <input class="input" placeholder={t("Filtrer modeller")} aria-label={t("Filtrer modeller")} value={filter()} onInput={(e) => setFilter(e.currentTarget.value)} />
           <ul class="fetch-list">
-            <For each={shown()} fallback={<li class="muted">Ingen modeller</li>}>
+            <For each={shown()} fallback={<li class="muted">{t("Ingen modeller")}</li>}>
               {(m) => (
                 <li>
                   <label class="fetch-row">
                     <input type="checkbox" checked={picked().has(m.id) || known().has(m.id)} disabled={known().has(m.id) || (picked().size >= 200 && !picked().has(m.id))} onChange={() => toggle(m.id)} />
                     <span class="fetch-id">{m.id}</span>
-                    <span class="muted" title={m.contextSource === "api" ? "Fra leverandøren" : m.contextSource === "table" ? "Fra en innebygd tabell" : "Standardverdi, kan endres"}>
-                      {formatTokens(m.contextWindow)}{m.contextSource === "default" ? " (standard)" : ""}
+                    <span class="muted" title={m.contextSource === "api" ? t("Fra leverandøren") : m.contextSource === "table" ? t("Fra en innebygd tabell") : t("Standardverdi, kan endres")}>
+                      {formatTokens(m.contextWindow)}{m.contextSource === "default" ? t(" (standard)") : ""}
                     </span>
-                    <Show when={props.provider.localKind}><span class="muted fetch-tools">{m.supportsTools ? "Verktøy på" : "Verktøy av"}</span></Show>
+                    <Show when={props.provider.localKind}><span class="muted fetch-tools">{m.supportsTools ? t("Verktøy på") : t("Verktøy av")}</span></Show>
                   </label>
                 </li>
               )}
@@ -291,9 +292,9 @@ function ModelFetcher(props: { provider: ProviderConfig; onDone: () => void; onM
         </Show>
       </Show>
       <div class="form-actions model-fetch-actions">
-        <button type="button" class="link-button" disabled={saving()} onClick={props.onManual}>Skriv inn modell-ID</button>
-        <button type="button" class="btn" disabled={saving()} onClick={props.onDone}>{props.closeLabel ?? "Lukk"}</button>
-        <button type="button" class="btn btn-primary" disabled={saving() || !picked().size} onClick={add}>Legg til valgte ({picked().size})</button>
+        <button type="button" class="link-button" disabled={saving()} onClick={props.onManual}>{t("Skriv inn modell-ID")}</button>
+        <button type="button" class="btn" disabled={saving()} onClick={props.onDone}>{props.closeLabel ?? t("Lukk")}</button>
+        <button type="button" class="btn btn-primary" disabled={saving() || !picked().size} onClick={add}>{t("Legg til valgte ({count})", { count: picked().size })}</button>
       </div>
     </div>
   );
@@ -309,7 +310,7 @@ function StepBudget() {
     event.preventDefault();
     const value = draft().trim() ? Number(draft()) : NaN;
     if (!isMaxStepsPerTurn(value)) {
-      setError(`Velg et heltall fra ${MIN_STEPS_PER_TURN} til ${MAX_STEPS_PER_TURN}.`);
+      setError(t("Velg et heltall fra {min} til {max}.", { min: MIN_STEPS_PER_TURN, max: MAX_STEPS_PER_TURN }));
       return;
     }
     setError("");
@@ -319,12 +320,12 @@ function StepBudget() {
     finally { setSaving(false); }
   };
   return (
-    <form class="form" onSubmit={submit} noValidate aria-label="Steggrense">
+    <form class="form" onSubmit={submit} noValidate aria-label={t("Steggrense")}>
       <div class="form-actions">
-        <input class="input" type="number" aria-label="Steg per tur" aria-invalid={!!error()} aria-describedby={error() ? "step-budget-error" : undefined}
+        <input class="input" type="number" aria-label={t("Steg per tur")} aria-invalid={!!error()} aria-describedby={error() ? "step-budget-error" : undefined}
           min={MIN_STEPS_PER_TURN} max={MAX_STEPS_PER_TURN} step="1" style={{ width: "6rem" }} value={draft()}
           onInput={(event) => { setDraft(event.currentTarget.value); setError(""); }} />
-        <button type="submit" class="btn btn-small" disabled={saving()}>Lagre steggrense</button>
+        <button type="submit" class="btn btn-small" disabled={saving()}>{t("Lagre steggrense")}</button>
       </div>
       <Show when={error()}><span id="step-budget-error" role="alert">{error()}</span></Show>
     </form>
@@ -338,15 +339,15 @@ function ModelDefaults(props: { active?: boolean }) {
     );
   return (
     <>
-      <Group title="Standard">
-        <Row label="Standardmodell" text="Brukes i nye tråder. Hver tråd kan bytte modell i meldingsfeltet.">
-          <Choice active={props.active} label="Standardmodell" value={app.settings.defaultModelId ?? ""} options={options()} onChange={(id) => save({ defaultModelId: id })} />
+      <Group title={t("Standard")}>
+        <Row label={t("Standardmodell")} text={t("Brukes i nye tråder. Hver tråd kan bytte modell i meldingsfeltet.")}>
+          <Choice active={props.active} label={t("Standardmodell")} value={app.settings.defaultModelId ?? ""} options={options()} onChange={(id) => save({ defaultModelId: id })} />
         </Row>
       </Group>
-      <Group title="Agenten">
-        <Toggle label="Komprimering" text="Når dette er på, kortes gamle verktøyresultater og bilder ned ved 80 % av kontekstvinduet, og eldre samtale oppsummeres ved behov. Av beholder historikken til leverandørens kontekstgrense; bruk /compact ved behov. Gjelder nye turer."
+      <Group title={t("Agenten")}>
+        <Toggle label={t("Komprimering")} text={t("Når dette er på, kortes gamle verktøyresultater og bilder ned ved 80 % av kontekstvinduet, og eldre samtale oppsummeres ved behov. Av beholder historikken til leverandørens kontekstgrense; bruk /compact ved behov. Gjelder nye turer.")}
           checked={agentSettingsOf(app.settings).autoCompact} onChange={(autoCompact) => save({ autoCompact })} />
-        <Row label="Steg per tur" text={`Agenten stopper etter maksimalt ${agentSettingsOf(app.settings).maxStepsPerTurn} modellsteg i én tur. Ett steg kan inneholde flere verktøykall. Velg ${MIN_STEPS_PER_TURN}–${MAX_STEPS_PER_TURN}; grensen gjelder nye turer.`}>
+        <Row label={t("Steg per tur")} text={t("Agenten stopper etter maksimalt {steps} modellsteg i én tur. Ett steg kan inneholde flere verktøykall. Velg {min}–{max}; grensen gjelder nye turer.", { steps: agentSettingsOf(app.settings).maxStepsPerTurn, min: MIN_STEPS_PER_TURN, max: MAX_STEPS_PER_TURN })}>
           <StepBudget />
         </Row>
       </Group>
@@ -369,33 +370,34 @@ function ManualModelEntry(props: { provider: ProviderConfig; onDone: () => void 
     setError("");
     try {
       await post(`/api/providers/${props.provider.id}/models`, { models: [{ model }] });
-      toast(`Modellen ${model} er tilgjengelig.`, "info");
+      toast(t("Modellen {model} er tilgjengelig.", { model }), "info");
       props.onDone();
     } catch (err) {
       setError((err as Error).message);
     } finally { setBusy(false); }
   };
   return (
-    <form class="connect-form" onSubmit={add} aria-label="Legg til modell">
-      <label class="field"><span class="connect-label">Modell-ID</span>
+    <form class="connect-form" onSubmit={add} aria-label={t("Legg til modell")}>
+      <label class="field"><span class="connect-label">{t("Modell-ID")}</span>
         <input ref={input} class="input" spellcheck={false} autocomplete="off" required aria-describedby={hintId} value={modelId()} onInput={(e) => setModelId(e.currentTarget.value)} />
       </label>
-      <p id={hintId} class="provider-model-hint">Bruk modell-ID-en fra leverandøren, eller navnet på distribusjonen hvis tjenesten bruker det.</p>
+      <p id={hintId} class="provider-model-hint">{t("Bruk modell-ID-en fra leverandøren, eller navnet på distribusjonen hvis tjenesten bruker det.")}</p>
       <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
       <div class="form-actions">
-        <button type="button" class="btn" disabled={busy()} onClick={props.onDone}>Legg til senere</button>
-        <button type="submit" class="btn btn-primary" disabled={!modelId().trim() || busy()}>{busy() ? "Lagrer…" : "Legg til modell"}</button>
+        <button type="button" class="btn" disabled={busy()} onClick={props.onDone}>{t("Legg til senere")}</button>
+        <button type="submit" class="btn btn-primary" disabled={!modelId().trim() || busy()}>{busy() ? t("Lagrer…") : t("Legg til modell")}</button>
       </div>
     </form>
   );
 }
 
-const CUSTOM_TYPES = [
-  { value: "openai-compatible", label: "OpenAI-kompatibel" },
-  { value: "local", label: "Lokal modellserver" },
+type CustomType = "openai-compatible" | "local" | "anthropic";
+// A function, so the labels follow the active language.
+const customTypes = (): Array<{ value: CustomType; label: string }> => [
+  { value: "openai-compatible", label: t("OpenAI-kompatibel") },
+  { value: "local", label: t("Lokal modellserver") },
   { value: "anthropic", label: "Anthropic" },
-] as const;
-type CustomType = (typeof CUSTOM_TYPES)[number]["value"];
+];
 
 function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose: () => void }) {
   const custom = props.preset.id === "custom";
@@ -449,42 +451,43 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
       setBusy(false);
     }
   };
-  const label = custom ? "Nøkkel" : `${props.preset.name}-API-nøkkel`;
+  const label = () => (custom ? t("Nøkkel") : t("{name}-API-nøkkel", { name: props.preset.name }));
+  const optionalLabel = () => (custom ? t("Nøkkel (valgfri)") : t("{name}-API-nøkkel (valgfri)", { name: props.preset.name }));
   const addressField = (
-    <label class="field"><span class="connect-label">API-adresse</span>
-      <input ref={addressInput} class="input" type="url" required={addressRequired()} spellcheck={false} autocomplete="off" value={address()} placeholder={local() ? "http://127.0.0.1:8080/v1" : !addressRequired() ? "Standardadresse (valgfri)" : undefined} onInput={(e) => setAddress(e.currentTarget.value)} />
+    <label class="field"><span class="connect-label">{t("API-adresse")}</span>
+      <input ref={addressInput} class="input" type="url" required={addressRequired()} spellcheck={false} autocomplete="off" value={address()} placeholder={local() ? "http://127.0.0.1:8080/v1" : !addressRequired() ? t("Standardadresse (valgfri)") : undefined} onInput={(e) => setAddress(e.currentTarget.value)} />
     </label>
   );
   return (
-    <section class="connect-view" ref={view} aria-label={`Koble til ${props.preset.name}`}>
+    <section class="connect-view" ref={view} aria-label={t("Koble til {name}", { name: props.preset.name })}>
       <div class="connect-bar">
-        <button type="button" class="icon-button" aria-label="Tilbake til leverandørene" title="Tilbake (Esc)" disabled={busy()} onClick={props.onClose}><IconBack size={16} /></button>
+        <button type="button" class="icon-button" aria-label={t("Tilbake til leverandørene")} title={t("Tilbake (Esc)")} disabled={busy()} onClick={props.onClose}><IconBack size={16} /></button>
       </div>
-      <h1 class="connect-title"><span>Koble til {props.preset.name}</span></h1>
+      <h1 class="connect-title"><span>{t("Koble til {name}", { name: props.preset.name })}</span></h1>
       <Show
         when={provider()}
         fallback={
-          <form class="connect-form" onSubmit={submit} aria-label={`Koble til ${props.preset.name}`}>
+          <form class="connect-form" onSubmit={submit} aria-label={t("Koble til {name}", { name: props.preset.name })}>
             <Show when={props.preset.note}><p class="connect-text">{props.preset.note}</p></Show>
-            <Show when={props.preset.docsUrl}><a class="provider-docs-link" href={props.preset.docsUrl} target="_blank" rel="noreferrer noopener">Dokumentasjon for {props.preset.name}</a></Show>
+            <Show when={props.preset.docsUrl}><a class="provider-docs-link" href={props.preset.docsUrl} target="_blank" rel="noreferrer noopener">{t("Dokumentasjon for {name}", { name: props.preset.name })}</a></Show>
             <Show when={custom}>
-              <label class="field"><span class="connect-label">Navn</span><input ref={nameInput} class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} /></label>
-              <div class="field"><span class="connect-label">Type</span><Select<CustomType> active={props.active} label="Type" class="field-select" value={customType()} options={[...CUSTOM_TYPES]} onChange={setCustomType} /></div>
+              <label class="field"><span class="connect-label">{t("Navn")}</span><input ref={nameInput} class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} /></label>
+              <div class="field"><span class="connect-label">{t("Type")}</span><Select<CustomType> active={props.active} label={t("Type")} class="field-select" value={customType()} options={customTypes()} onChange={setCustomType} /></div>
             </Show>
             <Show when={showAddress}>{addressField}</Show>
-            <Show when={local()}><p class="provider-model-hint">Start serveren først. For en annen maskin, bruk dens adresse. Bruk HTTPS hvis nøkkelen eller innholdet må krypteres på nettverket.</p></Show>
-            <label class="field"><span class="connect-label">{label}{props.preset.keyRequired ? "" : " (valgfri)"}</span>
-              <SecretInput ref={(el) => (keyInput = el)} label={custom || props.preset.keyRequired ? label : `${label} (valgfri)`} placeholder="API-nøkkel" value={key()} onInput={setKey} />
+            <Show when={local()}><p class="provider-model-hint">{t("Start serveren først. For en annen maskin, bruk dens adresse. Bruk HTTPS hvis nøkkelen eller innholdet må krypteres på nettverket.")}</p></Show>
+            <label class="field"><span class="connect-label">{props.preset.keyRequired ? label() : optionalLabel()}</span>
+              <SecretInput ref={(el) => (keyInput = el)} label={custom || props.preset.keyRequired ? label() : optionalLabel()} placeholder={t("API-nøkkel")} value={key()} onInput={setKey} />
             </label>
-            <p class="provider-model-hint">{app.keyring?.store === "session" ? "Nøkkelen beholdes i minnet til du lukker appen." : app.keyring?.store === "keyring" ? "Nøkkelen lagres i systemets nøkkelring." : "Hvis nøkkelringen er utilgjengelig, beholdes nøkkelen bare i denne økten."}</p>
-            <Show when={!showAddress}><details class="connect-advanced"><summary>Adresse</summary>{addressField}</details></Show>
+            <p class="provider-model-hint">{app.keyring?.store === "session" ? t("Nøkkelen beholdes i minnet til du lukker appen.") : app.keyring?.store === "keyring" ? t("Nøkkelen lagres i systemets nøkkelring.") : t("Hvis nøkkelringen er utilgjengelig, beholdes nøkkelen bare i denne økten.")}</p>
+            <Show when={!showAddress}><details class="connect-advanced"><summary>{t("Adresse")}</summary>{addressField}</details></Show>
             <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
-            <div><button type="submit" class="btn btn-primary" disabled={!canSubmit()}>{busy() ? "Lagrer…" : "Fortsett"}</button></div>
+            <div><button type="submit" class="btn btn-primary" disabled={!canSubmit()}>{busy() ? t("Lagrer…") : t("Fortsett")}</button></div>
           </form>
         }
       >
-        <p class="connect-text connect-model-status" tabindex="-1">{provider()!.name} er lagret. {manual() ? "Legg til en modell nå eller senere." : "Velg modellene du vil bruke fra leverandørens liste."}</p>
-        <Show when={manual()} fallback={<ModelFetcher provider={provider()!} onManual={() => setManual(true)} onDone={close} closeLabel="Ferdig" />}>
+        <p class="connect-text connect-model-status" tabindex="-1">{manual() ? t("{name} er lagret. Legg til en modell nå eller senere.", { name: provider()!.name }) : t("{name} er lagret. Velg modellene du vil bruke fra leverandørens liste.", { name: provider()!.name })}</p>
+        <Show when={manual()} fallback={<ModelFetcher provider={provider()!} onManual={() => setManual(true)} onDone={close} closeLabel={t("Ferdig")} />}>
           <ManualModelEntry provider={provider()!} onDone={close} />
         </Show>
       </Show>
@@ -496,11 +499,12 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
 export function Models() { return <Providers />; }
 
 type CatalogCategory = NonNullable<ProviderPreset["category"]> | "all";
-const CATEGORIES: { value: CatalogCategory; label: string }[] = [
-  { value: "all", label: "Alle" }, { value: "cloud", label: "Sky" },
-  { value: "gateway", label: "Gatewayer" }, { value: "local", label: "Lokal drift" },
+// Functions, so the labels follow the active language.
+const categories = (): { value: CatalogCategory; label: string }[] => [
+  { value: "all", label: t("Alle") }, { value: "cloud", label: t("Sky") },
+  { value: "gateway", label: t("Gatewayer") }, { value: "local", label: t("Lokal drift") },
 ];
-const CATEGORY_LABELS = { cloud: "Sky", gateway: "Gateway", local: "Lokal drift" };
+const categoryLabel = (category: Exclude<CatalogCategory, "all">): string => ({ cloud: t("Sky"), gateway: t("Gateway"), local: t("Lokal drift") })[category];
 const CATALOG_PAGE_SIZE = 8;
 
 // Older connections have no saved preset ID. Prefer the provider's name when multiple
@@ -536,7 +540,7 @@ function ProviderCatalog(props: {
     return props.presets.filter((preset) => {
       const group = categoryOf(preset);
       if (category() !== "all" && group !== category()) return false;
-      const text = [preset.name, preset.id, preset.baseUrl, preset.note, CATEGORY_LABELS[group]].join(" ").toLowerCase();
+      const text = [preset.name, preset.id, preset.baseUrl, preset.note, categoryLabel(group)].join(" ").toLowerCase();
       return words.every((word) => text.includes(word));
     }).sort((left, right) => Number(detectedById().has(right.id)) - Number(detectedById().has(left.id)));
   });
@@ -562,40 +566,40 @@ function ProviderCatalog(props: {
         setCategory("local");
         updateQuery("");
       }
-      setDetectStatus(matches.length ? `${matches.length === 1 ? "1 API svarte" : `${matches.length} API-er svarte`} på denne maskinen.` : "Fant ingen åpne modellister på standardadressene. Velg en leverandør for å oppgi adresse eller nøkkel selv.");
+      setDetectStatus(matches.length ? plural(matches.length, "{count} API svarte på denne maskinen.", "{count} API-er svarte på denne maskinen.") : t("Fant ingen åpne modellister på standardadressene. Velg en leverandør for å oppgi adresse eller nøkkel selv."));
     } catch (err) {
       setDetectError(true);
-      setDetectStatus(`Kunne ikke sjekke standardadressene: ${(err as Error).message}`);
+      setDetectStatus(t("Kunne ikke sjekke standardadressene: {message}", { message: (err as Error).message }));
     } finally {
       setDetecting(false);
     }
   };
   return (
-    <Group title="Leverandørkatalog" action={<span class="provider-count" role="status">{filtered().length === 1 ? "1 leverandør" : `${filtered().length} leverandører`}</span>}>
+    <Group title={t("Leverandørkatalog")} action={<span class="provider-count" role="status">{plural(filtered().length, "{count} leverandør", "{count} leverandører")}</span>}>
       <div class="provider-catalog-tools">
         <div class="settings-search">
           <IconSearch size={14} />
-          <input ref={(el) => { search = el; props.searchRef(el); }} class="settings-search-input" type="search" aria-label="Søk etter leverandør" placeholder="Søk etter leverandør" spellcheck={false} value={query()} onInput={(e) => updateQuery(e.currentTarget.value)}
+          <input ref={(el) => { search = el; props.searchRef(el); }} class="settings-search-input" type="search" aria-label={t("Søk etter leverandør")} placeholder={t("Søk etter leverandør")} spellcheck={false} value={query()} onInput={(e) => updateQuery(e.currentTarget.value)}
             on:keydown={(e) => { if (e.key === "Escape" && query()) { e.preventDefault(); e.stopPropagation(); clearSearch(); } }} />
-          <Show when={query()}><button type="button" class="settings-search-clear" aria-label="Tøm leverandørsøket" onClick={clearSearch}><IconClose size={12} /></button></Show>
+          <Show when={query()}><button type="button" class="settings-search-clear" aria-label={t("Tøm leverandørsøket")} onClick={clearSearch}><IconClose size={12} /></button></Show>
         </div>
-        <Segmented<CatalogCategory> label="Leverandørtype" options={CATEGORIES} value={category()} onChange={(value) => { setCategory(value); setLimit(CATALOG_PAGE_SIZE); }} />
+        <Segmented<CatalogCategory> label={t("Leverandørtype")} options={categories()} value={category()} onChange={(value) => { setCategory(value); setLimit(CATALOG_PAGE_SIZE); }} />
       </div>
       <Show when={category() === "all" || category() === "local"}>
-        <Row label="Lokale modellservere" text="Sjekk standardadressene for Ollama, LM Studio, llama.cpp og vLLM på denne maskinen.">
-          <button type="button" class="btn btn-small" aria-disabled={detecting()} onClick={() => void detect()}>{detecting() ? "Ser etter servere…" : "Finn lokale servere"}</button>
+        <Row label={t("Lokale modellservere")} text={t("Sjekk standardadressene for Ollama, LM Studio, llama.cpp og vLLM på denne maskinen.")}>
+          <button type="button" class="btn btn-small" aria-disabled={detecting()} onClick={() => void detect()}>{detecting() ? t("Ser etter servere…") : t("Finn lokale servere")}</button>
         </Row>
         <p class="provider-detect-status" classList={{ muted: !detectError() }} role={detectError() ? "alert" : "status"}>{detectStatus()}</p>
         <LocalModelAdvisor active={props.active} />
       </Show>
-      <ul class="provider-catalog-list" ref={list} aria-label="Leverandører i katalogen">
-        <For each={filtered().slice(0, limit())} fallback={<li class="provider-catalog-empty">Ingen leverandører passer søket og filteret.</li>}>
+      <ul class="provider-catalog-list" ref={list} aria-label={t("Leverandører i katalogen")}>
+        <For each={filtered().slice(0, limit())} fallback={<li class="provider-catalog-empty">{t("Ingen leverandører passer søket og filteret.")}</li>}>
           {(preset) => {
             const connected = () => props.saved.get(preset.id);
             const detectedText = () => {
               const match = detectedById().get(preset.id);
               if (!match) return "";
-              return `Svarte på standardadressen (${match.modelCount === 1 ? "1 modell" : `${match.modelCount} modeller`})`;
+              return plural(match.modelCount, "Svarte på standardadressen ({count} modell)", "Svarte på standardadressen ({count} modeller)");
             };
             const open = (button: HTMLButtonElement) => {
               const saved = connected();
@@ -604,12 +608,12 @@ function ProviderCatalog(props: {
             };
             return (
               <li>
-                <Row label={preset.name} text={[CATEGORY_LABELS[categoryOf(preset)], preset.note, detectedText()].filter(Boolean).join(" · ")}>
-                  <button type="button" class="btn btn-small" aria-label={connected() ? `Vis oppsett for ${preset.name}` : `Koble til ${preset.name}`} onClick={(e) => open(e.currentTarget)}>
-                    <Show when={connected()} fallback={<><IconPlus size={14} /> Koble til</>}>Vis oppsett</Show>
+                <Row label={preset.name} text={[categoryLabel(categoryOf(preset)), preset.note, detectedText()].filter(Boolean).join(" · ")}>
+                  <button type="button" class="btn btn-small" aria-label={connected() ? t("Vis oppsett for {name}", { name: preset.name }) : t("Koble til {name}", { name: preset.name })} onClick={(e) => open(e.currentTarget)}>
+                    <Show when={connected()} fallback={<><IconPlus size={14} /> {t("Koble til")}</>}>{t("Vis oppsett")}</Show>
                   </button>
                   <Show when={connected() && categoryOf(preset) === "local"}>
-                    <button type="button" class="btn btn-small" aria-label={`Legg til en annen server med ${preset.name}`} onClick={(e) => props.onConnect(preset, e.currentTarget)}>Legg til en til</button>
+                    <button type="button" class="btn btn-small" aria-label={t("Legg til en annen server med {name}", { name: preset.name })} onClick={(e) => props.onConnect(preset, e.currentTarget)}>{t("Legg til en til")}</button>
                   </Show>
                 </Row>
               </li>
@@ -618,9 +622,9 @@ function ProviderCatalog(props: {
         </For>
       </ul>
       <Show when={filtered().length > limit()}>
-        <button type="button" class="provider-catalog-more link-button" onClick={showMore}>Vis flere leverandører ({limit()} av {filtered().length})</button>
+        <button type="button" class="provider-catalog-more link-button" onClick={showMore}>{t("Vis flere leverandører ({shown} av {total})", { shown: limit(), total: filtered().length })}</button>
       </Show>
-      <Show when={props.custom}>{(custom) => <button type="button" class="provider-catalog-more link-button" onClick={(e) => props.onConnect(custom(), e.currentTarget)}>Egendefinert oppsett</button>}</Show>
+      <Show when={props.custom}>{(custom) => <button type="button" class="provider-catalog-more link-button" onClick={(e) => props.onConnect(custom(), e.currentTarget)}>{t("Egendefinert oppsett")}</button>}</Show>
     </Group>
   );
 }
@@ -655,22 +659,22 @@ export function Providers(props: { active?: boolean } = {}) {
   return (
     <>
       <div hidden={!!connecting()}>
-        <Page title="Modeller og leverandører" intro="Velg standardmodell, administrer modellene dine og koble til leverandører på samme sted. Demo-modellen er alltid tilgjengelig uten nettverk.">
+        <Page title={t("Modeller og leverandører")} intro={t("Velg standardmodell, administrer modellene dine og koble til leverandører på samme sted. Demo-modellen er alltid tilgjengelig uten nettverk.")}>
           <KeyringNote />
           <DictationSettings />
-          <Row label="Nøkkellagring" text={app.keyring?.legacy ? "En nøkkelfil fra en eldre versjon finnes fortsatt. Se statusmeldingen under for flytting til nøkkelringen." : app.keyring?.store === "keyring" && !app.keyring.legacy ? "Nøklene oppbevares i operativsystemets nøkkelring. Appen lagrer ingen egen klartekstkopi." : app.keyring?.store === "session" ? "Nye nøkler beholdes bare i minnet til appen avsluttes. Se statusmeldingen for nøkkelringen." : "Kontrollerer nøkkelring og eventuell eldre nøkkellagring."}><span data-testid="key-storage-status">{app.keyring?.legacy ? "Eldre nøkkelfil finnes" : app.keyring?.store === "keyring" && !app.keyring.legacy ? "Systemnøkkelring" : app.keyring?.store === "session" ? "Kun denne økten" : "Venter på nøkkelringen"}</span></Row>
-          <p class="provider-key-note">Nye nøkler lagres ikke i en klartekstfil av appen, og sendes aldri tilbake til grensesnittet.</p>
+          <Row label={t("Nøkkellagring")} text={app.keyring?.legacy ? t("En nøkkelfil fra en eldre versjon finnes fortsatt. Se statusmeldingen under for flytting til nøkkelringen.") : app.keyring?.store === "keyring" && !app.keyring.legacy ? t("Nøklene oppbevares i operativsystemets nøkkelring. Appen lagrer ingen egen klartekstkopi.") : app.keyring?.store === "session" ? t("Nye nøkler beholdes bare i minnet til appen avsluttes. Se statusmeldingen for nøkkelringen.") : t("Kontrollerer nøkkelring og eventuell eldre nøkkellagring.")}><span data-testid="key-storage-status">{app.keyring?.legacy ? t("Eldre nøkkelfil finnes") : app.keyring?.store === "keyring" && !app.keyring.legacy ? t("Systemnøkkelring") : app.keyring?.store === "session" ? t("Kun denne økten") : t("Venter på nøkkelringen")}</span></Row>
+          <p class="provider-key-note">{t("Nye nøkler lagres ikke i en klartekstfil av appen, og sendes aldri tilbake til grensesnittet.")}</p>
           <ModelDefaults active={props.active !== false && !connecting()} />
           <div class="settings-group provider-cards">
-            <div class="settings-group-head"><h2>Tilkoblede leverandører</h2><button type="button" class="btn btn-small" disabled={presets.loading || !!catalogError()} onClick={() => catalogSearch?.focus()}><IconPlus size={14} /> Koble til leverandør</button></div>
+            <div class="settings-group-head"><h2>{t("Tilkoblede leverandører")}</h2><button type="button" class="btn btn-small" disabled={presets.loading || !!catalogError()} onClick={() => catalogSearch?.focus()}><IconPlus size={14} /> {t("Koble til leverandør")}</button></div>
             <For each={app.providers.map((p) => p.id)}>{(id) => {
               const provider = () => app.providers.find((p) => p.id === id)!;
               return <ProviderCard provider={provider()} preset={presetFor(provider())} />;
             }}</For>
           </div>
-          <Suspense fallback={<p class="muted" role="status">Henter leverandører…</p>}>
+          <Suspense fallback={<p class="muted" role="status">{t("Henter leverandører…")}</p>}>
             <Show when={catalogError()}>
-              <div class="provider-catalog-error" role="alert"><span>Kunne ikke hente leverandører: {catalogError()}</span><button type="button" class="btn btn-small" onClick={() => void refetch()}>Prøv igjen</button></div>
+              <div class="provider-catalog-error" role="alert"><span>{t("Kunne ikke hente leverandører: {message}", { message: catalogError() })}</span><button type="button" class="btn btn-small" onClick={() => void refetch()}>{t("Prøv igjen")}</button></div>
             </Show>
             <Show when={named().length}><ProviderCatalog presets={named()} custom={presets()?.find((preset) => preset.id === "custom")} saved={saved()} active={props.active !== false && !connecting()} searchRef={(input) => { catalogSearch = input; }} onConnect={connect} /></Show>
           </Suspense>
@@ -683,20 +687,21 @@ export function Providers(props: { active?: boolean } = {}) {
 
 // Round 14 (SPEC 30.1): one calm line when keys cannot go in the keyring, or when keys.json from an
 // older version is still in the data folder. Nothing shows when all is as it should be.
-const SESSION_TEXT: Record<NonNullable<KeyringStatus["reason"]>, string> = {
-  "no-service": "Fant ingen nøkkelring på maskinen, så nye nøkler gjelder bare til appen lukkes.",
-  locked: "Nøkkelringen er låst, så nye nøkler gjelder bare til appen lukkes.",
-  error: "Nøkkelringen svarte ikke som ventet, så nye nøkler gjelder bare til appen lukkes.",
-};
-const LEGACY_TEXT: Record<NonNullable<KeyringStatus["legacy"]>["reason"], string> = {
-  "no-service": "Nøklene i keys.json fra en eldre versjon brukes fortsatt, og flyttes til nøkkelringen når den er tilgjengelig.",
-  locked: "Nøklene i keys.json fra en eldre versjon brukes fortsatt, og flyttes til nøkkelringen når den er låst opp.",
-  error: "Nøklene i keys.json fra en eldre versjon brukes fortsatt, og flyttes til nøkkelringen når den svarer.",
-  pending: "Nøklene i keys.json fra en eldre versjon flyttes til nøkkelringen.",
-  readback: "keys.json fra en eldre versjon er ikke slettet, fordi nøklene ikke kunne leses likt tilbake fra nøkkelringen.",
-  unreadable: "keys.json i datamappen kunne ikke leses, så den er ikke rørt. Legg inn nøklene på nytt, og slett fila selv.",
-  delete: "Nøklene er flyttet til nøkkelringen, men keys.json kunne ikke slettes. Slett fila i datamappen selv.",
-};
+// Functions, so the texts follow the active language.
+const sessionText = (reason: NonNullable<KeyringStatus["reason"]>): string => ({
+  "no-service": t("Fant ingen nøkkelring på maskinen, så nye nøkler gjelder bare til appen lukkes."),
+  locked: t("Nøkkelringen er låst, så nye nøkler gjelder bare til appen lukkes."),
+  error: t("Nøkkelringen svarte ikke som ventet, så nye nøkler gjelder bare til appen lukkes."),
+})[reason];
+const legacyText = (reason: NonNullable<KeyringStatus["legacy"]>["reason"]): string => ({
+  "no-service": t("Nøklene i keys.json fra en eldre versjon brukes fortsatt, og flyttes til nøkkelringen når den er tilgjengelig."),
+  locked: t("Nøklene i keys.json fra en eldre versjon brukes fortsatt, og flyttes til nøkkelringen når den er låst opp."),
+  error: t("Nøklene i keys.json fra en eldre versjon brukes fortsatt, og flyttes til nøkkelringen når den svarer."),
+  pending: t("Nøklene i keys.json fra en eldre versjon flyttes til nøkkelringen."),
+  readback: t("keys.json fra en eldre versjon er ikke slettet, fordi nøklene ikke kunne leses likt tilbake fra nøkkelringen."),
+  unreadable: t("keys.json i datamappen kunne ikke leses, så den er ikke rørt. Legg inn nøklene på nytt, og slett fila selv."),
+  delete: t("Nøklene er flyttet til nøkkelringen, men keys.json kunne ikke slettes. Slett fila i datamappen selv."),
+})[reason];
 
 export function KeyringNote() {
   const [busy, setBusy] = createSignal(false);
@@ -704,14 +709,14 @@ export function KeyringNote() {
   const text = () => {
     const k = status();
     if (!k) return null;
-    if (k.store === "pending") return "Venter på nøkkelringen …";
+    if (k.store === "pending") return t("Venter på nøkkelringen …");
     if (k.store === "session") {
-      const first = SESSION_TEXT[k.reason ?? "error"];
+      const first = sessionText(k.reason ?? "error");
       if (!k.legacy) return first;
-      const why = k.legacy.reason === "readback" || k.legacy.reason === "unreadable" ? LEGACY_TEXT[k.legacy.reason] : "Nøklene i keys.json fra en eldre versjon brukes til de kan flyttes.";
+      const why = k.legacy.reason === "readback" || k.legacy.reason === "unreadable" ? legacyText(k.legacy.reason) : t("Nøklene i keys.json fra en eldre versjon brukes til de kan flyttes.");
       return `${first} ${why}`;
     }
-    return k.legacy ? LEGACY_TEXT[k.legacy.reason] : null;
+    return k.legacy ? legacyText(k.legacy.reason) : null;
   };
   const canRetry = () => status()?.store === "session" || (!!status()?.legacy && status()!.legacy!.reason !== "unreadable");
   const retry = async () => {
@@ -719,7 +724,7 @@ export function KeyringNote() {
     try {
       const next = await post<KeyringStatus>("/api/keyring/retry");
       setApp("keyring", next);
-      if (next.store === "keyring" && !next.legacy) toast("Nøklene ligger nå i nøkkelringen.", "info");
+      if (next.store === "keyring" && !next.legacy) toast(t("Nøklene ligger nå i nøkkelringen."), "info");
     } catch (err) {
       report(err);
     } finally {
@@ -732,7 +737,7 @@ export function KeyringNote() {
         <IconInfo size={14} />
         <span>{text()}</span>
         <Show when={canRetry()}>
-          <button type="button" class="link-button" disabled={busy()} onClick={() => void retry()}>{busy() ? "Prøver …" : "Prøv igjen"}</button>
+          <button type="button" class="link-button" disabled={busy()} onClick={() => void retry()}>{busy() ? t("Prøver …") : t("Prøv igjen")}</button>
         </Show>
       </p>
     </Show>

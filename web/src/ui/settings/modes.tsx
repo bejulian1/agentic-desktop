@@ -12,6 +12,7 @@ import { CodeAppearance } from "./code-appearance";
 import { newChatProject } from "../chat-projects";
 import { activeChatPersonality, type ChatPersonalityContext } from "../../state/chat-personality";
 
+import { plural, t } from "../../lib/i18n";
 interface StartOption<T extends string> {
   value: T;
   label: string;
@@ -32,12 +33,13 @@ const Greeting = (props: { small?: boolean; children?: JSX.Element }) => (
 const HEAT = [0, 1, 0, 2, 1, 0, 1, 2, 3, 1, 0, 2, 1, 3, 2, 0, 1, 2, 0, 1, 3, 2, 1, 0];
 const BARS = [3, 5, 2, 7, 4, 8, 6, 3, 9, 5, 7, 4];
 
-const START_OPTIONS: Array<StartOption<CodeStart>> = [
-  { value: "text", label: "Tekst", text: "Ikonet og «Hva skal vi bygge?» midt på siden, i den størrelsen du velger.", sketch: () => <Greeting /> },
+// Functions, so the labels follow the active language.
+const startOptions = (): Array<StartOption<CodeStart>> => [
+  { value: "text", label: t("Tekst"), text: t("Ikonet og «Hva skal vi bygge?» midt på siden, i den størrelsen du velger."), sketch: () => <Greeting /> },
   {
     value: "tokens",
-    label: "Token-historikk",
-    text: "Kalenderen og grafen for token-bruk, som i Innstillinger → Bruk.",
+    label: t("Token-historikk"),
+    text: t("Kalenderen og grafen for token-bruk, som i Innstillinger → Bruk."),
     sketch: () => (
       <Greeting small>
         <span class="start-sketch-card start-sketch-tokens">
@@ -49,8 +51,8 @@ const START_OPTIONS: Array<StartOption<CodeStart>> = [
   },
   {
     value: "projects",
-    label: "Prosjektboks",
-    text: "Én boks med nylige prosjekter, eller trådene i prosjektet, lokalt miljø og GitHub.",
+    label: t("Prosjektboks"),
+    text: t("Én boks med nylige prosjekter, eller trådene i prosjektet, lokalt miljø og GitHub."),
     sketch: () => (
       <Greeting small>
         <span class="start-sketch-card start-sketch-box"><i /><i /><i /><span class="start-sketch-rule" /><i class="start-sketch-env" /><span class="start-sketch-rule" /><i class="start-sketch-git" /></span>
@@ -59,10 +61,10 @@ const START_OPTIONS: Array<StartOption<CodeStart>> = [
   },
 ];
 
-const SIZES: Array<{ value: CodeStartSize; label: string }> = [
-  { value: "small", label: "Liten" },
-  { value: "medium", label: "Middels" },
-  { value: "large", label: "Stor" },
+const sizes = (): Array<{ value: CodeStartSize; label: string }> => [
+  { value: "small", label: t("Liten") },
+  { value: "medium", label: t("Middels") },
+  { value: "large", label: t("Stor") },
 ];
 
 function StartChoice<T extends string>(props: { label: string; value: T; options: Array<StartOption<T>>; onChange: (value: T) => void }) {
@@ -100,26 +102,26 @@ function StartChoice<T extends string>(props: { label: string; value: T; options
 export function CodeSettings() {
   const start = () => app.settings.codeStart ?? "text";
   return (
-    <Page title="Kode" intro="Tilpass kodevisning, samtaler og arbeidsområdet. Tilgang og modellatferd styres i Konfigurasjon.">
-      <Group title="Startsiden">
+    <Page title={t("Kode")} intro={t("Tilpass kodevisning, samtaler og arbeidsområdet. Tilgang og modellatferd styres i Konfigurasjon.")}>
+      <Group title={t("Startsiden")}>
         <div class="setting setting-block">
           <div class="setting-text">
-            <strong class="start-choice-label">Ny tråd i Kode</strong>
-            <span class="muted">Gjelder både med og uten prosjekt. Meldingsfeltet er det samme i alle tre.</span>
+            <strong class="start-choice-label">{t("Ny tråd i Kode")}</strong>
+            <span class="muted">{t("Gjelder både med og uten prosjekt. Meldingsfeltet er det samme i alle tre.")}</span>
           </div>
-          <StartChoice<CodeStart> label="Startsiden i Kode" value={start()} options={START_OPTIONS} onChange={(v) => save({ codeStart: v })} />
+          <StartChoice<CodeStart> label={t("Startsiden i Kode")} value={start()} options={startOptions()} onChange={(v) => save({ codeStart: v })} />
         </div>
         <Show when={start() === "text"}>
-          <Row label="Størrelse" text="Ikonet og teksten skalerer også med vinduet." class="start-size-row">
-            <Segmented<CodeStartSize> label="Størrelse på teksten" value={app.settings.codeStartSize ?? "medium"} options={SIZES} onChange={(v) => save({ codeStartSize: v })} />
+          <Row label={t("Størrelse")} text={t("Ikonet og teksten skalerer også med vinduet.")} class="start-size-row">
+            <Segmented<CodeStartSize> label={t("Størrelse på teksten")} value={app.settings.codeStartSize ?? "medium"} options={sizes()} onChange={(v) => save({ codeStartSize: v })} />
           </Row>
         </Show>
       </Group>
       <CodeAppearance />
-      <Group title="I tråden">
-        <Row label="Standard samtalevisning" text="Gjelder nye visninger i Kode. Normal folder trinnene sammen. Tenkning åpner tenkesammendrag, og Detaljert åpner også verktøyutdata og bakgrunnsarbeid. Du kan fortsatt folde hvert trinn selv. Chat påvirkes ikke."><Segmented<"normal" | "thinking" | "detailed"> label="Standard samtalevisning" value={app.settings.codeTranscriptView ?? "normal"} options={[{ value: "normal", label: "Normal" }, { value: "thinking", label: "Tenkning" }, { value: "detailed", label: "Detaljert" }]} onChange={(v) => save({ codeTranscriptView: v })} /></Row>
-        <Toggle label="Festet sammendrag" text="Vis knappen for mål, plan, endringer og bakgrunnsarbeid øverst til høyre i Kode." checked={pinnedSummary()} onChange={setPinnedSummary} />
-        <Toggle label="Åpne agent-tråder i ny rute" text="Når en agent lager en tråd, vises den i en egen rute." checked={app.settings.autoOpenAgentThreads} onChange={(v) => save({ autoOpenAgentThreads: v })} />
+      <Group title={t("I tråden")}>
+        <Row label={t("Standard samtalevisning")} text={t("Gjelder nye visninger i Kode. Normal folder trinnene sammen. Tenkning åpner tenkesammendrag, og Detaljert åpner også verktøyutdata og bakgrunnsarbeid. Du kan fortsatt folde hvert trinn selv. Chat påvirkes ikke.")}><Segmented<"normal" | "thinking" | "detailed"> label={t("Standard samtalevisning")} value={app.settings.codeTranscriptView ?? "normal"} options={[{ value: "normal", label: t("Normal") }, { value: "thinking", label: t("Tenkning") }, { value: "detailed", label: t("Detaljert") }]} onChange={(v) => save({ codeTranscriptView: v })} /></Row>
+        <Toggle label={t("Festet sammendrag")} text={t("Vis knappen for mål, plan, endringer og bakgrunnsarbeid øverst til høyre i Kode.")} checked={pinnedSummary()} onChange={setPinnedSummary} />
+        <Toggle label={t("Åpne agent-tråder i ny rute")} text={t("Når en agent lager en tråd, vises den i en egen rute.")} checked={app.settings.autoOpenAgentThreads} onChange={(v) => save({ autoOpenAgentThreads: v })} />
       </Group>
     </Page>
   );
@@ -144,12 +146,12 @@ function SearchUrlRow() {
   return (
     <div class="setting setting-block search-url-row">
       <div class="setting-text">
-        <strong>Søkeside for nettsøk</strong>
-        <span class="muted">Brukes når modellen ikke har eget nettsøk. Appens nettleser åpner siden uten å vise den, og leser treffene. Skriv {"{q}"} der søkeordene skal stå. Tom betyr ingen søkeside.</span>
+        <strong>{t("Søkeside for nettsøk")}</strong>
+        <span class="muted">{t("Brukes når modellen ikke har eget nettsøk. Appens nettleser åpner siden uten å vise den, og leser treffene. Skriv {placeholder} der søkeordene skal stå. Tom betyr ingen søkeside.", { placeholder: "{q}" })}</span>
       </div>
       <input
         class="input"
-        aria-label="Søkeside for nettsøk"
+        aria-label={t("Søkeside for nettsøk")}
         placeholder="https://søkemotor.example/sok?q={q}"
         spellcheck={false}
         value={value()}
@@ -164,13 +166,13 @@ function SearchUrlRow() {
   );
 }
 
-const TOOL_DEFAULTS: Array<{ id: ChatToolId; label: string; text: string }> = [
-  { id: "web", label: "Nettsøk", text: "Modellen kan søke på nettet: med leverandørens eget søk når modellen har det, ellers på søkesiden under." },
-  { id: "fetch", label: "Les nettsider", text: "Modellen kan lese en adresse du limer inn, med appens nettleser." },
-  { id: "documents", label: "Lag filer", text: "Lag nedlastbare Word-, Excel-, PowerPoint-, Markdown- og tekstfiler i chatten." },
-  { id: "python", label: "Python-analyse", text: "Valgfri isolert kodekjøring for beregninger og data. Krever Python 3 og bubblewrap. Uten nettverk, tilgang til PC-filer eller ekstra Python-pakker. Variabler nullstilles mellom kjøringer, arbeidsfiler beholdes i chatten." },
-  { id: "artifacts", label: "Artifacts", text: "Modellen kan lage små HTML-programmer som kjører i chatten." },
-  { id: "memory", label: "Minne", text: "Modellen bruker Chat-minnene dine (Chat-personalisering)." },
+const toolDefaults = (): Array<{ id: ChatToolId; label: string; text: string }> => [
+  { id: "web", label: t("Nettsøk"), text: t("Modellen kan søke på nettet: med leverandørens eget søk når modellen har det, ellers på søkesiden under.") },
+  { id: "fetch", label: t("Les nettsider"), text: t("Modellen kan lese en adresse du limer inn, med appens nettleser.") },
+  { id: "documents", label: t("Lag filer"), text: t("Lag nedlastbare Word-, Excel-, PowerPoint-, Markdown- og tekstfiler i chatten.") },
+  { id: "python", label: t("Python-analyse"), text: t("Valgfri isolert kodekjøring for beregninger og data. Krever Python 3 og bubblewrap. Uten nettverk, tilgang til PC-filer eller ekstra Python-pakker. Variabler nullstilles mellom kjøringer, arbeidsfiler beholdes i chatten.") },
+  { id: "artifacts", label: t("Artifacts"), text: t("Modellen kan lage små HTML-programmer som kjører i chatten.") },
+  { id: "memory", label: t("Minne"), text: t("Modellen bruker Chat-minnene dine (Chat-personalisering).") },
 ];
 
 // The choice belongs to the active Chat pane, never to all chats or to Kode.
@@ -199,25 +201,25 @@ function ChatPersonalitySettings() {
   };
   const scope = () => {
     const active = activeChatPersonality();
-    if (!active) return "Åpne en chat eller et nytt Chat-utkast for å velge personlighet. Kode har sitt eget valg med /personality.";
+    if (!active) return t("Åpne en chat eller et nytt Chat-utkast for å velge personlighet. Kode har sitt eget valg med /personality.");
     return active.threadId()
-      ? `Gjelder bare den aktive chatten: «${active.title() || "Uten tittel"}».`
-      : "Gjelder utkastet i den aktive Chat-ruten. Valget lagres i chatten når du sender første melding.";
+      ? t("Gjelder bare den aktive chatten: «{title}».", { title: active.title() || t("Uten tittel") })
+      : t("Gjelder utkastet i den aktive Chat-ruten. Valget lagres i chatten når du sender første melding.");
   };
   return (
-    <Group title="Personlighet">
+    <Group title={t("Personlighet")}>
       <div class="setting">
         <div class="setting-text">
-          <strong>Personlighet for aktiv chat</strong>
-          <span class="muted" id={`${name}-scope`}>{scope()} Egne instruksjoner for alle chatter finner du i Chat-personalisering.</span>
-          <Show when={saving()}><span class="muted" role="status">Lagrer personlighet …</span></Show>
+          <strong>{t("Personlighet for aktiv chat")}</strong>
+          <span class="muted" id={`${name}-scope`}>{scope()} {t("Egne instruksjoner for alle chatter finner du i Chat-personalisering.")}</span>
+          <Show when={saving()}><span class="muted" role="status">{t("Lagrer personlighet …")}</span></Show>
           <Show when={errorMessage()}><p class="form-error" role="alert">{errorMessage()}</p></Show>
         </div>
       </div>
-      <div class="chat-personality-options" role="radiogroup" aria-label="Personlighet for aktiv chat" aria-describedby={`${name}-scope`} aria-busy={saving() ? "true" : undefined} aria-disabled={!activeChatPersonality() || saving() ? "true" : undefined}>
+      <div class="chat-personality-options" role="radiogroup" aria-label={t("Personlighet for aktiv chat")} aria-describedby={`${name}-scope`} aria-busy={saving() ? "true" : undefined} aria-disabled={!activeChatPersonality() || saving() ? "true" : undefined}>
         <For each={CHAT_PERSONALITIES}>
           {(personality) => (
-            <Row as="label" label={personality.label} text={<span id={`${name}-${personality.id}`}>{personality.id === "standard" ? "Følger standardvalget i Chat-personalisering" : personality.text}</span>}>
+            <Row as="label" label={personality.label} text={<span id={`${name}-${personality.id}`}>{personality.id === "standard" ? t("Følger standardvalget i Chat-personalisering") : personality.text}</span>}>
               <input
                 type="radio"
                 name={name}
@@ -240,38 +242,38 @@ export function ChatSettings() {
   const count = () => sortedChatProjects().length;
   const defaults = () => chatToolsOf(undefined, app.settings);
   return (
-    <Page title="Chat" intro="Samtaler uten prosjektmappe. Modellen får ingen verktøy for filer eller kommandoer her.">
+    <Page title={t("Chat")} intro={t("Samtaler uten prosjektmappe. Modellen får ingen verktøy for filer eller kommandoer her.")}>
       <ChatPersonalitySettings />
-      <Group title="Verktøy i nye chatter">
-        <For each={TOOL_DEFAULTS}>
+      <Group title={t("Verktøy i nye chatter")}>
+        <For each={toolDefaults()}>
           {(tool) => <Toggle label={tool.label} text={tool.text} checked={defaults()[tool.id]} onChange={(v) => save({ chatTools: { ...defaults(), [tool.id]: v } })} />}
         </For>
         <SearchUrlRow />
       </Group>
-      <Group title="Samtale">
+      <Group title={t("Samtale")}>
         <Toggle
-          label="Åpne nye artifacts med en gang"
-          text="Når modellen har skrevet en hel app i HTML eller React, åpnes den i panelet ved siden av samtalen. Av: boksen i samtalen venter på et klikk. Appen kjører på en egen origin, i en sandkasse."
+          label={t("Åpne nye artifacts med en gang")}
+          text={t("Når modellen har skrevet en hel app i HTML eller React, åpnes den i panelet ved siden av samtalen. Av: boksen i samtalen venter på et klikk. Appen kjører på en egen origin, i en sandkasse.")}
           checked={app.settings.artifactPreview !== false}
           onChange={(v) => save({ artifactPreview: v })}
         />
         {/* Round 10 (SPEC 23.11): only how it looks, never what the model does. */}
-        <Row label="Tenkevisning" text="Hvordan tenkingen vises mens en modell som resonnerer, jobber. Premium er et rolig kort med modellen, en linje om hva den holder på med og en fremdriftslinje. Modeller uten tenking viser ingen av delene.">
+        <Row label={t("Tenkevisning")} text={t("Hvordan tenkingen vises mens en modell som resonnerer, jobber. Premium er et rolig kort med modellen, en linje om hva den holder på med og en fremdriftslinje. Modeller uten tenking viser ingen av delene.")}>
           <Segmented<"standard" | "premium">
-            label="Tenkevisning"
+            label={t("Tenkevisning")}
             value={app.settings.thinkingView ?? "standard"}
-            options={[{ value: "standard", label: "Vanlig" }, { value: "premium", label: "Premium" }]}
+            options={[{ value: "standard", label: t("Vanlig") }, { value: "premium", label: t("Premium") }]}
             onChange={(v) => save({ thinkingView: v })}
           />
         </Row>
       </Group>
-      <Group title="Prosjekter i Chat">
+      <Group title={t("Prosjekter i Chat")}>
         <div class="setting">
           <div class="setting-text">
-            <strong>Prosjekter i Chat</strong>
+            <strong>{t("Prosjekter i Chat")}</strong>
             <span class="muted">
-              Samle chatter under et navn. De har ingen mappe på disken. Lag dem med + ved Prosjekter i sidefanen, og flytt en chat inn fra menyen på tråden.
-              {" "}{count() === 0 ? "Ingen ennå." : count() === 1 ? "1 prosjekt." : `${count()} prosjekter.`}
+              {t("Samle chatter under et navn. De har ingen mappe på disken. Lag dem med + ved Prosjekter i sidefanen, og flytt en chat inn fra menyen på tråden.")}
+              {" "}{count() === 0 ? t("Ingen ennå.") : plural(count(), "{count} prosjekt.", "{count} prosjekter.")}
             </span>
           </div>
           <div class="setting-control">
@@ -282,7 +284,7 @@ export function ChatSettings() {
                 await newChatProject();
               }}
             >
-              <IconPlus size={13} />Nytt prosjekt
+              <IconPlus size={13} />{t("Nytt prosjekt")}
             </button>
           </div>
         </div>

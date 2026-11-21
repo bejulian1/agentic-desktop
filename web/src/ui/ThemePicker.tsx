@@ -8,6 +8,7 @@ import { THEMES, withThemeTransition, type PreviewColors } from "../state/themes
 import { save } from "./settings/parts";
 import { IconCheck } from "./icons";
 
+import { t } from "../lib/i18n";
 function useDark() {
   const root = document.documentElement;
   const [dark, setDark] = createSignal(root.getAttribute("data-theme") === "dark");
@@ -33,7 +34,7 @@ export function ThemePicker() {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
     if (!step && event.key !== "Home" && event.key !== "End") return;
     event.preventDefault();
-    const at = THEMES.findIndex((t) => t.id === current());
+    const at = THEMES.findIndex((theme) => theme.id === current());
     const next = event.key === "Home" ? 0 : event.key === "End" ? THEMES.length - 1 : (at + step + THEMES.length) % THEMES.length;
     choose(THEMES[next].id);
     group.querySelectorAll<HTMLElement>(".theme-card")[next]?.focus();
@@ -41,10 +42,10 @@ export function ThemePicker() {
   return (
     <div class="setting setting-block theme-setting">
       <div class="setting-text">
-        <strong>Fargetema</strong>
-        <span class="muted">Hvert tema har en lys og en mørk variant. Tema-valget over bestemmer hvilken, og forhåndsvisningene viser den som gjelder nå.</span>
+        <strong>{t("Fargetema")}</strong>
+        <span class="muted">{t("Hvert tema har en lys og en mørk variant. Tema-valget over bestemmer hvilken, og forhåndsvisningene viser den som gjelder nå.")}</span>
       </div>
-      <div class="theme-cards" role="radiogroup" aria-label="Fargetema" ref={group} onKeyDown={onKey} data-testid="theme-cards">
+      <div class="theme-cards" role="radiogroup" aria-label={t("Fargetema")} ref={group} onKeyDown={onKey} data-testid="theme-cards">
         <For each={THEMES}>
           {(theme) => (
             <button
