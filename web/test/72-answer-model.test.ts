@@ -18,7 +18,9 @@ for(const mode of ['chat','code'])flow(`Svarmodell i ${mode}: aktiv modell, bytt
   const thread=(await h.api('GET','/api/bootstrap')).threads.find((t:any)=>t.mode===mode)!;
   try{await choose(modelB.name);await waitFor(async()=>(await h.events(thread.id)).some((e:any)=>e.event.type==='model.changed'),'modellbyttet er lagret');assert.equal(await page.locator('[data-row=model-change]').count(),0,'byttet deler ikke et aktivt svar');}finally{release();}
   await waitFor(async()=>!(await h.api('GET','/api/bootstrap')).threads.find((t:any)=>t.id===thread.id)?.running,'første svar ferdig');
-  await page.locator('[data-row=model-change]').getByText(/Opprinnelig modell.*Neste modell/).waitFor();
+  const change=page.locator('[data-row=model-change]');
+  await change.getByText('Byttet modell: Opprinnelig modell → Neste modell',{exact:true}).waitFor();
+  assert.equal(await change.getByText('Byttet modell: Opprinnelig modell til Neste modell',{exact:true}).count(),1);
   for(const width of [1360,680]) { await page.setViewportSize({width,height:860}); const centers=await page.locator('[data-row=model-change]').evaluate(el=>{const icon=el.querySelector('svg')!.getBoundingClientRect(),text=el.querySelector(':scope > span')!.getBoundingClientRect(),pane=el.closest('.conversation')!.getBoundingClientRect();return [(icon.left+text.right)/2,pane.left+pane.width/2];});assert.ok(Math.abs(centers[0]-centers[1])<1,'modellbyttet er midtstilt i samtaleområdet'); } await page.setViewportSize({width:1360,height:860});
   const answers=page.locator('.msg:has(.row-text)');await answers.first().hover();const button=answers.first().getByRole('button',{name:'Modell som laget svaret',exact:true});
   assert.match(await button.getAttribute('title')??'',/Opprinnelig modell.*Første API/);await button.click();const info=page.getByTestId('answer-model-info');await info.getByText('local-a',{exact:true}).waitFor();await page.keyboard.press('Escape');await info.waitFor({state:'detached'});
