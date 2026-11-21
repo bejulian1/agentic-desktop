@@ -10,6 +10,7 @@ export interface SelectOption<T> {
   value: T;
   label: string;
   hint?: string; // a quiet word on the right, like «standard»
+  swatch?: readonly [string, string];
 }
 
 export function Select<T extends string | number | null>(props: {
@@ -39,6 +40,7 @@ export function Select<T extends string | number | null>(props: {
         data-value={String(props.value)}
         onClick={(e) => active() && setAnchor(anchor() ? null : { x: 0, y: 0, rect: e.currentTarget.getBoundingClientRect(), alignLeft: true })}
       >
+        <Show when={current()?.swatch}>{(colors) => <span class="select-swatch" aria-hidden="true"><i style={{ background: colors()[0] }} /><i style={{ background: colors()[1] }} /></span>}</Show>
         <span class="select-value">{current()?.label ?? t("Velg")}</span>
         <IconChevronDown size={13} />
       </button>
@@ -51,7 +53,7 @@ export function Select<T extends string | number | null>(props: {
             mount={button.closest("dialog") ?? undefined}
             onClose={() => setAnchor(null)}
             returnFocus={active()}
-            entries={props.options.map((o) => ({ label: o.label, hint: o.hint, chosen: o.value === props.value, run: () => o.value !== props.value && props.onChange(o.value) }))}
+            entries={props.options.map((o) => ({ label: o.label, hint: o.hint, swatch: o.swatch, chosen: o.value === props.value, run: () => o.value !== props.value && props.onChange(o.value) }))}
           />
         )}
       </Show>

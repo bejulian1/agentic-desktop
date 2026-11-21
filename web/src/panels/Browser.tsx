@@ -17,10 +17,10 @@ import { Portal } from "solid-js/web";
 import { onNextFrame } from "../lib/frame";
 import { observeResize } from "../lib/resize";
 import { on, onOpen, send } from "../lib/socket";
-import type { BrowserInput, BrowserState, BrowserTabInfo, ClientMessage } from "../../../shared/protocol";
+import { BROWSER_ZOOMS, browserSearchUrl, type BrowserInput, type BrowserState, type BrowserTabInfo, type ClientMessage } from "../../../shared/protocol";
 import { app, LOCAL_SCOPE, mode, settingsOpen, toast } from "../state/app";
 import { focusedThread, actions } from "../state/actions";
-import { browserTabRequest, closePanelTool, onPanelHome, panelFull, setPanelFull, showPanel, takeBrowserTabRequest } from "../state/panel";
+import { browserTabRequest, browserUrlRequest, closePanelTool, onPanelHome, panelFull, setPanelFull, showPanel, takeBrowserTabRequest, takeBrowserUrlRequest } from "../state/panel";
 import { publishPanelSessions, releasePanelSessions } from "../state/panel-sessions";
 import { offerCookieImport } from "../ui/CookieImport";
 import { sideChat } from "../state/thread-actions";
@@ -64,8 +64,18 @@ function saveHistory(projectId: string, list: Visit[]): void {
   }
 }
 
-const ZOOMS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+const ZOOMS: readonly number[] = BROWSER_ZOOMS;
 const zoomKey = (projectId: string) => `ad-browser-zoom:${projectId}`;
+function savedProjectZoom(projectId: string): number | null {
+  try {
+    const raw = localStorage.getItem(zoomKey(projectId));
+    if (raw === null) return null;
+    const saved = Number(raw);
+    return ZOOMS.includes(saved) ? saved : null;
+  } catch {
+    return null;
+  }
+}
 const TIP_KEY = "ad-browser-import-tip";
 const MAX_TABS = 12;
 
@@ -335,14 +345,17 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   // The tabs from the server, and the one this panel shows. null until the server has said which.
   const [serverTabs, setServerTabs] = createSignal<BrowserTabInfo[]>([]);
   const [active, setActive] = createSignal<string | null>(lastTab.get(props.projectId) ?? null);
-  const [zoom, setZoomSignal] = createSignal((() => {
-    try {
-      const saved = Number(localStorage.getItem(zoomKey(props.projectId)));
-      return ZOOMS.includes(saved) ? saved : 1;
-    } catch {
-      return 1;
+  const defaultZoom = () => {
+    const z = app.settings.browserDefaultZoom;
+    return z && ZOOMS.includes(z) ? z : 1;
+  };
+  const [zoom, setZoomSignal] = createSignal(savedProjectZoom(props.projectId) ?? defaultZoom());
+  createEffect(watch(defaultZoom, (def) => {
+    if (savedProjectZoom(props.projectId) === null && untrack(zoom) !== def) {
+      setZoomSignal(def);
+      if (size.width && size.height) sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() });
     }
-  })());
+  }, { defer: true }));
   const size = { width: 0, height: 0 };
   // The page is laid out in a viewport the size of the panel divided by the zoom, and the frame is
   // scaled back up to fill the panel: 125 % shows less of the page, larger.
@@ -466,7 +479,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
 
   const navigate = (event: Event) => {
     event.preventDefault();
-    const url = browserDestination(address(), app.settings.webSearchUrl);
+    const url = browserDestination(address(), browserSearchUrl(app.settings));
     if (!url) return;
     setEditing(false);
     setHistoryMenu(null);
@@ -623,6 +636,26 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     });
   });
 
+  // A URL asked to open from outside the Browser panel (e.g. a clicked link when openLinksIn is "app").
+  createEffect(() => {
+    const request = browserUrlRequest();
+    if (!request || props.visible === false) return;
+    untrack(() => {
+      const taken = takeBrowserUrlRequest();
+      if (!taken) return;
+      const current = state();
+      let targetTab = active();
+      if (targetTab === null || (!isBlank(current?.url) && tabs().length < MAX_TABS)) {
+        targetTab = newTabId();
+        showTab(targetTab);
+      }
+      setEditing(false);
+      setAddress(taken.url);
+      setHistoryMenu(null);
+      sendBrowser({ type: "browser.navigate", projectId: props.projectId, tabId: targetTab, url: taken.url });
+    });
+  });
+
   // Keep the tab controls while another tool is selected, without streaming hidden pages.
   createEffect(watch(() => props.visible, (visible) => {
     if (visible === false) send({ type: "browser.close", projectId: props.projectId });
@@ -661,13 +694,13 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   }
 
   const setZoom = (value: number) => {
-    setZoomSignal(value);
     try {
-      if (value === 1) localStorage.removeItem(zoomKey(props.projectId));
+      if (value === defaultZoom()) localStorage.removeItem(zoomKey(props.projectId));
       else localStorage.setItem(zoomKey(props.projectId), String(value));
     } catch {
       // Kept until the panel closes.
     }
+    setZoomSignal(value);
     if (size.width && size.height) sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() });
   };
   const zoomStep = (dir: 1 | -1) => {

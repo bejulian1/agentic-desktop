@@ -95,6 +95,7 @@ function Dialog(props: { project: Project; tab: ProjectTab }) {
   const [color, setColor] = createSignal<string | null>(props.project.color);
   const [model, setModel] = createSignal<string | null>(props.project.defaultModelId ?? null);
   const [permission, setPermission] = createSignal<PermissionMode>(props.project.permissionMode);
+  const [browserAccess, setBrowserAccess] = createSignal<boolean | null>(props.project.agentBrowserAccess ?? null);
   const [instructions, setInstructions] = createSignal<string | null>(null); // null: unchanged
   const [config, { refetch }] = createResource(() => get<ProjectConfig>(`/api/projects/${props.project.id}/config`));
   const [picking, setPicking] = createSignal(false);
@@ -112,6 +113,7 @@ function Dialog(props: { project: Project; tab: ProjectTab }) {
       const body: Partial<Project> = { name: name().trim(), icon: icon(), color: color() };
       if (model() !== (project().defaultModelId ?? null)) body.defaultModelId = model();
       if (permission() !== project().permissionMode) body.permissionMode = permission();
+      if (browserAccess() !== (project().agentBrowserAccess ?? null)) body.agentBrowserAccess = browserAccess();
       await patch(`/api/projects/${props.project.id}`, body);
       if (instructions() !== null && instructions() !== (config()?.project.agentsMd ?? "")) {
         await put(`/api/projects/${props.project.id}/instructions`, { text: instructions() ?? "" });
@@ -194,6 +196,8 @@ function Dialog(props: { project: Project; tab: ProjectTab }) {
             onModel={setModel}
             permission={permission()}
             onPermission={setPermission}
+            browserAccess={browserAccess()}
+            onBrowserAccess={setBrowserAccess}
             instructions={instructions() ?? config()?.project.agentsMd ?? ""}
             onInstructions={setInstructions}
           />

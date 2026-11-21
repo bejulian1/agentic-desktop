@@ -153,6 +153,19 @@ export function takeBrowserTabRequest(): void {
   setBrowserTabRequest(null);
 }
 
+// A URL asked to open in the Browser panel (for example a clicked link when openLinksIn is "app").
+const [browserUrlRequest, setBrowserUrlRequest] = createSignal<{ seq: number; url: string } | null>(null);
+let urlRequests = 0;
+export { browserUrlRequest };
+export function requestBrowserUrl(url: string): void {
+  setBrowserUrlRequest({ seq: ++urlRequests, url });
+}
+export function takeBrowserUrlRequest(): { seq: number; url: string } | null {
+  const pending = browserUrlRequest();
+  if (pending) setBrowserUrlRequest(null);
+  return pending;
+}
+
 const actions = {
   showTurn(turnId: string): void {
     setSelectedTurn(turnId);

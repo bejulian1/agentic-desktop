@@ -8,7 +8,7 @@ import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
 import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
-import { app, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
+import { app, effectiveProjectOrder, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
 import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
@@ -219,13 +219,13 @@ function projectScore(project: { name: string; path: string }, query: string): n
   return null;
 }
 
-// With this many projects or more, Nylige shows the latest few and Alle prosjekter all of them.
+// With this many projects or more under the default order, Nylige shows the latest few and Alle prosjekter all of them.
 const PICKER_SECTIONS_FROM = 5;
 const PICKER_RECENT = 3;
 
 type PickerEntry = { kind: "project"; project: ReturnType<typeof sortedProjects>[number] } | { kind: "new" } | { kind: "none" };
 
-// The project picker: search at the top, Nylige and Alle prosjekter below, and Nytt prosjekt and
+// The project picker: search at the top, projects in the chosen order below, and Nytt prosjekt and
 // Ikke jobb i et prosjekt at the bottom. The focus stays in the search field; the arrow keys move a
 // marker through every row, Enter picks it and Esc closes.
 export function ProjectPicker(props: { current: string | null; paneKey: string; onDone: () => void; onCancel: () => void }) {
@@ -243,7 +243,9 @@ export function ProjectPicker(props: { current: string | null; paneKey: string; 
       hits.sort((a, b) => a.score - b.score || b.project.lastUsedAt - a.project.lastUsedAt);
       return [{ title: t("{count} treff", { count: hits.length }), projects: hits.map((h) => h.project) }];
     }
-    if (all.length < PICKER_SECTIONS_FROM) return all.length ? [{ title: t("Nylige"), projects: all }] : [];
+    if (!all.length) return [];
+    if (effectiveProjectOrder() !== "recent") return [{ title: t("Prosjekter"), projects: all }];
+    if (all.length < PICKER_SECTIONS_FROM) return [{ title: t("Nylige"), projects: all }];
     const byName = [...all].sort((a, b) => a.name.localeCompare(b.name, "nb", { sensitivity: "base" }));
     return [{ title: t("Nylige"), projects: all.slice(0, PICKER_RECENT) }, { title: t("Alle prosjekter"), projects: byName }];
   });

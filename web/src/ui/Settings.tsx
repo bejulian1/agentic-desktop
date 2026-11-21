@@ -14,14 +14,13 @@ import { archiveScope, restoreMany, setArchiveScope } from "../state/archive";
 import { openThread } from "../state/navigate";
 import { confirmDialog, setInfoDialog } from "./dialogs";
 import {
-  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconClose, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard,
-  IconBookmark, IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark, IconClock,
+  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconClose, IconDiff, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard,
+  IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark, IconClock,
 } from "./icons";
 import { Group, Page, Row, SkeletonRows, type Icon } from "./settings/parts";
-import { DownloadDirRow } from "./DownloadsList";
-import { imported, importedSummary, loadImported, openChromeImport, removeImported } from "./ChromeImport";
-import { CookieSettings } from "./CookieImport"; // round 12 (SPEC 26.4)
 import { Appearance, General, Privacy } from "./settings/general";
+import { BrowserPage } from "./settings/browser";
+import { DiffsPage } from "./settings/diffs";
 import { ChatSettings, CodeSettings } from "./settings/modes";
 import { Providers } from "./settings/providers";
 import { canonicalSettingsPage, matchingPages, search } from "./settings/search";
@@ -60,6 +59,7 @@ const APP_SECTIONS = (): Section[] => [
 ];
 
 const HOST_SECTIONS = (): Section[] => [
+  { id: "diffs", label: t("Differ"), icon: IconDiff },
   { id: "git", label: t("Git"), icon: IconBranch },
   { id: "config", label: t("Konfigurasjon"), icon: IconSliders },
   { id: "personalization", label: t("Personalisering og minner"), icon: IconSpark },
@@ -82,32 +82,6 @@ const GitSettingsPage = lazy(() => import("./GitWorkspace").then((m) => ({ defau
 // Innstillinger → MCP-servere (settings/mcp.tsx), loaded when it is opened.
 const Mcp = (props: {}) => <Suspense><McpSettingsPage {...props} /></Suspense>;
 const McpSettingsPage = lazy(() => import("./settings/mcp").then((m) => ({ default: m.McpPage })));
-
-function Browser() {
-  void loadImported(true);
-  return (
-    <Page title={t("Nettleser")} intro={t("Nettleser-panelet og agentens nettleserverktøy bruker en egen Chrome som kjører usynlig, med en egen profil i datamappen.")}>
-      <Group title={t("Chrome")}>
-        <Row label={t("Kjører headless")} text={t("Startes ved første bruk og lukkes når ingen tråd har brukt den på en stund. Du og agenten ser samme side.")} icon={IconGlobe} />
-        <Row label={t("Egen profil")} text={t("Informasjonskapsler og innlogging deles mellom prosjektene. Nettleseren din på maskinen får aldri noe herfra, og gir bare det du selv importerer.")} icon={IconShield} />
-        <Row label={t("Playtest")} text={t("Starter dev- eller start-skriptet i package.json på en egen port, eller serverer index.html. Knappen ligger øverst til høyre i Kode.")} />
-      </Group>
-      <CookieSettings />
-      <Group title={t("Nedlastinger")}>
-        <DownloadDirRow />
-      </Group>
-      {/* Round 10 (SPEC 23.1): read only, and only when asked. */}
-      <Group title={t("Importer fra Chrome")}>
-        <Row label={t("Bokmerker og historikk")} icon={IconBookmark} text={<span data-testid="chrome-import-status">{importedSummary(imported())} {t("Her leses bare bokmerker og historikk, aldri passord, kort eller økter.")}</span>}>
-          <Show when={imported()?.importedAt}>
-            <button type="button" class="btn btn-small btn-quiet" onClick={() => void removeImported()}>{t("Fjern")}</button>
-          </Show>
-          <button type="button" class="btn btn-small" onClick={openChromeImport}>{t("Importer…")}</button>
-        </Row>
-      </Group>
-    </Page>
-  );
-}
 
 function Permissions() {
   return (
@@ -290,6 +264,7 @@ const VIEWS: Record<string, (props: { target?: string | null }) => JSX.Element> 
   chat: ChatSettings,
   appearance: Appearance,
   providers: () => <Providers />,
+  diffs: DiffsPage,
   git: Git,
   github: GitHubSettings,
   usage: Usage,
@@ -301,7 +276,7 @@ const VIEWS: Record<string, (props: { target?: string | null }) => JSX.Element> 
   shortcuts: Shortcuts,
   mcp: Mcp,
   hooks: HooksPage,
-  browser: Browser,
+  browser: BrowserPage,
   permissions: Permissions,
   worktrees: Git,
   archived: Archived,

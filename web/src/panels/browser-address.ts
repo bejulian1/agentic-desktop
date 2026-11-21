@@ -1,6 +1,6 @@
 // Address-like input keeps the server's URL/project-path handling. Free text uses the same
-// search page as the app's browser search, with a conventional default for manual browsing.
-export function browserDestination(value: string, searchTemplate = "https://www.google.com/search?q={q}"): string {
+// search page as the app's browser search, with DuckDuckGo as the default for manual browsing.
+export function browserDestination(value: string, searchTemplate = "https://duckduckgo.com/?q={q}"): string {
   const text = value.trim();
   if (!text) return "";
   // Keep explicit schemes and project paths with spaces for server-side validation/resolution.

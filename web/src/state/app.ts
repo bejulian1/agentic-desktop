@@ -6,7 +6,7 @@ import { batch, createMemo, createSignal } from "solid-js";
 import { closeSkills } from "./skills-workspace";
 import { createStore, reconcile } from "solid-js/store";
 import { applyAppIcon } from "../lib/app-icon";
-import { t, lookupMessage } from "../lib/i18n";
+import { t, lookupMessage, language } from "../lib/i18n";
 import type {
   Bootstrap,
   BuildInfo,
@@ -15,6 +15,7 @@ import type {
   Mode,
   PlaytestState,
   Project,
+  ProjectOrder,
   ProviderConfig,
   Settings,
   SidebarSection,
@@ -211,9 +212,12 @@ export function setAllCollapsed(ids: string[], fold: boolean): void {
   savePrefs();
 }
 
+export const effectiveProjectOrder = createMemo<ProjectOrder>(() => app.settings.projectOrder ?? projectSort() ?? "recent");
+
 export function setProjectSort(next: ProjectSort): void {
   setProjectSortSignal(next);
   savePrefs();
+  if (app.settings.projectOrder !== next) void saveSettings({ projectOrder: next }).catch(report);
 }
 
 export function setProjectGroup(next: ProjectGroup): void {
@@ -261,10 +265,17 @@ export const emptyThreadName = () => t("Tom tråd");
 export const untitled = (t: Thread | undefined | null): boolean => !t || t.title === UNTITLED;
 export const listed = (t: Thread | undefined): t is Thread => !!t && !t.temporary && !untitled(t);
 
-export const sortedProjects = createMemo(() => Object.values(app.projects).filter(Boolean).sort((a, b) => b.lastUsedAt - a.lastUsedAt));
+function sortByProjectOrder<T extends { name: string; createdAt: number; lastUsedAt: number }>(items: T[], order: ProjectOrder): T[] {
+  const list = [...items];
+  if (order === "name") return list.sort((a, b) => a.name.localeCompare(b.name, language(), { sensitivity: "base" }) || b.lastUsedAt - a.lastUsedAt);
+  if (order === "created") return list.sort((a, b) => b.createdAt - a.createdAt || b.lastUsedAt - a.lastUsedAt);
+  return list.sort((a, b) => b.lastUsedAt - a.lastUsedAt || b.createdAt - a.createdAt);
+}
+
+export const sortedProjects = createMemo(() => sortByProjectOrder(Object.values(app.projects).filter(Boolean), effectiveProjectOrder()));
 // Sections of the mode shown, in their order (round 11).
 export const sectionsFor = (m: Mode) => Object.values(app.sections).filter((s): s is SidebarSection => !!s && s.mode === m).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
-export const sortedChatProjects = createMemo(() => Object.values(app.chatProjects).filter(Boolean).sort((a, b) => b.lastUsedAt - a.lastUsedAt));
+export const sortedChatProjects = createMemo(() => sortByProjectOrder(Object.values(app.chatProjects).filter(Boolean), effectiveProjectOrder()));
 
 export function modelDisplayName(model: ModelConfig): string {
   return model.id === "mock-demo" ? t("Demo-modell (uten API)") : model.name;

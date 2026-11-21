@@ -20,7 +20,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Browser, BrowserContext, CDPSession, ConnectOverCDPTransport, Locator, Page } from "playwright-core";
-import type { BrowserAnnotationSnapshot, BrowserInput, BrowserState, BrowserTabInfo, ServerMessage } from "../../shared/protocol.ts";
+import type { BrowserAnnotationSnapshot, BrowserInput, BrowserState, BrowserTabInfo, ServerMessage, ThemeSetting } from "../../shared/protocol.ts";
 import { annotationElements } from "./annotation-snapshot.ts";
 import type { BrowserTools } from "./agent/tools.ts";
 import type { ImportedCookies } from "./browser-cookies.ts";
@@ -90,6 +90,7 @@ export interface BrowserOptions {
   downloads?: Downloads; // without it, downloads stay off
   cookies?: ImportedCookies; // round 12: cookies imported from the user's browser (SPEC 26.4)
   askSignedIn?: () => boolean; // ask before the agent acts on a site with imported cookies, default true
+  appearance?: () => ThemeSetting; // preferred color scheme emulated for pages, default "system"
   // SPEC 29.3: the Electron app's panel. Without it (npm start, tests), the server's own Chrome.
   panel?: () => Promise<ConnectOverCDPTransport | null>;
 }
@@ -241,6 +242,7 @@ export class BrowserManager implements BrowserTools {
     // The Electron window places the view by project and tab (desktop/browser-view.ts).
     if (this.native) await (cdp.send as (method: string, params: object) => Promise<unknown>)("Agentic.label", { label: `${projectId}\u0001${tabId}` });
     await cdp.send("Page.enable");
+    await this.applyAppearance(session, this.options.appearance?.() ?? "system");
     await this.allowDownloads(session);
     const { downloads } = this.options;
     if (downloads) {
@@ -768,6 +770,17 @@ export class BrowserManager implements BrowserTools {
       if (page.url() !== url) throw new HttpError(409, "Siden ble endret. Åpne annotering på nytt.");
       return { ...meta, url, pngBase64: png.toString("base64") };
     }, tabId);
+  }
+
+  private async applyAppearance(session: Session, mode: ThemeSetting): Promise<void> {
+    const features = mode === "light" || mode === "dark" ? [{ name: "prefers-color-scheme", value: mode }] : [];
+    await session.cdp.send("Emulation.setEmulatedMedia", { features }).catch(() => undefined);
+  }
+
+  // Updates prefers-color-scheme emulation on all open sessions when Settings.browserAppearance changes.
+  async setAppearance(mode: ThemeSetting): Promise<void> {
+    const sessions = await Promise.all([...this.sessions.values()].map((s) => s.catch(() => null)));
+    await Promise.all(sessions.filter((s): s is Session => !!s && !s.page.isClosed()).map((s) => this.applyAppearance(s, mode)));
   }
 
   // Round 12 (SPEC 26.4): imported cookies. They wait in the data folder until Chrome runs; when it

@@ -74,6 +74,7 @@ export interface Project {
   icon: string | null; // id from PROJECT_ICONS
   defaultModelId: string | null; // for new threads in the project
   pinned: boolean; // shown under Festede prosjekter in the sidebar
+  agentBrowserAccess?: boolean | null; // null/unset follows Settings.agentBrowserAccess
   folderMissing?: boolean; // round 9: the folder is gone or moved; set only when true, checked on every read
 }
 
@@ -327,6 +328,19 @@ export interface Settings {
   // Round 14 (SPEC 30.2), Innstillinger → Utseende: the app's icon, for the window, the status area,
   // the browser tab and (installed with install-local) the app library. Default "boble".
   appIcon?: AppIconId;
+  // Diffs, Browser, Notifications and Sidebar project order settings.
+  diffLayout?: DiffLayout; // default "stacked"
+  diffIgnoreWhitespace?: boolean; // default false
+  diffFileState?: DiffFileState; // default "expanded"
+  diffColors?: DiffColorScheme; // default "red-green"
+  searchEngine?: SearchEngineId; // unified search engine for browser bar & model fallback search
+  agentBrowserAccess?: boolean; // allow agents to use the shared browser, default true
+  openLinksIn?: OpenLinksIn; // where links in chat/Kode/terminal open, default "system"
+  browserDefaultZoom?: number; // default zoom for browser panels without a project override, default 1
+  browserAppearance?: ThemeSetting; // preferred color scheme for pages in the browser panel, default "system"
+  threadNotifications?: ThreadNotifications; // "off" | "notify" | "sound"; replaces notifyOnDone + soundOnDone
+  inAppNotifications?: boolean; // toast when another thread finishes, fails or needs input/approval while focused
+  projectOrder?: ProjectOrder; // sidebar, project picker and command palette project order, default "recent"
 }
 
 export interface ModelContextModeSettings {
@@ -396,15 +410,78 @@ export function chatToolsOf(thread: (Pick<Thread, "chatTools"> & Partial<Pick<Th
   return tools;
 }
 
+export type DiffLayout = "stacked" | "split";
+export type DiffFileState = "expanded" | "collapsed";
+export type DiffColorScheme = "red-green" | "blue-orange";
+export type OpenLinksIn = "app" | "system";
+export type ThreadNotifications = "off" | "notify" | "sound";
+export type ProjectOrder = "recent" | "created" | "name";
+export const BROWSER_ZOOMS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const;
+
+export type SearchEngineId = "duckduckgo" | "google" | "bing" | "brave" | "kagi" | "ecosia" | "custom";
+export const DEFAULT_SEARCH_ENGINE: Exclude<SearchEngineId, "custom"> = "duckduckgo";
+export const SEARCH_ENGINES: ReadonlyArray<{ id: Exclude<SearchEngineId, "custom">; label: string; url: string }> = [
+  { id: "duckduckgo", label: "DuckDuckGo", url: "https://duckduckgo.com/?q={q}" },
+  { id: "google", label: "Google", url: "https://www.google.com/search?q={q}" },
+  { id: "bing", label: "Bing", url: "https://www.bing.com/search?q={q}" },
+  { id: "brave", label: "Brave Search", url: "https://search.brave.com/search?q={q}" },
+  { id: "kagi", label: "Kagi", url: "https://kagi.com/search?q={q}" },
+  { id: "ecosia", label: "Ecosia", url: "https://www.ecosia.org/search?q={q}" },
+];
+
+export function searchEngineById(id: string | undefined): { id: Exclude<SearchEngineId, "custom">; label: string; url: string } | undefined {
+  return SEARCH_ENGINES.find((engine) => engine.id === id);
+}
+
+export function searchEngineOf(settings: Pick<Settings, "searchEngine" | "webSearchUrl">): SearchEngineId {
+  if (settings.searchEngine === "custom") return "custom";
+  const found = searchEngineById(settings.searchEngine);
+  if (found) return found.id;
+  if (settings.webSearchUrl) {
+    const matched = SEARCH_ENGINES.find((engine) => engine.url === settings.webSearchUrl);
+    return matched ? matched.id : "custom";
+  }
+  return DEFAULT_SEARCH_ENGINE;
+}
+
+// Address bar always has a working search template (default DuckDuckGo).
+export function browserSearchUrl(settings: Pick<Settings, "searchEngine" | "webSearchUrl">): string {
+  const id = searchEngineOf(settings);
+  if (id === "custom") return settings.webSearchUrl || searchEngineById(DEFAULT_SEARCH_ENGINE)!.url;
+  return searchEngineById(id)!.url;
+}
+
+// Model fallback web search uses the unified search engine when explicitly configured or migrated from webSearchUrl.
+export function modelSearchUrl(settings: Pick<Settings, "searchEngine" | "webSearchUrl">): string | undefined {
+  if (settings.searchEngine === "custom") return settings.webSearchUrl || undefined;
+  if (settings.searchEngine) return searchEngineById(settings.searchEngine)?.url;
+  return settings.webSearchUrl || undefined;
+}
+
+export function threadNotificationsOf(settings: Pick<Settings, "threadNotifications" | "notifyOnDone" | "soundOnDone">): ThreadNotifications {
+  if (settings.threadNotifications === "off" || settings.threadNotifications === "notify" || settings.threadNotifications === "sound") {
+    return settings.threadNotifications;
+  }
+  if (settings.soundOnDone === true) return "sound";
+  if (settings.notifyOnDone && settings.notifyOnDone !== "off") return "notify";
+  return "off";
+}
+
+export function agentBrowserAllowed(settings: Pick<Settings, "agentBrowserAccess">, project?: Pick<Project, "agentBrowserAccess"> | null): boolean {
+  if (typeof project?.agentBrowserAccess === "boolean") return project.agentBrowserAccess;
+  return settings.agentBrowserAccess !== false;
+}
+
 // How a web search is made, or why it cannot be: the provider's own search when the model has it,
 // otherwise the app's browser on the search page from Settings. The demo model shows marked demo
 // sources until a search page is set.
 export type WebSearchRoute = "provider" | "browser" | "demo";
-export function webSearchRoute(model: Pick<ModelConfig, "webSearch" | "supportsTools"> | undefined, kind: ProviderKind | undefined, settings: Pick<Settings, "webSearchUrl">, localKind?: LocalProviderKind): WebSearchRoute | null {
+export function webSearchRoute(model: Pick<ModelConfig, "webSearch" | "supportsTools"> | undefined, kind: ProviderKind | undefined, settings: Pick<Settings, "webSearchUrl" | "searchEngine">, localKind?: LocalProviderKind): WebSearchRoute | null {
   if (!modelAllowsTools(model, localKind)) return null;
-  if (kind === "mock") return settings.webSearchUrl ? "browser" : "demo";
+  const searchUrl = modelSearchUrl(settings);
+  if (kind === "mock") return searchUrl ? "browser" : "demo";
   if (!localKind && model && kind && (model.webSearch ?? kind === "anthropic")) return "provider";
-  return settings.webSearchUrl ? "browser" : null;
+  return searchUrl ? "browser" : null;
 }
 
 export interface ChatFile { id: string; threadId: string; name: string; mime: string; bytes: number; createdAt: number; url: string }

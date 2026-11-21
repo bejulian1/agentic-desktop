@@ -1,9 +1,10 @@
 // Round 13 (SPEC 27.2): the tools of a chat and the search page for web search. Kept apart from
 // api.ts, like the rounds before, so the checks for this round are in one place.
-import { CHAT_TOOL_IDS, type ChatTools, type Settings } from "../../../shared/protocol.ts";
+import { CHAT_TOOL_IDS, SEARCH_ENGINES, searchEngineById, searchEngineOf, type ChatTools, type SearchEngineId, type Settings } from "../../../shared/protocol.ts";
 import { HttpError } from "../errors.ts";
 
 const MAX_SEARCH_URL = 500;
+const SEARCH_ENGINE_IDS = new Set<string>([...SEARCH_ENGINES.map((engine) => engine.id), "custom"]);
 
 // A full set of switches. Partial objects are filled from base, so a client can send one switch.
 export function chatToolsFromBody(value: unknown, base: ChatTools): ChatTools {
@@ -37,6 +38,27 @@ export function checkSearchUrl(value: unknown): string | undefined {
 export function runde13Settings(body: any, current: Settings, defaults: ChatTools): Partial<Settings> {
   const out: Partial<Settings> = {};
   if (body.chatTools !== undefined) out.chatTools = body.chatTools === null ? undefined : chatToolsFromBody(body.chatTools, { ...defaults, ...current.chatTools });
-  if (body.webSearchUrl !== undefined) out.webSearchUrl = checkSearchUrl(body.webSearchUrl);
+  if (body.searchEngine !== undefined) {
+    if (body.searchEngine === null) {
+      out.searchEngine = undefined;
+      if (body.webSearchUrl === undefined) out.webSearchUrl = undefined;
+    } else {
+      if (typeof body.searchEngine !== "string" || !SEARCH_ENGINE_IDS.has(body.searchEngine)) {
+        throw new HttpError(400, "Ugyldig søkemotor");
+      }
+      const engine = body.searchEngine as SearchEngineId;
+      out.searchEngine = engine;
+      if (engine !== "custom" && body.webSearchUrl === undefined) {
+        out.webSearchUrl = searchEngineById(engine)!.url;
+      }
+    }
+  }
+  if (body.webSearchUrl !== undefined) {
+    const url = checkSearchUrl(body.webSearchUrl);
+    out.webSearchUrl = url;
+    if (body.searchEngine === undefined) {
+      out.searchEngine = url ? searchEngineOf({ webSearchUrl: url }) : undefined;
+    }
+  }
   return out;
 }

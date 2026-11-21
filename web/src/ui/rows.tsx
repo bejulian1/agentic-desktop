@@ -26,6 +26,7 @@ import { ChatTools, UserEdit } from "./ChatTools";
 import { enter, seconds, StepsView, SummaryView, ToolView } from "./steps";
 import { stepSentence } from "./step-words";
 import { FileChangeCounts } from "./FileChangeCounts";
+import { DiffBlock } from "./DiffBlock";
 import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
 import "../styles/hooks.css";
 import { UserQuestionSummary } from "./UserQuestion";
@@ -660,7 +661,8 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
       <Show when={ask().command}><pre class="approval-command">{ask().command}</pre></Show>
       <Show when={lines().length}>
         <div class="approval-diff" classList={{ open: all() }} data-testid="approval-diff">
-          <pre>{lines().map((line) => <span class={`diff-line ${line.kind}`}>{line.kind === "add" ? "+ " : "− "}{line.text}{"\n"}</span>)}{hidden() > 0 ? t("… {count} linjer til", { count: hidden() }) : ""}</pre>
+          <DiffBlock items={lines()} showLineNumbers={false} />
+          <Show when={hidden() > 0}><div class="diff-skip">{t("… {count} linjer til", { count: hidden() })}</div></Show>
         </div>
         <Show when={lines().length > SHOWN_LINES}>
           <button type="button" class="approval-more" aria-expanded={all()} onClick={() => setAll(!all())}>{all() ? t("Vis mindre") : t("Vis alt ({count} linjer)", { count: ask().lines!.length })}</button>

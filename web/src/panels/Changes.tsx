@@ -3,27 +3,51 @@
 import { t } from "../lib/i18n";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { get, post } from "../lib/api";
-import { diffLines, hunks } from "../lib/diff";
-import type { ChangedFile, SummaryTurnChanges, TurnDiff } from "../../../shared/protocol";
-import { app, report } from "../state/app";
+import { diffLines, hunks, lineChangeCounts } from "../lib/diff";
+import type { ChangedFile, DiffLayout, SummaryTurnChanges, TurnDiff } from "../../../shared/protocol";
+import { app, report, saveSettings } from "../state/app";
 import { openMiniEditor, preloadMiniEditor } from "../ui/MiniEditorHooks";
-import { IconPencil } from "../ui/icons";
+import { IconChevronDown, IconPencil } from "../ui/icons";
 import { selectedTurn, setSelectedTurn } from "../state/panel";
 import { revertTurn } from "../state/project-actions";
 import { on as onMessage } from "../lib/socket";
 import { FileChangeCounts } from "../ui/FileChangeCounts";
+import { DiffBlock } from "../ui/DiffBlock";
 
 const LINE_LIMIT = 1500;
 
 function FileDiff(props: { file: TurnDiff["files"][number]; turnId: string; threadId: string | null }) {
   const [limit, setLimit] = createSignal(LINE_LIMIT);
-  const lines = createMemo(() => props.file.binary ? [] : hunks(diffLines(props.file.before, props.file.after)));
+  const [expanded, setExpanded] = createSignal((app.settings.diffFileState ?? "expanded") !== "collapsed");
+  createEffect(() => {
+    // When a new diff opens or the default file state changes, follow the setting.
+    props.turnId;
+    props.file.path;
+    setExpanded((app.settings.diffFileState ?? "expanded") !== "collapsed");
+  });
+  const ignoreWhitespace = () => app.settings.diffIgnoreWhitespace === true;
+  const lines = createMemo(() => props.file.binary ? [] : hunks(diffLines(props.file.before, props.file.after, { ignoreWhitespace: ignoreWhitespace() })));
+  const counts = createMemo(() => {
+    if (props.file.binary || !ignoreWhitespace()) return props.file;
+    const { additions, deletions, countsExact } = lineChangeCounts(props.file.before, props.file.after, { ignoreWhitespace: true });
+    return { ...props.file, additions, deletions, countsExact };
+  });
+  const whitespaceOnly = createMemo(() => !props.file.binary && ignoreWhitespace() && counts().additions === 0 && counts().deletions === 0 && props.file.before !== props.file.after);
   return (
-    <div class="diff-file" data-testid="diff-file" data-path={props.file.path}>
+    <div class="diff-file" classList={{ collapsed: !expanded() }} data-testid="diff-file" data-path={props.file.path} data-expanded={expanded() ? "true" : "false"}>
       <div class="diff-file-head">
-        <span class="diff-path">{props.file.path}</span>
-        <span class="diff-kind">{props.file.change === "added" ? "ny" : props.file.change === "deleted" ? "slettet" : "endret"}</span>
-        <FileChangeCounts file={props.file} />
+        <button
+          type="button"
+          class="diff-file-toggle"
+          aria-expanded={expanded()}
+          aria-label={expanded() ? t("Slå sammen {path}", { path: props.file.path }) : t("Utvid {path}", { path: props.file.path })}
+          onClick={() => setExpanded(!expanded())}
+        >
+          <span class="diff-chevron" classList={{ open: expanded() }} aria-hidden="true"><IconChevronDown size={13} /></span>
+          <span class="diff-path">{props.file.path}</span>
+        </button>
+        <span class="diff-kind">{props.file.change === "added" ? t("ny") : props.file.change === "deleted" ? t("slettet") : t("endret")}</span>
+        <FileChangeCounts file={counts()} />
         <Show when={props.file.change !== "deleted"}>
           <button type="button" class="icon-button diff-open" title={t("Åpne filen i mini-editoren, med endringene")} aria-label={t("Åpne {path} i mini-editoren", { path: props.file.path })} onPointerEnter={preloadMiniEditor} onClick={(e) => {
             const projectId = props.threadId ? app.threads[props.threadId]?.projectId : null;
@@ -31,29 +55,19 @@ function FileDiff(props: { file: TurnDiff["files"][number]; turnId: string; thre
           }}><IconPencil size={13} /></button>
         </Show>
       </div>
-      <Show when={props.file.binary}><div class="file-note">{t("Binærfilen er registrert. Innhold og linjetall vises ikke.")}</div></Show>
-      <Show when={props.file.overlapping}><div class="file-note">{t("Denne turen overlapper annet arbeid i filen. Angre krever bekreftelse før noe overskrives.")}</div></Show>
-      <Show when={!props.file.binary && props.file.countsExact !== true}><div class="file-note">{t("Linjetallene er anslått. Store endringsområder kan vises som erstattet.")}</div></Show>
-      <div class="diff-lines">
-        <For each={lines().slice(0, limit())}>
-          {(line) =>
-            line.kind === "skip" ? (
-              <div class="diff-skip">{t("{count} uendrede linjer", { count: line.count })}</div>
-            ) : (
-              <>
-              <div class={`diff-line ${line.kind}`}>
-                <span class="diff-no">{line.oldLine ?? ""}</span>
-                <span class="diff-no">{line.newLine ?? ""}</span>
-                <span class="diff-text">{line.kind === "add" ? "+" : line.kind === "del" ? "-" : " "}{line.text}</span>
-              </div>
-              <Show when={line.noNewline}><div class="diff-eof">{t("Ingen linjeskift ved filslutt")}</div></Show>
-              </>
-            )
-          }
-        </For>
-      </div>
-      <Show when={lines().length > limit()}>
-        <button type="button" class="btn btn-small" onClick={() => setLimit(limit() + LINE_LIMIT)}>{t("Vis flere linjer")}</button>
+      <Show when={expanded()}>
+        <Show when={props.file.binary}><div class="file-note">{t("Binærfilen er registrert. Innhold og linjetall vises ikke.")}</div></Show>
+        <Show when={props.file.overlapping}><div class="file-note">{t("Denne turen overlapper annet arbeid i filen. Angre krever bekreftelse før noe overskrives.")}</div></Show>
+        <Show when={!props.file.binary && counts().countsExact !== true}><div class="file-note">{t("Linjetallene er anslått. Store endringsområder kan vises som erstattet.")}</div></Show>
+        <Show when={whitespaceOnly()}>
+          <div class="file-note">{t("Bare mellomromsendringer (skjult).")}</div>
+        </Show>
+        <Show when={!props.file.binary && !whitespaceOnly()}>
+          <DiffBlock items={lines().slice(0, limit())} ignoreWhitespace={ignoreWhitespace()} />
+        </Show>
+        <Show when={lines().length > limit()}>
+          <button type="button" class="btn btn-small" onClick={() => setLimit(limit() + LINE_LIMIT)}>{t("Vis flere linjer")}</button>
+        </Show>
       </Show>
     </div>
   );
@@ -138,6 +152,16 @@ export default function ChangesPanel(props: { threadId: () => string | null }) {
     setBusy(false);
   };
 
+  const diffLayout = () => app.settings.diffLayout ?? "stacked";
+  const hideWhitespace = () => app.settings.diffIgnoreWhitespace === true;
+  const toggleLayout = () => {
+    const next: DiffLayout = diffLayout() === "split" ? "stacked" : "split";
+    void saveSettings({ diffLayout: next }).catch(report);
+  };
+  const toggleWhitespace = () => {
+    void saveSettings({ diffIgnoreWhitespace: !hideWhitespace() }).catch(report);
+  };
+
   return (
     <div class="changes-panel" data-testid="changes-panel">
       <p class="changes-note">{t("Endringer fra kommandoer fanges ikke. Her vises bare det filverktøyene gjorde.")}</p>
@@ -157,6 +181,24 @@ export default function ChangesPanel(props: { threadId: () => string | null }) {
           </For>
         </div>
         <div class="turn-actions">
+          <div class="diff-toolbar" role="toolbar" aria-label={t("Visning av diff")}>
+            <button
+              type="button"
+              class="btn btn-small diff-toolbar-btn"
+              data-testid="diff-layout-toggle"
+              aria-pressed={diffLayout() === "split"}
+              title={diffLayout() === "split" ? t("Bytt til stablet diff") : t("Bytt til side ved side")}
+              onClick={toggleLayout}
+            >{diffLayout() === "split" ? t("Side ved side") : t("Stablet")}</button>
+            <button
+              type="button"
+              class="btn btn-small diff-toolbar-btn"
+              data-testid="diff-whitespace-toggle"
+              aria-pressed={hideWhitespace()}
+              title={t("Skjul endringer som bare gjelder mellomrom og innrykk")}
+              onClick={toggleWhitespace}
+            >{t("Skjul mellomrom")}</button>
+          </div>
           <button type="button" class="btn btn-small" title={t("Be modellen om en kodegjennomgang av alle endringene i tråden")} disabled={reviewing()} onClick={review}>{t("Gjennomgå")}</button>
           <button type="button" class="btn btn-small" disabled={busy() || current()?.reverted} onClick={revert}>{t("Angre tur")}</button>
         </div>
