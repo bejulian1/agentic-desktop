@@ -36,7 +36,7 @@ test("appen starter, serveren kjører i egen prosess, og grensesnittet lastes", 
     assert.equal(renderer.require, "undefined");
     assert.equal(renderer.process, "undefined");
     assert.equal(renderer.shell, "electron");
-    assert.deepEqual(renderer.bridge, ["appIcon", "browserPanel", "closeBehavior", "onCommand", "pickFolder", "quit", "reportActivity", "restartServer", "sandbox", "shell", "stopOtherServer", "window"]);
+    assert.deepEqual(renderer.bridge, ["appIcon", "browserPanel", "closeBehavior", "onCommand", "pickFolder", "quit", "reportActivity", "restartServer", "sandbox", "setLanguage", "shell", "stopOtherServer", "window"]);
     // With Chromium's sandbox, as the app runs when the machine allows it (SPEC 29.2): the renderer
     // has the seccomp filter on.
     if (sandboxWorks) {

@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // What the thread menu does, shared by the sidebar, the smart sidebar and the shortcuts: pin,
 // side chat, branches, copy, snooze, a new window and archive.
 import type { Thread, ThreadEventEnvelope } from "../../../shared/protocol";
@@ -20,7 +21,7 @@ export async function setPinned(thread: Thread, pinned: boolean): Promise<void> 
 export async function setSnoozed(thread: Thread, until: number | null): Promise<void> {
   try {
     await patch(`/api/threads/${thread.id}`, { snoozedUntil: until });
-    toast(until ? `Utsatt til ${new Date(until).toLocaleString("nb-NO", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.` : "Hentet tilbake.", "info");
+    toast(until ? `Utsatt til ${new Date(until).toLocaleString(language(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.` : "Hentet tilbake.", "info");
   } catch (err) {
     report(err);
   }

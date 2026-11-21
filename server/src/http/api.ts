@@ -1,3 +1,4 @@
+import { languages } from "../../../shared/i18n.ts";
 import { BUILTIN_COMMANDS } from "../../../shared/slash-commands.ts";
 import { transcribe } from '../dictation.ts';
 import { Schedules } from '../schedules.ts';
@@ -1354,6 +1355,7 @@ const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "th
 // The settings added in round 5 (Innstillinger). Choices must be one of the listed values and
 // numbers whole and in range; null resets a field to its default, which is to leave it out.
 const ROUND5_CHOICES: Record<string, readonly string[]> = {
+  language: ["system", ...Object.keys(languages)],
   codeThemeLight: ["app", "clear", "warm", "contrast"],
   codeThemeDark: ["app", "clear", "warm", "contrast"],
   codeTranscriptView: ["normal", "thinking", "detailed"],

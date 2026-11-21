@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // Round 10 (SPEC 23.1): Importer fra Chrome. A dialog where you pick a Chrome or Chromium profile on
 // this machine, choose whether history comes too, and see what will be imported before anything
 // is. The server reads only Bookmarks and History, and only when this dialog asks; never
@@ -41,11 +42,11 @@ function when(at: number): string {
   if (minutes < 1) return "nå nettopp";
   if (minutes < 60) return `for ${minutes} min siden`;
   const date = new Date(at);
-  if (date.toDateString() === new Date().toDateString()) return `i dag kl. ${date.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}`;
-  return date.toLocaleDateString("nb-NO", { day: "numeric", month: "short", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  if (date.toDateString() === new Date().toDateString()) return `i dag kl. ${date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" })}`;
+  return date.toLocaleDateString(language(), { day: "numeric", month: "short", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 }
 
-const count = (n: number, one: string, many: string) => `${n.toLocaleString("nb-NO")} ${n === 1 ? one : many}`;
+const count = (n: number, one: string, many: string) => `${n.toLocaleString(language())} ${n === 1 ? one : many}`;
 
 export function importedSummary(data: BrowserImported | null): string {
   if (!data?.importedAt) return "Ingenting er importert ennå.";

@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { CHAT_PROJECT_ICONS, MAX_CHAT_FIELD, MAX_CHAT_WORDS, PROJECT_COLORS, type ChatProject, type ChatProjectMemoryMode } from "../../../shared/protocol";
 import { patch, post } from "../lib/api";
@@ -95,7 +96,7 @@ function ChatProjectDialog(props: { request: ChatProjectDialogRequest }) {
         <label class="field"><span>Instruksjoner for prosjektet</span>
           <span class="muted small" id="chat-project-instructions-help">Fortell hvordan modellen skal svare og arbeide i disse chattene. Prosjektet bruker sine egne instruksjoner. Global systeminstruks, profil, tone og personlighet brukes ikke.</span>
           <textarea class="input chat-project-instructions" name="chat-project-instructions" data-testid="chat-project-instructions" aria-describedby="chat-project-instructions-help chat-project-word-count" aria-invalid={tooLong()} rows={7} value={instructions()} disabled={busy()} placeholder="For eksempel: Svar på norsk. Bruk kildene og begrepene vi har avtalt i prosjektet." onInput={event => setInstructions(event.currentTarget.value)} />
-          <span class="chat-project-word-count" id="chat-project-word-count" classList={{ "chat-project-error": tooLong() }}>{words().toLocaleString("nb-NO")} / {MAX_CHAT_WORDS.toLocaleString("nb-NO")} ord<Show when={instructions().length > MAX_CHAT_FIELD}> · Maks {MAX_CHAT_FIELD.toLocaleString("nb-NO")} tegn</Show></span>
+          <span class="chat-project-word-count" id="chat-project-word-count" classList={{ "chat-project-error": tooLong() }}>{words().toLocaleString(language())} / {MAX_CHAT_WORDS.toLocaleString(language())} ord<Show when={instructions().length > MAX_CHAT_FIELD}> · Maks {MAX_CHAT_FIELD.toLocaleString(language())} tegn</Show></span>
         </label>
         <fieldset class="chat-project-fieldset" disabled={busy()}><legend>Minner</legend>
           <div class="chat-project-memory-options">

@@ -1,3 +1,4 @@
+import { language, t } from "../lib/i18n";
 import {setModsOpen} from "../state/ui-mods";
 import {IconPalette} from "./icons";
 import {studioOpen} from "../state/studio";
@@ -43,11 +44,11 @@ import { ModeSwitch } from "./ModeSwitch";
 import { PinnedSummary } from "./PinnedSummary";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { paneTools } from "./Pane";
-import { PANEL_TOOLS, NEEDS_PROJECT_TIP, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
+import { PANEL_TOOLS, needsProjectTip, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
 import { inStack, placement, setPlacement, stacking, stackTools } from "../state/stack";
 
-const EFFORT_LABELS: Record<ReasoningEffort, string> = { none: "Ingen", low: "Lav", medium: "Middels", high: "Høy", xhigh: "Ekstra høy", max: "Maks" };
-const PERMISSION_LABELS: Record<string, string> = { ask: "Spør", "accept-edits": "Godta redigeringer", full: "Full tilgang" };
+const EFFORT_LABELS = (): Record<ReasoningEffort, string> => ({ none: t("Ingen"), low: t("Lav"), medium: t("Middels"), high: t("Høy"), xhigh: t("Ekstra høy"), max: t("Maks") });
+const PERMISSION_LABELS = (): Record<string, string> => ({ ask: t("Spør"), "accept-edits": t("Godta redigeringer"), full: t("Full tilgang") });
 
 // Rename directly in the title bar. The adjacent arrow keeps details and thread actions separate.
 function ThreadTitle() {
@@ -85,17 +86,17 @@ function ThreadTitle() {
   };
   const save = async (returnFocus = false) => {
     if (!editing() || saving()) return;
-    const t = thread(), title = draft().trim(), revision = editRevision;
-    if (!t || t.id !== editThreadId) return close();
+    const itemThread = thread(), title = draft().trim(), revision = editRevision;
+    if (!itemThread || itemThread.id !== editThreadId) return close();
     const finish = () => {
       editRevision++; editThreadId = null; setEditing(false); setSaving(false);
       if (returnFocus) { setOpen(false); queueMicrotask(() => trigger?.focus({ preventScroll: true })); }
     };
-    if (!title || title === t.title) return finish();
+    if (!title || title === itemThread.title) return finish();
     setSaving(true);
     try {
-      await renameThread(t.id, title);
-      if (revision === editRevision && thread()?.id === t.id) finish();
+      await renameThread(itemThread.id, title);
+      if (revision === editRevision && thread()?.id === itemThread.id) finish();
     } catch (err) { report(err); }
     finally { if (revision === editRevision) setSaving(false); }
   };
@@ -105,9 +106,9 @@ function ThreadTitle() {
     return n;
   };
   const effort = () => {
-    const t = thread();
-    const value = t?.reasoning ?? modelFor(t?.modelId)?.effort;
-    return value ? EFFORT_LABELS[value] : "Standard";
+    const itemThread = thread();
+    const value = itemThread?.reasoning ?? modelFor(itemThread?.modelId)?.effort;
+    return value ? EFFORT_LABELS()[value] : t("Standard");
   };
   const usage = () => model()?.usage();
   const run = (fn: () => unknown) => {
@@ -117,7 +118,7 @@ function ThreadTitle() {
 
   return (
     <Show when={!untitled(thread()) && thread()}>
-      {(t) => (
+      {(itemThread) => (
         <Popover
           open={open()}
           onClose={() => setOpen(false)}
@@ -125,42 +126,42 @@ function ThreadTitle() {
           panelClass="title-popover"
           class="topbar-title"
           trigger={<>
-            <Show when={editing()} fallback={<button type="button" ref={trigger} class="topbar-title-button" data-testid="topbar-title" title={`${t().title}: klikk for å endre navn`} aria-label={`Endre samtalenavn: ${t().title}`} onClick={edit}>{t().title}</button>}>
-              <input ref={input} class="topbar-title-input" aria-label="Gi nytt navn" value={draft()} style={{ width: `${editWidth()}px` }} readonly={saving()} aria-busy={saving()} onInput={e => setDraft(e.currentTarget.value)} onBlur={() => void save()} onKeyDown={e => {
+            <Show when={editing()} fallback={<button type="button" ref={trigger} class="topbar-title-button" data-testid="topbar-title" title={t("{title}: klikk for å endre navn", { title: itemThread().title })} aria-label={t("Endre samtalenavn: {title}", { title: itemThread().title })} onClick={edit}>{itemThread().title}</button>}>
+              <input ref={input} class="topbar-title-input" aria-label={t("Gi nytt navn")} value={draft()} style={{ width: `${editWidth()}px` }} readonly={saving()} aria-busy={saving()} onInput={e => setDraft(e.currentTarget.value)} onBlur={() => void save()} onKeyDown={e => {
                 if (e.isComposing) return;
                 if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); void save(true); }
                 else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); }
               }} />
             </Show>
-            <button type="button" ref={more} class="icon-button topbar-title-more" aria-label="Samtaledetaljer" title="Samtaledetaljer" aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconChevronDown size={13} /></button>
+            <button type="button" ref={more} class="icon-button topbar-title-more" aria-label={t("Samtaledetaljer")} title={t("Samtaledetaljer")} aria-haspopup="dialog" aria-expanded={open()} onClick={() => setOpen(!open())}><IconChevronDown size={13} /></button>
           </>}
         >
-          <div class="title-card" role="dialog" aria-label="Tråden" onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); more?.focus({ preventScroll: true }); } }}>
+          <div class="title-card" role="dialog" aria-label={t("Tråden")} onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); more?.focus({ preventScroll: true }); } }}>
               <dl class="title-card-facts" data-testid="title-details">
-                <dt>Modell</dt><dd>{modelName(t().modelId)} · {effort()}</dd>
-                <Show when={t().mode === "code" && t().projectId}>
-                  <dt>Tillatelser</dt><dd>{PERMISSION_LABELS[app.projects[t().projectId!]?.permissionMode ?? "ask"]}{t().permissionCap ? ` (høyst ${PERMISSION_LABELS[t().permissionCap!]})` : ""}</dd>
+                <dt>{t("Modell")}</dt><dd>{modelName(itemThread().modelId)} · {effort()}</dd>
+                <Show when={itemThread().mode === "code" && itemThread().projectId}>
+                  <dt>{t("Tillatelser")}</dt><dd>{PERMISSION_LABELS()[app.projects[itemThread().projectId!]?.permissionMode ?? "ask"]}{itemThread().permissionCap ? t(" (høyst {permission})", { permission: PERMISSION_LABELS()[itemThread().permissionCap!] }) : ""}</dd>
                 </Show>
-                <dt>Prosjekt</dt><dd>{t().projectId ? app.projects[t().projectId!]?.name ?? "–" : t().chatProjectId ? app.chatProjects[t().chatProjectId!]?.name ?? "–" : "Ingen (Chat)"}</dd>
-                <Show when={t().forkedFrom}>
-                  <dt>Gaffel av</dt>
+                <dt>{t("Prosjekt")}</dt><dd>{itemThread().projectId ? app.projects[itemThread().projectId!]?.name ?? "–" : itemThread().chatProjectId ? app.chatProjects[itemThread().chatProjectId!]?.name ?? "–" : t("Ingen (Chat)")}</dd>
+                <Show when={itemThread().forkedFrom}>
+                  <dt>{t("Gaffel av")}</dt>
                   <dd>
-                    <Show when={forkSource(t())} fallback={<>{t().forkedFrom!.title} (slettet)</>}>
-                      <button type="button" class="link-button title-card-link" onClick={() => run(() => openForkSource(t()))}>{forkSourceTitle(t())}</button>
+                    <Show when={forkSource(itemThread())} fallback={<>{t("{title} (slettet)", { title: itemThread().forkedFrom!.title })}</>}>
+                      <button type="button" class="link-button title-card-link" onClick={() => run(() => openForkSource(itemThread()))}>{forkSourceTitle(itemThread())}</button>
                     </Show>
                   </dd>
                 </Show>
-                <dt>Opprettet</dt><dd>{new Date(t().createdAt).toLocaleString("nb-NO", { dateStyle: "medium", timeStyle: "short" })}</dd>
-                <dt>Meldinger</dt><dd>{model()?.hasOlder() ? `minst ${messages()}` : messages()}</dd>
-                <dt>Tokens</dt><dd>{usage() ? `${formatTokens(usage()!.inputTokens + usage()!.outputTokens)}${usage()!.costUsd !== null ? ` · ${formatCost(usage()!.costUsd!)}` : ""}` : "0"}</dd>
-                <dt>Festet sammendrag</dt>
-                <dd><label class="title-card-switch"><input type="checkbox" class="switch" checked={pinnedSummary()} onChange={(e) => setPinnedSummary(e.currentTarget.checked)} aria-label="Festet sammendrag" />{pinnedSummary() ? "På" : "Av"}</label></dd>
+                <dt>{t("Opprettet")}</dt><dd>{new Date(itemThread().createdAt).toLocaleString(language(), { dateStyle: "medium", timeStyle: "short" })}</dd>
+                <dt>{t("Meldinger")}</dt><dd>{model()?.hasOlder() ? t("minst {count}", { count: messages() }) : messages()}</dd>
+                <dt>{t("Tokens")}</dt><dd>{usage() ? `${formatTokens(usage()!.inputTokens + usage()!.outputTokens)}${usage()!.costUsd !== null ? ` · ${formatCost(usage()!.costUsd!)}` : ""}` : "0"}</dd>
+                <dt>{t("Festet sammendrag")}</dt>
+                <dd><label class="title-card-switch"><input type="checkbox" class="switch" checked={pinnedSummary()} onChange={(e) => setPinnedSummary(e.currentTarget.checked)} aria-label={t("Festet sammendrag")} />{pinnedSummary() ? t("På") : t("Av")}</label></dd>
               </dl>
               <div class="title-card-actions">
-                <button type="button" class="btn btn-small" onClick={() => run(() => setPinned(t(), !t().pinned))}><IconPin size={13} />{t().pinned ? "Løsne" : "Fest"}</button>
-                <button type="button" class="btn btn-small" title="En ny tråd med hele historikken. Tråden her er som før." onClick={() => run(() => forkThread(t().id))}><IconBranch size={13} />Lag gaffel</button>
-                <button type="button" class="btn btn-small" onClick={() => run(() => openInWindow(t()))}><IconWindow size={13} />Åpne i nytt vindu</button>
-                <button type="button" class="btn btn-small" onClick={() => run(() => toggleArchived(t()))}><IconArchive size={13} />{t().archived ? "Gjenopprett" : "Arkiver"}</button>
+                <button type="button" class="btn btn-small" onClick={() => run(() => setPinned(itemThread(), !itemThread().pinned))}><IconPin size={13} />{itemThread().pinned ? t("Løsne") : t("Fest")}</button>
+                <button type="button" class="btn btn-small" title={t("En ny tråd med hele historikken. Tråden her er som før.")} onClick={() => run(() => forkThread(itemThread().id))}><IconBranch size={13} />{t("Lag gaffel")}</button>
+                <button type="button" class="btn btn-small" onClick={() => run(() => openInWindow(itemThread()))}><IconWindow size={13} />{t("Åpne i nytt vindu")}</button>
+                <button type="button" class="btn btn-small" onClick={() => run(() => toggleArchived(itemThread()))}><IconArchive size={13} />{itemThread().archived ? t("Gjenopprett") : t("Arkiver")}</button>
               </div>
           </div>
         </Popover>
@@ -194,16 +195,16 @@ function PaneButtons() {
     if (!g || away()) return;
     g.split(g.focused(), side); // At six it says so in a toast.
   };
-  const tip = (name: string, keys?: string) => (away() ? `${name}: gå tilbake til trådene først` : full() ? `${name}: høyst ${MAX_PANES} ruter` : keys ? `${name} (${keys})` : name);
+  const tip = (name: string, keys?: string) => (away() ? t("{name}: gå tilbake til trådene først", { name }) : full() ? t("{name}: høyst {limit} ruter", { name, limit: MAX_PANES }) : keys ? `${name} (${keys})` : name);
   return (
-    <div class="topbar-group pane-buttons" role="group" aria-label="Ruter">
+    <div class="topbar-group pane-buttons" role="group" aria-label={t("Ruter")}>
       <button
         type="button"
         class="icon-button"
         classList={{ "is-disabled": away() || full() }}
         data-testid="new-pane"
-        title={tip("Del til høyre: ny rute ved siden av", displayKeys(keysFor("pane.new")))}
-        aria-label="Del til høyre"
+        title={tip(t("Del til høyre: ny rute ved siden av"), displayKeys(keysFor("pane.new")))}
+        aria-label={t("Del til høyre")}
         aria-disabled={away() ? "true" : undefined}
         onClick={() => split("right")}
       >
@@ -213,15 +214,15 @@ function PaneButtons() {
         type="button"
         class="icon-button"
         classList={{ "is-disabled": away() || full() }}
-        title={tip("Del nedover: ny rute under")}
-        aria-label="Del nedover"
+        title={tip(t("Del nedover: ny rute under"))}
+        aria-label={t("Del nedover")}
         aria-disabled={away() ? "true" : undefined}
         onClick={() => split("bottom")}
       >
         <IconSplitDown />
       </button>
       <Show when={count() > 1 && panesAsTabs() && !away()}>
-        <button type="button" class="icon-button" title="Lukk ruten" aria-label="Lukk ruten" onClick={() => grid()?.close(grid()!.focused())}><IconClose /></button>
+        <button type="button" class="icon-button" title={t("Lukk ruten")} aria-label={t("Lukk ruten")} onClick={() => grid()?.close(grid()!.focused())}><IconClose /></button>
       </Show>
     </div>
   );
@@ -242,14 +243,14 @@ function MoreMenu() {
     const paneId = g?.focused();
     if (rows && paneId) {
       out.push(
-        { label: "Søk i samtalen", icon: IconSearch, hint: displayKeys("Mod+F"), run: () => paneTools.get(paneId)?.search() },
-        { label: "Eksporter til Markdown", icon: IconDownload, title: "Lagrer samtalen som en .md-fil", run: () => paneTools.get(paneId)?.exportMarkdown() },
+        { label: t("Søk i samtalen"), icon: IconSearch, hint: displayKeys("Mod+F"), run: () => paneTools.get(paneId)?.search() },
+        { label: t("Eksporter til Markdown"), icon: IconDownload, title: t("Lagrer samtalen som en .md-fil"), run: () => paneTools.get(paneId)?.exportMarkdown() },
       );
     }
-    if (thread?.mode === "code") out.push({ label: "Festet sammendrag", icon: IconPin, toggle: pinnedSummary(), keys: "view.summary", title: "Mål, plan og resultater øverst til høyre i Kode", run: () => setPinnedSummary(!pinnedSummary()) });
+    if (thread?.mode === "code") out.push({ label: t("Festet sammendrag"), icon: IconPin, toggle: pinnedSummary(), keys: "view.summary", title: t("Mål, plan og resultater øverst til høyre i Kode"), run: () => setPinnedSummary(!pinnedSummary()) });
     if (g && paneId && thread && !untitled(thread)) {
       out.push({
-        label: "Løsriv ruten til eget vindu",
+        label: t("Løsriv ruten til eget vindu"),
         icon: IconDetach,
         run: () => {
           const entry = g.detach(paneId);
@@ -259,12 +260,12 @@ function MoreMenu() {
     }
     if (project) {
       if (out.length) out.push("sep");
-      out.push({ label: "Åpne i VS Code", icon: IconCode, title: "Åpne prosjektmappen i VS Code", run: () => openVscode(project.id) });
+      out.push({ label: t("Åpne i VS Code"), icon: IconCode, title: t("Åpne prosjektmappen i VS Code"), run: () => openVscode(project.id) });
     }
     if (out.length) out.push("sep");
     out.push(
-      { label: "Kommandopalett", icon: IconTerminal, keys: "palette.open", run: () => openPalette() },
-      { label: "Hurtigtaster", icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts },
+      { label: t("Kommandopalett"), icon: IconTerminal, keys: "palette.open", run: () => openPalette() },
+      { label: t("Hurtigtaster"), icon: IconKeyboard, keys: "help.shortcuts", run: actions.shortcuts },
     );
     return out;
   };
@@ -273,8 +274,8 @@ function MoreMenu() {
       <button
         type="button"
         class="icon-button"
-        aria-label="Flere valg"
-        title="Flere valg"
+        aria-label={t("Flere valg")}
+        title={t("Flere valg")}
         aria-haspopup="menu"
         aria-expanded={!!anchor()}
         data-testid="more-options"
@@ -282,7 +283,7 @@ function MoreMenu() {
       >
         <IconDots />
       </button>
-      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Flere valg" entries={entries()} onClose={() => setAnchor(null)} class="more-options-menu" />}</Show>
+      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label={t("Flere valg")} entries={entries()} onClose={() => setAnchor(null)} class="more-options-menu" />}</Show>
     </>
   );
 }
@@ -300,38 +301,38 @@ function AddPanelMenu() {
   const stacked = () => stacking();
   const anyOpen = () => stacked() && panelOpen() && stackTools().length > 0;
   const entries = (): MenuEntry[] => [
-    { heading: <span class="menu-heading">Sidepanel</span> },
-    { label: "Startside", icon: IconPanel, chosen: panelOpen() && onPanelHome(), title: "Åpne verktøyvelgeren", run: showPanelHome },
+    { heading: <span class="menu-heading">{t("Sidepanel")}</span> },
+    { label: t("Startside"), icon: IconPanel, chosen: panelOpen() && onPanelHome(), title: t("Åpne verktøyvelgeren"), run: showPanelHome },
     ...PANEL_TOOLS.map((tool) => ({
       label: tool.label,
       icon: tool.icon,
       keys: tool.keys,
       chosen: stacked() ? panelOpen() && inStack(tool.id) : shownTool() === tool.id,
       disabled: toolBlocked(tool),
-      title: toolBlocked(tool) ? NEEDS_PROJECT_TIP : tool.tip,
+      title: toolBlocked(tool) ? needsProjectTip() : tool.tip,
       run: () => showPanel(tool.id),
     })),
     "sep",
-    { heading: <span class="menu-heading">Plassering</span> },
+    { heading: <span class="menu-heading">{t("Plassering")}</span> },
     {
-      label: "Til høyre",
+      label: t("Til høyre"),
       icon: IconPanel,
       chosen: panelOpen() && !panelFull() && (!anyOpen() || placement() === "right"),
-      title: anyOpen() ? "Neste panel får en egen kolonne til høyre" : "Ved siden av samtalen. Under 860 px legger panelet seg over samtalen.",
+      title: anyOpen() ? t("Neste panel får en egen kolonne til høyre") : t("Ved siden av samtalen. Under 860 px legger panelet seg over samtalen."),
       run: () => place(false, stacked() ? "right" : undefined),
     },
     ...(anyOpen()
-      ? [{ label: "Under", icon: IconSplitDown, chosen: !panelFull() && placement() === "below", title: "Neste panel legger seg under det du brukte sist", run: () => place(false, "below") } as MenuEntry]
+      ? [{ label: t("Under"), icon: IconSplitDown, chosen: !panelFull() && placement() === "below", title: t("Neste panel legger seg under det du brukte sist"), run: () => place(false, "below") } as MenuEntry]
       : []),
-    { label: "Fullvisning", icon: IconFullView, chosen: panelOpen() && panelFull(), title: "Over hele bredden ved siden av sidefanen", run: () => place(true) },
+    { label: t("Fullvisning"), icon: IconFullView, chosen: panelOpen() && panelFull(), title: t("Over hele bredden ved siden av sidefanen"), run: () => place(true) },
   ];
   return (
     <>
       <button
         type="button"
         class="icon-button"
-        aria-label="Legg til sidepanel"
-        title="Legg til sidepanel"
+        aria-label={t("Legg til sidepanel")}
+        title={t("Legg til sidepanel")}
         aria-haspopup="menu"
         aria-expanded={!!anchor()}
         data-testid="add-panel"
@@ -339,7 +340,7 @@ function AddPanelMenu() {
       >
         <IconPanelAdd />
       </button>
-      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label="Legg til sidepanel" entries={entries()} onClose={() => setAnchor(null)} class="add-panel-menu" />}</Show>
+      <Show when={anchor()}>{(a) => <ContextMenu anchor={a()} label={t("Legg til sidepanel")} entries={entries()} onClose={() => setAnchor(null)} class="add-panel-menu" />}</Show>
     </>
   );
 }
@@ -347,12 +348,12 @@ function AddPanelMenu() {
 // The separate buttons (Hver for seg): Økt (round 12, SPEC 26.2), then Terminal, Endringer, Nettleser
 // and Filer, each on and off. Oversikt is on the start page and in +. Stacked (SPEC 26.3), each
 // button opens and closes its own panel beside the others.
-const SEPARATE: Array<{ id: "session" | "terminal" | "changes" | "browser" | "files"; on: string; off: string }> = [
-  { id: "session", on: "Skjul øktpanel", off: "Vis øktpanel" },
-  { id: "terminal", on: "Skjul Terminal", off: "Terminal" },
-  { id: "changes", on: "Skjul Endringer", off: "Endringer" },
-  { id: "browser", on: "Skjul Nettleser", off: "Nettleser" },
-  { id: "files", on: "Skjul Filer", off: "Filer" },
+const SEPARATE = (): Array<{ id: "session" | "terminal" | "changes" | "browser" | "files"; on: string; off: string }> => [
+  { id: "session", on: t("Skjul øktpanel"), off: t("Vis øktpanel") },
+  { id: "terminal", on: t("Skjul Terminal"), off: t("Terminal") },
+  { id: "changes", on: t("Skjul Endringer"), off: t("Endringer") },
+  { id: "browser", on: t("Skjul Nettleser"), off: t("Nettleser") },
+  { id: "files", on: t("Skjul Filer"), off: t("Filer") },
 ];
 
 // Round 11 (SPEC 24.2): Samlet is ⋯, the panel on and off, a thin line and +. Hver for seg is ⋯ and one
@@ -362,7 +363,7 @@ function PanelButtons() {
   const separate = () => app.settings.panelButtons === "separate" && !narrow();
   const code = () => mode() === "code" && !studioOpen();
   return (
-    <div class="topbar-group panel-buttons" role="group" aria-label="Panelknapper" data-style={separate() ? "separate" : "together"}>
+    <div class="topbar-group panel-buttons" role="group" aria-label={t("Panelknapper")} data-style={separate() ? "separate" : "together"}>
       <MoreMenu />
       <Show when={code()}>
         <Show
@@ -372,8 +373,8 @@ function PanelButtons() {
               type="button"
               class="icon-button panel-toggle"
               classList={{ "is-disabled": away() }}
-              title={`Vis eller skjul panelet (${displayKeys(keysFor("view.panel"))})`}
-              aria-label="Vis eller skjul panelet"
+              title={t("Vis eller skjul panelet ({keys})", { keys: displayKeys(keysFor("view.panel")) })}
+              aria-label={t("Vis eller skjul panelet")}
               aria-pressed={panelOpen() && !away() && !artifactPanel()}
               aria-disabled={away() ? "true" : undefined}
               onClick={() => !away() && togglePanel()}
@@ -382,7 +383,7 @@ function PanelButtons() {
             </button>
           }
         >
-          <For each={SEPARATE}>
+          <For each={SEPARATE()}>
             {(item) => {
               const tool = toolById(item.id);
               const on = () => toolOpen(item.id) && !away();
@@ -393,8 +394,8 @@ function PanelButtons() {
                   class="icon-button panel-toggle"
                   classList={{ "is-disabled": away() || blocked() }}
                   data-tool={item.id}
-                  title={blocked() ? `${tool.label}: ${NEEDS_PROJECT_TIP}` : toolTitle(tool, on() ? item.on : item.off)}
-                  aria-label={item.id === "session" ? "Øktpanel" : tool.label}
+                  title={blocked() ? `${tool.label}: ${needsProjectTip()}` : toolTitle(tool, on() ? item.on : item.off)}
+                  aria-label={item.id === "session" ? t("Øktpanel") : tool.label}
                   aria-pressed={on()}
                   aria-disabled={away() || blocked() ? "true" : undefined}
                   onClick={() => !away() && !blocked() && toggleTool(item.id)}
@@ -433,10 +434,10 @@ export function TopBar() {
         <div class="topbar-nav">
           <MainMenu />
           <Show when={!railShown()}>
-            <button type="button" class="icon-button" title={`Sidefane (${displayKeys(keysFor("view.sidebar"))})`} aria-label="Vis eller skjul sidefanen" aria-pressed={sidebarOpen()} onClick={() => setSidebarOpen(!sidebarOpen())}><IconSidebar /></button>
+            <button type="button" class="icon-button" title={t("Sidefane ({keys})", { keys: displayKeys(keysFor("view.sidebar")) })} aria-label={t("Vis eller skjul sidefanen")} aria-pressed={sidebarOpen()} onClick={() => setSidebarOpen(!sidebarOpen())}><IconSidebar /></button>
           </Show>
-          <button type="button" class="icon-button" title={`Tilbake (${displayKeys(keysFor("thread.back"))})`} aria-label="Forrige tråd" disabled={!actions.canGoBack()} onClick={actions.back}><IconBack /></button>
-          <button type="button" class="icon-button" title={`Frem (${displayKeys(keysFor("thread.forward"))})`} aria-label="Neste tråd" disabled={!actions.canGoForward()} onClick={actions.forward}><IconForward /></button>
+          <button type="button" class="icon-button" title={t("Tilbake ({keys})", { keys: displayKeys(keysFor("thread.back")) })} aria-label={t("Forrige tråd")} disabled={!actions.canGoBack()} onClick={actions.back}><IconBack /></button>
+          <button type="button" class="icon-button" title={t("Frem ({keys})", { keys: displayKeys(keysFor("thread.forward")) })} aria-label={t("Neste tråd")} disabled={!actions.canGoForward()} onClick={actions.forward}><IconForward /></button>
         </div>
         <Show when={!sidebarOpen()}><StartCrumb /></Show>
       </div>
@@ -445,19 +446,19 @@ export function TopBar() {
             where the main area starts instead, with room for the project's whole name. */}
         <Show when={sidebarOpen()}><StartCrumb /></Show>
         <ModeSwitch class="topbar-mode" />
-        <Show when={skillsOpen()}><span class="topbar-title-button" data-testid="topbar-workspace-title">Skills</span></Show>
+        <Show when={skillsOpen()}><span class="topbar-title-button" data-testid="topbar-workspace-title">{t("Skills")}</span></Show>
         <ThreadTitle />
         <OriginTag />
       </div>
       <div class="topbar-right">
-        <button type="button" class="icon-button" title="Tema og mods" aria-label="Tema og mods" data-testid="ui-mods-button" onClick={()=>setModsOpen(true)}><IconPalette size={16}/></button>
+        <button type="button" class="icon-button" title={t("Tema og mods")} aria-label={t("Tema og mods")} data-testid="ui-mods-button" onClick={()=>setModsOpen(true)}><IconPalette size={16}/></button>
         <Show when={mode() === "code" && project()}>
           <div class="project-label" title={project()!.path}>
             <ProjectGlyph project={project()!} size={14} /><span class="project-name">{project()!.name}</span>
           </div>
           <Show when={running() > 0}>
-            <button type="button" class="top-chip danger" data-testid="stop-all" title="Stopper alle tråder i prosjektet" aria-label={`Stopp alt (${running()})`} onClick={() => stopAll(project()!.id).catch(report)}>
-              <IconStop size={12} /><span class="hide-small">Stopp alt</span><span class="count">{running()}</span>
+            <button type="button" class="top-chip danger" data-testid="stop-all" title={t("Stopper alle tråder i prosjektet")} aria-label={t("Stopp alt ({count})", { count: running() })} onClick={() => stopAll(project()!.id).catch(report)}>
+              <IconStop size={12} /><span class="hide-small">{t("Stopp alt")}</span><span class="count">{running()}</span>
             </button>
           </Show>
           <Show
@@ -467,15 +468,15 @@ export function TopBar() {
                 type="button"
                 class="top-chip playtest-chip"
                 data-state={playtest()?.status}
-                title={playtest()?.status === "starting" ? "Playtest starter. Trykk for å stoppe." : `Playtest kjører${playtest()?.url ? ` på ${playtest()!.url}` : ""}. Trykk for å stoppe.`}
-                aria-label="Stopp playtest"
+                title={playtest()?.status === "starting" ? t("Playtest starter. Trykk for å stoppe.") : playtest()?.url ? t("Playtest kjører på {url}. Trykk for å stoppe.", { url: playtest()!.url! }) : t("Playtest kjører. Trykk for å stoppe.")}
+                aria-label={t("Stopp playtest")}
                 onClick={() => stopPlaytest(project()!.id)}
               >
-                <span class="playtest-dot" aria-hidden="true" /><span class="playtest-label">Playtest</span><span class="playtest-stop" aria-hidden="true"><IconStop size={11} />Stopp</span>
+                <span class="playtest-dot" aria-hidden="true" /><span class="playtest-label">{t("Playtest")}</span><span class="playtest-stop" aria-hidden="true"><IconStop size={11} />{t("Stopp")}</span>
               </button>
             }
           >
-            <button type="button" class="icon-button" title="Playtest: start prosjektet og åpne det i Nettleser-panelet" aria-label="Playtest" onClick={() => startPlaytest(project()!.id)}><IconPlay /></button>
+            <button type="button" class="icon-button" title={t("Playtest: start prosjektet og åpne det i Nettleser-panelet")} aria-label={t("Playtest")} onClick={() => startPlaytest(project()!.id)}><IconPlay /></button>
           </Show>
         </Show>
         <Show when={mode() === "code" && !away() && pinnedSummary()}><PinnedSummary thread={focusedThread()} /></Show>
@@ -503,10 +504,10 @@ function StartCrumb() {
   createEffect(() => { if (!show() || narrow()) picker.close(); });
   return (
     <Show when={show()}>
-      <nav class="topbar-crumb" aria-label="Hvor du er" data-testid="topbar-crumb">
+      <nav class="topbar-crumb" aria-label={t("Hvor du er")} data-testid="topbar-crumb">
         <span class="crumb-mode">
-          <Show when={mode() === "code"} fallback={<><IconChat size={14} />Chat</>}>
-            <Show when={studioOpen()} fallback={<><IconCode size={14} />Kode</>}><IconStudio size={14} />Kode Studio</Show>
+          <Show when={mode() === "code"} fallback={<><IconChat size={14} />{t("Chat")}</>}>
+            <Show when={studioOpen()} fallback={<><IconCode size={14} />{t("Kode")}</>}><IconStudio size={14} />{t("Kode Studio")}</Show>
           </Show>
         </span>
         <Show when={mode() === "code"}>
@@ -523,12 +524,12 @@ function StartCrumb() {
             ref={trigger}
             aria-haspopup="dialog"
             aria-expanded={picker.open()}
-            title={project() ? `${project()!.path}: bytt prosjekt` : "Velg prosjekt"}
+            title={project() ? t("{path}: bytt prosjekt", { path: project()!.path }) : t("Velg prosjekt")}
             onPointerDown={(event) => { if (picker.open()) event.preventDefault(); }}
             onClick={(event) => { const closing = picker.open(); picker.toggle(); if (closing) event.currentTarget.focus({ preventScroll: true }); }}
             onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); picker.show(); } }}
           >
-            <Show when={project()} fallback={<><IconLaptop size={13} /><span>Denne datamaskinen</span></>}>
+            <Show when={project()} fallback={<><IconLaptop size={13} /><span>{t("Denne datamaskinen")}</span></>}>
               {(p) => <><ProjectGlyph project={p()} size={13} /><span>{p().name}</span></>}
             </Show>
             <IconChevronDown size={11} />
@@ -559,15 +560,15 @@ function OriginTag() {
     <>
       <Show when={parent()}>
         {(p) => (
-          <button type="button" class="origin-tag topbar-origin" title={`Laget av ${p().title}`} onClick={() => void openThread(p())}>
+          <button type="button" class="origin-tag topbar-origin" title={t("Laget av {title}", { title: p().title })} onClick={() => void openThread(p())}>
             <IconBranch size={12} /><span>{p().title}</span>
           </button>
         )}
       </Show>
       <Show when={fork()}>
-        {(t) => (
-          <button type="button" class="origin-tag topbar-origin" data-testid="fork-origin" title={`Gaffel av ${forkSourceTitle(t())}. Trykk for å åpne den.`} onClick={() => void openForkSource(t())}>
-            <IconBranch size={12} /><span>{forkSourceTitle(t())}</span>
+        {(itemThread) => (
+          <button type="button" class="origin-tag topbar-origin" data-testid="fork-origin" title={t("Gaffel av {title}. Trykk for å åpne den.", { title: forkSourceTitle(itemThread()) })} onClick={() => void openForkSource(itemThread())}>
+            <IconBranch size={12} /><span>{forkSourceTitle(itemThread())}</span>
           </button>
         )}
       </Show>

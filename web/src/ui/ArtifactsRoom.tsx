@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // The Artifacts room in the middle of the window: a gallery, and an open artifact with its code
 // and a live preview. Loaded the first time the room opens, CodeMirror with it. Since round 15 an
 // artifact can be React in JSX or TSX as well as HTML: the editor follows, and the preview server
@@ -38,7 +39,7 @@ function loadView(): View {
 }
 
 function formatDate(at: number): string {
-  return new Date(at).toLocaleString("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(at).toLocaleString(language(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function Tile(props: { artifact: ArtifactSummary }) {

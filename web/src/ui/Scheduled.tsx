@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 import { createResource, createSignal, For, onCleanup, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import type { Recurrence, Schedule } from '../../../shared/schedules';
@@ -5,7 +6,7 @@ import { api, get } from '../lib/api';
 import { app } from '../state/app';
 
 const days = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
-const when = (stamp: number | null) => stamp === null ? 'aldri' : new Date(stamp).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' });
+const when = (stamp: number | null) => stamp === null ? 'aldri' : new Date(stamp).toLocaleString(language(), { dateStyle: 'short', timeStyle: 'short' });
 const cadence = (rule: Recurrence) => rule.kind === 'interval' ? `Timeintervall: ${rule.hours}` : `${rule.kind === 'daily' ? 'Daglig' : rule.days.map(day => days[day]).join(', ')} kl. ${rule.time}`;
 
 export function Scheduled() {

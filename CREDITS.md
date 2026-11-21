@@ -57,6 +57,8 @@ Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrette
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.
 
+Codex (GPT 6.2 Astra) implementerte språkvalget, katalogverktøyene og de første oversatte flatene i nettgrensesnittet og Electron.
+
 ## Om GitHubs Contributors-graf
 
 README og denne filen krediterer modellene og AI-verktøyene som prosjekteieren oppgir. GitHubs graf beregnes fra commit-historikk og e-postadresser som GitHub kan knytte til kontoer; en tekstoppføring her registrerer ikke en konto i grafen. Eksisterende historikk er ikke omskrevet for å endre statistikken. Nye Codex- og Claude-assisterte commits kan ha en tydelig `Co-authored-by`-linje.

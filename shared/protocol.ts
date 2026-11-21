@@ -260,6 +260,7 @@ export function modelAllowsTools(model?: Pick<ModelConfig, "supportsTools">, loc
 }
 
 export interface Settings {
+  language?: import("./i18n.ts").LanguageSetting;
   dictation?: { providerId: string; model: string } | null;
   promptAutocompleteModelId?: string | null; // null follows the conversation model
   promptAutocomplete?: boolean; // opt-in model-backed prompt suggestions, default off

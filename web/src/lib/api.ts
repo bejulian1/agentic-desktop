@@ -1,10 +1,11 @@
+import { lookupMessage } from "./i18n.ts";
 // fetch against the app's own origin. The session cookie and Origin header come with it.
 export class ApiError extends Error {
   status: number;
   body: any;
 
   constructor(status: number, message: string, body?: unknown) {
-    super(message);
+    super(lookupMessage(message));
     this.status = status;
     this.body = body;
   }

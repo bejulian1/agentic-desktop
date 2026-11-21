@@ -1,3 +1,4 @@
+import { language } from "./i18n.ts";
 // Bound explicit terminal deliveries before they reach a draft. Read text from xterm's
 // parsed buffer/selection, never from raw PTY escape sequences.
 export const TERMINAL_SHARE_LINES = 200;
@@ -13,6 +14,6 @@ export function formatTerminalShare(raw: string, selected: boolean): { text: str
   // Terminal output can itself contain Markdown fences. Keep it inside one literal block.
   const fence = "`".repeat(Math.max(3, ...[...excerpt.matchAll(/`+/g)].map((m) => m[0].length + 1)));
   const label = selected ? "Utvalg fra terminalen" : "Siste utdata fra terminalen";
-  const note = truncated ? `\n[Avkortet: viser ${selected ? "starten av utvalget" : "slutten av terminalutdataene"}, maks ${TERMINAL_SHARE_LINES} linjer / ${TERMINAL_SHARE_CHARS.toLocaleString("nb-NO")} tegn.]` : "";
+  const note = truncated ? `\n[Avkortet: viser ${selected ? "starten av utvalget" : "slutten av terminalutdataene"}, maks ${TERMINAL_SHARE_LINES} linjer / ${TERMINAL_SHARE_CHARS.toLocaleString(language())} tegn.]` : "";
   return { text: `${label}${note}\n${fence}text\n${excerpt}\n${fence}`, truncated };
 }

@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 // Round 11 (SPEC 24.2 and 24.3): the side panel's tools in one list, so the start page in the panel,
 // the + menu at the top right, the separate buttons and the tabs show the same names, icons and keys.
 import type { JSX } from "solid-js";
@@ -21,20 +22,20 @@ export interface PanelTool {
 // Round 12 (SPEC 26.2): Økt first, the thread in focus: environment, context, connections and what
 // runs in the background. It needs a thread, not a project.
 export const PANEL_TOOLS: PanelTool[] = [
-  { id: "session", label: "Økt", icon: IconGauge, keys: "panel.session", tip: "Økt: miljø, kontekst, tilkoblinger og oppgaver i bakgrunnen" },
-  { id: "overview", label: "Oversikt", icon: IconList, keys: "panel.overview", tip: "Oversikt: miljø, kontekst og filer tråden har endret" },
-  { id: "files", label: "Filer", icon: IconFile, keys: "panel.files", tip: "Åpne filer i prosjektet eller på denne datamaskinen" },
-  { id: "changes", label: "Endringer", icon: IconDiff, keys: "panel.changes", tip: "Endringer: diff per tur, med Angre og Gjennomgå" },
-  { id: "terminal", label: "Terminal", icon: IconTerminal, keys: "panel.terminal", tip: "Terminal i prosjektmappen, eller i hjemmemappen uten prosjekt" },
-  { id: "browser", label: "Nettleser", icon: IconGlobe, keys: "panel.browser", tip: "Nettleser: siden agenten og Playtest bruker" },
-  { id: "team", label: "Team", icon: IconUsers, keys: "panel.team", tip: "Team: den delte oppgavelisten" },
-  { id: "github", label: "GitHub", icon: IconPullRequest, tip: "GitHub (Beta): pull requests og issues for prosjektets repo", beta: true },
+  { id: "session", get label() { return t("Økt"); }, icon: IconGauge, keys: "panel.session", get tip() { return t("Økt: miljø, kontekst, tilkoblinger og oppgaver i bakgrunnen"); } },
+  { id: "overview", get label() { return t("Oversikt"); }, icon: IconList, keys: "panel.overview", get tip() { return t("Oversikt: miljø, kontekst og filer tråden har endret"); } },
+  { id: "files", get label() { return t("Filer"); }, icon: IconFile, keys: "panel.files", get tip() { return t("Åpne filer i prosjektet eller på denne datamaskinen"); } },
+  { id: "changes", get label() { return t("Endringer"); }, icon: IconDiff, keys: "panel.changes", get tip() { return t("Endringer: diff per tur, med Angre og Gjennomgå"); } },
+  { id: "terminal", get label() { return t("Terminal"); }, icon: IconTerminal, keys: "panel.terminal", get tip() { return t("Terminal i prosjektmappen, eller i hjemmemappen uten prosjekt"); } },
+  { id: "browser", get label() { return t("Nettleser"); }, icon: IconGlobe, keys: "panel.browser", get tip() { return t("Nettleser: siden agenten og Playtest bruker"); } },
+  { id: "team", get label() { return t("Team"); }, icon: IconUsers, keys: "panel.team", get tip() { return t("Team: den delte oppgavelisten"); } },
+  { id: "github", get label() { return t("GitHub"); }, icon: IconPullRequest, get tip() { return t("GitHub (Beta): pull requests og issues for prosjektets repo"); }, beta: true },
 ];
 
 export const toolById = (id: PanelTab) => PANEL_TOOLS.find((t) => t.id === id)!;
 
 // The tip on a tool that needs a project while none is chosen.
-export const NEEDS_PROJECT_TIP = "Verktøyene finnes i Kode-modus.";
+export const needsProjectTip = () => t("Verktøyene finnes i Kode-modus.");
 
 export const toolBlocked = (tool: PanelTool) => mode() !== "code";
 

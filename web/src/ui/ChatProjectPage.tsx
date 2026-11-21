@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import type { ChatProject, Thread } from "../../../shared/protocol";
 import { app, deleteThread, mode, renameThread, report, setApp } from "../state/app";
@@ -22,8 +23,8 @@ export default function ChatProjectPage(props: { project: ChatProject }) {
   onCleanup(() => { mounted = false; });
   const all = createMemo(() => Object.values(app.threads).filter((thread): thread is Thread => !!thread && thread.mode === "chat" && !thread.projectId && thread.chatProjectId === id).sort((a, b) => b.updatedAt - a.updatedAt));
   const shown = createMemo(() => {
-    const words = query().trim().toLocaleLowerCase("nb-NO").split(/\s+/).filter(Boolean);
-    return all().filter(thread => thread.archived === archived() && words.every(word => thread.title.toLocaleLowerCase("nb-NO").includes(word)));
+    const words = query().trim().toLocaleLowerCase(language()).split(/\s+/).filter(Boolean);
+    return all().filter(thread => thread.archived === archived() && words.every(word => thread.title.toLocaleLowerCase(language()).includes(word)));
   });
   const archivedCount = () => all().filter(thread => thread.archived).length;
   const run = async (threadId: string, work: () => Promise<unknown>) => {
@@ -73,7 +74,7 @@ export default function ChatProjectPage(props: { project: ChatProject }) {
         <Show when={error()}><p class="chat-project-error" role="alert">{error()}</p></Show>
         <ul class="chat-project-thread-list">
           <For each={shown()} fallback={<li class="chat-project-empty"><IconChat size={24} /><strong>{query().trim() ? "Ingen chatter passer søket" : archived() ? "Ingen arkiverte chatter" : "Start den første chatten"}</strong><span class="muted">{query().trim() ? "Prøv et annet søkeord." : "Skriv en melding i feltet over. Chattene dine samles her."}</span></li>}>{thread => <li class="chat-project-thread" data-project-thread={thread.id}>
-            <button type="button" class="chat-project-thread-open" onClick={() => void openThread(thread)}><IconChat size={17} /><span><strong>{thread.title}</strong><time dateTime={new Date(thread.updatedAt).toISOString()}>{new Date(thread.updatedAt).toLocaleDateString("nb-NO", { day: "numeric", month: "short", year: "numeric" })}<Show when={thread.running}> · Arbeider</Show></time></span></button>
+            <button type="button" class="chat-project-thread-open" onClick={() => void openThread(thread)}><IconChat size={17} /><span><strong>{thread.title}</strong><time dateTime={new Date(thread.updatedAt).toISOString()}>{new Date(thread.updatedAt).toLocaleDateString(language(), { day: "numeric", month: "short", year: "numeric" })}<Show when={thread.running}> · Arbeider</Show></time></span></button>
             <div class="chat-project-thread-actions"><button type="button" class="icon-button" title="Gi nytt navn" aria-label={`Gi chatten «${thread.title}» nytt navn`} disabled={!!busy()} onClick={() => void rename(thread)}><IconPencil size={15} /></button><button type="button" class="icon-button" title="Slett chatten" aria-label={`Slett chatten «${thread.title}»`} disabled={!!busy()} onClick={() => void remove(thread)}><IconTrash size={15} /></button></div>
           </li>}</For>
         </ul>

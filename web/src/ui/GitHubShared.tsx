@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // Small pieces for GitHub (Beta) shared by the panel and Innstillinger (round 8, agent G). The icons
 // are plain line drawings of a pull request and an issue, not anyone's logo.
 import type { GitHubProject } from "../../../shared/protocol";
@@ -27,7 +28,7 @@ export const IconDraft = (p: P) => (
 export function resetText(resetAt: number | undefined, now = Date.now()): string {
   if (!resetAt) return "Prøv igjen om litt.";
   const minutes = Math.max(1, Math.ceil((resetAt - now) / 60_000));
-  const clock = new Date(resetAt).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+  const clock = new Date(resetAt).toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" });
   return minutes < 60 ? `Grensen nullstilles om ${minutes} min, kl. ${clock}.` : `Grensen nullstilles kl. ${clock}.`;
 }
 

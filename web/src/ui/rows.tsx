@@ -1,3 +1,4 @@
+import { localizedFormat } from "../lib/i18n.ts";
 // One component per row kind. A finished row renders once and has no reactive work left. A live
 // row only reacts to its own rev signal.
 import { createContext, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, useContext } from "solid-js";
@@ -50,11 +51,11 @@ const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.g
 // One formatter per format, made once. toLocaleTimeString with options builds a new
 // Intl.DateTimeFormat on every call, and every message calls these when it mounts: that was half
 // of the script time when a chunk of a long thread mounted while scrolling. Same output.
-const HH_MM = new Intl.DateTimeFormat("nb-NO", { hour: "2-digit", minute: "2-digit" });
-const HH_MM_SS = new Intl.DateTimeFormat("nb-NO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const DAY_MONTH = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short" });
-const DAY_MONTH_YEAR = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short", year: "numeric" });
-const LONG_DAY = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const HH_MM = localizedFormat(locale => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }));
+const HH_MM_SS = localizedFormat(locale => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+const DAY_MONTH = localizedFormat(locale => new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }));
+const DAY_MONTH_YEAR = localizedFormat(locale => new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }));
+const LONG_DAY = localizedFormat(locale => new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
 
 // "14:32", "i går 14:32", "3. nov. 14:32", and the year when it is not this one.
 export function shortTime(at: number, now = new Date()): string {

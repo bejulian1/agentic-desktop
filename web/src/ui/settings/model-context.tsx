@@ -1,3 +1,4 @@
+import { language } from "../../lib/i18n.ts";
 // Optional context is stored per mode. Saving a switch never performs an IP lookup.
 import { createSignal, onCleanup, Show } from "solid-js";
 import { modelContextOf, type ModelContextModeSettings, type Settings } from "../../../../shared/protocol";
@@ -61,7 +62,7 @@ export function ModelContextSettings(props: { mode: Mode }) {
           <button type="button" class="btn btn-small" disabled={busy() || dirty()} title={dirty() ? "Lagre endringen før du henter fra IP" : "Hent omtrentlig by og land fra appmaskinens offentlige IP"} onClick={() => void locate()}>Hent fra IP</button>
         </div>
         <span class="muted small">IP-oppslag kontakter ipapi.co med appmaskinens offentlige IP. Bare by og land lagres som posisjon. VPN og nettverk kan gi feil sted.</span>
-        <Show when={dirty()} fallback={<Show when={value().locationText}><span class="muted small">{value().locationSource === "ip" ? "Omtrentlig posisjon hentet fra IP" : "Posisjon oppgitt av deg"}{value().locationSource === "ip" && value().locationUpdatedAt ? ` · ${new Date(value().locationUpdatedAt!).toLocaleString("nb-NO")}` : ""}</span></Show>}><span class="muted small">Endringen er ikke lagret.</span></Show>
+        <Show when={dirty()} fallback={<Show when={value().locationText}><span class="muted small">{value().locationSource === "ip" ? "Omtrentlig posisjon hentet fra IP" : "Posisjon oppgitt av deg"}{value().locationSource === "ip" && value().locationUpdatedAt ? ` · ${new Date(value().locationUpdatedAt!).toLocaleString(language())}` : ""}</span></Show>}><span class="muted small">Endringen er ikke lagret.</span></Show>
         <Show when={!location().trim()}><span class="muted small">Ingen posisjon deles før du lagrer et sted eller velger «Hent fra IP».</span></Show>
       </div>
     </Show>

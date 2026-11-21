@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // The sidebar, from the top: the app name, search, notifications and ⋯ in one calm row; Chat and
 // Kode; the navigation (new thread, Artifacts, Skills); Festet, shown only when something is pinned;
 // the sections made with ⋯ → Ny seksjon; then the mode's own lists. Kode (round 11, SPEC 24.4):
@@ -78,7 +79,7 @@ const THREADS_SHOWN = 10;
 const [snoozeNow, setSnoozeNow] = createSignal(Date.now());
 export const isSnoozed = (t: Thread, now = snoozeNow()) => !!t.snoozedUntil && t.snoozedUntil > now;
 const snoozeLabel = (at: number) =>
-  `Utsatt til ${new Date(at).toLocaleString("nb-NO", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
+  `Utsatt til ${new Date(at).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
 
 export function afterPick(): void {
   if (narrowSidebar.matches) setSidebarOpen(false);

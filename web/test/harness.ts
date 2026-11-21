@@ -137,7 +137,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   };
   const server = await startServer(dataDir, { mockDelayMs: options.mockDelayMs, port: options.port, env: options.env, home });
   const browser = await launchChrome();
-  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1360, height: 860 }, deviceScaleFactor: options.deviceScaleFactor ?? 1, colorScheme: options.theme ?? "light", permissions: ["clipboard-read", "clipboard-write"] });
+  const context = await browser.newContext({ locale: "nb-NO", viewport: options.viewport ?? { width: 1360, height: 860 }, deviceScaleFactor: options.deviceScaleFactor ?? 1, colorScheme: options.theme ?? "light", permissions: ["clipboard-read", "clipboard-write"] });
   await context.addInitScript(WATCH_CSP);
   const page = await context.newPage();
   const errors: string[] = [];
@@ -147,6 +147,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   try {
     await page.goto(server.link);
     await page.waitForSelector(".app", { timeout: 15_000 });
+    await page.locator('[data-testid="connection"][data-state="online"]').first().waitFor({ state: "attached", timeout: 15_000 });
     assert.equal(new URL(page.url()).hash, "", "tokenet er borte fra adressen");
   } catch (err) {
     await closeChrome(browser);

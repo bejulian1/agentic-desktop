@@ -88,7 +88,7 @@ export const sandboxWorks = spawnSync("unshare", ["--user", "--map-root-user", "
 // the AppArmor profile, SPEC 29.2).
 export async function launch(box: Sandbox, options: { waitForUi?: boolean; args?: string[] } = {}): Promise<Running> {
   assertOffScreen();
-  const args = [...ozoneArgs(box), ...(options.args ?? []), MAIN];
+  const args = [...ozoneArgs(box), "--lang=nb", ...(options.args ?? []), MAIN];
   const chromiumSandbox = sandboxWorks && !args.includes("--no-sandbox");
   const app = await _electron.launch({ executablePath: ELECTRON, args, env: box.env, timeout: 60_000, chromiumSandbox });
   const mainPid = app.process().pid!;

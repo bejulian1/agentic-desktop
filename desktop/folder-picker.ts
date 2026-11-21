@@ -1,3 +1,4 @@
+import { lookupMessage, t } from "./i18n.ts";
 import type { BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions, OpenDialogReturnValue } from "electron";
 import { folderOptions } from "../server/src/native-folder.ts";
 
@@ -15,7 +16,7 @@ export function folderPicker(deps: {
     if (active) throw new Error("Mappevelgeren er allerede åpen");
     active = true;
     try {
-      const result = await deps.show(win, { title: options.title ?? "Velg prosjektmappe", ...(options.start ? { defaultPath: options.start } : {}), properties: ["openDirectory"] });
+      const result = await deps.show(win, { title: options.title ? lookupMessage(options.title) : t("Velg prosjektmappe"), ...(options.start ? { defaultPath: options.start } : {}), properties: ["openDirectory"] });
       return result.canceled ? null : result.filePaths[0] ?? null;
     } finally {
       active = false;

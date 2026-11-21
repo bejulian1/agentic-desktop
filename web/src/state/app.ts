@@ -6,6 +6,7 @@ import { batch, createMemo, createSignal } from "solid-js";
 import { closeSkills } from "./skills-workspace";
 import { createStore, reconcile } from "solid-js/store";
 import { applyAppIcon } from "../lib/app-icon";
+import { lookupMessage } from "../lib/i18n";
 import type {
   Bootstrap,
   BuildInfo,
@@ -366,7 +367,7 @@ export function wireServerEvents(): void {
     applyAppIcon(settings.appIcon);
   });
   on("keyring.changed", ({ keyring }) => setApp("keyring", keyring));
-  on("error", ({ message }) => toast(message));
+  on("error", ({ message }) => toast(lookupMessage(message)));
   wireArtifactEvents();
   startSocket();
 }

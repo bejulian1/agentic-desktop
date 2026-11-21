@@ -1,3 +1,4 @@
+import { language } from "../../lib/i18n.ts";
 // Innstillinger → Chat-personalisering (SPEC 22.4): Chat's own place, apart from Kode. A system
 // instruction, a few lines about you, a personality with characteristics that can be turned down
 // or up, and Chat memories with «Oppdater minnet av seg selv».
@@ -129,7 +130,7 @@ export function ChatPersonalSettings() {
   };
   const tidy = () => run(async () => setProposal(await post<UpgradeProposal>("/api/memories/upgrade", { scope: "chat" })));
 
-  const counter = (field: "instructions" | "about") => <span class="muted small chat-count" classList={{ over: overLimit(field) }}>{countChatWords(value(field)).toLocaleString("nb-NO")} / {MAX_CHAT_WORDS.toLocaleString("nb-NO")} ord</span>;
+  const counter = (field: "instructions" | "about") => <span class="muted small chat-count" classList={{ over: overLimit(field) }}>{countChatWords(value(field)).toLocaleString(language())} / {MAX_CHAT_WORDS.toLocaleString(language())} ord</span>;
 
   return (
     <section aria-label="Chat-personalisering">

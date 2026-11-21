@@ -14,6 +14,7 @@ function subscribe<T>(channel: string, callback: (value: T) => void): () => void
 
 contextBridge.exposeInMainWorld("agenticDesktop", {
   shell: "electron",
+  setLanguage: (setting: string): Promise<string | null> => ipcRenderer.invoke("desktop:language", setting),
   window: {
     minimize: () => ipcRenderer.send("window:minimize"),
     toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),

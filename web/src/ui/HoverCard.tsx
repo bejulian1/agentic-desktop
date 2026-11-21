@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // A small card beside a thread or project in the sidebar, after the pointer has rested on it a
 // moment. Nothing runs per pointer move: entering starts one timer and leaving starts another.
 import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js";
@@ -88,11 +89,11 @@ function ThreadCard(props: { thread: Thread }) {
       </div>
       <div class="hover-card-row muted">
         <IconClock size={14} />
-        <span>Sist aktiv {relativeTime(props.thread.updatedAt)}, laget {new Date(props.thread.createdAt).toLocaleDateString("nb-NO", { day: "numeric", month: "short" })}</span>
+        <span>Sist aktiv {relativeTime(props.thread.updatedAt)}, laget {new Date(props.thread.createdAt).toLocaleDateString(language(), { day: "numeric", month: "short" })}</span>
       </div>
       <Show when={threadStatus(props.thread)}>{(status) => <div class="hover-card-row muted">{status()}</div>}</Show>
       <Show when={snoozed()}>
-        {(until) => <div class="hover-card-row muted"><IconSnooze size={14} />Utsatt til {new Date(until()).toLocaleString("nb-NO", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</div>}
+        {(until) => <div class="hover-card-row muted"><IconSnooze size={14} />Utsatt til {new Date(until()).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" })}</div>}
       </Show>
       <Show when={parent()}>
         {(p) => (

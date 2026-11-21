@@ -1,3 +1,4 @@
+import { t } from "./i18n.ts";
 // SPEC 29.3: the Browser panel as a real WebContentsView in the app's window, with Playwright on the
 // server connected to it over CDP.
 //
@@ -606,17 +607,17 @@ export class BrowserPanel {
       const template: Electron.MenuItemConstructorOptions[] = [];
       if (params.isEditable) {
         template.push(
-          { label: "Angre", role: "undo", enabled: params.editFlags.canUndo },
-          { label: "Gjør om", role: "redo", enabled: params.editFlags.canRedo },
+          { label: t("Angre"), role: "undo", enabled: params.editFlags.canUndo },
+          { label: t("Gjør om"), role: "redo", enabled: params.editFlags.canRedo },
           { type: "separator" },
-          { label: "Klipp ut", role: "cut", enabled: params.editFlags.canCut },
-          { label: "Kopier", role: "copy", enabled: params.editFlags.canCopy },
-          { label: "Lim inn", role: "paste", enabled: params.editFlags.canPaste },
+          { label: t("Klipp ut"), role: "cut", enabled: params.editFlags.canCut },
+          { label: t("Kopier"), role: "copy", enabled: params.editFlags.canCopy },
+          { label: t("Lim inn"), role: "paste", enabled: params.editFlags.canPaste },
           { type: "separator" },
-          { label: "Merk alt", role: "selectAll", enabled: params.editFlags.canSelectAll },
+          { label: t("Merk alt"), role: "selectAll", enabled: params.editFlags.canSelectAll },
         );
       } else if (params.selectionText.trim()) {
-        template.push({ label: "Kopier", role: "copy" });
+        template.push({ label: t("Kopier"), role: "copy" });
       }
       const win = this.window();
       if (template.length && win) Menu.buildFromTemplate(template).popup({ window: win });

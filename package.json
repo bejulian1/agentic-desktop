@@ -11,6 +11,8 @@
     "web"
   ],
   "scripts": {
+    "i18n:extract": "node scripts/i18n.ts extract",
+    "i18n:check": "node scripts/i18n.ts check",
     "start": "node scripts/start.ts",
     "build": "node scripts/build.ts",
     "test": "npm run typecheck && npm run test:server",
@@ -27,6 +29,8 @@
     "install-local": "node scripts/install-local.ts"
   },
   "devDependencies": {
+    "@babel/parser": "7.29.12",
+    "@babel/traverse": "7.29.12",
     "@electron/rebuild": "4.2.1",
     "electron": "45.0.0",
     "electron-builder": "26.18.0"

@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // Chat (round 7): what a conversation app has besides the conversation. Editing a message in place,
 // search in the conversation with marks on the hits, and export to Markdown. Since round 9 (SPEC
 // 21.8) Kode edits too, after saying that files are not rolled back, and both modes can select
@@ -301,7 +302,7 @@ export function confirmScript(script: string): Promise<boolean> {
 
 function stamp(at: number): string {
   const date = new Date(at);
-  return `${date.toLocaleDateString("nb-NO", { day: "numeric", month: "long", year: "numeric" })} kl. ${date.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${date.toLocaleDateString(language(), { day: "numeric", month: "long", year: "numeric" })} kl. ${date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 // The conversation as Markdown: what you wrote and what the model answered, with times. Thinking

@@ -17,6 +17,18 @@ async function quitsFully(running: Running, act: () => Promise<unknown>): Promis
   await waitFor(() => all.every((pid) => !alive(pid)), "alt er stoppet", 15_000);
 }
 
+test("native tray follows the language saved in Settings", async () => {
+  const box = sandbox({ tray: "on" });
+  let running: Running | undefined;
+  try {
+    running = await launch(box);
+    const { page, probe } = running;
+    await page.evaluate(() => fetch("/api/settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ language: "en" }) }));
+    await waitFor(async () => (await probe<string[]>("probe.statusArea().menu")).includes("New thread"), "translated tray");
+    await page.locator('html[lang="en"]').waitFor();
+  } finally { if (running) await closeAll(running); box.cleanup(); }
+});
+
 test("Lukk legger appen i statusfeltet, serveren kjører videre, og varselet kommer én gang", async () => {
   const box = sandbox({ tray: "on" });
   let running: Running | undefined;

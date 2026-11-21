@@ -1,9 +1,10 @@
+import { lookupMessage, language } from "../../lib/i18n";
 // The search field in Innstillinger. Pages are rendered one at a time, so the rows are listed
 // here by hand: the page id, the row title as it stands on the page, and extra words people may
 // search for. A hit opens the page and points at the row with that title. The shortcuts come
 // from their own table.
 import { SHORTCUTS } from "../../state/shortcuts";
-import { DEFAULT_PERMISSION_TITLE } from "../permission-copy";
+import { permissionTitle } from "../permission-copy";
 
 export interface Entry {
   page: string;
@@ -17,6 +18,7 @@ export function canonicalSettingsPage(id: string): string {
 }
 
 export const ENTRIES: Entry[] = [
+  { page: "general", label: "Språk", words: "language språk" },
   { page: "code", label: "Fargetema for kode", words: "lyst mørkt syntaks tema kodeutseende preview diff farger" },
   { page: "code", label: "Egen kodeskrift", words: "font skrift monospace egendefinert" },
   { page: "code", label: "Standard samtalevisning", words: "transkript normal tenkning detaljert verktøy trinn" },
@@ -38,7 +40,7 @@ export const ENTRIES: Entry[] = [
   { page: "general", label: "Vis tenkesammendrag", words: "tenkning resonnering thinking reasoning" },
   { page: "general", label: "Skallutdata utvidet", words: "shell terminal kommandoer verktøy utvid" },
   { page: "general", label: "Meldinger mens agenten jobber", words: "kø styr send med en gang steer queue melding tur" },
-  { page: "general", label: DEFAULT_PERMISSION_TITLE, words: "kode tillatelser godkjenning full tilgang hjemmemappen" },
+  { page: "general", get label() { return permissionTitle(); }, words: "kode tillatelser godkjenning full tilgang hjemmemappen" },
   { page: "code", label: "Kode uten prosjekt", words: "startside hilsen prosjektkort hva skal vi bygge denne datamaskinen" },
   { page: "code", label: "Kode med prosjekt", words: "startside hilsen prosjektkort miljø github hva skal vi jobbe med" },
   { page: "code", label: "Festet sammendrag", words: "mål plan" },
@@ -111,13 +113,13 @@ export const ENTRIES: Entry[] = [
   { page: "browser", label: "Informasjonskapsler", words: "cookies innlogget logg inn importer firefox chromium glem" }, // round 12
   { page: "browser", label: "Spør før agenter bruker innloggede nettsteder", words: "agent godkjenning cookies innlogget" }, // round 12
   { page: "providers", label: "Diktering", words: "mikrofon lyd tale til tekst transkripsjon whisper" },
-  { page: "permissions", label: DEFAULT_PERMISSION_TITLE, words: "tillatelser spør godta redigeringer full tilgang godkjenning hjemmemappen" },
+  { page: "permissions", get label() { return permissionTitle(); }, words: "tillatelser spør godta redigeringer full tilgang godkjenning hjemmemappen" },
   { page: "permissions", label: "Prosjekter", words: "tillatelser per prosjekt" },
   { page: "archived", label: "Arkiverte tråder", words: "gjenopprett arkiv" },
   { page: "about", label: "Versjon", words: "om versjon byggnummer" },
 ];
 
-const fold = (text: string) => text.toLocaleLowerCase("nb").normalize("NFC");
+const fold = (text: string) => text.toLocaleLowerCase(language()).normalize("NFC");
 
 // Every word in the query must be found in the page name, the row title or the extra words.
 // Hits in the title come first.
@@ -126,8 +128,8 @@ export function search(query: string, pageLabel: (id: string) => string): Entry[
   if (!words.length) return [];
   const scored: Array<{ entry: Entry; score: number }> = [];
   for (const entry of ENTRIES) {
-    const label = fold(entry.label);
-    const haystack = `${fold(pageLabel(entry.page))} ${label} ${fold(entry.words ?? "")}`;
+    const label = fold(lookupMessage(entry.label));
+    const haystack = `${fold(pageLabel(entry.page))} ${label} ${fold(entry.label)} ${fold(entry.words ?? "")}`;
     if (!words.every((w) => haystack.includes(w))) continue;
     scored.push({ entry, score: words.filter((w) => label.includes(w)).length });
   }

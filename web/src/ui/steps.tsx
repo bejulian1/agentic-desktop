@@ -1,3 +1,4 @@
+import { localizedFormat } from "../lib/i18n.ts";
 import {ChatFileCards} from "./ChatFileCards";
 // Round 13 (SPEC 27.1): how a Kode turn reads. Each step is one line with an icon for its kind, a
 // short verb, what it was about and the result in a word or two. Steps of the same kind in a row
@@ -48,7 +49,7 @@ export function seconds(ms: number | null | undefined): string {
   return ms != null && ms >= 1000 ? formatElapsed(ms) : "";
 }
 
-const HH_MM = new Intl.DateTimeFormat("nb-NO", { hour: "2-digit", minute: "2-digit" });
+const HH_MM = localizedFormat(locale => new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }));
 const clockTime = (at: number) => HH_MM.format(new Date(at));
 
 export const facts = (row: ToolRow): StepFacts => ({ tool: row.tool, summary: row.summary, input: row.input, status: row.status, result: row.result, sources: row.sources });

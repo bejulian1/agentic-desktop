@@ -1,3 +1,4 @@
+import { language } from "../../lib/i18n.ts";
 // Lagring: how much room the app's data folder takes, per category, and cleaning up what is not
 // needed. The server measures and deletes (server/src/storage.ts); this page shows the numbers,
 // lets you pick what to clean, says what will be deleted, and asks before it does.
@@ -67,7 +68,7 @@ export function formatBytes(bytes: number): string {
     value /= 1000;
     unit += 1;
   }
-  return `${value.toLocaleString("nb-NO", { maximumFractionDigits: value < 10 ? 1 : 0 })} ${units[unit]}`;
+  return `${value.toLocaleString(language(), { maximumFractionDigits: value < 10 ? 1 : 0 })} ${units[unit]}`;
 }
 
 export function StoragePage() {

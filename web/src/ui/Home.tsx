@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 import {setModsOpen} from '../state/ui-mods';
 import {useTokenTooltip} from "./TokenTooltip";
 // The start page of an empty pane. Chat: a greeting and example cards. Kode, with or without a
@@ -68,7 +69,7 @@ export function bookLine(tokens: number): string {
 
 const CELL = 11;
 const GAP = 3;
-const dayLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
+const dayLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(language(), { day: "numeric", month: "short" });
 
 // One SVG for half a year: a column per week, a row per weekday. Levels are quartiles of the
 // days that have any use, so one big day does not wash out the rest.

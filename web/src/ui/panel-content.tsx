@@ -15,7 +15,7 @@ import { openServer, servers } from "../state/servers";
 import { sideChat } from "../state/thread-actions";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { IconArtifact, IconGamepad, IconGlobe, IconPlusCircle } from "./icons";
-import { NEEDS_PROJECT_TIP, PANEL_TOOLS, toolBlocked, toolTitle, type PanelTool } from "./panel-tools";
+import { needsProjectTip, PANEL_TOOLS, toolBlocked, toolTitle, type PanelTool } from "./panel-tools";
 
 const LocalOverview = lazy(() => import("./LocalPanelContext").then((m) => ({ default: m.LocalOverview })));
 const ProjectContext = lazy(() => import("./LocalPanelContext").then((m) => ({ default: m.ProjectContext })));
@@ -69,7 +69,7 @@ export function PanelHome(props: { projectId: string | null }) {
     icon: tool.icon,
     keys: tool.keys,
     blocked: () => toolBlocked(tool),
-    tip: () => (toolBlocked(tool) ? `${tool.label}: ${NEEDS_PROJECT_TIP}` : toolTitle(tool, tool.tip)),
+    tip: () => (toolBlocked(tool) ? `${tool.label}: ${needsProjectTip()}` : toolTitle(tool, tool.tip)),
     run: () => { consumeStartPage(); showPanel(tool.id); },
   });
   // Sidechat is not a panel: it starts a thread beside the one that is open.

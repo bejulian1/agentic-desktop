@@ -2,7 +2,7 @@
 
 [Norsk versjon (README.nb.md)](README.nb.md) · [Download latest release](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Changelog](CHANGELOG.md) · [Credits](CREDITS.md)
 
-> The application UI is in Norwegian Bokmål.
+> Norwegian Bokmål is the source language. Settings → General → Language switches the translated screens live. English covers the first set of screens; ten more languages have starter catalogs. Untranslated text stays in Norwegian.
 
 Agentic Desktop is a local-first Linux desktop application (Electron + Node.js + SolidJS) for chatting and coding with large language models using **your own API keys** or local models. Talk to models in **Chat**, or hand them a folder in **Code** (`Kode`) where the agent can read and edit files, run terminal commands, and inspect what it builds in an integrated browser. Conversations, projects, and settings are stored locally in SQLite—no Agentic Desktop account, no telemetry, and a built-in demo model lets you explore the interface and tools without an API key.
 
@@ -197,7 +197,7 @@ GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API com
 
 GPT 6.2 Astra implemented [dictation](docs/diktering.md) and [scheduled tasks](docs/planlagte-oppgaver.md) and removed nonfunctional controls.
 
-Codex also contributed inline charts, [model selection for Code helpers](docs/MODELLDELEGERING.md), and [reviewable memory and skill suggestions](docs/MINNEFORSLAG.md).
+Codex also contributed the [i18n foundation and contributor guide](docs/I18N.md), inline charts, [model selection for Code helpers](docs/MODELLDELEGERING.md), and [reviewable memory and skill suggestions](docs/MINNEFORSLAG.md).
 
 Crediting AI models describes development assistance only and implies no official endorsement or affiliation with Anthropic, OpenAI, or Google.
 

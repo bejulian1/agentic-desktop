@@ -3,7 +3,10 @@ import "./styles/chat-files.css";
 import { render } from "solid-js/web";
 import { ApiError, get, post, setUnauthorizedHandler } from "./lib/api";
 import { expire } from "./lib/socket";
-import { applyBootstrap, wireServerEvents } from "./state/app";
+import { app, applyBootstrap, wireServerEvents } from "./state/app";
+import { applyLanguage } from "./lib/i18n";
+import { createEffect, createRoot, onCleanup } from "solid-js";
+import { desktop } from "./lib/desktop";
 import { wireGridEvents } from "./state/grid";
 import { prepareStartup } from "./state/startup";
 import { wireThreadEvents } from "./state/thread-model";
@@ -86,6 +89,16 @@ async function boot(): Promise<void> {
     root.textContent = (err as Error).message;
     return;
   }
+  const sync = () => {
+    const setting = app.settings.language ?? "system";
+    return applyLanguage(setting, desktop?.setLanguage?.(setting));
+  };
+  await sync();
+  createRoot(() => {
+    createEffect(() => void sync());
+    addEventListener("languagechange", sync);
+    onCleanup(() => removeEventListener("languagechange", sync));
+  });
   prepareStartup();
   wireServerEvents();
   wireThreadEvents();

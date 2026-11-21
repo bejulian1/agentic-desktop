@@ -1,3 +1,4 @@
+import { language } from "../../lib/i18n.ts";
 // Innstillinger → Kode-harness (SPEC 22.2): what the model always gets in Kode, in layers. The
 // built-in base can be switched off in parts but not edited; the global AGENTS.md is the user's
 // own file, with «Gjenopprett standard» that shows the difference and keeps a backup first; and a
@@ -22,7 +23,7 @@ interface Preview {
   tools: string[];
 }
 
-const formatTokens = (n: number) => `${n.toLocaleString("nb-NO")} ${n === 1 ? "token" : "tokens"}`;
+const formatTokens = (n: number) => `${n.toLocaleString(language())} ${n === 1 ? "token" : "tokens"}`;
 
 // Long runs of unchanged lines fold to one line, so the change is what you see.
 function foldDiff(lines: DiffLineInfo[], context = 2): Array<DiffLineInfo | { kind: "fold"; count: number }> {

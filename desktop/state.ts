@@ -3,6 +3,7 @@
 // note about the status area has been shown.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { isLanguage, type LanguageSetting } from "../shared/i18n.ts";
 import { DEFAULT_APP_ICON, isAppIcon, type AppIconId } from "../shared/protocol.ts";
 
 export type CloseBehavior = "tray" | "quit";
@@ -15,6 +16,7 @@ export interface Bounds {
 }
 
 export interface DesktopState {
+  language?: LanguageSetting;
   bounds: Bounds;
   maximized: boolean;
   // The UI keeps its look and layout in localStorage, which belongs to the page's origin. The server
@@ -67,6 +69,7 @@ export class StateFile {
     const port = num(raw.port, 1024, 65535);
     return {
       bounds,
+      ...(isLanguage(raw.language) ? { language: raw.language } : {}),
       maximized: raw.maximized === true,
       port: port ?? null,
       closeBehavior: raw.closeBehavior === "quit" ? "quit" : "tray",

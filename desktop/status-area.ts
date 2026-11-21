@@ -1,3 +1,4 @@
+import { plural, t } from "./i18n.ts";
 // The icon in the status area at the top of GNOME (SPEC 29.6). Electron's Tray is a
 // StatusNotifierItem on Linux, which GNOME shows through the AppIndicator extension. Without a
 // StatusNotifierWatcher on the session bus nobody would show it, so the app then quits on the close
@@ -39,12 +40,10 @@ export function hasStatusArea(): Promise<boolean> {
   });
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 export function activityText(activity: Activity): string | null {
   const parts: string[] = [];
-  if (activity.working > 0) parts.push(`${plural(activity.working, "tråd", "tråder")} jobber`);
-  if (activity.waiting > 0) parts.push(`${plural(activity.waiting, "tråd", "tråder")} venter på deg`);
+  if (activity.working > 0) parts.push(plural(activity.working, "{count} tråd jobber", "{count} tråder jobber"));
+  if (activity.waiting > 0) parts.push(plural(activity.waiting, "{count} tråd venter på deg", "{count} tråder venter på deg"));
   return parts.length ? parts.join(" · ") : null;
 }
 
@@ -117,10 +116,10 @@ export class StatusArea {
 
   private menuLabels(): string[] {
     const status = activityText(this.activity);
-    return ["Vis Agentic Desktop", "Ny tråd", ...(status ? [status] : []), "Avslutt"];
+    return [t("Vis Agentic Desktop"), t("Ny tråd"), ...(status ? [status] : []), t("Avslutt")];
   }
 
-  private render(): void {
+  render(): void {
     if (!this.tray) return;
     // Waiting for you comes before working: it is the one that needs you.
     const look: Look = this.activity.waiting > 0 ? "waiting" : this.activity.working > 0 ? "working" : "idle";
@@ -131,11 +130,11 @@ export class StatusArea {
     const status = activityText(this.activity);
     this.tray.setToolTip(status ? `Agentic Desktop: ${status}` : "Agentic Desktop");
     const template: Electron.MenuItemConstructorOptions[] = [
-      { label: "Vis Agentic Desktop", click: () => this.actions.show() },
-      { label: "Ny tråd", click: () => this.actions.newThread() },
+      { label: t("Vis Agentic Desktop"), click: () => this.actions.show() },
+      { label: t("Ny tråd"), click: () => this.actions.newThread() },
     ];
     if (status) template.push({ type: "separator" }, { label: status, enabled: false });
-    template.push({ type: "separator" }, { label: "Avslutt", click: () => this.actions.quit() });
+    template.push({ type: "separator" }, { label: t("Avslutt"), click: () => this.actions.quit() });
     this.tray.setContextMenu(Menu.buildFromTemplate(template));
   }
 

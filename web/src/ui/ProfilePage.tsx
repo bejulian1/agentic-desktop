@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 import {useTokenTooltip} from "./TokenTooltip";
 // The profile page in the middle of the window: initials, name, five key numbers and the token
 // activity for a year, per day, per week or added up. All numbers come from the database through
@@ -29,7 +30,7 @@ export function formatLongDuration(ms: number | null): string {
 }
 
 const days = (n: number) => `${n} ${n === 1 ? "dag" : "dager"}`;
-const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("nb-NO", { day: "numeric", month: "short", year: "numeric" });
+const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(language(), { day: "numeric", month: "short", year: "numeric" });
 
 // Months along the bottom, at the first week that starts in a new month.
 function monthMarks(year: Day[]): Array<{ week: number; label: string }> {
@@ -135,7 +136,7 @@ export default function ProfilePage() {
   const name = () => app.settings.profileName?.trim() || "Profil";
 
   const tiles = (s: ProfileStats) => [
-    { label: "Totalt antall tokens", value: formatTokens(s.totalTokens), title: `${s.totalTokens.toLocaleString("nb-NO")} tokens` },
+    { label: "Totalt antall tokens", value: formatTokens(s.totalTokens), title: `${s.totalTokens.toLocaleString(language())} tokens` },
     { label: "Høyeste antall tokens på en dag", value: s.peakDay ? formatTokens(s.peakDay.tokens) : "–", title: s.peakDay ? dateLabel(s.peakDay.date) : undefined },
     { label: "Lengste oppgave", value: formatLongDuration(s.longestRunMs), title: "Den lengste kjøringen fra start til slutt" },
     { label: "Lengste rekke", value: days(s.longestStreak), title: "Flest dager på rad med bruk" },

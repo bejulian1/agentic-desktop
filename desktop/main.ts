@@ -1,3 +1,5 @@
+import { applyLanguage, t } from "./i18n.ts";
+import { isLanguage } from "../shared/i18n.ts";
 // Agentic Desktop as a desktop app (SPEC 29). Electron is only a shell: the server is the same as
 // for `npm start`, in its own process (utilityProcess) on 127.0.0.1 with a port and a token of its
 // own, and the window loads the same web UI from it over HTTP and WebSocket. This file starts and
@@ -145,7 +147,7 @@ const browserPanel = new BrowserPanel({ window: () => win, appOrigins: () => uiO
 probe.statusAreaAction = (label: string) => {
   if (label === "Vis Agentic Desktop") statusAreaActions.show();
   else if (label === "Ny tråd") statusAreaActions.newThread();
-  else if (label === "Avslutt") statusAreaActions.quit();
+  else if (label === t("Avslutt")) statusAreaActions.quit();
 };
 
 // ---- Single instance -------------------------------------------------------------------------
@@ -462,12 +464,12 @@ function createWindow(): BrowserWindow {
   window.webContents.on("will-prevent-unload", (event) => {
     const choice = dialog.showMessageBoxSync(window, {
       type: "question",
-      buttons: ["Avslutt", "Avbryt"],
+      buttons: [t("Avslutt"), t("Avbryt")],
       defaultId: 1,
       cancelId: 1,
       title: PRODUCT,
-      message: "Vil du avslutte Agentic Desktop?",
-      detail: "Du kan ha ulagrede endringer eller en tråd som fortsatt kjører. Lagre arbeidet før du avslutter. Aktive kjøringer stoppes ved avslutning.",
+      message: t("Vil du avslutte Agentic Desktop?"),
+      detail: t("Du kan ha ulagrede endringer eller en tråd som fortsatt kjører. Lagre arbeidet før du avslutter. Aktive kjøringer stoppes ved avslutning."),
     });
     if (choice === 0) event.preventDefault();
     else quitting = false;
@@ -484,17 +486,17 @@ function createWindow(): BrowserWindow {
     const template: Electron.MenuItemConstructorOptions[] = [];
     if (params.isEditable) {
       template.push(
-        { label: "Angre", role: "undo", enabled: params.editFlags.canUndo },
-        { label: "Gjør om", role: "redo", enabled: params.editFlags.canRedo },
+        { label: t("Angre"), role: "undo", enabled: params.editFlags.canUndo },
+        { label: t("Gjør om"), role: "redo", enabled: params.editFlags.canRedo },
         { type: "separator" },
-        { label: "Klipp ut", role: "cut", enabled: params.editFlags.canCut },
-        { label: "Kopier", role: "copy", enabled: params.editFlags.canCopy },
-        { label: "Lim inn", role: "paste", enabled: params.editFlags.canPaste },
+        { label: t("Klipp ut"), role: "cut", enabled: params.editFlags.canCut },
+        { label: t("Kopier"), role: "copy", enabled: params.editFlags.canCopy },
+        { label: t("Lim inn"), role: "paste", enabled: params.editFlags.canPaste },
         { type: "separator" },
-        { label: "Merk alt", role: "selectAll", enabled: params.editFlags.canSelectAll },
+        { label: t("Merk alt"), role: "selectAll", enabled: params.editFlags.canSelectAll },
       );
     } else if (params.selectionText.trim()) {
-      template.push({ label: "Kopier", role: "copy" });
+      template.push({ label: t("Kopier"), role: "copy" });
     }
     if (template.length) Menu.buildFromTemplate(template).popup({ window });
   });
@@ -525,10 +527,10 @@ function hideToStatusArea(): void {
   probe.hiddenToTray += 1;
   if (!state.get().trayNoticeShown) {
     state.set({ trayNoticeShown: true }, true);
-    const title = "Agentic Desktop kjører videre i statusfeltet";
+    const title = t("Agentic Desktop kjører videre i statusfeltet");
     probe.notices.push(title);
     if (Notification.isSupported()) {
-      new Notification({ title, body: "Trykk på ikonet øverst på skjermen for å åpne vinduet igjen. Ctrl+Q avslutter helt.", icon: iconPath, silent: true }).show();
+      new Notification({ title, body: t("Trykk på ikonet øverst på skjermen for å åpne vinduet igjen. Ctrl+Q avslutter helt."), icon: iconPath, silent: true }).show();
     }
   }
 }
@@ -701,6 +703,13 @@ function listen(): void {
     if (isAppIcon(value) && value !== state.get().appIcon) launcher = applyAppIcon(value);
     return { value: state.get().appIcon, launcher };
   });
+  ipcMain.handle("desktop:language", (event, setting) => {
+    if (!trusted(event) || (setting !== "system" && !isLanguage(setting))) return null;
+    applyLanguage(setting, app.getLocale());
+    if (setting !== (state.get().language ?? "system")) state.set({ language: setting });
+    statusArea.render();
+    return app.getLocale();
+  });
   ipcMain.on("desktop:activity", (event, activity: Activity) => {
     if (trusted(event) && activity && typeof activity === "object") statusArea.setActivity(activity);
   });
@@ -736,6 +745,7 @@ function syncLauncherIcon(): "updated" | "same" | "not-installed" | "failed" {
 }
 
 async function start(): Promise<void> {
+  applyLanguage(state.get().language, app.getLocale());
   mark("ready");
   // An installation from before the choice, or a new install-local, has the default icon in the
   // app library; the one chosen is put back.

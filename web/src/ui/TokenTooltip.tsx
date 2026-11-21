@@ -1,8 +1,9 @@
+import { localizedFormat } from "../lib/i18n.ts";
 import {createSignal, Show, createUniqueId} from 'solid-js';
 import {Portal} from 'solid-js/web';
 import type {JSX} from 'solid-js';
-const dateFormat=new Intl.DateTimeFormat('nb-NO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-const numberFormat=new Intl.NumberFormat('nb-NO');
+const dateFormat=localizedFormat(locale => new Intl.DateTimeFormat(locale,{weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+const numberFormat=localizedFormat(locale => new Intl.NumberFormat(locale));
 export function tokenDate(date:string){return dateFormat.format(new Date(date+'T12:00:00'));}
 // No delay or per-cell timer. Text is formatted only when the pointed cell changes.
 export function useTokenTooltip(){

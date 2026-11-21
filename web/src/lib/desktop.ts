@@ -20,6 +20,7 @@ export interface SandboxInfo {
 }
 
 interface DesktopBridge {
+  setLanguage?: (setting: import("../../../shared/i18n.ts").LanguageSetting) => Promise<string | null>;
   shell: "electron";
   window: {
     minimize: () => void;

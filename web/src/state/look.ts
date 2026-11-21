@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 // Settings from Innstillinger that act on the whole app (round 5, agent C). The look is data
 // attributes and CSS variables on <html>, read by styles/settings.css. public/theme.js applies a
 // copy from localStorage before the first paint, so a stored accent or text size never flashes.
@@ -106,7 +107,7 @@ function notify(thread: Thread): void {
   const when = current.notifyOnDone ?? "off";
   if (when === "off" || typeof Notification === "undefined" || Notification.permission !== "granted") return;
   if (when === "unfocused" && document.visibilityState === "visible" && document.hasFocus()) return;
-  const text = thread.lastStatus === "error" ? `«${thread.title}» stoppet med en feil.` : `«${thread.title}» er ferdig.`;
+  const text = thread.lastStatus === "error" ? t("«{title}» stoppet med en feil.", { title: thread.title }) : t("«{title}» er ferdig.", { title: thread.title });
   try {
     new Notification("Agentic Desktop", { body: text, tag: `ad-turn-${thread.id}` });
   } catch {

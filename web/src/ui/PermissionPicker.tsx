@@ -5,7 +5,7 @@ import type { PermissionMode, Project } from "../../../shared/protocol";
 import { patch } from "../lib/api";
 import { app, report, setApp } from "../state/app";
 import { IconAlert, IconCheck, IconHand, IconShieldCheck } from "./icons";
-import { DEFAULT_PERMISSION_SCOPE } from "./permission-copy";
+import { permissionScope } from "./permission-copy";
 
 const MODES: PermissionMode[] = ["ask", "accept-edits", "full"];
 const LABELS: Record<PermissionMode, string> = {
@@ -149,7 +149,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
       class="foot-chip permission-chip"
       data-testid="permission-button"
       data-mode={effective()}
-      title={`Tillatelser: ${label()}. ${capDescription()} ${props.project ? "Velg hvordan handlinger godkjennes i prosjektet." : DEFAULT_PERMISSION_SCOPE}`}
+      title={`Tillatelser: ${label()}. ${capDescription()} ${props.project ? "Velg hvordan handlinger godkjennes i prosjektet." : permissionScope()}`}
       aria-label={`Tillatelser: ${label()}${props.cap ? `. ${capDescription()}` : ""}`}
       aria-haspopup="menu"
       aria-expanded={open()}
@@ -173,7 +173,7 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
             <span>Hvordan skal handlinger godkjennes?</span>
             <button type="button" class="permission-more" aria-expanded={expanded()} aria-controls={`${id}-more`} onClick={() => setExpanded(!expanded())}>Les mer</button>
           </div>
-          <Show when={!props.project}><p class="permission-cap">{DEFAULT_PERMISSION_SCOPE}</p></Show>
+          <Show when={!props.project}><p class="permission-cap">{permissionScope()}</p></Show>
           <Show when={expanded()}>
             <p class="permission-explanation" id={`${id}-more`}><Show when={props.project}>Valget gjelder hele prosjektet. </Show>Tråder med en egen grense får aldri høyere tilgang. Lesing er normalt tillatt. Lagrede godkjenninger kan også tillate handlinger. Beskyttede filer som .env, .git/hooks og filer i .ssh krever fortsatt godkjenning.</p>
           </Show>

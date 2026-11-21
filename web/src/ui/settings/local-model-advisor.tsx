@@ -1,3 +1,4 @@
+import { localizedFormat } from "../../lib/i18n.ts";
 import { createSignal, createUniqueId, For, Show } from "solid-js";
 import {
   LOCAL_MODEL_CONTEXT_OPTIONS,
@@ -10,7 +11,7 @@ import { post } from "../../lib/api";
 import { formatTokens } from "../../lib/format";
 import { Choice, Row } from "./parts";
 
-const decimal = new Intl.NumberFormat("nb-NO", { maximumFractionDigits: 2 });
+const decimal = localizedFormat(locale => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }));
 const gib = (value: number) => `${decimal.format(value)} GiB`;
 const contextLabel = (tokens: number) => `${formatTokens(tokens)} tokens`;
 

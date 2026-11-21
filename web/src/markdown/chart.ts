@@ -1,3 +1,4 @@
+import { localizedFormat } from "../lib/i18n.ts";
 interface Point {
   label: string;
   value: number;
@@ -32,8 +33,8 @@ function parseChart(source: string): Chart | null {
   }
 }
 
-const decimal = new Intl.NumberFormat("nb-NO", { maximumSignificantDigits: 21 });
-const scientific = new Intl.NumberFormat("nb-NO", { notation: "scientific", maximumSignificantDigits: 21 });
+const decimal = localizedFormat(locale => new Intl.NumberFormat(locale, { maximumSignificantDigits: 21 }));
+const scientific = localizedFormat(locale => new Intl.NumberFormat(locale, { notation: "scientific", maximumSignificantDigits: 21 }));
 
 function measure(value: number, unit?: string): string {
   const abs = Math.abs(value);

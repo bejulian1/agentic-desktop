@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // GitHub (Beta) in the right panel (round 8, agent G): the project's repo from .git/config, and its
 // open pull requests and issues, read only. A link opens in the Nettleser panel. The token never
 // reaches the browser; the server asks GitHub and sends back only what is shown here.
@@ -102,7 +103,7 @@ export default function GitHubPanel(props: { projectId: string }) {
               <span class="github-facts">
                 <span>{data()!.repo!.private ? "Privat" : "Offentlig"}</span>
                 <span>Standardgren <code>{data()!.repo!.defaultBranch}</code></span>
-                <span class="tabular">{data()!.repo!.stars.toLocaleString("nb-NO")} {data()!.repo!.stars === 1 ? "stjerne" : "stjerner"}</span>
+                <span class="tabular">{data()!.repo!.stars.toLocaleString(language())} {data()!.repo!.stars === 1 ? "stjerne" : "stjerner"}</span>
               </span>
             </div>
           </Show>

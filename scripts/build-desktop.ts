@@ -38,6 +38,7 @@ export async function buildDesktop(out = path.join(ROOT, "desktop/build")): Prom
   await build(bundle("desktop/server-entry.ts", path.join(out, "server"), "server.mjs", "es"));
 
   cpSync(path.join(ROOT, "desktop/shell"), path.join(out, "shell"), { recursive: true });
+  cpSync(path.join(ROOT, "web/src/locales"), path.join(out, "locales"), { recursive: true });
   cpSync(path.join(ROOT, "desktop/icons/png"), path.join(out, "shell/icons"), { recursive: true });
   return out;
 }

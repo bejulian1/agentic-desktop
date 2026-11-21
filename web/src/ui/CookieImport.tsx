@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // Round 12 (SPEC 26.4): Forbli innlogget på nettstedene dine. Cookies from Chrome, Chromium or Firefox
 // on this machine into the app's own Browser panel, so the user is signed in there too.
 //
@@ -22,7 +23,7 @@ import "../styles/cookies.css";
 // The icon is in nav-icons.tsx, so the command palette can show it without loading this file.
 export { IconCookie };
 
-const n = (value: number) => value.toLocaleString("nb-NO");
+const n = (value: number) => value.toLocaleString(language());
 const count = (value: number, one: string, many: string) => `${n(value)} ${value === 1 ? one : many}`;
 
 // «i dag», «i går», «for 3 dager siden», «for 2 måneder siden».

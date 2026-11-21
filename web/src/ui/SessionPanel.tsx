@@ -1,3 +1,4 @@
+import { language } from "../lib/i18n.ts";
 // Round 12 (SPEC 26.2): Økt, a panel about the thread in focus. Four sections that fold: Miljø,
 // Kontekst (how full the context window is, and what fills it), Tilkoblinger, and Oppgaver i
 // bakgrunnen with Stopp and «Avsluttet: N». Everything comes from GET /api/threads/:id/session
@@ -41,7 +42,7 @@ export function elapsed(ms: number): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-const percentText = (value: number) => `${value.toLocaleString("nb-NO")} %`;
+const percentText = (value: number) => `${value.toLocaleString(language())} %`;
 
 export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void; onOpenThread?: (threadId: string) => void }) {
   const [open, setOpen] = createSignal(loadOpen());
@@ -192,7 +193,7 @@ export function SessionPanel(props: { threadId: string; onOpenFiles?: () => void
                         <TaskIcon task={task} />
                         <TaskTitle task={task} onOpenThread={props.onOpenThread} />
                         <span class="okt-meta okt-detail">{task.detail}</span>
-                        <span class="okt-meta okt-time" title={`Startet ${new Date(task.startedAt).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}`}>{elapsed(now() - task.startedAt)}</span>
+                        <span class="okt-meta okt-time" title={`Startet ${new Date(task.startedAt).toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" })}`}>{elapsed(now() - task.startedAt)}</span>
                         <button type="button" class="okt-stop" title="Stopp" aria-label={`Stopp ${task.title}`} disabled={stopping().has(task.id)} onClick={() => void stop(task)}>
                           <span aria-hidden="true" />
                         </button>
