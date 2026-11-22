@@ -10,6 +10,7 @@ import { REPO_ROOT } from "../config.ts";
 import { HttpError } from "../errors.ts";
 import { defaultDownloadDir } from "../downloads.ts";
 import { findFavicon, MAX_FAVICON_BYTES } from "../favicon.ts";
+import { readProjectIcon, removeProjectIcon, saveProjectIcon } from "../project-icons.ts";
 import { chromeConfigHome, listChromeProfiles, previewChromeImport, readImported, removeImported, runChromeImport } from "../chrome-import.ts";
 import { DEFAULT_CONTEXT_WINDOW } from "../providers/presets.ts";
 import { HANDLED, type ApiDeps } from "./api.ts";
@@ -28,7 +29,7 @@ type Route = (method: string, spec: string, handler: (ctx: Ctx) => unknown) => v
 const tokensOf = (text: string) => Math.ceil(text.length / 4);
 
 export function navRoutes(route: Route, deps: ApiDeps, h: { project: (id: string) => Project; thread: (id: string) => Thread }): void {
-  const { store, runner } = deps;
+  const { store, runner, publish } = deps;
 
   // Round 10 (SPEC 23.1): import from Chrome. Only when asked, only Bookmarks and History, and a
   // preview first. See chrome-import.ts for what is and is not read.
@@ -103,6 +104,44 @@ export function navRoutes(route: Route, deps: ApiDeps, h: { project: (id: string
     });
     res.end(bytes);
     return HANDLED;
+  });
+
+  // v1.2.0: an image the user picked as the project's icon. Same policy as the favicon: an <img>
+  // only, its own type, no sniffing, and a policy that lets an SVG run nothing.
+  route("GET", "/api/projects/:id/icon", ({ params, res }) => {
+    const found = readProjectIcon(deps.dataDir, h.project(params.id).icon);
+    if (!found) throw new HttpError(404, "Prosjektet har ikke noe eget ikon");
+    res.writeHead(200, {
+      "content-type": found.type,
+      "content-length": found.bytes.length,
+      "cache-control": "private, max-age=86400",
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    });
+    res.end(found.bytes);
+    return HANDLED;
+  });
+
+  // Saves the image, makes it the project's icon and removes the file it replaces.
+  route("POST", "/api/projects/:id/icon", ({ params, body }) => {
+    const project = h.project(params.id);
+    const icon = saveProjectIcon(deps.dataDir, body.mime, body.data);
+    const previous = project.icon;
+    store.updateProject(project.id, { icon });
+    if (previous !== icon) removeProjectIcon(deps.dataDir, previous);
+    const updated = h.project(project.id);
+    publish({ type: "project.changed", project: updated });
+    return updated;
+  });
+
+  // Back to the default: the project's favicon when it has one, else a folder.
+  route("DELETE", "/api/projects/:id/icon", ({ params }) => {
+    const project = h.project(params.id);
+    store.updateProject(project.id, { icon: null });
+    removeProjectIcon(deps.dataDir, project.icon);
+    const updated = h.project(project.id);
+    publish({ type: "project.changed", project: updated });
+    return updated;
   });
 
   route("GET", "/api/thread-stats", () => store.threadDiffStats());

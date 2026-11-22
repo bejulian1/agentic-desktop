@@ -15,6 +15,7 @@ import { promptDialog, setInfoDialog } from "../ui/dialogs";
 import { finished, markSeen, markUnread, setSearchOpen } from "./home";
 import { chatProjectPageId, openPalette } from "./nav";
 import { setPinned, sideChat, toggleArchived } from "./thread-actions";
+import { toggleThreadDetails } from "./thread-details";
 import { openSkills, skillsOpen } from "./skills-workspace";
 
 export function focusedThreadId(): string | null {
@@ -138,6 +139,10 @@ const HANDLERS: Record<string, () => unknown> = {
   "view.sidebar": actions.toggleSidebar,
   "view.panel": actions.togglePanel,
   "view.summary": actions.toggleSummary,
+  "view.details": () => {
+    if (mode() !== "code") return toast(t("Tråddetaljer finnes i Kode."), "info");
+    toggleThreadDetails();
+  },
   "view.mode": actions.toggleMode,
   "help.shortcuts": actions.shortcuts,
   "palette.open": () => openPalette(),

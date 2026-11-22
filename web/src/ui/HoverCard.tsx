@@ -7,6 +7,8 @@ import type { ChatProject, Project, Thread } from "../../../shared/protocol";
 import { relativeTime } from "../lib/format";
 import { app, modelName, scope, settingsOpen, sidebarOpen } from "../state/app";
 import { peekModel, type ThreadModel } from "../state/thread-model";
+import { gitInfo, loadGitInfo } from "../state/home";
+import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { openChatProject, openThread } from "../state/navigate";
 import { IconBranch, IconChat, IconClock, IconCode, IconCpu, IconMonitor, IconFolder, IconPin, IconSettings } from "./icons";
@@ -72,6 +74,11 @@ function ThreadCard(props: { thread: Thread }) {
   // The model is loaded when the pointer reaches the row (preloadThread), so this is usually known.
   const model = () => peekModel(props.thread.id);
   const snoozed = () => (props.thread.snoozedUntil && props.thread.snoozedUntil > Date.now() ? props.thread.snoozedUntil : null);
+  // v1.2.0: the branch of the project and the kind of model, for Kode threads.
+  createEffect(() => { if (props.thread.projectId && app.projects[props.thread.projectId]) loadGitInfo(props.thread.projectId); });
+  const git = () => (props.thread.projectId && app.projects[props.thread.projectId] ? gitInfo(props.thread.projectId) : undefined);
+  const provider = () => modelProvider(props.thread.modelId);
+  const state = () => threadState(props.thread, false);
   return (
     <>
       <div class="hover-card-head">
@@ -83,8 +90,11 @@ function ThreadCard(props: { thread: Thread }) {
           {(p) => <><ProjectGlyph project={p()} size={14} /><span>{p().name}</span><span class="hover-card-mode">{t("Kode")}</span></>}
         </Show>
       </div>
-      <div class="hover-card-row muted hover-card-facts">
-        <IconCpu size={14} />
+      <Show when={git()?.branch}>
+        {(branch) => <div class="hover-card-row hover-card-branch" data-testid="hover-card-branch"><IconBranch size={14} /><span>{branch()}</span><Show when={git()?.detached}><span class="hover-card-mode">{t("frakoblet HEAD")}</span></Show></div>}
+      </Show>
+      <div class="hover-card-row muted hover-card-facts" data-testid="hover-card-model">
+        <Show when={props.thread.mode === "code"} fallback={<IconCpu size={14} />}><span class="hover-card-provider" title={provider().label}><ProviderGlyph family={provider().family} size={14} /></span></Show>
         <span>{modelName(props.thread.modelId)}</span>
         <Show when={model()}>{(m) => <span class="hover-card-count">{messageCount(m())}</span>}</Show>
       </div>
@@ -92,7 +102,7 @@ function ThreadCard(props: { thread: Thread }) {
         <IconClock size={14} />
         <span>{t("Sist aktiv {updated}, laget {created}", { updated: relativeTime(props.thread.updatedAt), created: new Date(props.thread.createdAt).toLocaleDateString(language(), { day: "numeric", month: "short" }) })}</span>
       </div>
-      <Show when={threadStatus(props.thread)}>{(status) => <div class="hover-card-row muted">{status()}</div>}</Show>
+      <Show when={threadStatus(props.thread)}>{(status) => <div class="hover-card-row muted hover-card-status"><span class="hover-card-state" data-state={state()} aria-hidden="true" /><span>{status()}</span></div>}</Show>
       <Show when={snoozed()}>
         {(until) => <div class="hover-card-row muted"><IconSnooze size={14} />{t("Utsatt til {time}", { time: new Date(until()).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) })}</div>}
       </Show>

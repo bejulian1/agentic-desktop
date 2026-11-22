@@ -28,14 +28,14 @@ flow("fargetemaer: forhåndsvisningen stemmer med temaet, hele appen følger med
   await page.getByRole("button", { name: "Innstillinger" }).first().click();
   await page.getByRole("button", { name: "Utseende", exact: true }).click();
   const cards = page.getByRole("radiogroup", { name: "Fargetema" }).getByRole("radio");
-  assert.equal(await cards.count(), 6);
-  assert.deepEqual(await cards.locator(".theme-card-name").allTextContents(), ["Standard", "Høy kontrast", "Varm", "Kald", "Fjord", "Solbleket"]);
+  assert.equal(await cards.count(), 11);
+  assert.deepEqual(await cards.locator(".theme-card-name").allTextContents(), ["Standard", "Ocean", "Rosa", "Skog", "Glød", "Iris", "Høy kontrast", "Varm", "Kald", "Fjord", "Solbleket"]);
   await page.locator('.theme-card[data-theme-id="standard"][aria-checked="true"]').waitFor();
 
   // Each preview is drawn with the theme's own tokens, in the light and the dark variant.
   for (const mode of ["Lys", "Mørk"]) {
-    await page.getByRole("group", { name: "Tema", exact: true }).getByRole("button", { name: mode }).click();
-    for (let i = 0; i < 6; i++) {
+    await page.getByRole("radiogroup", { name: "Tema", exact: true }).getByRole("radio", { name: mode }).click();
+    for (let i = 0; i < 11; i++) {
       const card = cards.nth(i);
       await card.click();
       await waitFor(async () => (await card.getAttribute("aria-checked")) === "true", "temaet er valgt");
@@ -49,10 +49,10 @@ flow("fargetemaer: forhåndsvisningen stemmer med temaet, hele appen følger med
   }
 
   // The arrow keys move the choice, like any radio group.
-  await page.getByRole("group", { name: "Tema", exact: true }).getByRole("button", { name: "Lys" }).click();
-  await cards.nth(4).click();
+  await page.getByRole("radiogroup", { name: "Tema", exact: true }).getByRole("radio", { name: "Lys" }).click();
+  await cards.nth(9).click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.palette), "fjord");
-  await cards.nth(4).press("ArrowRight");
+  await cards.nth(9).press("ArrowRight");
   await waitFor(async () => (await page.evaluate(() => document.documentElement.dataset.palette)) === "solbleket", "piltast velger neste");
   await page.keyboard.press("ArrowLeft");
   await waitFor(async () => (await page.evaluate(() => document.documentElement.dataset.palette)) === "fjord", "og forrige");
@@ -141,13 +141,24 @@ flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", a
   await panel.getByRole("button", { name: "Prøv igjen" }).click();
   await waitFor(async () => (await items.count()) === 2, "listen er tilbake");
 
-  // A link opens in the Nettleser panel, on the fake server.
+  // A pull request opens inside the panel, with its detail from the fake server, and Åpne i
+  // Nettleser then opens the page in the Nettleser panel.
   await panel.getByRole("button", { name: /Pull requests/ }).click();
   await items.first().click();
+  const inline = panel.getByTestId("github-inline");
+  await inline.waitFor();
+  await inline.getByRole("heading", { name: /Rask oppstart/ }).waitFor();
+  assert.equal(await panel.locator(".github-item").count(), 0, "listen er skjult mens detaljene vises");
+  await inline.getByRole("button", { name: "Åpne i fullvisning" }).waitFor();
+  await inline.getByRole("button", { name: "Tilbake" }).click();
+  await waitFor(async () => (await items.count()) === 2, "listen er tilbake");
+  await items.first().click();
+  await inline.getByRole("button", { name: "Åpne i Nettleser" }).click();
   await toolShown(page, "Nettleser");
   await waitFor(() => fake.requests.some((r) => r.path === "/acme/rakett/pull/42"), "siden ble åpnet i nettleserpanelet", 30_000);
 
   await openTool(page, "GitHub");
+  if (await panel.getByTestId("github-inline").count()) await panel.getByRole("button", { name: "Tilbake" }).click();
   await panel.getByRole("button", { name: "Vis i appen" }).click();
   const room = page.getByTestId("github-room");
   await room.getByRole("heading", { name: "Pull requests" }).waitFor();

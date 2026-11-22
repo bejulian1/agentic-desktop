@@ -5,8 +5,12 @@ import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 export const MAX_FAVICON_BYTES = 256 * 1024;
-const NAMES = ["favicon.ico", "favicon.svg", "favicon.png", "icon.svg", "logo.svg"];
-const DIRS = ["", "public", "static", "assets", "src", "app"];
+// v1.2.0: more of the places projects keep their icon, from the project folder down. The first
+// folder with a hit wins, and within it the first name.
+export const FAVICON_NAMES = ["favicon.ico", "favicon.svg", "favicon.png", "icon.svg", "icon.png", "apple-touch-icon.png", "logo.svg", "logo.png", "pack.png"];
+export const FAVICON_DIRS = ["", "public", "static", "assets", "src", "src/assets", "app", "web/public", "web/src/assets", "desktop/build", "resources"];
+const NAMES = FAVICON_NAMES;
+const DIRS = FAVICON_DIRS;
 const TYPES: Record<string, string> = { ".ico": "image/x-icon", ".svg": "image/svg+xml", ".png": "image/png" };
 const FRESH_MS = 30_000;
 

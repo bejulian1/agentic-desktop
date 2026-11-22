@@ -34,7 +34,7 @@ import type {
   ThemeSetting,
   Thread,
 } from "../../../shared/protocol.ts";
-import { BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
+import { CHAT_WIDTHS, UI_CONTRASTS, BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
 import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS } from "../../../shared/protocol.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
@@ -77,6 +77,7 @@ import type { Security } from "./security.ts";
 import { Artifacts, downloadName } from "../artifacts.ts";
 import type { PreviewServer } from "../preview.ts";
 import { findImage, saveImage } from "../images.ts";
+import { projectIconExists, removeProjectIcon } from "../project-icons.ts";
 import { saveTextUpload } from "../uploads.ts";
 import { makeFork } from "../agent/fork.ts";
 import { HistoryImporter } from "../history-import/index.ts";
@@ -492,6 +493,8 @@ export class Api {
       if (body.name !== undefined && (typeof body.name !== "string" || !cleanName(body.name))) throw new HttpError(400, "Navnet er tomt");
       if (body.color !== undefined && body.color !== null && !PROJECT_COLORS.some((c) => c.id === body.color)) throw new HttpError(400, "Ukjent farge");
       if (body.icon !== undefined && body.icon !== null && (typeof body.icon !== "string" || !isProjectIcon(body.icon))) throw new HttpError(400, "Ukjent ikon");
+      // An uploaded icon is made with POST /api/projects/:id/icon; here it can only be one that is there.
+      if (typeof body.icon === "string" && body.icon.startsWith("file:") && !projectIconExists(dataDir, body.icon)) throw new HttpError(400, "Fant ikke ikonfilen");
       if (body.defaultModelId && !store.model(body.defaultModelId)) throw new HttpError(400, "Fant ikke modellen");
       if (body.pinned !== undefined && typeof body.pinned !== "boolean") throw new HttpError(400, "pinned må være sann eller usann");
       if (body.agentBrowserAccess !== undefined && body.agentBrowserAccess !== null && typeof body.agentBrowserAccess !== "boolean") {
@@ -523,6 +526,8 @@ export class Api {
         agentBrowserAccess: body.agentBrowserAccess,
       });
       const project = this.project(params.id);
+      // The uploaded image goes when the project no longer uses it.
+      if (body.icon !== undefined && current.icon !== project.icon) removeProjectIcon(dataDir, current.icon);
       publish({ type: "project.changed", project });
       if (newPath) publish({ type: "project.files-changed", projectId: project.id, paths: ["."] });
       return project;
@@ -605,11 +610,12 @@ export class Api {
     });
 
     this.route("DELETE", "/api/projects/:id", async ({ params }) => {
-      this.project(params.id);
+      const removed = this.project(params.id);
       if (store.projectThreads(params.id).some((t) => t.running)) throw new HttpError(409, "En tråd kjører i prosjektet");
       await playtest.stop(params.id);
       for (const terminal of terminals.list(params.id)) await terminals.close(terminal.terminalId);
       store.deleteProject(params.id);
+      removeProjectIcon(dataDir, removed.icon);
       publish({ type: "project.deleted", projectId: params.id });
     });
 
@@ -1386,7 +1392,7 @@ export class Api {
 }
 
 const EFFORTS: ReasoningEffort[] = ["none", "low", "medium", "high", "xhigh", "max"];
-const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "thread.search", "pane.new", "folder.open", "settings.open", "view.sidebar", "view.panel", "view.summary", "view.mode", "help.shortcuts",
+const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "thread.search", "pane.new", "folder.open", "settings.open", "view.sidebar", "view.panel", "view.summary", "view.details", "view.mode", "help.shortcuts",
   "palette.open", "thread.rename", "thread.pin", "thread.unread", "thread.side", "thread.archive",
   "panel.files", "panel.changes", "panel.terminal", "panel.browser", "panel.team", "panel.overview",
   "browser.annotate", // round 11b
@@ -1417,10 +1423,12 @@ const ROUND5_CHOICES: Record<string, readonly string[]> = {
   openLinksIn: ["app", "system"],
   browserAppearance: ["system", "light", "dark"],
   threadNotifications: ["off", "notify", "sound"],
+  chatWidth: CHAT_WIDTHS, // v1.2.0
   projectOrder: ["recent", "created", "name"],
 };
 const ROUND5_NUMBERS: Record<string, readonly number[]> = {
   uiFontSize: [13, 14, 15, 16],
+  uiContrast: UI_CONTRASTS, // v1.2.0
   codeFontSize: [11, 12, 13, 14, 15, 16, 17, 18],
   tabSize: [2, 4, 8],
   browserDefaultZoom: BROWSER_ZOOMS,
@@ -1440,6 +1448,11 @@ function round5Settings(body: any): Partial<Settings> {
     out[key] = body[key] ?? undefined;
   }
   for (const key of ROUND5_FLAGS) if (body[key] !== undefined) out[key] = body[key] === true;
+  // v1.2.0: on by default, so null (reset) leaves it out and false is kept.
+  if (body.renderMath !== undefined) {
+    if (body.renderMath !== null && typeof body.renderMath !== "boolean") throw new HttpError(400, "Ugyldig verdi for renderMath");
+    out.renderMath = body.renderMath ?? undefined;
+  }
   return out as Partial<Settings>;
 }
 

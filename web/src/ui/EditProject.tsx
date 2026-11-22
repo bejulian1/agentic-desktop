@@ -6,7 +6,7 @@ import { lookupMessage, t } from "../lib/i18n";
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
 import { del, get, patch, put } from "../lib/api";
 import type { PermissionMode, Project, ProjectConfig } from "../../../shared/protocol";
-import { PROJECT_COLORS, PROJECT_ICONS } from "../../../shared/protocol";
+import { isProjectMonogram, PROJECT_COLORS, PROJECT_ICONS, suggestMonogram } from "../../../shared/protocol";
 import { app, report, toast } from "../state/app";
 import { confirmDialog, pickFolder } from "./dialogs";
 import { IconClose, IconFolder, IconSearch } from "./icons";
@@ -28,10 +28,18 @@ function basename(p: string): string {
   return p.replace(/\/+$/, "").split("/").pop() || p;
 }
 
-// Emoji and icons, a search, and the colours. Picking only changes the draft.
-export function IconPicker(props: { icon: string | null; color: string | null; onIcon: (icon: string | null) => void; onColor: (color: string | null) => void }) {
-  const [tab, setTab] = createSignal<"emoji" | "icons">(props.icon?.startsWith("emoji:") ? "emoji" : "icons");
+// Icons, emoji and a monogram, a search, and the colours. Picking only changes the draft. It is used
+// in Rediger prosjekt and in Innstillinger → Prosjekter. name: the project's name, for a suggested
+// monogram.
+type PickerTab = "icons" | "emoji" | "mono";
+const MONOGRAM_LIMIT = 3;
+const cleanMonogram = (text: string) => Array.from(text.replace(/[^\p{L}\p{N}]/gu, "")).slice(0, MONOGRAM_LIMIT).join("").toLocaleUpperCase();
+
+export function IconPicker(props: { icon: string | null; color: string | null; onIcon: (icon: string | null) => void; onColor: (color: string | null) => void; name?: string }) {
+  const [tab, setTab] = createSignal<PickerTab>(props.icon?.startsWith("emoji:") ? "emoji" : props.icon?.startsWith("mono:") ? "mono" : "icons");
   const [query, setQuery] = createSignal("");
+  const suggested = () => suggestMonogram(props.name ?? "");
+  const [mono, setMono] = createSignal(props.icon?.startsWith("mono:") ? props.icon.slice(5) : suggested());
   const icons = createMemo(() => {
     const q = query().trim().toLowerCase();
     return PROJECT_ICONS.filter((id) => !q || id.includes(q) || (ICON_NAMES[id] ?? "").includes(q));
@@ -40,24 +48,73 @@ export function IconPicker(props: { icon: string | null; color: string | null; o
     const q = query().trim().toLowerCase();
     return emojiOptions().filter(([e, words]) => !q || words.includes(q) || e === q);
   });
+  const monoValid = () => isProjectMonogram(mono());
+  const applyMono = () => {
+    if (monoValid()) props.onIcon(`mono:${mono()}`);
+  };
+  const tabs = (): Array<{ id: PickerTab; label: string }> => [
+    { id: "icons", label: t("Ikoner") },
+    { id: "emoji", label: t("Emoji") },
+    { id: "mono", label: t("Monogram") },
+  ];
+  const onTabKey = (event: KeyboardEvent) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const list = tabs();
+    const at = list.findIndex((entry) => entry.id === tab());
+    const next = list[(at + (event.key === "ArrowRight" ? 1 : -1) + list.length) % list.length];
+    setTab(next.id);
+    (event.currentTarget as HTMLElement).querySelector<HTMLElement>(`[data-picker-tab="${next.id}"]`)?.focus();
+  };
   return (
     <div class="icon-picker" data-testid="icon-picker">
-      <div class="icon-picker-tabs" role="tablist" aria-label={t("Type ikon")}>
-        <button type="button" role="tab" class="stats-tab" aria-selected={tab() === "emoji"} onClick={() => setTab("emoji")}>{t("Emoji")}</button>
-        <button type="button" role="tab" class="stats-tab" aria-selected={tab() === "icons"} onClick={() => setTab("icons")}>{t("Ikoner")}</button>
+      <div class="icon-picker-tabs" role="tablist" aria-label={t("Type ikon")} onKeyDown={onTabKey}>
+        <For each={tabs()}>
+          {(entry) => <button type="button" role="tab" class="stats-tab" data-picker-tab={entry.id} aria-selected={tab() === entry.id} tabindex={tab() === entry.id ? 0 : -1} onClick={() => setTab(entry.id)}>{entry.label}</button>}
+        </For>
         <span class="sidebar-spacer" />
         <button type="button" class="btn btn-small" disabled={!props.icon} title={t("Bruk prosjektets favicon hvis det har et, ellers en mappe")} onClick={() => props.onIcon(null)}>{t("Standard")}</button>
       </div>
-      <label class="icon-picker-search">
-        <IconSearch size={14} />
-        <input class="search-input" type="search" placeholder={tab() === "emoji" ? t("Søk etter emoji") : t("Søk etter ikoner")} aria-label={t("Søk etter ikoner")} value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
-      </label>
+      <Show when={tab() !== "mono"}>
+        <label class="icon-picker-search">
+          <IconSearch size={14} />
+          <input class="search-input" type="search" placeholder={tab() === "emoji" ? t("Søk etter emoji") : t("Søk etter ikoner")} aria-label={t("Søk etter ikoner")} value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
+        </label>
+      </Show>
       <div class="icon-picker-colors" role="radiogroup" aria-label={t("Farge")}>
         <button type="button" role="radio" class="swatch swatch-none" aria-checked={!props.color} aria-label={t("Ingen farge")} title={t("Ingen farge")} onClick={() => props.onColor(null)} />
         <For each={PROJECT_COLORS}>
           {(c) => <button type="button" role="radio" class="swatch" aria-checked={props.color === c.id} aria-label={lookupMessage(c.label)} title={lookupMessage(c.label)} style={`--swatch:${c.value}`} onClick={() => props.onColor(c.id)} />}
         </For>
       </div>
+      <Show when={tab() === "mono"}>
+        <div class="icon-picker-mono" data-testid="monogram-picker">
+          <ProjectGlyph project={{ icon: monoValid() ? `mono:${mono()}` : null, color: props.color }} size={36} />
+          <label class="icon-picker-mono-field">
+            <span>{t("Monogram")}</span>
+            <input
+              class="input"
+              aria-label={t("Monogram")}
+              value={mono()}
+              autocomplete="off"
+              spellcheck={false}
+              placeholder={suggested() || "AB"}
+              onInput={(e) => {
+                const next = cleanMonogram(e.currentTarget.value);
+                if (next !== e.currentTarget.value) e.currentTarget.value = next;
+                setMono(next);
+              }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyMono(); } }}
+            />
+          </label>
+          <Show when={suggested() && suggested() !== mono()}>
+            <button type="button" class="btn btn-small btn-quiet" title={t("Første bokstavene i prosjektnavnet")} onClick={() => setMono(suggested())}>{t("Foreslå {text}", { text: suggested() })}</button>
+          </Show>
+          <button type="button" class="btn btn-small" disabled={!monoValid() || props.icon === `mono:${mono()}`} onClick={applyMono}>{t("Bruk monogram")}</button>
+          <p class="muted small icon-picker-mono-help">{t("Ett til tre tegn. Fargen over blir fargen på merket.")}</p>
+        </div>
+      </Show>
+      <Show when={tab() !== "mono"}>
       <div class="icon-picker-grid" role="radiogroup" aria-label={tab() === "emoji" ? t("Emoji") : t("Ikoner")}>
         <Show
           when={tab() === "icons"}
@@ -82,6 +139,7 @@ export function IconPicker(props: { icon: string | null; color: string | null; o
           </For>
         </Show>
       </div>
+      </Show>
     </div>
   );
 }
@@ -178,7 +236,7 @@ function Dialog(props: { project: Project; tab: ProjectTab }) {
             <input class="edit-project-input" aria-label={t("Navn")} value={name()} onInput={(e) => setName(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && void save()} />
           </div>
           <Show when={picking()}>
-            <IconPicker icon={icon()} color={color()} onIcon={setIcon} onColor={setColor} />
+            <IconPicker icon={icon()} color={color()} onIcon={setIcon} onColor={setColor} name={name()} />
           </Show>
           <div class="edit-project-label">{t("Kildemappe")}</div>
           <div class="edit-project-folders">

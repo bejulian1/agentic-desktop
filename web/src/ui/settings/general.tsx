@@ -5,7 +5,7 @@ import {setModsOpen,uiMods} from "../../state/ui-mods";
 // Generelt, Utseende and Personvern og data. Kode and Chat are in ./modes.tsx (round 9). Every control here is saved on the server and acts at
 // once. Native window behavior is shown only inside the Electron app.
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
-import { threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThemeSetting, type ThreadNotifications } from "../../../../shared/protocol";
+import { threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThreadNotifications } from "../../../../shared/protocol";
 import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
 import { app, deleteThread, effectiveProjectOrder, report, setApp, setProjectSort, setSettingsOpen, toast } from "../../state/app";
@@ -14,15 +14,10 @@ import { openWelcome } from "../../state/welcome";
 import { confirmDialog } from "../dialogs";
 import { IconPlay } from "../icons";
 import { ThemePicker } from "../ThemePicker";
+import { ColorSchemeCards, InterfaceControls, InterfaceFontPreview } from "./appearance-controls";
 import { AppIconPicker } from "../AppIconPicker";
 import { permissionScope, permissionTitle } from "../permission-copy";
 import { Choice, Group, Page, Rich, Row, save, Segmented, Toggle } from "./parts";
-
-const THEMES = (): Array<{ value: ThemeSetting; label: string }> => [
-  { value: "light", label: t("Lys") },
-  { value: "dark", label: t("Mørk") },
-  { value: "system", label: t("System") },
-];
 
 const ACCENTS = (): Array<{ value: AccentColor; label: string }> => [
   { value: "blue", label: t("Blå") },
@@ -211,9 +206,7 @@ export function Appearance() {
   return (
     <Page title={t("Utseende")}>
       <Group title={t("Tema og farge")}>
-        <Row label={t("Tema")} text={t("System følger innstillingen i operativsystemet, også mens appen er åpen.")}>
-          <Segmented<ThemeSetting> label={t("Tema")} value={app.settings.theme} options={THEMES()} onChange={(v) => save({ theme: v })} />
-        </Row>
+        <ColorSchemeCards />
         <ThemePicker />
         <Row label={t("Aksentfarge")} text={t("Brytere, fokus, merker og aktivitetskartet.")}>
           <div class="swatches" role="radiogroup" aria-label={t("Aksentfarge")}>
@@ -303,6 +296,9 @@ export function Appearance() {
           <Segmented<"tools" | "browser"> label={t("Pluss i sidepanelet")} value={app.settings.panelNewTab ?? "tools"} options={[{ value: "tools", label: t("Verktøystartside") }, { value: "browser", label: t("Bare nettleser") }]} onChange={(v) => save({ panelNewTab: v })} />
         </Row>
       </Group>
+      <Group title={t("Grensesnitt")}>
+        <InterfaceControls />
+      </Group>
       <Group title={t("Tekst og bevegelse")}>
         <Row label={t("Tekststørrelse")} text={t("Grunnstørrelsen for tekst i hele appen. Vis → Zoom forstørrer alt, også bilder.")}>
           <Choice<number>
@@ -312,6 +308,7 @@ export function Appearance() {
             onChange={(v) => save({ uiFontSize: v })}
           />
         </Row>
+        <InterfaceFontPreview />
         <Row label={t("Tetthet")} text={t("Høyden på rader og knapper i sidefanen, menyene og her.")}>
           <Segmented<Density>
             label={t("Tetthet")}

@@ -150,6 +150,146 @@
   --accent: #3a9ae0; --accent-hover: #55a9e6; --on-accent: #002b36; --accent-soft: rgba(58, 154, 224, 0.2); --accent-text: #69b6ec; --selection: #1b4f63;
 }
 
+/* Ocean: kjølig havskifer og klar blågrønn, i stil med T3 Code */
+:root[data-palette="ocean"] {
+  --bg: #f5f9fc; --bg-sidebar: #ebf2f8; --bg-panel: #f1f6fa; --surface: #ffffff; --surface-2: #e6eef5; --surface-3: #d9e4ee;
+  --hover: rgba(20, 40, 70, 0.05); --active: rgba(20, 40, 70, 0.09); --border: rgba(20, 40, 70, 0.1); --border-strong: rgba(20, 40, 70, 0.18);
+  --text: #14202c; --text-2: #3a4a5b; --text-3: #52627a; --text-4: #9aa8b8;
+  --primary: #14202c; --primary-hover: #2a3a4c; --on-primary: #ffffff;
+  --danger: #b8372a; --danger-soft: #fbe9e7; --ok: #16724a; --warn: #835800; --warn-soft: #fbf2dc;
+  --add-bg: #e0f3ea; --add-text: #155f3e; --del-bg: #fbe6e5; --del-text: #a12f27;
+  --selected: #ffffff; --knob: #ffffff; --scrollbar: rgba(20, 40, 70, 0.2); --edge-shade: rgba(20, 40, 70, 0.06);
+  --tok-keyword: #5543b8; --tok-string: #19714f; --tok-comment: #5f6c7d; --tok-number: #9a520e; --tok-type: #0a6683; --tok-function: #2152ab; --tok-prop: #844572; --tok-meta: #586676;
+}
+:root[data-palette="ocean"]:not([data-accent]) {
+  --accent: #0d7c86; --accent-hover: #0b6a73; --on-accent: #ffffff; --accent-soft: rgba(13, 124, 134, 0.11); --accent-text: #0a6a73; --selection: #c4e5e9;
+}
+:root[data-palette="ocean"][data-theme="dark"] {
+  --bg: #141c24; --bg-sidebar: #10171f; --bg-panel: #121a22; --surface: #1b2530; --surface-2: #222e3b; --surface-3: #2c3a4a;
+  --hover: rgba(190, 220, 255, 0.06); --active: rgba(190, 220, 255, 0.1); --border: rgba(190, 220, 255, 0.09); --border-strong: rgba(190, 220, 255, 0.17);
+  --text: #e6eef6; --text-2: #b6c4d3; --text-3: #98a9bb; --text-4: #5f6f80;
+  --primary: #e6eef6; --primary-hover: #ffffff; --on-primary: #141c24;
+  --danger: #f4948b; --danger-soft: #3b2427; --ok: #74d6a9; --warn: #e8c171; --warn-soft: #33301e;
+  --add-bg: #18332a; --add-text: #92dfb9; --del-bg: #3d2427; --del-text: #f6aaa3;
+  --selected: #2c3a4a; --knob: #eef3f8; --scrollbar: rgba(190, 220, 255, 0.18); --edge-shade: rgba(0, 0, 0, 0.32);
+  --tok-keyword: #b9adff; --tok-string: #84d9b1; --tok-comment: #8e9eb0; --tok-number: #f2bc7a; --tok-type: #76cfe8; --tok-function: #97b9ff; --tok-prop: #e6a8d2; --tok-meta: #a5b5c6;
+}
+:root[data-palette="ocean"][data-theme="dark"]:not([data-accent]) {
+  --accent: #4dd4d0; --accent-hover: #70dedb; --on-accent: #08191c; --accent-soft: rgba(77, 212, 208, 0.16); --accent-text: #6fdfdb; --selection: #1d4a52;
+}
+
+/* Rosa: dyp plomme og rosa, med en myk rosatonet lys variant */
+:root[data-palette="rosa"] {
+  --bg: #fdf6f9; --bg-sidebar: #f7ebf0; --bg-panel: #faf1f5; --surface: #fffbfd; --surface-2: #f4e7ed; --surface-3: #ead9e1;
+  --hover: rgba(90, 30, 60, 0.05); --active: rgba(90, 30, 60, 0.09); --border: rgba(90, 30, 60, 0.1); --border-strong: rgba(90, 30, 60, 0.18);
+  --text: #2a1620; --text-2: #52384a; --text-3: #6b4f5f; --text-4: #b9a3ae;
+  --primary: #2a1620; --primary-hover: #46293a; --on-primary: #fff7fa;
+  --danger: #b3261e; --danger-soft: #fbe8e6; --ok: #2c7a4b; --warn: #855300; --warn-soft: #fbf0d9;
+  --add-bg: #e3f2e8; --add-text: #1f6a3f; --del-bg: #fbe3e1; --del-text: #9c2a20;
+  --selected: #fffbfd; --knob: #fffbfd; --scrollbar: rgba(90, 30, 60, 0.2); --edge-shade: rgba(90, 30, 60, 0.06);
+  --tok-keyword: #8d3a9e; --tok-string: #26704a; --tok-comment: #7a6370; --tok-number: #a15200; --tok-type: #1f6a82; --tok-function: #3b55b0; --tok-prop: #9a3d2a; --tok-meta: #6b5260;
+}
+:root[data-palette="rosa"]:not([data-accent]) {
+  --accent: #c2185b; --accent-hover: #a8134e; --on-accent: #ffffff; --accent-soft: rgba(194, 24, 91, 0.1); --accent-text: #a8134e; --selection: #f6cfdf;
+}
+:root[data-palette="rosa"][data-theme="dark"] {
+  --bg: #1e141b; --bg-sidebar: #191016; --bg-panel: #1b121a; --surface: #281b24; --surface-2: #2f2129; --surface-3: #3b2a34;
+  --hover: rgba(255, 205, 225, 0.06); --active: rgba(255, 205, 225, 0.1); --border: rgba(255, 205, 225, 0.09); --border-strong: rgba(255, 205, 225, 0.17);
+  --text: #f5e8ef; --text-2: #d4bfca; --text-3: #b9a0ae; --text-4: #7a6370;
+  --primary: #f5e8ef; --primary-hover: #ffffff; --on-primary: #1e141b;
+  --danger: #f59a95; --danger-soft: #43232a; --ok: #7fd6a5; --warn: #e8c171; --warn-soft: #3a2d1e;
+  --add-bg: #1c3328; --add-text: #9be0bb; --del-bg: #44222a; --del-text: #f7aaa8;
+  --selected: #3b2a34; --knob: #f8eef3; --scrollbar: rgba(255, 205, 225, 0.18); --edge-shade: rgba(0, 0, 0, 0.32);
+  --tok-keyword: #f29ac6; --tok-string: #9fd8a8; --tok-comment: #b49cab; --tok-number: #f2b980; --tok-type: #86cfe0; --tok-function: #a9b7f5; --tok-prop: #f0b09a; --tok-meta: #c4adba;
+}
+:root[data-palette="rosa"][data-theme="dark"]:not([data-accent]) {
+  --accent: #f06292; --accent-hover: #f484a8; --on-accent: #240b16; --accent-soft: rgba(240, 98, 146, 0.18); --accent-text: #f58bb0; --selection: #5a2a40;
+}
+
+/* Skog: rolig skogskifer og salvie */
+:root[data-palette="skog"] {
+  --bg: #f6faf7; --bg-sidebar: #ebf3ee; --bg-panel: #f1f7f3; --surface: #ffffff; --surface-2: #e5eee8; --surface-3: #d7e4dc;
+  --hover: rgba(20, 60, 40, 0.05); --active: rgba(20, 60, 40, 0.09); --border: rgba(20, 60, 40, 0.1); --border-strong: rgba(20, 60, 40, 0.18);
+  --text: #13221a; --text-2: #384c40; --text-3: #4f6557; --text-4: #9bafa2;
+  --primary: #13221a; --primary-hover: #254033; --on-primary: #ffffff;
+  --danger: #b3302a; --danger-soft: #fbe9e6; --ok: #1f7a4d; --warn: #835800; --warn-soft: #fbf2dc;
+  --add-bg: #dff3e6; --add-text: #17603a; --del-bg: #fbe6e3; --del-text: #a02d25;
+  --selected: #ffffff; --knob: #ffffff; --scrollbar: rgba(20, 60, 40, 0.2); --edge-shade: rgba(20, 60, 40, 0.06);
+  --tok-keyword: #6a3fa8; --tok-string: #1f6f45; --tok-comment: #566a5d; --tok-number: #9a520e; --tok-type: #0a6683; --tok-function: #2152ab; --tok-prop: #8c4a60; --tok-meta: #56685c;
+}
+:root[data-palette="skog"]:not([data-accent]) {
+  --accent: #1f7a4d; --accent-hover: #19663f; --on-accent: #ffffff; --accent-soft: rgba(31, 122, 77, 0.11); --accent-text: #19663f; --selection: #c5e5d3;
+}
+:root[data-palette="skog"][data-theme="dark"] {
+  --bg: #141c17; --bg-sidebar: #101713; --bg-panel: #121a15; --surface: #1b2620; --surface-2: #212e27; --surface-3: #2b3b32;
+  --hover: rgba(200, 255, 225, 0.06); --active: rgba(200, 255, 225, 0.1); --border: rgba(200, 255, 225, 0.09); --border-strong: rgba(200, 255, 225, 0.17);
+  --text: #e5efe9; --text-2: #b6c8bd; --text-3: #98ad9f; --text-4: #5f7266;
+  --primary: #e5efe9; --primary-hover: #ffffff; --on-primary: #141c17;
+  --danger: #f4948b; --danger-soft: #3b2426; --ok: #7fd6a5; --warn: #e8c171; --warn-soft: #33301e;
+  --add-bg: #1a3626; --add-text: #98e2b8; --del-bg: #3d2426; --del-text: #f6aaa3;
+  --selected: #2b3b32; --knob: #eef5f0; --scrollbar: rgba(200, 255, 225, 0.18); --edge-shade: rgba(0, 0, 0, 0.32);
+  --tok-keyword: #c0a8f5; --tok-string: #8fdcaa; --tok-comment: #8fa496; --tok-number: #f0c079; --tok-type: #7bd0e0; --tok-function: #97b9ff; --tok-prop: #e6a8c4; --tok-meta: #a7b8ad;
+}
+:root[data-palette="skog"][data-theme="dark"]:not([data-accent]) {
+  --accent: #52c98e; --accent-hover: #75d6a6; --on-accent: #08190f; --accent-soft: rgba(82, 201, 142, 0.16); --accent-text: #75d6a6; --selection: #20503a;
+}
+
+/* Glød: varm kullgrå og kobber, med en fløtehvit lys variant */
+:root[data-palette="glod"] {
+  --bg: #fcf8f4; --bg-sidebar: #f5ede4; --bg-panel: #f9f3ec; --surface: #fffdfa; --surface-2: #f1e8dd; --surface-3: #e6dacb;
+  --hover: rgba(80, 45, 20, 0.05); --active: rgba(80, 45, 20, 0.09); --border: rgba(80, 45, 20, 0.1); --border-strong: rgba(80, 45, 20, 0.18);
+  --text: #2a1d14; --text-2: #54402f; --text-3: #6a5646; --text-4: #b5a392;
+  --primary: #2a1d14; --primary-hover: #46321f; --on-primary: #fffaf4;
+  --danger: #ad3620; --danger-soft: #fbe8e2; --ok: #3a7228; --warn: #855300; --warn-soft: #fbf0d9;
+  --add-bg: #e7f2dc; --add-text: #33622a; --del-bg: #fbe5df; --del-text: #9c301d;
+  --selected: #fffdfa; --knob: #fffdfa; --scrollbar: rgba(80, 45, 20, 0.22); --edge-shade: rgba(80, 45, 20, 0.07);
+  --tok-keyword: #983372; --tok-string: #48701c; --tok-comment: #74665a; --tok-number: #a15200; --tok-type: #2b6679; --tok-function: #2f58a8; --tok-prop: #82432a; --tok-meta: #6a5d52;
+}
+:root[data-palette="glod"]:not([data-accent]) {
+  --accent: #b54d1d; --accent-hover: #9c4118; --on-accent: #ffffff; --accent-soft: rgba(181, 77, 29, 0.11); --accent-text: #9c4118; --selection: #f3d5c1;
+}
+:root[data-palette="glod"][data-theme="dark"] {
+  --bg: #1c1714; --bg-sidebar: #171310; --bg-panel: #191512; --surface: #261f1a; --surface-2: #2d251f; --surface-3: #3a3028;
+  --hover: rgba(255, 225, 200, 0.06); --active: rgba(255, 225, 200, 0.1); --border: rgba(255, 225, 200, 0.09); --border-strong: rgba(255, 225, 200, 0.17);
+  --text: #f3e8dd; --text-2: #cfbfae; --text-3: #b3a08d; --text-4: #76675a;
+  --primary: #f3e8dd; --primary-hover: #fff8ef; --on-primary: #1c1714;
+  --danger: #f2907a; --danger-soft: #42241c; --ok: #a6d281; --warn: #ebbd6c; --warn-soft: #3a2d18;
+  --add-bg: #263220; --add-text: #b4dc96; --del-bg: #42251f; --del-text: #f6ae9c;
+  --selected: #3a3028; --knob: #f6efe6; --scrollbar: rgba(255, 225, 200, 0.2); --edge-shade: rgba(0, 0, 0, 0.32);
+  --tok-keyword: #e8a0ca; --tok-string: #b8d68e; --tok-comment: #ab9c8a; --tok-number: #f2b96f; --tok-type: #92cad9; --tok-function: #9db8f2; --tok-prop: #eab890; --tok-meta: #bdaf9f;
+}
+:root[data-palette="glod"][data-theme="dark"]:not([data-accent]) {
+  --accent: #e88c54; --accent-hover: #eea173; --on-accent: #1c1008; --accent-soft: rgba(232, 140, 84, 0.18); --accent-text: #f0a574; --selection: #5a3820;
+}
+
+/* Iris: dyp midnattsindigo og lavendel */
+:root[data-palette="iris"] {
+  --bg: #f8f7fc; --bg-sidebar: #eeecf7; --bg-panel: #f4f2fa; --surface: #ffffff; --surface-2: #e9e6f4; --surface-3: #dcd8ec;
+  --hover: rgba(40, 30, 90, 0.05); --active: rgba(40, 30, 90, 0.09); --border: rgba(40, 30, 90, 0.1); --border-strong: rgba(40, 30, 90, 0.18);
+  --text: #1b1830; --text-2: #423e60; --text-3: #5a5678; --text-4: #a9a5c3;
+  --primary: #1b1830; --primary-hover: #322d52; --on-primary: #ffffff;
+  --danger: #b3302f; --danger-soft: #fbe9ea; --ok: #1d7248; --warn: #835800; --warn-soft: #fbf2dc;
+  --add-bg: #e0f3ea; --add-text: #155f3e; --del-bg: #fbe6e8; --del-text: #a02d30;
+  --selected: #ffffff; --knob: #ffffff; --scrollbar: rgba(40, 30, 90, 0.2); --edge-shade: rgba(40, 30, 90, 0.06);
+  --tok-keyword: #5e47c7; --tok-string: #19714f; --tok-comment: #605d7c; --tok-number: #9a520e; --tok-type: #0a6683; --tok-function: #2152ab; --tok-prop: #9a3d78; --tok-meta: #5d5a78;
+}
+:root[data-palette="iris"]:not([data-accent]) {
+  --accent: #5e47c7; --accent-hover: #4f3bb0; --on-accent: #ffffff; --accent-soft: rgba(94, 71, 199, 0.1); --accent-text: #4f3bb0; --selection: #d6cffa;
+}
+:root[data-palette="iris"][data-theme="dark"] {
+  --bg: #171622; --bg-sidebar: #13121c; --bg-panel: #151420; --surface: #201f2e; --surface-2: #272639; --surface-3: #323248;
+  --hover: rgba(210, 205, 255, 0.06); --active: rgba(210, 205, 255, 0.1); --border: rgba(210, 205, 255, 0.09); --border-strong: rgba(210, 205, 255, 0.17);
+  --text: #ebeaf7; --text-2: #bebcd8; --text-3: #a09ebf; --text-4: #67658a;
+  --primary: #ebeaf7; --primary-hover: #ffffff; --on-primary: #171622;
+  --danger: #f4948f; --danger-soft: #3b2430; --ok: #74d6a9; --warn: #e8c171; --warn-soft: #33301e;
+  --add-bg: #18332a; --add-text: #92dfb9; --del-bg: #3d2430; --del-text: #f6aaa8;
+  --selected: #323248; --knob: #f0effa; --scrollbar: rgba(210, 205, 255, 0.18); --edge-shade: rgba(0, 0, 0, 0.34);
+  --tok-keyword: #c4b0ff; --tok-string: #84d9b1; --tok-comment: #9a98b8; --tok-number: #f2bc7a; --tok-type: #76cfe8; --tok-function: #97b9ff; --tok-prop: #eaa5d2; --tok-meta: #aeacc8;
+}
+:root[data-palette="iris"][data-theme="dark"]:not([data-accent]) {
+  --accent: #a38bff; --accent-hover: #b8a6ff; --on-accent: #130d2b; --accent-soft: rgba(163, 139, 255, 0.18); --accent-text: #b9a8ff; --selection: #3d3478;
+}
+
 /* The activity map follows the accent, whichever it is. */
 :root[data-palette]:not([data-palette="standard"]) {
   --heat-0: var(--surface-3);

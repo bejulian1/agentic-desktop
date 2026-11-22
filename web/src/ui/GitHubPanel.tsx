@@ -3,22 +3,30 @@ import { lookupMessage, language, plural, t } from "../lib/i18n.ts";
 // GitHub in the right panel (round 8, agent G): the project's repo from .git/config, and its
 // open pull requests and issues, read only. A link opens in the Nettleser panel. The token never
 // reaches the browser; the server asks GitHub and sends back only what is shown here.
-import { createResource, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
-import type { GitHubItem, GitHubProject } from "../../../shared/protocol";
+import { createResource, createSignal, For, lazy, Match, onCleanup, Show, Suspense, Switch } from "solid-js";
+import type { GitHubItem, GitHubProject, GitHubReference } from "../../../shared/protocol";
 import { ApiError, get } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import { send } from "../lib/socket";
-import { setSettingsOpen } from "../state/app";
+import { app, setSettingsOpen } from "../state/app";
 import { showPanel } from "../state/panel";
 import { errorTitle, IconDraft, IconPullRequest, resetText } from "./GitHubShared";
-import { IconChat, IconGlobe, IconIssue, IconReload } from "./icons";
+import { IconBack, IconChat, IconGlobe, IconIssue, IconReload } from "./icons";
+import { IconExpand } from "./nav-icons";
+import { ProjectGlyph } from "./ProjectGlyph";
 import { Rich } from "./settings/parts";
 
 const memory = new Map<string, "pulls" | "issues">();
 
+// One pull request or issue in the panel itself: title, checks, description, files and comments,
+// the same view as in the full GitHub room, loaded when the first one is opened.
+const GitHubDetailView = lazy(() => import("./GitHubRoom").then((m) => ({ default: m.GitHubDetailView })));
+
 export default function GitHubPanel(props: { projectId: string }) {
   const [refreshing, setRefreshing] = createSignal(false);
   const [list, setList] = createSignal<"pulls" | "issues">(memory.get(props.projectId) ?? "pulls");
+  // The pull request or issue open in the panel, or none (the list).
+  const [selected, setSelected] = createSignal<{ reference: GitHubReference; url: string } | null>(null);
   const [data, { mutate }] = createResource(
     () => props.projectId,
     async (id) => {
@@ -57,6 +65,11 @@ export default function GitHubPanel(props: { projectId: string }) {
     showPanel("browser");
     send({ type: "browser.navigate", projectId: props.projectId, url });
   };
+  const show = (item: GitHubItem) => {
+    const remote = data()?.remote;
+    if (!remote) return;
+    setSelected({ reference: { repo: `${remote.owner}/${remote.repo}`, kind: list() === "pulls" ? "pull" : "issues", number: item.number }, url: item.url });
+  };
 
   // The same limit as relativeTime()'s «nå». Outside Norwegian relativeTime() answers with a whole
   // phrase («5 min. ago»), so {time} in these texts is translated as that phrase alone.
@@ -72,6 +85,7 @@ export default function GitHubPanel(props: { projectId: string }) {
     <div class="github-panel" data-testid="github-panel">
       <div class="github-head">
         <span class="github-title">GitHub</span>
+        <Show when={app.projects[props.projectId]}>{(project) => <span class="github-project" title={project().name} data-testid="github-project-glyph"><ProjectGlyph project={project()} size={14} /></span>}</Show>
         <Show when={data()?.remote}>
           <button type="button" class="github-repo" title={t("Åpne {url} i Nettleser", { url: data()!.remote!.url })} onClick={() => openLink(data()!.repo?.url ?? data()!.remote!.url)}>
             <span class="github-owner">{data()!.remote!.owner}/</span><span class="github-name">{data()!.remote!.repo}</span>
@@ -129,7 +143,22 @@ export default function GitHubPanel(props: { projectId: string }) {
               </div>
             )}
           </Show>
-          <Show when={data()!.pulls || data()!.issues}>
+          <Show when={selected()} keyed>
+            {(open) => (
+              <div class="github-inline" data-testid="github-inline">
+                <div class="github-inline-bar">
+                  <button type="button" class="btn btn-small btn-ghost" onClick={() => setSelected(null)}><IconBack size={14} />{t("Tilbake")}</button>
+                  <span class="spacer" />
+                  <button type="button" class="btn btn-small" title={t("Åpne {url} i Nettleser", { url: open.url })} onClick={() => openLink(open.url)}><IconGlobe size={13} />{t("Åpne i Nettleser")}</button>
+                  <button type="button" class="btn btn-small" title={t("Åpne i hele vinduet")} onClick={() => openGitHubRoom(open.reference.kind, props.projectId, open.reference)}><IconExpand size={13} />{t("Åpne i fullvisning")}</button>
+                </div>
+                <Suspense fallback={<div class="github-skeleton" role="status" aria-label={t("Henter fra GitHub")}><div class="github-skeleton-row"><span class="skeleton skeleton-line" /><span class="skeleton skeleton-line short" /></div></div>}>
+                  <GitHubDetailView reference={open.reference} />
+                </Suspense>
+              </div>
+            )}
+          </Show>
+          <Show when={!selected() && (data()!.pulls || data()!.issues)}>
             <div class="segmented github-switch" role="group" aria-label={t("Liste")}>
               <button type="button" class="segment" aria-pressed={list() === "pulls"} onClick={() => choose("pulls")}>{t("Pull requests")}<span class="count">{data()!.pulls?.length ?? 0}</span></button>
               <button type="button" class="segment" aria-pressed={list() === "issues"} onClick={() => choose("issues")}>{t("Issues")}<span class="count">{data()!.issues?.length ?? 0}</span></button>
@@ -138,7 +167,7 @@ export default function GitHubPanel(props: { projectId: string }) {
               <For each={items()} fallback={<li class="github-none">{list() === "pulls" ? t("Ingen åpne pull requests.") : t("Ingen åpne issues.")}</li>}>
                 {(item) => (
                   <li>
-                    <button type="button" class="github-item" title={`${item.title}\n${t("Åpnes i Nettleser")}`} onClick={() => openLink(item.url)}>
+                    <button type="button" class="github-item" title={`${item.title}\n${t("Vis her i panelet")}`} onClick={() => show(item)}>
                       <span class="github-item-icon" data-kind={list() === "pulls" ? (item.draft ? "draft" : "pull") : "issue"}>
                         {list() === "pulls" ? (item.draft ? <IconDraft size={15} /> : <IconPullRequest size={15} />) : <IconIssue size={15} />}
                       </span>
