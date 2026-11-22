@@ -33,6 +33,7 @@ function lookOf(settings: Partial<Settings>): Look {
     vars["--ui-contrast"] = String(Math.min(115, Math.max(85, settings.uiContrast)) / 100);
   }
   if (settings.chatWidth && settings.chatWidth !== "comfortable") attrs["data-chat-width"] = settings.chatWidth;
+  if (settings.uiFont && settings.uiFont !== "system") attrs["data-ui-font"] = settings.uiFont; // v1.3.0
   if (settings.codeFont && settings.codeFont !== "system") attrs["data-code-font"] = settings.codeFont;
   if (settings.codeFontCustom) vars["--font-mono"] = `${JSON.stringify(settings.codeFontCustom)}, monospace`;
   if (settings.codeThemeLight && settings.codeThemeLight !== "app") attrs["data-code-light"] = settings.codeThemeLight;
@@ -48,7 +49,7 @@ function lookOf(settings: Partial<Settings>): Look {
   return { attrs, vars };
 }
 
-const ATTRS = ["data-ui-contrast", "data-chat-width", "data-accent", "data-palette", "data-density", "data-ui-size", "data-code-font", "data-code-light", "data-code-dark", "data-motion", "data-wrap-code", "data-diff-colors", "data-code-size"];
+const ATTRS = ["data-ui-font", "data-ui-contrast", "data-chat-width", "data-accent", "data-palette", "data-density", "data-ui-size", "data-code-font", "data-code-light", "data-code-dark", "data-motion", "data-wrap-code", "data-diff-colors", "data-code-size"];
 const VARS = ["--ui-contrast", "--code-font-size", "--tab-size", "--font-mono"];
 
 // Called with the settings as the server sent them, so a field that was reset is gone here too.

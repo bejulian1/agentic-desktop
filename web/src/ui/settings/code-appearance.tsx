@@ -5,12 +5,21 @@ import { patch } from '../../lib/api';
 import { Choice, Group, Row, reset, save, Segmented, Toggle } from './parts';
 
 import { t } from '../../lib/i18n';
+import '../../styles/projects-settings.css';
 type Palette = 'app' | 'clear' | 'warm' | 'contrast';
 // Functions, so the labels follow the active language.
-const fonts = (): Array<{value:CodeFont; label:string}> => [
- {value:'system',label:t('Systemets monospace')},{value:'ubuntu',label:'Ubuntu Mono'},{value:'dejavu',label:'DejaVu Sans Mono'},
- {value:'jetbrains',label:'JetBrains Mono'},{value:'fira',label:'Fira Code'},{value:'cascadia',label:'Cascadia Code'},
+export const codeFonts = (): Array<{value:CodeFont; label:string}> => [
+ {value:'system',label:t('Systemets monospace')},{value:'jetbrains',label:'JetBrains Mono'},{value:'fira',label:'Fira Code'},
+ {value:'liberation',label:'Liberation Mono'},{value:'dejavu',label:'DejaVu Sans Mono'},{value:'ubuntu',label:'Ubuntu Mono'},{value:'cascadia',label:'Cascadia Code'},
 ];
+const codeSizes = () => [{value:0,label:t("Standard")},...[11,12,13,14,15,16,17,18].map(n=>({value:n,label:`${n} px`}))];
+// v1.3.0: the code font and its size side by side, as in T3 Code's Typografi. Used here and in Utseende.
+export function MonoFontControls(props:{onFont?:()=>void}) {
+ return <div class="font-pair">
+  <Choice<CodeFont> label={t("Kodeskrift")} value={app.settings.codeFont??'system'} options={codeFonts()} onChange={v=>{props.onFont?.();save({codeFont:v,codeFontCustom:''});}}/>
+  <Choice<number> label={t("Skriftstørrelse for kode")} value={app.settings.codeFontSize??0} options={codeSizes()} onChange={v=>v===0?reset("codeFontSize"):save({codeFontSize:v})}/>
+ </div>;
+}
 const palettes = (): Array<{value:Palette;label:string}> => [{value:'app',label:t('Følg appen')},{value:'clear',label:t('Klar')},{value:'warm',label:t('Varm')},{value:'contrast',label:t('Høy kontrast')}];
 function CodePreview(props:{tone:'light'|'dark';palette:Palette}) {
  return <div class="code-settings-preview" data-code-preview={props.tone} data-code-light={props.palette} data-code-dark={props.palette} data-theme={props.tone}>
@@ -22,10 +31,8 @@ function CodePreview(props:{tone:'light'|'dark';palette:Palette}) {
 }
 // v1.2.0: what code looks like with the choices below, in the app's own colours: a diff and a
 // terminal. The font, the size, the tab width and the wrapping follow the settings at once.
-function CodeLivePreview() {
- return <div class="setting setting-block code-live" data-testid="code-live-preview">
-  <div class="setting-text"><strong>{t("Forhåndsvisning av kode")}</strong><span class="muted">{t("Viser skrift, størrelse, tabulatorbredde og linjebryting slik du har valgt dem.")}</span></div>
-  <div class="code-live-grid">
+export function CodeLivePreview(props:{bare?:boolean}) {
+ const grid = <div class="code-live-grid" data-testid={props.bare?"code-live-preview":undefined}>
    <div class="code-live-block" data-kind="diff">
     <div class="code-live-head"><span>{t("Endringer")}</span><span class="code-live-file">src/greet.ts</span></div>
     <pre aria-label={t("Eksempel på en endring")}><span class="code-preview-line"><i>1</i><span class="tok-keyword">export function</span> <span class="tok-function">hils</span>(navn: <span class="tok-typeName">string</span>) {'{'}</span>
@@ -40,7 +47,11 @@ function CodeLivePreview() {
 <span class="code-preview-line"><span class="code-live-fail">✖</span> hils uten navn <span class="tok-comment">(1 ms)</span></span>
 <span class="code-preview-line tok-comment">ℹ tests 2, pass 1, fail 1</span></pre>
    </div>
-  </div>
+  </div>;
+ if(props.bare)return grid;
+ return <div class="setting setting-block code-live" data-testid="code-live-preview">
+  <div class="setting-text"><strong>{t("Forhåndsvisning av kode")}</strong><span class="muted">{t("Viser skrift, størrelse, tabulatorbredde og linjebryting slik du har valgt dem.")}</span></div>
+  {grid}
  </div>;
 }
 
@@ -61,9 +72,8 @@ export function CodeAppearance() {
    </div>;}}</For></div>
   </div>
   <CodeLivePreview/>
-  <Row label={t("Kodeskrift")} text={t("Velg en installert skrift. Systemets monospace brukes som reserve.")}><Choice<CodeFont> label={t("Kodeskrift")} value={app.settings.codeFont??'system'} options={fonts()} onChange={v=>{setCustom('');save({codeFont:v,codeFontCustom:''});}}/></Row>
+  <Row label={t("Skrift for kode")} text={t("Kodeblokker, filvisning, differanser, kommandoutdata og terminal. Velg en installert skrift; systemets monospace brukes som reserve.")}><MonoFontControls onFont={()=>setCustom('')}/></Row>
   <Row label={t("Egen kodeskrift")} text={t("Skriv navnet på en skrift som finnes på maskinen. Tomt følger valget over. Ingen skrift lastes ned.")}><div><input class="input" aria-label={t("Egen kodeskrift")} placeholder={t("For eksempel JetBrains Mono")} maxlength="120" value={custom()} onInput={e=>setCustom(e.currentTarget.value)} onBlur={()=>void commit()} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void commit();}}}/><span class="field-error" role={error()?'alert':undefined}>{error()}</span></div></Row>
-  <Row label={t("Skriftstørrelse for kode")} text={t("Kodeblokker, filvisning, differanser, kommandoutdata og terminal.")}><Choice<number> label={t("Skriftstørrelse for kode")} value={app.settings.codeFontSize??0} options={[{value:0,label:t("Standard")},...[11,12,13,14,15,16,17,18].map(n=>({value:n,label:`${n} px`}))]} onChange={v=>v===0?reset("codeFontSize"):save({codeFontSize:v})}/></Row>
   <Row label={t("Tabulatorbredde")} text={t("Visningsbredden på tabulatortegn i kode.")}><Segmented<number> label={t("Tabulatorbredde")} value={app.settings.tabSize??4} options={[2,4,8].map(n=>({value:n,label:String(n)}))} onChange={v=>save({tabSize:v})}/></Row>
   <Toggle label={t("Bryt lange linjer")} text={t("Bryt lange linjer i kodeblokker fremfor å rulle sidelengs.")} checked={app.settings.wrapCode??false} onChange={v=>save({wrapCode:v})}/>
  </Group>;

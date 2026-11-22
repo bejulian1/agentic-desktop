@@ -6,13 +6,13 @@ import { createEffect, createMemo, createSignal, For, Show, type JSX } from "sol
 import type { Thread } from "../../../shared/protocol";
 import { plural, t } from "../lib/i18n";
 import { relativeTime } from "../lib/format";
-import { app, currentProject, mode, modelName, setSettingsOpen } from "../state/app";
+import { app, currentProject, LOCAL_SCOPE, mode, modelName, setSettingsOpen } from "../state/app";
 import { actions, focusedThread } from "../state/actions";
 import { gitInfo, loadGitInfo } from "../state/home";
 import { openThread } from "../state/navigate";
 import { chatProjectPageId, diffStats, loadDiffStats, profileOpen } from "../state/nav";
 import { showPanel } from "../state/panel";
-import { openVscode } from "../state/project-actions";
+import { actionsFor, openActionsEditor, openVscode, runProjectAction } from "../state/project-actions";
 import { room } from "../state/artifacts";
 import { skillsOpen } from "../state/skills-workspace";
 import { studioOpen } from "../state/studio";
@@ -20,7 +20,7 @@ import { displayKeys, keysFor } from "../state/shortcuts";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { setThreadDetailsOpen, threadDetailsOpen } from "../state/thread-details";
 import { openGitWorkspace } from "./dialog-state";
-import { IconBranch, IconChevron, IconDiff, IconFolder, IconInfo, IconMonitor, IconSettings, IconVsCode } from "./icons";
+import { IconBranch, IconChevron, IconDiff, IconFolder, IconInfo, IconMonitor, IconPlay, IconPlus, IconSettings, IconVsCode } from "./icons";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
@@ -51,6 +51,26 @@ function Card(props: { close: () => void }) {
   });
   loadDiffStats();
   const branch = () => (project() ? gitInfo(project()!.id) : undefined);
+  // v1.3.0: the project's actions (or Denne datamaskinen's), run in a new terminal tab.
+  const scopeId = () => project()?.id ?? LOCAL_SCOPE;
+  const scripts = () => actionsFor(scopeId());
+  const scriptRows = () => (
+    <>
+      <For each={scripts()}>
+        {(action) => (
+          <Row
+            icon={<IconPlay size={14} />}
+            label={action.name}
+            hint={action.shortcut ? <kbd class="details-kbd">{displayKeys(action.shortcut)}</kbd> : undefined}
+            title={t("Kjør i terminalen: {command}", { command: action.command })}
+            testid="details-action"
+            onClick={() => run(() => runProjectAction(scopeId(), action))}
+          />
+        )}
+      </For>
+      <Row icon={<IconPlus size={15} />} label={t("Legg til prosjektskript")} title={t("Lag en kommando som kan kjøres i prosjektets terminal")} testid="details-add-action" onClick={() => run(() => openActionsEditor(scopeId()))} />
+    </>
+  );
   const stat = () => (thread() ? diffStats()[thread()!.id] : undefined);
   // The threads made from this one, or else the project's other agent threads.
   const own = createMemo(() => Object.values(app.threads).filter((x): x is Thread => !!x && !x.archived && !!thread() && x.parentThreadId === thread()!.id));
@@ -85,11 +105,12 @@ function Card(props: { close: () => void }) {
         </Show>
         <Show
           when={project()}
-          fallback={<Row icon={<IconFolder size={15} />} label={t("Åpne mappe…")} onClick={() => run(actions.openFolder)} />}
+          fallback={<><Row icon={<IconFolder size={15} />} label={t("Åpne mappe…")} onClick={() => run(actions.openFolder)} />{scriptRows()}</>}
         >
           {(p) => (
             <>
               <Row icon={<IconVsCode size={15} />} label={t("Åpne i VS Code")} title={t("Åpne prosjektmappen i VS Code")} testid="details-vscode" onClick={() => run(() => openVscode(p().id))} />
+              {scriptRows()}
               <Row icon={<IconSettings size={15} />} label={t("Prosjektinnstillinger")} title={t("Navn, ikon, standardvalg og instruksjoner for prosjektet")} testid="details-project-settings" onClick={() => run(() => setSettingsOpen("projects"))} />
             </>
           )}

@@ -1,8 +1,10 @@
+import { createSignal } from "solid-js";
 import { plural, t } from "../lib/i18n";
-import type { PlaytestState } from "../../../shared/protocol";
+import type { PlaytestState, ProjectAction } from "../../../shared/protocol";
 import { ApiError, post } from "../lib/api";
-import { app, report, setApp, toast } from "./app";
+import { app, LOCAL_SCOPE, mode, report, scope, setApp, setSettingsOpen, settingsOpen, toast } from "./app";
 import { showPanel } from "./panel";
+import { comboOf } from "./shortcuts";
 import { peekModel } from "./thread-model";
 import { confirmDialog } from "../ui/dialogs";
 
@@ -78,4 +80,51 @@ export async function revertLastTurn(threadId: string | null): Promise<void> {
 
 export function runningInProject(projectId: string): number {
   return Object.values(app.threads).filter((t) => t.projectId === projectId && t.running).length;
+}
+
+// v1.3.0: project actions (T3 Code's project scripts). A scope is a project id, or LOCAL_SCOPE for
+// Denne datamaskinen, whose actions are in the settings.
+export function actionsFor(scopeId: string | null | undefined): ProjectAction[] {
+  if (!scopeId) return [];
+  return (scopeId === LOCAL_SCOPE ? app.settings.localActions : app.projects[scopeId]?.actions) ?? [];
+}
+
+// Runs a saved action in a new terminal tab; the server only runs what is stored.
+export async function runProjectAction(scopeId: string, action: Pick<ProjectAction, "id" | "name">): Promise<boolean> {
+  try {
+    await post(`/api/projects/${encodeURIComponent(scopeId)}/actions/${encodeURIComponent(action.id)}/run`);
+    if (mode() === "code" && scope() === scopeId && !settingsOpen()) showPanel("terminal");
+    toast(t("Kjører «{name}» i terminalen.", { name: action.name }), "info");
+    return true;
+  } catch (err) {
+    report(err);
+    return false;
+  }
+}
+
+// A keyboard shortcut set on an action of the project on show in Kode. The app's own shortcuts
+// come first (actions.ts); this is asked only when none of them matched.
+export function runActionShortcut(event: KeyboardEvent): boolean {
+  if (mode() !== "code" || settingsOpen()) return false;
+  const combo = comboOf(event);
+  if (!combo) return false;
+  const current = scope();
+  const action = actionsFor(current).find((a) => a.shortcut === combo);
+  if (!action) return false;
+  void runProjectAction(current, action);
+  return true;
+}
+
+// Tråddetaljer → «Legg til prosjektskript»: Innstillinger → Prosjekter for that scope, with the
+// form for a new action open.
+const [actionsEditorRequest, setActionsEditorRequest] = createSignal<string | null>(null);
+export { actionsEditorRequest };
+export function openActionsEditor(scopeId: string): void {
+  setActionsEditorRequest(scopeId);
+  setSettingsOpen("projects");
+}
+export function takeActionsEditorRequest(scopeId: string): boolean {
+  if (actionsEditorRequest() !== scopeId) return false;
+  setActionsEditorRequest(null);
+  return true;
 }

@@ -78,6 +78,16 @@ export class Terminals {
     return terminal.id;
   }
 
+  // v1.3.0: a project action (T3 Code's project scripts) in its own tab. The command runs in a
+  // shell, and an interactive shell stays afterwards, so the output can be read and the command run
+  // again. The command goes in an environment variable, never pasted into the shell's arguments.
+  runAction(project: Project, title: string, command: string): string {
+    const shell = process.env.SHELL || "/bin/bash";
+    const script = 'cmd=$AGENTIC_ACTION_COMMAND; unset AGENTIC_ACTION_COMMAND; printf "\\033[2m$ %s\\033[0m\\n" "$cmd"; eval "$cmd"; exec "$AGENTIC_ACTION_SHELL" -i';
+    const terminal = this.spawn(project, { title, file: "bash", args: ["-c", script], cols: 100, rows: 30, extraEnv: { AGENTIC_ACTION_COMMAND: command, AGENTIC_ACTION_SHELL: shell } });
+    return terminal.id;
+  }
+
   onOutput(terminalId: string, listener: (text: string) => void): () => void {
     const terminal = this.terminals.get(terminalId);
     terminal?.outputListeners.add(listener);

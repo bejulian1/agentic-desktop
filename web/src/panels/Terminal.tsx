@@ -40,6 +40,8 @@ function terminalFont(): { fontFamily: string; fontSize: number } {
 }
 
 const tabMemory = new Map<string, string>();
+// v1.3.0: a project action started a terminal (state/project-actions.ts); it is the tab to show.
+on("terminal.started", (message) => tabMemory.set(message.projectId, message.terminalId));
 
 function View(props: { projectId: string; tab: Tab }) {
   let host!: HTMLDivElement;
@@ -251,6 +253,15 @@ export default function TerminalPanel(props: { projectId: string; place?: string
         }
       }),
       on("terminal.exit", (message) => setTabs(tabs().map((t) => (t.terminalId === message.terminalId ? { ...t, exited: true } : t)))),
+      // v1.3.0: a project action runs in its own tab, started on the server.
+      on("terminal.started", (message) => {
+        if (message.projectId !== props.projectId) return;
+        get<Tab[]>(`/api/projects/${props.projectId}/terminals`).then((list) => {
+          if (!alive) return;
+          setTabs(list);
+          if (list.some((t) => t.terminalId === message.terminalId)) select(message.terminalId);
+        }).catch((err) => { if (alive) report(err); });
+      }),
       // A playtest with a dev server runs in its own terminal tab.
       on("playtest.state", ({ state }) => {
         if (state.projectId !== props.projectId || !state.terminalId) return;

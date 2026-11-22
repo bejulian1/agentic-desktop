@@ -23,9 +23,21 @@ export function gitWorkspaceRoutes(route:Route,deps:ApiDeps,git:GitWorkspace,pro
   const relative=path.relative(result.state.root,source.path), candidate=path.join(result.path,relative);
   const target=guardProjectRoot(existsSync(candidate)&&statSync(candidate).isDirectory()?candidate:result.path,deps.dataDir);
   try{
-   const created=deps.store.projectByPath(target)??deps.store.createProject(cleanName(`${source.name} · ${body.branch}`),target,'ask');
+   const known=deps.store.projectByPath(target);
+   let created=known??deps.store.createProject(cleanName(`${source.name} · ${body.branch}`),target,source.permissionMode);
+   // v1.3.0: a new worktree carries the source project's choices for new threads and its actions,
+   // and runs the actions marked «Kjør når et arbeidstre opprettes» there (T3 Code's setup scripts).
+   if(!known){
+    deps.store.updateProject(created.id,{icon:source.icon?.startsWith('file:')?null:source.icon,color:source.color,defaultModelId:source.defaultModelId,defaultReasoningEffort:source.defaultReasoningEffort??null,agentBrowserAccess:source.agentBrowserAccess??null,actions:source.actions??[]});
+    created=deps.store.project(created.id)!;
+   }
    deps.publish({type:'project.changed',project:created});changed(result.state.root);
-   return {project:created,state:result.state,worktreePath:result.path};
+   const started:string[]=[];
+   if(!known)for(const action of (source.actions??[]).filter(a=>a.runOnWorktreeCreate)){
+    try{const terminalId=deps.terminals.runAction(created,action.name,action.command);started.push(terminalId);deps.publish({type:'terminal.started',terminalId,projectId:created.id,title:action.name});}
+    catch{break;}
+   }
+   return {project:created,state:result.state,worktreePath:result.path,actionsStarted:started.length};
   }catch{throw new HttpError(500,`Arbeidstreet er opprettet i ${result.path}, men kunne ikke legges til som prosjekt. Åpne mappen manuelt.`);}
  });
  route('POST','/api/projects/:id/git/worktrees/open',async({params,body})=>{

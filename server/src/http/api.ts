@@ -34,6 +34,7 @@ import type {
   ThemeSetting,
   Thread,
 } from "../../../shared/protocol.ts";
+import { cleanProjectActions, CODE_FONTS, UI_FONTS, WORKSPACE_MODES, type ProjectAction } from "../../../shared/protocol.ts";
 import { CHAT_WIDTHS, UI_CONTRASTS, BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
 import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS, type AllowRule } from "../../../shared/protocol.ts";
 import { parseLocalRule, readLocalRules, ruleLabel, writeLocalRules } from "../agent/permissions.ts";
@@ -510,6 +511,16 @@ export class Api {
       if (body.agentBrowserAccess !== undefined && body.agentBrowserAccess !== null && typeof body.agentBrowserAccess !== "boolean") {
         throw new HttpError(400, "Ugyldig verdi for agentBrowserAccess");
       }
+      // v1.3.0: archive, effort and workspace for new threads, and the project's actions.
+      if (body.archived !== undefined && typeof body.archived !== "boolean") throw new HttpError(400, "archived må være sann eller usann");
+      if (body.defaultReasoningEffort !== undefined && body.defaultReasoningEffort !== null && !EFFORTS.includes(body.defaultReasoningEffort)) throw new HttpError(400, "Ugyldig tenkeinnsats");
+      if (body.defaultWorkspaceMode !== undefined && !WORKSPACE_MODES.includes(body.defaultWorkspaceMode)) throw new HttpError(400, "Ugyldig arbeidsområde");
+      let actions: ProjectAction[] | undefined;
+      if (body.actions !== undefined) {
+        const cleaned = cleanProjectActions(body.actions);
+        if (typeof cleaned === "string") throw new HttpError(400, cleaned);
+        actions = cleaned;
+      }
       let newPath: string | undefined;
       if (body.path !== undefined) {
         // Same rules as a new project. Running threads, terminals and the preview use the old
@@ -534,6 +545,10 @@ export class Api {
         path: newPath,
         pinned: body.pinned,
         agentBrowserAccess: body.agentBrowserAccess,
+        archived: body.archived,
+        defaultReasoningEffort: body.defaultReasoningEffort,
+        defaultWorkspaceMode: body.defaultWorkspaceMode,
+        actions,
       });
       const project = this.project(params.id);
       // The uploaded image goes when the project no longer uses it.
@@ -734,6 +749,25 @@ export class Api {
 
     // Round 9: "local" is the terminal on Denne datamaskinen, opened from a start page (SPEC 21.9).
     this.route("GET", "/api/projects/:id/terminals", ({ params }) => terminals.list(params.id === LOCAL_PANEL ? LOCAL_PANEL : this.project(params.id).id));
+    // v1.3.0: run one of the project's actions (or Denne datamaskinen's) in a new terminal tab.
+    // Only a stored action runs: the request names it, never the command.
+    this.route("POST", "/api/projects/:id/actions/:actionId/run", ({ params }) => {
+      const local = params.id === LOCAL_PANEL;
+      const target: Project = local
+        ? { id: LOCAL_PANEL, name: "Denne datamaskinen", path: localFolder(dataDir, this.deps.homeDir), permissionMode: store.settings().defaultPermissionMode ?? "ask", createdAt: 0, lastUsedAt: 0, color: null, icon: null, defaultModelId: null, pinned: false }
+        : this.project(params.id);
+      const action = (local ? store.settings().localActions ?? [] : target.actions ?? []).find((a) => a.id === params.actionId);
+      if (!action) throw new HttpError(404, "Fant ikke handlingen");
+      if (target.folderMissing) throw new HttpError(409, `Fant ikke mappen ${target.path}`);
+      let terminalId: string;
+      try {
+        terminalId = terminals.runAction(target, action.name, action.command);
+      } catch (err) {
+        throw new HttpError(409, (err as Error).message);
+      }
+      publish({ type: "terminal.started", terminalId, projectId: target.id, title: action.name });
+      return { terminalId, title: action.name };
+    });
     this.route("POST", "/api/projects/:id/open-vscode", async ({ params }) => {
       await this.openVscode(this.project(params.id));
     });
@@ -774,6 +808,12 @@ export class Api {
         publish({ type: "chat-project.changed", project: store.chatProject(inChatProject)! });
       }
       if (side?.temporary) store.markTemporary(thread.id);
+      // v1.3.0: a new Kode thread starts with the project's effort, or else the app's default.
+      // The composer's own choice is sent right after (PATCH), and wins.
+      if (mode === "code" && !side) {
+        const effort = project ? project.defaultReasoningEffort ?? store.settings().defaultReasoningEffort : store.settings().defaultReasoningEffort;
+        if (effort && EFFORTS.includes(effort)) store.updateThread(thread.id, { reasoning: effort });
+      }
       // settings.json names one of Kode's personalities; a chat follows Chat-personalisering.
       if (mode === "code" && folder.personality && folder.personality !== "standard") store.updateThread(thread.id, { personality: folder.personality });
       // Round 13 (SPEC 27.2): tools chosen on the start page, before the chat existed.
@@ -1144,6 +1184,16 @@ export class Api {
         patch.promptAutocomplete = body.promptAutocomplete === true;
       }
       Object.assign(patch, round5Settings(body));
+      // v1.3.0: effort for new Kode threads, and the actions of Denne datamaskinen.
+      if (body.defaultReasoningEffort !== undefined) {
+        if (body.defaultReasoningEffort !== null && !EFFORTS.includes(body.defaultReasoningEffort)) throw new HttpError(400, "Ugyldig tenkeinnsats");
+        patch.defaultReasoningEffort = body.defaultReasoningEffort ?? undefined;
+      }
+      if (body.localActions !== undefined) {
+        const cleaned = cleanProjectActions(body.localActions ?? []);
+        if (typeof cleaned === "string") throw new HttpError(400, cleaned);
+        patch.localActions = cleaned.length ? cleaned : undefined;
+      }
       Object.assign(patch, runde12Settings(body)); // round 12: imported cookies (SPEC 26.4)
       Object.assign(patch, runde13Settings(body, store.settings(), DEFAULT_CHAT_TOOLS)); // round 13: Chat tools and web search (SPEC 27.2)
       // Keep threadNotifications and legacy notifyOnDone/soundOnDone synchronized.
@@ -1463,7 +1513,8 @@ const ROUND5_CHOICES: Record<string, readonly string[]> = {
   notifyOnDone: ["off", "unfocused", "always"],
   accent: ["blue", "violet", "green", "orange", "pink", "red", "graphite"],
   density: ["compact", "normal", "comfortable"],
-  codeFont: ["system", "jetbrains", "fira", "cascadia", "dejavu", "ubuntu"],
+  codeFont: CODE_FONTS,
+  uiFont: UI_FONTS, // v1.3.0
   themePreset: THEME_PRESETS, // round 8
   codeStartEmpty: ["greeting", "cards"], // round 9
   codeStartProject: ["cards", "greeting"],
