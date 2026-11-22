@@ -33,7 +33,7 @@ import { room } from "../state/artifacts";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import {
   IconArchive, IconBack, IconBranch, IconChat, IconChevron, IconChevronDown, IconClose, IconCode, IconLaptop, IconDetach, IconDots, IconDownload, IconForward, IconKeyboard, IconPanel, IconPanelAdd,
-  IconPin, IconPlay, IconSearch, IconSidebar, IconSplitDown, IconSplitRight, IconStop, IconStudio, IconTerminal,
+  IconPin, IconPlay, IconSearch, IconSidebar, IconSplitDown, IconSplitRight, IconStop, IconStudio, IconTerminal, IconVsCode,
 } from "./icons";
 import { MainMenu } from "./MenuBar";
 import { WindowControls } from "./WindowControls";
@@ -261,7 +261,7 @@ function MoreMenu() {
     }
     if (project) {
       if (out.length) out.push("sep");
-      out.push({ label: t("Åpne i VS Code"), icon: IconCode, title: t("Åpne prosjektmappen i VS Code"), run: () => openVscode(project.id) });
+      out.push({ label: t("Åpne i VS Code"), icon: IconVsCode, title: t("Åpne prosjektmappen i VS Code"), run: () => openVscode(project.id) });
     }
     if (out.length) out.push("sep");
     out.push(

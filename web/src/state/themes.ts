@@ -38,7 +38,7 @@ export const THEMES: ThemeInfo[] = [
     get name() { return t("Ocean"); },
     get text() { return t("Kjølig havskifer og klar blågrønn aksent."); },
     light: { bg: "#f5f9fc", side: "#ebf2f8", surface: "#e6eef5", text: "#14202c", muted: "#52627a", accent: "#0d7c86", keyword: "#5543b8", string: "#19714f", fn: "#2152ab" },
-    dark: { bg: "#141c24", side: "#10171f", surface: "#222e3b", text: "#e6eef6", muted: "#98a9bb", accent: "#4dd4d0", keyword: "#b9adff", string: "#84d9b1", fn: "#97b9ff" },
+    dark: { bg: "#1f2b36", side: "#253340", surface: "#2f4050", text: "#eef5fb", muted: "#b3c5d6", accent: "#58ded9", keyword: "#cabfff", string: "#95e8c2", fn: "#abc9ff" },
   },
   {
     id: "rosa",

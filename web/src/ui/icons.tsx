@@ -132,3 +132,16 @@ export const IconCollapse = (p: P) => <Svg {...p}><path d="M13.25 6.5H9.5V2.75M9
 export const IconIssue = (p: P) => (
   <Svg {...p}><circle cx="8" cy="8" r="5.75" /><circle cx="8" cy="8" r="1.25" fill="currentColor" stroke="none" /></Svg>
 );
+
+// Recognisable blue VS Code ribbon mark for "Åpne i VS Code".
+export const IconVsCode = (p: P) => {
+  const size = p.size ?? 16;
+  return (
+    <svg class="icon icon-colored" data-icon="vscode" width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M11.65 1.45 5.45 7.25 2.7 5.15a.6.6 0 0 0-.78.04l-.82.76a.6.6 0 0 0 0 .88L3.7 8l-2.6 1.17a.6.6 0 0 0 0 .88l.82.76a.6.6 0 0 0 .78.04l2.75-2.1 6.2 5.8c.35.33.92.25 1.15-.16l1.7-.95V2.56l-1.7-.95a.75.75 0 0 0-1.15-.16Z" fill="#0065A9" />
+      <path d="M11.65 1.45 3.7 8l-1.78-1.45a.6.6 0 0 1-.82-.04l-.01-.01 1.61-1.35a.6.6 0 0 1 .78-.04l2.02 1.54 6.15-5.2a.75.75 0 0 1 1.15.16l1.7.95v10.88l-1.7.95-1.15-1.08V1.45Z" fill="#007ACC" />
+      <path d="M11.55 1.38c.28-.14.62-.12.9.04l2.05 1.14v10.88l-2.05 1.14a.85.85 0 0 1-.9.04V1.38Z" fill="#1F9CF0" />
+      <path d="M11.55 4.8 7.5 8l4.05 3.2V4.8Z" fill="#0065A9" />
+    </svg>
+  );
+};

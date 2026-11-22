@@ -20,7 +20,7 @@ import { displayKeys, keysFor } from "../state/shortcuts";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { setThreadDetailsOpen, threadDetailsOpen } from "../state/thread-details";
 import { openGitWorkspace } from "./dialog-state";
-import { IconBranch, IconChevron, IconCode, IconDiff, IconFolder, IconInfo, IconMonitor, IconSettings } from "./icons";
+import { IconBranch, IconChevron, IconDiff, IconFolder, IconInfo, IconMonitor, IconSettings, IconVsCode } from "./icons";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
@@ -77,7 +77,7 @@ function Card(props: { close: () => void }) {
             const provider = () => modelProvider(item().modelId);
             return (
               <div class="details-model" data-testid="details-model" title={provider().label}>
-                <span class="details-row-icon"><ProviderGlyph family={provider().family} size={14} /></span>
+                <span class="details-row-icon"><ProviderGlyph family={provider().family} size={15} /></span>
                 <span class="details-model-name">{modelName(item().modelId)}</span>
               </div>
             );
@@ -89,7 +89,7 @@ function Card(props: { close: () => void }) {
         >
           {(p) => (
             <>
-              <Row icon={<IconCode size={15} />} label={t("Åpne i VS Code")} title={t("Åpne prosjektmappen i VS Code")} testid="details-vscode" onClick={() => run(() => openVscode(p().id))} />
+              <Row icon={<IconVsCode size={15} />} label={t("Åpne i VS Code")} title={t("Åpne prosjektmappen i VS Code")} testid="details-vscode" onClick={() => run(() => openVscode(p().id))} />
               <Row icon={<IconSettings size={15} />} label={t("Prosjektinnstillinger")} title={t("Navn, ikon, standardvalg og instruksjoner for prosjektet")} testid="details-project-settings" onClick={() => run(() => setSettingsOpen("projects"))} />
             </>
           )}

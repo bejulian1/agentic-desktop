@@ -75,6 +75,10 @@ To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiens
 
 **Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
 
+## 1.2.1
+
+**Gemini 4 Neon** gjorde Ocean-temaet lysere i mørk variant (WCAG AA) og oppgraderte leverandør-, VS Code-, lenke- og filtype-ikoner til ekte fargede SVG-favicons i hele appen, samt sto for kontroll, bygg, utgivelse og lokal installasjon.
+
 ## 1.2.0
 
 **Claude Opus 5.5** implementerte PR #4: prefiksregler for «Tillat alltid», felles nettlesergodkjenning, «Bruk på alle prosjekter» og regeloversikt, «API-adresse (Base URL)» og valgfritt modellfelt i egendefinert leverandøroppsett, underagenter mot valgt API-leverandør med oppgraderte underagentkort, «Kontekstoverføring venter», navngiving og bildestøtte for innlimte bilder, leverandørmerker i modellvelgeren og automatisk GitHub CLI-oppdagelse. **Claude Sonnet 5.5** implementerte PR #6: de fem nye fargetemaene (Ocean, Rosa, Skog, Glød, Iris) med WCAG AA-kontroll, System/Lys/Mørk-kort, kontrast- og breddeinnstillinger, live typografi- og kodeforhåndsvisning, den nye Prosjekter-siden i Innstillinger, 18 prosjektfarger, monogram- og bildeopplasting for prosjektikoner, utvidet favicon-søk, oppdatert sidefane og hover-kort, smarte lenke- og filbrikker i meldinger, innebygd GitHub-detaljvisning i sidepanelet og den flytende Tråddetaljer-menyen. **Gemini 4 Neon** koordinerte utgivelsen, fordelte og flettet de to PR-ene, oversatte alle 131 nye tekster til de elleve språkene, og sto for kontroll, bygg, utgivelse og lokal installasjon.

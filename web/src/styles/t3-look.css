@@ -23,37 +23,63 @@
 :root[data-chat-width="compact"] { --chat-max-width: 640px; --content-max: 640px; }
 :root[data-chat-width="wide"] { --chat-max-width: 960px; --content-max: 960px; }
 
-/* 3. Smart links in the conversation: GitHub pull requests and issues as chips, and long bare
-   addresses shortened. The full address is in the tooltip. */
+/* 3. Smart links in the conversation: GitHub PRs/issues, recognised sites and bare URLs as
+   coloured favicon chips with full destination URL on hover. */
 .md-link-chip {
-  display: inline-flex; align-items: center; gap: 4px; max-width: min(100%, 38ch); padding: 0 7px 0 5px; vertical-align: baseline;
-  border-radius: var(--radius-full); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
-  background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--accent-text);
+  --chip: var(--accent-text);
+  display: inline-flex; align-items: center; gap: 5px; max-width: min(100%, 40ch); padding: 0 8px 0 5px; vertical-align: baseline;
+  border-radius: var(--radius-full); border: 1px solid color-mix(in srgb, var(--chip) 28%, transparent);
+  background: color-mix(in srgb, var(--chip) 10%, transparent); color: var(--chip);
   font-size: 0.92em; line-height: 1.55; text-decoration: none; white-space: nowrap;
   transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
-.md-link-chip:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); text-decoration: none; }
+.md-link-chip:hover { background: color-mix(in srgb, var(--chip) 18%, transparent); border-color: color-mix(in srgb, var(--chip) 46%, transparent); text-decoration: none; }
 .md-link-chip .md-link-icon { flex: none; width: 13px; height: 13px; }
 .md-link-chip .md-link-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.md-link-github[data-kind="pull"] { --chip: var(--tok-keyword); }
-.md-link-github[data-kind="issue"] { --chip: var(--ok); }
-.md-link-github[data-kind="repo"] { --chip: var(--text-2); }
-.md-link-github { color: var(--chip, var(--text-2)); border-color: color-mix(in srgb, var(--chip, var(--text-2)) 26%, transparent); background: color-mix(in srgb, var(--chip, var(--text-2)) 9%, transparent); }
-.md-link-github:hover { background: color-mix(in srgb, var(--chip, var(--text-2)) 16%, transparent); border-color: color-mix(in srgb, var(--chip, var(--text-2)) 44%, transparent); }
+.md-link-github[data-kind="pull"] { --chip: var(--ok); }
+.md-link-github[data-kind="issue"] { --chip: var(--tok-keyword); }
+.md-link-github[data-kind="repo"] { --chip: var(--text); }
+.md-link-chip[data-site="youtube"] { --chip: #e53935; }
+.md-link-chip[data-site="npm"] { --chip: #d94645; }
+.md-link-chip[data-site="gitlab"], .md-link-chip[data-site="stackoverflow"], .md-link-chip[data-site="reddit"], .md-link-chip[data-site="rust"] { --chip: #ea6b2b; }
+.md-link-chip[data-site="anthropic"] { --chip: #d97757; }
+.md-link-chip[data-site="openai"], .md-link-chip[data-site="node"], .md-link-chip[data-site="localhost"] { --chip: var(--ok); }
+.md-link-chip[data-site="mdn"], .md-link-chip[data-site="docker"], .md-link-chip[data-site="google"], .md-link-chip[data-site="python"] { --chip: #3898ec; }
+.md-link-chip[data-site="linear"], .md-link-chip[data-site="discord"], .md-link-chip[data-site="figma"] { --chip: #7c84f7; }
+.md-link-chip[data-site="huggingface"] { --chip: var(--warn); }
+.md-link-chip[data-site="vercel"], .md-link-chip[data-site="x"], .md-link-chip[data-site="wikipedia"] { --chip: var(--text-2); }
+:root[data-theme="dark"] .md-link-chip[data-site="youtube"] { --chip: #ff6b6b; }
+:root[data-theme="dark"] .md-link-chip[data-site="npm"] { --chip: #ff7a79; }
+:root[data-theme="dark"] .md-link-chip[data-site="gitlab"], :root[data-theme="dark"] .md-link-chip[data-site="stackoverflow"], :root[data-theme="dark"] .md-link-chip[data-site="reddit"], :root[data-theme="dark"] .md-link-chip[data-site="rust"] { --chip: #ff9457; }
+:root[data-theme="dark"] .md-link-chip[data-site="anthropic"] { --chip: #eb9375; }
+:root[data-theme="dark"] .md-link-chip[data-site="mdn"], :root[data-theme="dark"] .md-link-chip[data-site="docker"], :root[data-theme="dark"] .md-link-chip[data-site="google"], :root[data-theme="dark"] .md-link-chip[data-site="python"] { --chip: #6cb8ff; }
+:root[data-theme="dark"] .md-link-chip[data-site="linear"], :root[data-theme="dark"] .md-link-chip[data-site="discord"], :root[data-theme="dark"] .md-link-chip[data-site="figma"] { --chip: #a5abff; }
 
-/* 4. File names in `code`: a small dot in the colour of the kind of file, before the name. */
-code.md-file-chip { --ext: var(--text-3); display: inline-flex; align-items: baseline; gap: 5px; }
-code.md-file-chip::before { content: ""; flex: none; align-self: center; width: 6px; height: 6px; border-radius: 50%; background: var(--ext); }
-code.md-file-chip[data-file-ext="ts"], code.md-file-chip[data-file-ext="tsx"] { --ext: #3d85d6; }
-code.md-file-chip[data-file-ext="js"], code.md-file-chip[data-file-ext="jsx"], code.md-file-chip[data-file-ext="mjs"], code.md-file-chip[data-file-ext="cjs"] { --ext: #d3a31c; }
-code.md-file-chip[data-file-ext="css"], code.md-file-chip[data-file-ext="scss"] { --ext: #a46bd8; }
-code.md-file-chip[data-file-ext="json"], code.md-file-chip[data-file-ext="toml"], code.md-file-chip[data-file-ext="yml"], code.md-file-chip[data-file-ext="yaml"] { --ext: #d98a3a; }
-code.md-file-chip[data-file-ext="md"], code.md-file-chip[data-file-ext="mdx"], code.md-file-chip[data-file-ext="txt"] { --ext: #7b8896; }
-code.md-file-chip[data-file-ext="py"] { --ext: #3f9a8a; }
-code.md-file-chip[data-file-ext="rs"], code.md-file-chip[data-file-ext="go"], code.md-file-chip[data-file-ext="c"], code.md-file-chip[data-file-ext="h"], code.md-file-chip[data-file-ext="cpp"] { --ext: #d0663f; }
-code.md-file-chip[data-file-ext="html"], code.md-file-chip[data-file-ext="vue"], code.md-file-chip[data-file-ext="svelte"] { --ext: #e0553f; }
-code.md-file-chip[data-file-ext="sh"], code.md-file-chip[data-file-ext="sql"] { --ext: #55a868; }
-code.md-file-chip[data-file-ext="java"], code.md-file-chip[data-file-ext="kt"], code.md-file-chip[data-file-ext="rb"], code.md-file-chip[data-file-ext="php"] { --ext: #c7508b; }
+/* 4. File names in `code`: crisp coloured filetype badge (like TS / TSX / PY / JSON) before the name. */
+code.md-file-chip {
+  --ext: #64748b; --ext-fg: #ffffff;
+  display: inline-flex; align-items: center; gap: 5px;
+  color: color-mix(in srgb, var(--ext) 68%, var(--text));
+  border-color: color-mix(in srgb, var(--ext) 26%, var(--border));
+}
+code.md-file-chip::before {
+  content: attr(data-file-ext); flex: none; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 14px; padding: 0 3.5px; border-radius: 3px;
+  background: var(--ext); color: var(--ext-fg);
+  font-family: var(--font-sans); font-size: 8.5px; font-weight: 700; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase;
+}
+code.md-file-chip[data-file-ext="ts"] { --ext: #3178c6; }
+code.md-file-chip[data-file-ext="tsx"] { --ext: #0ea5e9; }
+code.md-file-chip[data-file-ext="js"], code.md-file-chip[data-file-ext="jsx"], code.md-file-chip[data-file-ext="mjs"], code.md-file-chip[data-file-ext="cjs"] { --ext: #eab308; --ext-fg: #18181b; }
+code.md-file-chip[data-file-ext="css"], code.md-file-chip[data-file-ext="scss"] { --ext: #a855f7; }
+code.md-file-chip[data-file-ext="json"], code.md-file-chip[data-file-ext="toml"], code.md-file-chip[data-file-ext="yml"], code.md-file-chip[data-file-ext="yaml"] { --ext: #f59e0b; --ext-fg: #18181b; }
+code.md-file-chip[data-file-ext="md"], code.md-file-chip[data-file-ext="mdx"], code.md-file-chip[data-file-ext="txt"] { --ext: #64748b; }
+code.md-file-chip[data-file-ext="py"] { --ext: #3776ab; }
+code.md-file-chip[data-file-ext="rs"], code.md-file-chip[data-file-ext="c"], code.md-file-chip[data-file-ext="h"], code.md-file-chip[data-file-ext="cpp"] { --ext: #ea580c; }
+code.md-file-chip[data-file-ext="go"] { --ext: #00add8; }
+code.md-file-chip[data-file-ext="html"], code.md-file-chip[data-file-ext="vue"], code.md-file-chip[data-file-ext="svelte"] { --ext: #e34f26; }
+code.md-file-chip[data-file-ext="sh"], code.md-file-chip[data-file-ext="sql"] { --ext: #16a34a; }
+code.md-file-chip[data-file-ext="java"], code.md-file-chip[data-file-ext="kt"], code.md-file-chip[data-file-ext="rb"], code.md-file-chip[data-file-ext="php"] { --ext: #ec4899; }
 
 /* 5. Tema as three cards (ui/settings/appearance-controls.tsx): System, Lys and Mørk, each a small
    window drawn with the chosen theme's own colours. System shows both, split across the corner. */
@@ -173,17 +199,16 @@ code.md-file-chip[data-file-ext="java"], code.md-file-chip[data-file-ext="kt"], 
 /* 8. Rows of Kode threads in the sidebar: under the title, the kind of model and the branch, and
    «Ferdig» in green where the age would be when the answer has not been seen. */
 .thread-meta { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--text-2xs); line-height: var(--leading-tight); color: var(--text-3); white-space: nowrap; }
-.thread-provider { display: inline-flex; flex: none; color: var(--text-3); }
+.thread-provider { display: inline-flex; flex: none; align-items: center; }
 .thread-branch { display: inline-flex; align-items: center; gap: 3px; min-width: 0; font-family: var(--font-mono); }
 .thread-branch .icon { flex: none; }
 .thread-branch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.thread-item:hover .thread-provider, .thread-item.active .thread-provider { color: var(--text-2); }
 .thread-time.thread-done { color: var(--ok); font-weight: var(--weight-medium); }
-.provider-glyph { flex: none; }
+.provider-glyph { flex: none; display: inline-block; }
 
 /* The hover card of a thread: branch, kind of model and a dot for the state. */
 .hover-card-branch > span:first-of-type { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text); }
-.hover-card-provider { display: inline-flex; flex: none; color: var(--text-3); }
+.hover-card-provider { display: inline-flex; flex: none; align-items: center; }
 .hover-card-status { gap: 7px; }
 .hover-card-state { flex: none; width: 7px; height: 7px; margin: 0 3.5px; border-radius: 50%; background: var(--text-4); }
 .hover-card-state[data-state="running"] { background: var(--accent); }

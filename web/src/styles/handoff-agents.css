@@ -30,9 +30,10 @@
   width: 28px; height: 28px; border-radius: 9px; background: var(--surface-3); color: var(--text-2);
   font: var(--weight-semibold) var(--text-sm) / 1 var(--font-ui, inherit);
 }
-.agent-badge[data-tone="0"] { background: var(--accent-soft); color: var(--accent-text); }
-.agent-badge[data-tone="1"] { background: var(--add-bg); color: var(--add-text); }
-.agent-badge[data-tone="2"] { background: var(--warn-soft); color: var(--warn); }
+.agent-badge.has-brand { background: var(--surface-2); border: 1px solid var(--border); }
+.agent-badge:not(.has-brand)[data-tone="0"] { background: var(--accent-soft); color: var(--accent-text); }
+.agent-badge:not(.has-brand)[data-tone="1"] { background: var(--add-bg); color: var(--add-text); }
+.agent-badge:not(.has-brand)[data-tone="2"] { background: var(--warn-soft); color: var(--warn); }
 .agent-badge-dot {
   position: absolute; right: -3px; bottom: -3px; display: inline-flex; align-items: center; justify-content: center;
   width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--text-4); box-sizing: border-box;
@@ -51,7 +52,9 @@
   .agent-line { flex-direction: column; gap: 0; }
 }
 
-/* Provider marks in the model picker and on the model chip (ProviderIcon.tsx). */
-.provider-icon { flex: none; display: inline-block; vertical-align: -2px; color: var(--text-3); }
+/* Provider favicons in the model picker, model chip, subagent cards and provider catalogue. */
+.provider-icon { flex: none; display: inline-block; vertical-align: -2px; }
 .model-group-head .provider-icon { margin-right: 6px; }
-.model-button .provider-icon { margin-right: 1px; color: var(--text-2); }
+.model-option .provider-icon { margin-right: 2px; }
+.model-button .provider-icon { margin-right: 2px; }
+.connect-title { display: flex; align-items: center; gap: 10px; }

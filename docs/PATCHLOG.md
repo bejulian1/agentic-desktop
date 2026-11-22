@@ -4,6 +4,15 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.2.1: Lysere Ocean-tema og ekte fargede favicons på leverandører, lenker og filer (22. november 2026, bygg 83)
+
+En målrettet visuell polering etter tilbakemelding på v1.2.0:
+
+- **Lysere Ocean-tema (mørk variant):** hovedflate (`#1f2b36`), sidefane (`#253340`), kort og overflater (`#273644` / `#2f4050` / `#3a4d5f`) og klar blågrønn aksent (`#58ded9`) er løftet for et lysere, mer åpent skiferuttrykk i tråd med T3 Code — fortsatt med god WCAG AA-kontrast (lavest 6,02:1).
+- **Ekte fargede leverandør- og modell-favicons:** grå streksymboler er byttet ut med gjenkjennelige fargemerker for Anthropic/Claude, OpenAI, Google/Gemini, OpenRouter, DeepSeek, Mistral, Meta/Llama, xAI/Grok, Groq, Perplexity, Cohere, GitHub Models, lokale modellservere og demo-modell — både i modellknappen, på hver rad i modellvelgeren, i sidefanen, på hover-kort, i Tråddetaljer, på underagentkort og i leverandørkatalogen. På gatewayer og egendefinerte OpenAI-kompatible servere velges merket ut fra modell-ID-en når den er kjent.
+- **VS Code-ikon i farger:** «Åpne i VS Code» i Tråddetaljer og toppmenyen viser nå det blå VS Code-båndet.
+- **Fargede nettsteds-favicons på lenker og filtype-merker på kodebrikker:** kjente nettsteder (GitHub PR/issue/repo, GitLab, YouTube, npm, Stack Overflow, MDN, Docker, Hugging Face, Anthropic, OpenAI, Google, Reddit, Wikipedia, Figma, Linear, Vercel, X, Discord, Python, Rust, Node.js og localhost) får fargede SVG-favicons og farget tekst med full destinasjonsadresse ved hover (uten eksterne bildeforespørsler), og filreferanser i meldinger og forhåndsvisningen viser tydelige fargede filtype-merker (`TS`, `TSX`, `JS`, `CSS`, `PY`, `JSON` m.fl.).
+
 ## 1.2.0: Tillatelser som huskes, Ocean og nye temaer, Prosjekter-innstillinger, Tråddetaljer og API-underagenter (22. november 2026, bygg 82)
 
 En stor bruksoppdatering som gjør overgangen mellom T3 Code og Agentic Desktop sømløs, fikser gjentatte godkjenningsforespørsler, legger til fem nye fargetemaer, egen Prosjekter-side i Innstillinger, flytende Tråddetaljer-meny i Kode og underagenter på valgt API-leverandør.

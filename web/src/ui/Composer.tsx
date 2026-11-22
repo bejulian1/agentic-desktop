@@ -6,7 +6,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
-import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
+import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, ProviderConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
 import { app, effectiveProjectOrder, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
@@ -509,14 +509,14 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   let frame = 0;
   const groups = createMemo(() => {
     const words = query().trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const out: Array<{ name: string; localKind?: LocalProviderKind; brand: ProviderBrand; models: ModelConfig[] }> = [];
+    const out: Array<{ name: string; localKind?: LocalProviderKind; provider: ProviderConfig; brand: ProviderBrand; models: ModelConfig[] }> = [];
     for (const provider of app.providers) {
       const models = app.models.filter((m) => {
         if (m.providerId !== provider.id) return false;
         const hay = `${modelDisplayName(m)} ${m.model} ${provider.name}`.toLowerCase();
         return words.every((w) => hay.includes(w));
       });
-      if (models.length) out.push({ name: provider.name, localKind: provider.localKind, brand: providerBrand(provider, models[0]), models });
+      if (models.length) out.push({ name: provider.name, localKind: provider.localKind, provider, brand: providerBrand(provider), models });
     }
     return out;
   });
@@ -594,7 +594,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
         <For each={groups()} fallback={<p class="model-none">{t("Ingen modeller passer «{query}».", { query: query().trim() })}</p>}>
           {(group) => (
             <div role="group" aria-label={group.localKind ? t("{name} (lokal)", { name: group.name }) : group.name} class="model-group">
-              <div class="model-group-head" aria-hidden="true"><ProviderIcon brand={group.brand} size={13} /><span>{group.name}</span><Show when={group.localKind}><span class="model-source">{t("Lokal")}</span></Show></div>
+              <div class="model-group-head" aria-hidden="true"><ProviderIcon brand={group.brand} size={14} decorative /><span>{group.name}</span><Show when={group.localKind}><span class="model-source">{t("Lokal")}</span></Show></div>
               <For each={group.models}>
                 {(model) => (
                   <button
@@ -610,6 +610,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => props.onPick(model.id)}
                   >
+                    <ProviderIcon brand={providerBrand(group.provider, model)} size={14} decorative />
                     <span class="menu-name">{modelDisplayName(model)}</span>
                     <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? t("Verktøy på") : t("Verktøy av")}</span></Show>
                     <span class="menu-check"><Show when={props.chosen === model.id}><IconCheck size={14} /></Show></span>
@@ -2511,7 +2512,7 @@ export function Composer(props: {
                 setEffortOpen(false);
                 setModelOpen(true);
               }}>
-                <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={13} />}</Show>
+                <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={14} decorative />}</Show>
                 <span class="model-label">{modelName(modelId())}</span><IconChevronDown size={12} />
               </button>
             }

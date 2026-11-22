@@ -29,6 +29,7 @@ import { stepSentence } from "./step-words";
 import { FileChangeCounts } from "./FileChangeCounts";
 import { DiffBlock } from "./DiffBlock";
 import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
+import { ProviderIcon, providerBrand } from "./ProviderIcon";
 import "../styles/hooks.css";
 import "../styles/handoff-agents.css";
 import { UserQuestionSummary } from "./UserQuestion";
@@ -907,6 +908,15 @@ function AgentRow(props: { item: SpawnedRow; assignment: (model: AnswerModel) =>
     () => thread() && `${props.item.childThreadId}|${thread()!.running}|${thread()!.lastStatus}|${thread()!.pendingApprovals}`,
     () => get<{ text: string | null }>(`/api/threads/${encodeURIComponent(props.item.childThreadId)}/latest-reply`).then((r) => r.text).catch(() => null),
   );
+  const brand = () => {
+    const m = props.item.model;
+    if (!m) return null;
+    const provider = m.providerId ? app.providers.find((p) => p.id === m.providerId) : undefined;
+    return providerBrand(
+      provider ?? { kind: "openai-compatible", name: m.providerName ?? "" },
+      { model: m.model ?? m.modelName ?? "" },
+    );
+  };
   const badge = () => {
     const name = props.item.model?.providerName ?? props.item.model?.modelName ?? props.item.title;
     return (name.trim().match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toLocaleUpperCase(language());
@@ -923,8 +933,10 @@ function AgentRow(props: { item: SpawnedRow; assignment: (model: AnswerModel) =>
   };
   return (
     <button type="button" class="agent-row" data-state={state()} onClick={() => props.onThread(props.item.childThreadId)}>
-      <span class="agent-badge" data-tone={tone()} data-state={state()} aria-hidden="true">
-        <span class="agent-badge-mark">{badge()}</span>
+      <span class="agent-badge" classList={{ "has-brand": !!brand() }} data-tone={tone()} data-state={state()} aria-hidden="true">
+        <Show when={brand()} fallback={<span class="agent-badge-mark">{badge()}</span>}>
+          {(b) => <ProviderIcon brand={b()} size={16} decorative />}
+        </Show>
         <span class="agent-badge-dot"><Show when={state() === "running"}><span class="spinner" /></Show></span>
       </span>
       <span class="agent-text">

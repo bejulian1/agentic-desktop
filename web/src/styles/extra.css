@@ -165,17 +165,17 @@
   --accent: #0d7c86; --accent-hover: #0b6a73; --on-accent: #ffffff; --accent-soft: rgba(13, 124, 134, 0.11); --accent-text: #0a6a73; --selection: #c4e5e9;
 }
 :root[data-palette="ocean"][data-theme="dark"] {
-  --bg: #141c24; --bg-sidebar: #10171f; --bg-panel: #121a22; --surface: #1b2530; --surface-2: #222e3b; --surface-3: #2c3a4a;
-  --hover: rgba(190, 220, 255, 0.06); --active: rgba(190, 220, 255, 0.1); --border: rgba(190, 220, 255, 0.09); --border-strong: rgba(190, 220, 255, 0.17);
-  --text: #e6eef6; --text-2: #b6c4d3; --text-3: #98a9bb; --text-4: #5f6f80;
-  --primary: #e6eef6; --primary-hover: #ffffff; --on-primary: #141c24;
-  --danger: #f4948b; --danger-soft: #3b2427; --ok: #74d6a9; --warn: #e8c171; --warn-soft: #33301e;
-  --add-bg: #18332a; --add-text: #92dfb9; --del-bg: #3d2427; --del-text: #f6aaa3;
-  --selected: #2c3a4a; --knob: #eef3f8; --scrollbar: rgba(190, 220, 255, 0.18); --edge-shade: rgba(0, 0, 0, 0.32);
-  --tok-keyword: #b9adff; --tok-string: #84d9b1; --tok-comment: #8e9eb0; --tok-number: #f2bc7a; --tok-type: #76cfe8; --tok-function: #97b9ff; --tok-prop: #e6a8d2; --tok-meta: #a5b5c6;
+  --bg: #1f2b36; --bg-sidebar: #253340; --bg-panel: #212e39; --surface: #273644; --surface-2: #2f4050; --surface-3: #3a4d5f;
+  --hover: rgba(190, 225, 255, 0.08); --active: rgba(190, 225, 255, 0.14); --border: rgba(190, 225, 255, 0.13); --border-strong: rgba(190, 225, 255, 0.23);
+  --text: #eef5fb; --text-2: #cad9e7; --text-3: #b3c5d6; --text-4: #798ea3;
+  --primary: #eef5fb; --primary-hover: #ffffff; --on-primary: #1a2631;
+  --danger: #ffa39b; --danger-soft: #482e35; --ok: #84e8ba; --warn: #f4cf80; --warn-soft: #3e3c2a;
+  --add-bg: #1e3f36; --add-text: #a5edd0; --del-bg: #4b2f36; --del-text: #ffb9b3;
+  --selected: #3a4d5f; --knob: #f3f8fc; --scrollbar: rgba(190, 225, 255, 0.22); --edge-shade: rgba(0, 0, 0, 0.24);
+  --tok-keyword: #cabfff; --tok-string: #95e8c2; --tok-comment: #b2c5d7; --tok-number: #f9cc91; --tok-type: #8adff5; --tok-function: #abc9ff; --tok-prop: #f3b8df; --tok-meta: #bccde0;
 }
 :root[data-palette="ocean"][data-theme="dark"]:not([data-accent]) {
-  --accent: #4dd4d0; --accent-hover: #70dedb; --on-accent: #08191c; --accent-soft: rgba(77, 212, 208, 0.16); --accent-text: #6fdfdb; --selection: #1d4a52;
+  --accent: #58ded9; --accent-hover: #7ce8e4; --on-accent: #091d21; --accent-soft: rgba(88, 222, 217, 0.18); --accent-text: #84ece8; --selection: #265b69;
 }
 
 /* Rosa: dyp plomme og rosa, med en myk rosatonet lys variant */

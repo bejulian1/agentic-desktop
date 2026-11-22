@@ -45,7 +45,7 @@ test("fargene i temavelgeren er de samme som i stilarket", () => {
 test("de nye temaene har sine kjennetegn", () => {
   const all = new Map(loadThemes().map((t) => [t.id, t.tokens]));
   const expected: Record<string, { darkBg: string; darkSide: string; darkAccent: string; lightAccent: string; lightBg: string }> = {
-    ocean: { darkBg: "#141c24", darkSide: "#10171f", darkAccent: "#4dd4d0", lightAccent: "#0d7c86", lightBg: "#f5f9fc" },
+    ocean: { darkBg: "#1f2b36", darkSide: "#253340", darkAccent: "#58ded9", lightAccent: "#0d7c86", lightBg: "#f5f9fc" },
     rosa: { darkBg: "#1e141b", darkSide: "#191016", darkAccent: "#f06292", lightAccent: "#c2185b", lightBg: "#fdf6f9" },
     skog: { darkBg: "#141c17", darkSide: "#101713", darkAccent: "#52c98e", lightAccent: "#1f7a4d", lightBg: "#f6faf7" },
     glod: { darkBg: "#1c1714", darkSide: "#171310", darkAccent: "#e88c54", lightAccent: "#b54d1d", lightBg: "#fcf8f4" },

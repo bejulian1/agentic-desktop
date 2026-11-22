@@ -7,7 +7,7 @@ import { t } from "../../lib/i18n";
 import { app, setApp } from "../../state/app";
 import { applyLook } from "../../state/look";
 import { themeInfo, type PreviewColors } from "../../state/themes";
-import { IconCheck, IconFile, IconSpark } from "../icons";
+import { IconCheck, IconSpark } from "../icons";
 import { reset, Row, save, Segmented, Toggle } from "./parts";
 
 function previewStyle(c: PreviewColors): string {
@@ -150,7 +150,7 @@ export function InterfaceFontPreview() {
       <div class="font-preview-box">
         <p class="font-preview-title">{t("Rydd opp i innstillingene")}</p>
         <p class="font-preview-line">
-          {t("Jeg brukte")} <span class="chip-skill"><IconSpark size={12} />frontend-design</span> {t("og endret")} <span class="chip-file"><IconFile size={12} />surface.test.ts</span> {t("og")} <span class="chip-file"><IconFile size={12} />SettingsPanels.tsx</span>.
+          {t("Jeg brukte")} <span class="chip-skill"><IconSpark size={12} />frontend-design</span> {t("og endret")} <code class="md-file-chip" data-file-ext="ts">surface.test.ts</code> {t("og")} <code class="md-file-chip" data-file-ext="tsx">SettingsPanels.tsx</code>.
         </p>
         <p class="font-preview-small muted">{t("Små etiketter og hjelpetekst ser slik ut.")}</p>
       </div>

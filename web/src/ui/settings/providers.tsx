@@ -14,6 +14,7 @@ import type { KeyringStatus } from "../../../../shared/protocol";
 import { SecretInput } from "../SecretInput";
 import { confirmDialog } from "../dialogs";
 import { IconBack, IconCheck, IconClose, IconInfo, IconPlus, IconSearch } from "../icons";
+import { ProviderIcon, providerBrand } from "../ProviderIcon";
 import { Choice, Group, Page, Row, Segmented, Toggle, save } from "./parts";
 import { Select } from "../Select";
 import { LocalModelAdvisor } from "./local-model-advisor";
@@ -492,7 +493,10 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
       <div class="connect-bar">
         <button type="button" class="icon-button" aria-label={t("Tilbake til leverandørene")} title={t("Tilbake (Esc)")} disabled={busy()} onClick={props.onClose}><IconBack size={16} /></button>
       </div>
-      <h1 class="connect-title"><span>{t("Koble til {name}", { name: props.preset.name })}</span></h1>
+      <h1 class="connect-title">
+        <ProviderIcon brand={providerBrand({ kind: props.preset.kind, name: props.preset.name, presetId: props.preset.id, baseUrl: props.preset.baseUrl, localKind: props.preset.category === "local" })} size={20} decorative />
+        <span>{t("Koble til {name}", { name: props.preset.name })}</span>
+      </h1>
       <Show
         when={provider()}
         fallback={
@@ -674,7 +678,11 @@ function ProviderCatalog(props: {
             };
             return (
               <li>
-                <Row label={preset.name} text={[categoryLabel(categoryOf(preset)), lookupMessage(preset.note), detectedText()].filter(Boolean).join(" · ")}>
+                <Row
+                  label={preset.name}
+                  text={[categoryLabel(categoryOf(preset)), lookupMessage(preset.note), detectedText()].filter(Boolean).join(" · ")}
+                  icon={(p) => <ProviderIcon brand={providerBrand({ kind: preset.kind, name: preset.name, presetId: preset.id, baseUrl: preset.baseUrl, localKind: preset.category === "local" })} size={p.size ?? 16} decorative />}
+                >
                   <button type="button" class="btn btn-small" aria-label={connected() ? t("Vis oppsett for {name}", { name: preset.name }) : t("Koble til {name}", { name: preset.name })} onClick={(e) => open(e.currentTarget)}>
                     <Show when={connected()} fallback={<><IconPlus size={14} /> {t("Koble til")}</>}>{t("Vis oppsett")}</Show>
                   </button>

@@ -45,7 +45,7 @@ flow("Utseende: tema som tre kort, orber på fargetemaene og grensesnittkontroll
   await waitFor(async () => (await cards.nth(1).locator('.theme-orb[data-active="true"]').getAttribute("data-variant")) === "dark", "månen på den mørke orben");
   await cards.nth(1).click(); // Ocean
   await waitFor(async () => (await page.evaluate(() => document.documentElement.dataset.palette)) === "ocean", "Ocean");
-  assert.equal((await rootVar(page, "--bg")).toLowerCase(), "#141c24");
+  assert.equal((await rootVar(page, "--bg")).toLowerCase(), "#1f2b36");
   await scheme.getByRole("radio", { name: "Lys" }).click();
   await waitFor(async () => (await rootVar(page, "--accent")).toLowerCase() === "#0d7c86", "Ocean lys");
 

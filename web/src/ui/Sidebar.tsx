@@ -232,7 +232,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           <Show when={provider()}>
             {(info) => (
               <span class="thread-meta" data-testid="thread-meta">
-                <span class="thread-provider" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={11} /></span>
+                <span class="thread-provider" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={13} /></span>
                 <Show when={branch()}>{(name) => <span class="thread-branch" title={t("Gren: {name}", { name: name() })}><IconBranch size={10} /><span>{name()}</span></span>}</Show>
               </span>
             )}
