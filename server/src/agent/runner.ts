@@ -20,6 +20,7 @@ import type {
   ChatProject,
   ChatProjectMemory,
   ChatMemoryReview,
+  ListedModel,
   ModelConfig,
   Project,
   RunStatus,
@@ -42,7 +43,7 @@ import { KODE_ABILITIES, verifyCommands } from "./prompt.ts";
 import { overlay, overridePrefix, skillLines, type LayerVars, type OverlaidLayer } from "./prompt-overrides.ts";
 import type { ConfigDirs } from "../config-dirs.ts";
 import type { TaskBoard } from "./tasks.ts";
-import { Collab, MAX_AGENT_THREADS } from "./collab.ts";
+import { Collab, MAX_AGENT_THREADS, type DraftModel } from "./collab.ts";
 import {
   blocksText,
   systemLayers,
@@ -61,7 +62,7 @@ import {
 } from "./context.ts";
 import type { EventLog } from "./events.ts";
 import { FileState } from "./filestate.ts";
-import { decide, effectiveMode } from "./permissions.ts";
+import { decide, effectiveMode, readLocalRules, ruleLabel, writeLocalRules } from "./permissions.ts";
 import { abilities, CODE_TOOLS, clip, MAX_RESULT_CHARS, TOOL_ALIASES, TOOLS_BY_NAME, proposeChatMemory, useSkillTool, type BrowserTools, type Tool, type ToolContext, type ToolResult } from "./tools.ts";
 import { browserWeb, demoWeb, sourcesText, webFetchTool, webSearchTool, type WebAccess, type WebReader } from "./web.ts";
 import { agentBrowserAllowed, chatToolsOf, modelAllowsTools, modelSearchUrl, webSearchRoute, type ChatTools, type WebSearchRoute } from "../../../shared/protocol.ts";
@@ -183,6 +184,10 @@ export interface RunnerDeps {
   commandTimeoutMs: number;
   retryBaseMs: number;
   provider: (model: ModelConfig) => Provider;
+  // A provider's own model list, for thread_models (available: true). Absent in tests that do not
+  // need it.
+  listModels?: (providerId: string, signal: AbortSignal) => Promise<ListedModel[]>;
+  modelsChanged?: () => void; // a helper's model was added to the user's models
   env: () => Record<string, string>;
   threadChanged: (threadId: string) => void;
   filesChanged: (projectId: string, paths: string[]) => void;
@@ -296,6 +301,8 @@ export class Runner {
       waitIdle: (threadId, ms, signal, requesterId) => this.waitIdle(threadId, ms, signal, requesterId),
       hasIncomingMessage: (threadId) => this.hasIncomingMessage(threadId),
       threadChanged: deps.threadChanged,
+      listProviderModels: deps.listModels,
+      modelsChanged: deps.modelsChanged,
     });
   }
 
@@ -571,8 +578,7 @@ export class Runner {
 
   // "Allow always" on Denne datamaskinen, kept with the app's own values since it has no project row.
   private localRules(): Set<string> {
-    const saved = this.store.metaValue("app:local-allow-rules");
-    return new Set(Array.isArray(saved) ? saved.filter((rule) => typeof rule === "string") : []);
+    return readLocalRules(this.store);
   }
 
   layers(project: Project | undefined): InstructionLayers {
@@ -1670,13 +1676,15 @@ export class Runner {
       const provider = model && this.store.provider(model.providerId);
       return provider && model ? JSON.stringify([model.id, model.model, model.name, provider.id, provider.name, provider.kind, provider.baseUrl]) : undefined;
     };
+    // A model ID that is not configured yet, on the running provider: saved when the helper starts.
+    const draft = selected && "draft" in selected ? selected as DraftModel : undefined;
     const target = destination(selected);
     const crossProvider = selected && selected.providerId !== active.model.providerId ? this.store.provider(selected.providerId) : undefined;
     if (selected && requestedModel === undefined && (selected.model !== active.model.model || crossProvider)) {
       this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
       return finish("error", { text: "Modellen i den aktive kjøringen er endret. Velg hvilken modell hjelperen skal bruke.", isError: true });
     }
-    if (selected) call.input = { ...call.input, model: selected.id };
+    if (selected) call.input = { ...call.input, model: draft ? draft.model : selected.id };
 
     const ctx: ToolContext = {
       thread,
@@ -1744,11 +1752,11 @@ export class Runner {
         ? `Modellen ${clip(selected!.name, 160)} hos ${clip(crossProvider.name, 160)} får oppgaven og prosjektkonteksten. Den følger de samme tilgangsgrensene som hovedtråden.${overBudget ? " Dette fortsetter også samarbeidet etter grensen på 20 meldinger." : ""}\n\nOppgave: ${String(call.input.task)}`
         : decision.reason ?? (call.name === "run_command" ? String(call.input.command) : JSON.stringify(call.input, null, 2));
       const canAllowAlways = decision.canAllowAlways && !looping && !overBudget && !crossProvider;
-      const answer = await this.askApproval(active, call.id, title, clip(detail, 4000), canAllowAlways);
+      const answer = await this.askApproval(active, call.id, title, clip(detail, 4000), canAllowAlways, canAllowAlways && decision.rule ? clip(ruleLabel(decision.rule), 300) : undefined);
       if (answer === "cancelled") return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
       if (answer === "deny") return finish("denied", { text: "Brukeren avslo dette verktøykallet.", isError: true });
       if (answer === "allow-always" && canAllowAlways && decision.rule) {
-        if (local) this.store.setMetaValue("app:local-allow-rules", [...local.add(`${decision.rule.kind}:${decision.rule.value}`)].slice(-500));
+        if (local) writeLocalRules(this.store, local.add(`${decision.rule.kind}:${decision.rule.value}`));
         else this.store.allow(project.id, decision.rule.kind, decision.rule.value);
       }
       if (looping) active.lastCall.count = 0;
@@ -1772,7 +1780,8 @@ export class Runner {
       return finish("denied", { text: "Tillatelsene er endret. Be om godkjenning med et nytt verktøykall.", isError: true });
     }
     if (selected && this.hasUserSteering(threadId)) return finish("denied", { text: "Hjelperen ble ikke startet: brukeren styrte turen. Vurder den nye meldingen først.", isError: true });
-    if (selected && destination(this.store.model(selected.id)) !== target) return finish("error", { text: "Modellen eller leverandøren er endret. Velg modell på nytt.", isError: true });
+    if (selected && destination(draft ?? this.store.model(selected.id)) !== target) return finish("error", { text: "Modellen eller leverandøren er endret. Velg modell på nytt.", isError: true });
+    if (draft) call.input = { ...call.input, model: this.collab.saveDraft(draft).id };
     if (call.name === "propose_skill_edit") {
       if (currentThread.archived || currentThread.planMode || this.autoSkills() === "off" || this.hasUserSteering(threadId)) {
         return finish("denied", { text: "Skillen ble ikke endret. Turen, innstillingene eller brukerens instruksjoner har endret seg.", isError: true });
@@ -1998,10 +2007,10 @@ export class Runner {
     return id;
   }
 
-  private askApproval(active: ActiveRun, callId: string, title: string, detail: string, canAllowAlways: boolean): Promise<ApprovalDecision | "cancelled"> {
+  private askApproval(active: ActiveRun, callId: string, title: string, detail: string, canAllowAlways: boolean, allowAlways?: string): Promise<ApprovalDecision | "cancelled"> {
     const { threadId, runId, abort } = active;
     const approvalId = randomUUID();
-    this.log.append(threadId, { type: "approval.requested", runId, approvalId, callId, title, detail, canAllowAlways });
+    this.log.append(threadId, { type: "approval.requested", runId, approvalId, callId, title, detail, canAllowAlways, ...(allowAlways ? { allowAlways } : {}) });
     return new Promise((resolve) => {
       const settle = (decision: ApprovalDecision | "cancelled") => {
         abort.signal.removeEventListener("abort", onAbort);

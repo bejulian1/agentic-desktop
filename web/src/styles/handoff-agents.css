@@ -1,0 +1,57 @@
+/* 1.2.0: the pending context handoff above the message field, and the helper rows in the
+   subagent card (rows.tsx AgentRow). Colors come from the theme tokens only. */
+
+.context-handoff {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  margin: 0 0 6px; padding: 7px 8px 7px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface-2); color: var(--text-2); font-size: var(--text-sm); line-height: 1.4;
+}
+.context-handoff-dot {
+  flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft); animation: ad-dot 2s var(--ease-in-out, ease-in-out) infinite;
+}
+.context-handoff-text { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.context-handoff-text strong { color: var(--text); font-weight: var(--weight-semibold); white-space: nowrap; }
+.context-handoff-detail { min-width: 0; color: var(--text-3); overflow-wrap: anywhere; }
+.context-handoff-undo {
+  flex: none; padding: 3px 10px; border-radius: var(--radius-full);
+  color: var(--text-2); font-size: var(--text-sm); background: transparent;
+}
+.context-handoff-undo:hover, .context-handoff-undo:focus-visible { background: var(--hover); color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .context-handoff-dot { animation: none; } }
+
+/* A helper in the subagent card: provider badge with a live dot, title and model, one line from its
+   latest answer, and when it finished. */
+.agent-row { align-items: center; padding: 8px 10px; gap: 12px; }
+.agent-row[data-state="error"] .agent-preview { color: var(--danger); }
+.agent-badge {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 28px; height: 28px; border-radius: 9px; background: var(--surface-3); color: var(--text-2);
+  font: var(--weight-semibold) var(--text-sm) / 1 var(--font-ui, inherit);
+}
+.agent-badge[data-tone="0"] { background: var(--accent-soft); color: var(--accent-text); }
+.agent-badge[data-tone="1"] { background: var(--add-bg); color: var(--add-text); }
+.agent-badge[data-tone="2"] { background: var(--warn-soft); color: var(--warn); }
+.agent-badge-dot {
+  position: absolute; right: -3px; bottom: -3px; display: inline-flex; align-items: center; justify-content: center;
+  width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--text-4); box-sizing: border-box;
+}
+.agent-badge[data-state="done"] .agent-badge-dot { background: var(--ok); }
+.agent-badge[data-state="error"] .agent-badge-dot { background: var(--danger); }
+.agent-badge[data-state="waiting"] .agent-badge-dot { background: var(--warn); }
+.agent-badge[data-state="running"] .agent-badge-dot { background: var(--surface); border-width: 1px; }
+.agent-badge-dot .spinner { width: 8px; height: 8px; border-width: 1.5px; }
+.agent-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.agent-line .agent-title { flex: 0 1 auto; font-weight: var(--weight-medium); }
+.agent-line .agent-assignment { flex: 0 1 auto; color: var(--text-3); }
+.agent-preview { display: block; min-width: 0; margin-top: 1px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-row .agent-time { font-size: var(--text-xs); white-space: nowrap; }
+@container (max-width: 420px) {
+  .agent-line { flex-direction: column; gap: 0; }
+}
+
+/* Provider marks in the model picker and on the model chip (ProviderIcon.tsx). */
+.provider-icon { flex: none; display: inline-block; vertical-align: -2px; color: var(--text-3); }
+.model-group-head .provider-icon { margin-right: 6px; }
+.model-button .provider-icon { margin-right: 1px; color: var(--text-2); }

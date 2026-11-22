@@ -1591,12 +1591,27 @@ export class Store {
 
   // "Allow always" rules
 
-  isAllowed(projectId: string, kind: "command" | "tool", value: string): boolean {
+  isAllowed(projectId: string, kind: "command" | "prefix" | "tool", value: string): boolean {
     return this.q("SELECT 1 FROM allow_rules WHERE project_id = ? AND kind = ? AND value = ?").get(projectId, kind, value) !== undefined;
   }
 
-  allow(projectId: string, kind: "command" | "tool", value: string): void {
+  allow(projectId: string, kind: "command" | "prefix" | "tool", value: string): void {
     this.q("INSERT OR IGNORE INTO allow_rules (project_id, kind, value) VALUES (?, ?, ?)").run(projectId, kind, value);
+  }
+
+  // Innstillinger → Tillatelser: every saved "allow always", and taking them back.
+  allowRules(): Array<{ projectId: string; kind: "command" | "prefix" | "tool"; value: string }> {
+    return (this.q("SELECT project_id, kind, value FROM allow_rules ORDER BY project_id, kind, value").all() as Array<{ project_id: string; kind: string; value: string }>)
+      .filter((row) => row.kind === "command" || row.kind === "prefix" || row.kind === "tool")
+      .map((row) => ({ projectId: row.project_id, kind: row.kind as "command" | "prefix" | "tool", value: row.value }));
+  }
+
+  removeAllowRule(projectId: string, kind: string, value: string): boolean {
+    return Number(this.q("DELETE FROM allow_rules WHERE project_id = ? AND kind = ? AND value = ?").run(projectId, kind, value).changes) > 0;
+  }
+
+  clearAllowRules(projectId?: string): number {
+    return Number((projectId === undefined ? this.q("DELETE FROM allow_rules").run() : this.q("DELETE FROM allow_rules WHERE project_id = ?").run(projectId)).changes);
   }
 
   // Every project's "allow always" tool rules that start with prefix: an MCP server that is

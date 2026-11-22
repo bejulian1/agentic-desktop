@@ -154,7 +154,7 @@ export class Hub {
   private localProject(): Project {
     const folder = this.deps.localFolder?.();
     if (!folder) throw new Error("Terminalen uten prosjekt er ikke tilgjengelig");
-    return { id: LOCAL_PANEL, name: "Denne datamaskinen", path: folder, permissionMode: "ask", createdAt: 0, lastUsedAt: 0, color: null, icon: null, defaultModelId: null, pinned: false };
+    return localPanelProject(folder, this.deps.store);
   }
 
   private project(projectId: string) {
@@ -264,4 +264,10 @@ export class Hub {
     for (const client of this.clients) client.ws.terminate();
     this.wss.close();
   }
+}
+
+// Denne datamaskinen for the terminal and the Browser panel. The same mode as the agent there
+// (Runner.localProject): the shared default, never a fixed "ask".
+export function localPanelProject(folder: string, store: Pick<Store, "settings">): Project {
+  return { id: LOCAL_PANEL, name: "Denne datamaskinen", path: folder, permissionMode: store.settings().defaultPermissionMode ?? "ask", createdAt: 0, lastUsedAt: 0, color: null, icon: null, defaultModelId: null, pinned: false };
 }

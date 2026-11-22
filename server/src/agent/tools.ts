@@ -63,7 +63,7 @@ export interface BrowserTools {
 
 export interface CollabTools {
   list(thread: Thread): string;
-  models(query?: unknown, offset?: unknown, maxChars?: number): ToolResult;
+  models(query?: unknown, offset?: unknown, maxChars?: number, options?: { modelId?: string; available?: unknown; signal?: AbortSignal }): ToolResult | Promise<ToolResult>;
   create(thread: Thread, runId: string, parentModelId: string, input: { title: string; task: string; model: string }): ToolResult;
   send(thread: Thread, runId: string, input: { threadId: string; text: string }): ToolResult;
   read(thread: Thread, input: { threadId: string; limit?: number }): ToolResult;
@@ -632,12 +632,12 @@ const threadTools: Tool[] = [
     kind: "read",
     can: "discover configured models for helper threads", def: {
       name: "thread_models",
-      description: "Find configured models across providers for thread_create. Search by display name, provider or API model name. Use the returned id to select an exact model. Configuration does not guarantee endpoint availability or tool support.",
-      parameters: schema({ query: str("Optional model or provider search"), offset: int("Next page offset from the previous result") }, []),
+      description: "Find models for thread_create. Lists the configured models across providers (sameProvider marks the ones on the provider you run on). With available: true it also lists the models your current provider offers on its own model list, marked configured or not; any of those can be passed to thread_create by its API model name and the helper runs on the same provider. Search by display name, provider or API model name. Configuration does not guarantee endpoint availability or tool support.",
+      parameters: schema({ query: str("Optional model or provider search"), offset: int("Next page offset from the previous result"), available: bool("Also list the models the current provider offers (asks its model list, cached for a few minutes)") }, []),
     },
     summary: input => String(input.query ?? "").slice(0, 100),
     async run(input, ctx) {
-      return ctx.collab.models(input.query, input.offset, ctx.maxResultChars);
+      return ctx.collab.models(input.query, input.offset, ctx.maxResultChars, { modelId: ctx.modelId, available: input.available, signal: ctx.signal });
     },
   },
   {
@@ -652,8 +652,8 @@ const threadTools: Tool[] = [
     kind: "exec",
     can: "start and follow helper threads that work in parallel", def: {
       name: "thread_create",
-      description: "Start a helper thread in this project with its own task. It works in parallel in the same folder and cannot see this conversation, so the task must stand on its own: the goal, the files or area, what done looks like and which files it may change. Use it for an independent part of a large task or for an independent review; do small things yourself. Get its answer with thread_wait.",
-      parameters: schema({ title: str("Short title"), task: str("What the thread should do"), model: str("Configured model id from thread_models, or an unambiguous exact display/API name. Omit to inherit the running model") }, ["title", "task"]),
+      description: "Start a helper thread (subagent) in this project with its own task. It works in parallel in the same folder and cannot see this conversation, so the task must stand on its own: the goal, the files or area, what done looks like and which files it may change. Start several for independent parts that can run at the same time. Use it for an independent part of a large task or for an independent review; do small things yourself. By default it runs on your own model; pass model to choose another one. Get its answer with thread_wait.",
+      parameters: schema({ title: str("Short title"), task: str("What the thread should do"), model: str("Omit to inherit the running model. Otherwise a configured model id from thread_models, an unambiguous exact display/API name, or the API model ID of another model on your current provider (it then runs on the same provider and is added to the user's models). A configured model on another provider asks the user first") }, ["title", "task"]),
     },
     summary: (input) => String(input.title ?? ""),
     async run(input, ctx) {

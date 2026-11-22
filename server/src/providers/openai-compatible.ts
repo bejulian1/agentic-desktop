@@ -60,11 +60,16 @@ export function toOpenAiMessages(system: string, messages: Message[], supportsIm
       }
     }
     let text = textOf(message.content);
+    const named: string[] = [];
     for (const block of message.content) {
       if (block.type !== "image") continue;
-      if (supportsImages) images.push({ type: "image_url", image_url: { url: `data:${block.image.mime};base64,${block.image.base64}` } });
-      else text += `${text ? "\n\n" : ""}[Brukeren la ved bildet ${block.name ?? ""}, men modellen er ikke satt opp for bilder]`;
+      if (supportsImages) {
+        images.push({ type: "image_url", image_url: { url: `data:${block.image.mime};base64,${block.image.base64}` } });
+        named.push(`${block.name || "bilde"} (${block.image.mime})`);
+      } else text += `${text ? "\n\n" : ""}[Brukeren la ved bildet ${block.name ?? ""}, men modellen er ikke satt opp for bilder]`;
     }
+    // The pictures follow in order; their names tell the model which is which.
+    if (named.length) text += `${text ? "\n\n" : ""}[Vedlagte bilder, i rekkefølge: ${named.join(", ")}]`;
     if (images.length) out.push({ role: "user", content: [{ type: "text", text: text || "Skjermbilde:" }, ...images] });
     else if (text) out.push({ role: "user", content: text });
   }

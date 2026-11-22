@@ -35,6 +35,7 @@ import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
 import { IconPullRequest } from "./GitHubShared";
 import { permissionScope, permissionTitle } from "./permission-copy";
+import { ApplyPermissionToProjects, SavedAllowRules } from "./settings/permission-rules";
 import { welcomeView } from "../state/welcome";
 import "../styles/settings-polish.css";
 
@@ -107,6 +108,7 @@ function Permissions() {
             )}
           </For>
         </div>
+        <ApplyPermissionToProjects />
       </Group>
       <Show when={sortedProjects().length}>
         <Group title={t("Prosjekter")}>
@@ -124,6 +126,7 @@ function Permissions() {
           </For>
         </Group>
       </Show>
+      <SavedAllowRules />
     </Page>
   );
 }

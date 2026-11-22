@@ -55,7 +55,7 @@ function ProviderForm(props: { provider: ProviderConfig; onDone: () => void }) {
   return (
     <form class="form" onSubmit={submit} aria-label={t("Leverandør")}>
       <label class="field"><span>{t("Navn")}</span><input class="input" required value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder={t("Min server")} /></label>
-      <label class="field"><span>{t("Adresse (baseUrl)")}</span><input class="input" type="url" required={props.provider.kind === "openai-compatible"} value={baseUrl()} onInput={(e) => setBaseUrl(e.currentTarget.value)} placeholder={props.provider.kind === "anthropic" ? t("Standard") : "http://127.0.0.1:8080/v1"} spellcheck={false} /></label>
+      <label class="field"><span>{t("API-adresse (Base URL)")}</span><input class="input" type="url" required={props.provider.kind === "openai-compatible"} value={baseUrl()} onInput={(e) => setBaseUrl(e.currentTarget.value)} placeholder={props.provider.kind === "anthropic" ? t("Standard") : "http://127.0.0.1:8080/v1"} spellcheck={false} /></label>
       <Show when={props.provider.hasKey && baseUrl().trim() !== (props.provider.baseUrl ?? "")}><p class="provider-model-hint">{t("Den lagrede nøkkelen følger ikke med til en ny adresse. Skriv inn nøkkelen for den nye adressen hvis den krever det.")}</p></Show>
       <label class="field"><span>{t("Miljøvariabel for nøkkel")}</span><input class="input" value={apiKeyEnv()} onInput={(e) => { setApiKeyEnv(e.currentTarget.value); setClearKey(false); }} placeholder={t("MIN_API_KEY")} spellcheck={false} /></label>
       <label class="field"><span>{t("Nøkkel")}</span><SecretInput label={t("Nøkkel")} value={apiKey()} onInput={(value) => { setApiKey(value); setClearKey(false); }} placeholder={clearKey() ? t("Fjernes når du lagrer") : props.provider.hasKey ? t("Satt. Skriv for å bytte.") : t("Lagres i nøkkelringen")} /></label>
@@ -84,7 +84,9 @@ function ModelForm(props: { model?: ModelConfig; providerId: string; onDone: () 
   const kind = () => provider()?.kind;
   const [webSearch, setWebSearch] = createSignal(m?.webSearch ?? kind() === "anthropic");
   const [supportsTools, setSupportsTools] = createSignal(modelAllowsTools(m, provider()?.localKind));
-  const [supportsImages, setSupportsImages] = createSignal(m?.supportsImages ?? false);
+  // A new model on a cloud OpenAI-compatible API takes images unless turned off; a local server
+  // says itself, and a saved model keeps what it has.
+  const [supportsImages, setSupportsImages] = createSignal(m ? m.supportsImages ?? false : kind() === "openai-compatible" && !provider()?.localKind);
   const [error, setError] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const submit = async (event: Event) => {
@@ -418,7 +420,12 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
   const [error, setError] = createSignal("");
   const [manual, setManual] = createSignal(props.preset.modelDiscovery === "manual");
   const [provider, setProvider] = createSignal<ProviderConfig | null>(null);
+  // Custom and OpenAI-compatible or local servers: the user can name the first model right away.
+  const [modelId, setModelId] = createSignal("");
+  const [addedModel, setAddedModel] = createSignal("");
+  const [more, setMore] = createSignal(false);
   const local = () => props.preset.category === "local" || (custom && customType() === "local");
+  const offersModelId = () => custom ? customType() !== "anthropic" : props.preset.kind === "openai-compatible";
   const showAddress = !props.preset.baseUrl || props.preset.category === "local";
   const addressRequired = () => !custom || customType() !== "anthropic";
   const canSubmit = () => !busy() && (!custom || !!name().trim()) && (!addressRequired() || !!address().trim()) && (!props.preset.keyRequired || !!key().trim());
@@ -426,6 +433,7 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
   let addressInput!: HTMLInputElement;
   let nameInput!: HTMLInputElement;
   let view!: HTMLElement;
+  const modelHintId = `connect-model-hint-${createUniqueId()}`;
   const close = () => { if (view.isConnected) props.onClose(); };
   onMount(() => {
     (custom ? nameInput : showAddress ? addressInput : keyInput).focus();
@@ -449,11 +457,23 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
       : { preset: props.preset.id };
     if (key().trim()) body.apiKey = key().trim();
     if (address().trim() !== props.preset.baseUrl) body.baseUrl = address().trim();
+    const firstModel = offersModelId() ? modelId().trim() : "";
     try {
       const created = await post<ProviderConfig>("/api/providers", body);
       setKey("");
+      if (firstModel) {
+        // The provider is saved either way. A model that cannot be added is said, and the
+        // fetcher or the manual form below stays open to try again.
+        try {
+          await post(`/api/providers/${created.id}/models`, { models: [{ model: firstModel }] });
+          setAddedModel(firstModel);
+          toast(t("Modellen {model} er tilgjengelig.", { model: firstModel }), "info");
+        } catch (err) {
+          report(err);
+        }
+      }
       setProvider(created);
-      if (!manual() && !view.closest("[hidden]")) view.querySelector<HTMLElement>(".connect-model-status")?.focus();
+      if (!view.closest("[hidden]") && (addedModel() || !manual())) view.querySelector<HTMLElement>(addedModel() ? ".connect-done" : ".connect-model-status")?.focus();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -463,7 +483,7 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
   const label = () => (custom ? t("Nøkkel") : t("{name}-API-nøkkel", { name: props.preset.name }));
   const optionalLabel = () => (custom ? t("Nøkkel (valgfri)") : t("{name}-API-nøkkel (valgfri)", { name: props.preset.name }));
   const addressField = (
-    <label class="field"><span class="connect-label">{t("API-adresse")}</span>
+    <label class="field"><span class="connect-label">{t("API-adresse (Base URL)")}</span>
       <input ref={addressInput} class="input" type="url" required={addressRequired()} spellcheck={false} autocomplete="off" value={address()} placeholder={local() ? "http://127.0.0.1:8080/v1" : !addressRequired() ? t("Standardadresse (valgfri)") : undefined} onInput={(e) => setAddress(e.currentTarget.value)} />
     </label>
   );
@@ -490,14 +510,32 @@ function ConnectView(props: { preset: ProviderPreset; active?: boolean; onClose:
             </label>
             <p class="provider-model-hint">{app.keyring?.store === "session" ? t("Nøkkelen beholdes i minnet til du lukker appen.") : app.keyring?.store === "keyring" ? t("Nøkkelen lagres i systemets nøkkelring.") : t("Hvis nøkkelringen er utilgjengelig, beholdes nøkkelen bare i denne økten.")}</p>
             <Show when={!showAddress}><details class="connect-advanced"><summary>{t("Adresse")}</summary>{addressField}</details></Show>
+            <Show when={offersModelId()}>
+              <label class="field"><span class="connect-label">{t("Modell-ID (valgfri)")}</span>
+                <input class="input" data-testid="connect-model-id" spellcheck={false} autocomplete="off" aria-describedby={`${modelHintId}`} value={modelId()} placeholder={t("f.eks. gpt-5.4, deepseek-chat")} onInput={(e) => setModelId(e.currentTarget.value)} />
+              </label>
+              <p id={modelHintId} class="provider-model-hint">{t("Modellen legges til med en gang. La feltet stå tomt for å velge fra leverandørens liste etterpå.")}</p>
+            </Show>
             <Show when={error()}><p class="test-result bad" role="alert">{error()}</p></Show>
             <div><button type="submit" class="btn btn-primary" disabled={!canSubmit()}>{busy() ? t("Lagrer…") : t("Fortsett")}</button></div>
           </form>
         }
       >
-        <p class="connect-text connect-model-status" tabindex="-1">{manual() ? t("{name} er lagret. Legg til en modell nå eller senere.", { name: provider()!.name }) : t("{name} er lagret. Velg modellene du vil bruke fra leverandørens liste.", { name: provider()!.name })}</p>
-        <Show when={manual()} fallback={<ModelFetcher provider={provider()!} onManual={() => setManual(true)} onDone={close} closeLabel={t("Ferdig")} />}>
-          <ManualModelEntry provider={provider()!} onDone={close} />
+        <Show when={addedModel()} fallback={
+          <p class="connect-text connect-model-status" tabindex="-1">{manual() ? t("{name} er lagret. Legg til en modell nå eller senere.", { name: provider()!.name }) : t("{name} er lagret. Velg modellene du vil bruke fra leverandørens liste.", { name: provider()!.name })}</p>
+        }>
+          <div class="connect-added" data-testid="connect-added">
+            <p class="connect-text connect-model-status" tabindex="-1">{t("{name} er lagret med modellen {model}. Du kan begynne å bruke den nå, eller legge til flere modeller under.", { name: provider()!.name, model: addedModel() })}</p>
+            <div class="form-actions">
+              <Show when={!more()}><button type="button" class="btn" onClick={() => setMore(true)}>{t("Legg til flere modeller")}</button></Show>
+              <button type="button" class="btn btn-primary connect-done" onClick={close}>{t("Ferdig")}</button>
+            </div>
+          </div>
+        </Show>
+        <Show when={!addedModel() || more()}>
+          <Show when={manual()} fallback={<ModelFetcher provider={provider()!} onManual={() => setManual(true)} onDone={close} closeLabel={t("Ferdig")} />}>
+            <ManualModelEntry provider={provider()!} onDone={close} />
+          </Show>
         </Show>
       </Show>
     </section>

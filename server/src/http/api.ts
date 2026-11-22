@@ -35,7 +35,8 @@ import type {
   Thread,
 } from "../../../shared/protocol.ts";
 import { BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
-import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS } from "../../../shared/protocol.ts";
+import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS, type AllowRule } from "../../../shared/protocol.ts";
+import { parseLocalRule, readLocalRules, ruleLabel, writeLocalRules } from "../agent/permissions.ts";
 import { navRoutes } from "./nav-routes.ts";
 import { harnessRoutes } from "./harness-routes.ts";
 import { hooksRoutes } from "./hooks-routes.ts";
@@ -326,6 +327,15 @@ export class Api {
     this.settingsChanged();
   }
 
+  private allowRules(): AllowRule[] {
+    const { store } = this.deps;
+    const local = [...readLocalRules(store)].flatMap((entry) => {
+      const rule = parseLocalRule(entry);
+      return rule ? [{ projectId: LOCAL_PANEL, ...rule }] : [];
+    });
+    return [...store.allowRules(), ...local].map((rule) => ({ ...rule, label: ruleLabel(rule) }));
+  }
+
   private settingsChanged(): void {
     const { store, publish } = this.deps;
     publish({ type: "settings.changed", settings: store.settings(), providers: this.providerConfigs(), models: store.models() });
@@ -526,6 +536,40 @@ export class Api {
       publish({ type: "project.changed", project });
       if (newPath) publish({ type: "project.files-changed", projectId: project.id, paths: ["."] });
       return project;
+    });
+
+    // Innstillinger → Tillatelser: one mode for every project at once, after the default changed.
+    this.route("POST", "/api/projects/apply-permission-mode", ({ body }) => {
+      if (!PERMISSION_MODES.includes(body.permissionMode)) throw new HttpError(400, "Ugyldig tillatelsesmodus");
+      const changed: Project[] = [];
+      for (const project of store.projects()) {
+        if (project.permissionMode === body.permissionMode) continue;
+        store.updateProject(project.id, { permissionMode: body.permissionMode });
+        const fresh = store.project(project.id)!;
+        changed.push(fresh);
+        publish({ type: "project.changed", project: fresh });
+      }
+      return { changed: changed.length, projects: store.projects() };
+    });
+
+    // Saved "Tillat alltid" answers, for every project and Denne datamaskinen, and taking them back.
+    this.route("GET", "/api/permissions/rules", (): AllowRule[] => this.allowRules());
+    this.route("POST", "/api/permissions/rules/remove", ({ body }) => {
+      const projectId = requireString(body.projectId, "projectId");
+      const kind = requireString(body.kind, "kind");
+      const value = typeof body.value === "string" ? body.value : "";
+      if (projectId === LOCAL_PANEL) {
+        const rules = readLocalRules(store);
+        if (!rules.delete(`${kind}:${value}`)) throw new HttpError(404, "Fant ikke regelen");
+        writeLocalRules(store, rules);
+      } else if (!store.removeAllowRule(projectId, kind, value)) throw new HttpError(404, "Fant ikke regelen");
+      return this.allowRules();
+    });
+    this.route("POST", "/api/permissions/rules/clear", ({ body }) => {
+      const projectId = body.projectId === undefined ? undefined : requireString(body.projectId, "projectId");
+      if (projectId === undefined || projectId === LOCAL_PANEL) writeLocalRules(store, []);
+      if (projectId !== LOCAL_PANEL) store.clearAllowRules(projectId);
+      return this.allowRules();
     });
 
     // Round 9: read again, so the folder is checked now (Project.folderMissing).
@@ -904,6 +948,13 @@ export class Api {
       } finally { req.off("aborted", abort); res.off("close", abort); }
     });
 
+    // The inline card of a helper thread: one line from its latest answer, nothing else.
+    this.route("GET", "/api/threads/:id/latest-reply", ({ params }) => {
+      this.thread(params.id);
+      const text = runner.collab.finalAnswer(params.id).replace(/\s+/g, " ").trim();
+      return { text: text ? (text.length > 240 ? `${text.slice(0, 239)}…` : text) : null };
+    });
+
     this.route("POST", "/api/threads/:id/stop", ({ params }) => {
       this.thread(params.id);
       return { stopped: runner.stop(params.id) };
@@ -1251,7 +1302,7 @@ export class Api {
         const contextWindow = item.contextWindow ?? (local ? DEFAULT_LOCAL_CONTEXT_WINDOW : tableContext(modelId) ?? DEFAULT_CONTEXT_WINDOW);
         added.push(modelFromBody(crypto.randomUUID(), {
           providerId: params.id, name: item.name || modelId, model: modelId, contextWindow,
-          supportsTools: item.supportsTools, supportsImages: item.supportsImages,
+          supportsTools: item.supportsTools, supportsImages: item.supportsImages ?? (imagesOnByDefault(provider) ? true : undefined),
         }));
       }
       for (const model of added) store.saveModel(model);
@@ -1317,8 +1368,10 @@ export class Api {
     });
 
     this.route("POST", "/api/models", ({ body }) => {
-      if (!store.provider(body.providerId)) throw new HttpError(400, "Fant ikke leverandøren");
-      const model = store.saveModel(modelFromBody(crypto.randomUUID(), body));
+      const provider = store.provider(body.providerId);
+      if (!provider) throw new HttpError(400, "Fant ikke leverandøren");
+      const imagesByDefault = body.supportsImages === undefined && imagesOnByDefault(provider);
+      const model = store.saveModel(modelFromBody(crypto.randomUUID(), imagesByDefault ? { ...body, supportsImages: true } : body));
       this.settingsChanged();
       return model;
     });
@@ -1549,6 +1602,12 @@ function providerKeyEnv(value: unknown): string | undefined {
 function modelMemoryGiB(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 65_536) throw new HttpError(400, `Oppgi ${label} som et tall fra 0 til 65 536 GiB.`);
   return value;
+}
+
+// Models added to a cloud OpenAI-compatible API get images (pasted or attached) unless the user
+// turns them off. Local servers say what their model takes; Anthropic always takes images.
+function imagesOnByDefault(provider: { kind: string; baseUrl?: string; presetId?: string; localKind?: unknown }): boolean {
+  return provider.kind === "openai-compatible" && !localKindFor(provider as Parameters<typeof localKindFor>[0]);
 }
 
 function modelFromBody(id: string, body: any): ModelConfig {
