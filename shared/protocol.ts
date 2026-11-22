@@ -108,7 +108,8 @@ export interface ProjectAction {
 export const MAX_PROJECT_ACTIONS = 40;
 export const MAX_ACTION_NAME = 60;
 export const MAX_ACTION_COMMAND = 4000;
-export const ACTION_SHORTCUT = /^((Mod|Alt|Shift)\+){1,3}[^+\s]{1,12}$/;
+// Requires Mod or Alt so a Shift-only combo (like Shift+T) never hijacks typing capital letters.
+export const ACTION_SHORTCUT = /^(Mod\+Alt\+|Mod\+Shift\+|Alt\+Shift\+|Mod\+Alt\+Shift\+|Mod\+|Alt\+)[^+\s]{1,12}$/;
 
 // Checks a list of actions from a request. Returns the cleaned list, or a Norwegian error message.
 export function cleanProjectActions(value: unknown): ProjectAction[] | string {

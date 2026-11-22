@@ -350,3 +350,16 @@ test("Typografi: the interface font and the code fonts are checked and reset", a
   const reset = await h.api("PATCH", "/api/settings", { uiFont: null, codeFont: null });
   assert.deepEqual([reset.uiFont, reset.codeFont], [undefined, undefined]);
 });
+
+test("Handlinger: hurtigtast med bare Shift avvises, Mod og Alt godtas", async (t) => {
+  const h = await startHarness(t);
+  const project = await h.project(tempDir(t));
+  assert.equal(await refused(h, "PATCH", `/api/projects/${project.id}`, { actions: [{ id: "a", name: "Test", command: "true", shortcut: "Shift+T" }] }), 400);
+  const ok = await h.api("PATCH", `/api/projects/${project.id}`, {
+    actions: [
+      { id: "a", name: "Test", command: "true", shortcut: "Mod+Shift+T" },
+      { id: "b", name: "Bygg", command: "true", shortcut: "Alt+B" },
+    ],
+  });
+  assert.equal(ok.actions.length, 2);
+});

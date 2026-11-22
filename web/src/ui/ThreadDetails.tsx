@@ -54,12 +54,13 @@ function Card(props: { close: () => void }) {
   // v1.3.0: the project's actions (or Denne datamaskinen's), run in a new terminal tab.
   const scopeId = () => project()?.id ?? LOCAL_SCOPE;
   const scripts = () => actionsFor(scopeId());
+  const visibleScripts = () => scripts().slice(0, 5);
   const scriptRows = () => (
     <>
-      <For each={scripts()}>
+      <For each={visibleScripts()}>
         {(action) => (
           <Row
-            icon={<IconPlay size={14} />}
+            icon={<IconPlay size={15} />}
             label={action.name}
             hint={action.shortcut ? <kbd class="details-kbd">{displayKeys(action.shortcut)}</kbd> : undefined}
             title={t("Kjør i terminalen: {command}", { command: action.command })}
@@ -68,6 +69,14 @@ function Card(props: { close: () => void }) {
           />
         )}
       </For>
+      <Show when={scripts().length > 5}>
+        <Row
+          icon={<IconChevron size={15} />}
+          label={t("Alle handlinger ({count})…", { count: scripts().length })}
+          testid="details-all-actions"
+          onClick={() => run(() => setSettingsOpen("projects"))}
+        />
+      </Show>
       <Row icon={<IconPlus size={15} />} label={t("Legg til prosjektskript")} title={t("Lag en kommando som kan kjøres i prosjektets terminal")} testid="details-add-action" onClick={() => run(() => openActionsEditor(scopeId()))} />
     </>
   );

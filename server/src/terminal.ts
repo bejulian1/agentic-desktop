@@ -78,13 +78,15 @@ export class Terminals {
     return terminal.id;
   }
 
-  // v1.3.0: a project action (T3 Code's project scripts) in its own tab. The command runs in a
-  // shell, and an interactive shell stays afterwards, so the output can be read and the command run
-  // again. The command goes in an environment variable, never pasted into the shell's arguments.
+  // v1.3.0: a project action (T3 Code's project scripts) in its own tab. Runs through an
+  // interactive shell so user PATH/tools (nvm, pyenv, asdf, aliases) match the Terminal tab, then
+  // stays interactive afterwards. The command goes in an env variable, never shell arguments.
   runAction(project: Project, title: string, command: string): string {
     const shell = process.env.SHELL || "/bin/bash";
+    const base = shell.split("/").pop() ?? "";
+    const runner = base === "bash" || base === "zsh" ? shell : "/bin/bash";
     const script = 'cmd=$AGENTIC_ACTION_COMMAND; unset AGENTIC_ACTION_COMMAND; printf "\\033[2m$ %s\\033[0m\\n" "$cmd"; eval "$cmd"; exec "$AGENTIC_ACTION_SHELL" -i';
-    const terminal = this.spawn(project, { title, file: "bash", args: ["-c", script], cols: 100, rows: 30, extraEnv: { AGENTIC_ACTION_COMMAND: command, AGENTIC_ACTION_SHELL: shell } });
+    const terminal = this.spawn(project, { title, file: runner, args: ["-ic", script], cols: 100, rows: 30, extraEnv: { AGENTIC_ACTION_COMMAND: command, AGENTIC_ACTION_SHELL: shell } });
     return terminal.id;
   }
 

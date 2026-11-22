@@ -103,11 +103,16 @@ export async function runProjectAction(scopeId: string, action: Pick<ProjectActi
 }
 
 // A keyboard shortcut set on an action of the project on show in Kode. The app's own shortcuts
-// come first (actions.ts); this is asked only when none of them matched.
+// come first (actions.ts); this is asked only when none of them matched. Non-Mod combos never fire
+// inside editable fields or the terminal, so typing accented/AltGr characters is never hijacked.
 export function runActionShortcut(event: KeyboardEvent): boolean {
   if (mode() !== "code" || settingsOpen()) return false;
   const combo = comboOf(event);
   if (!combo) return false;
+  if (!combo.startsWith("Mod+")) {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [contenteditable='true'], [contenteditable=''], .xterm")) return false;
+  }
   const current = scope();
   const action = actionsFor(current).find((a) => a.shortcut === combo);
   if (!action) return false;

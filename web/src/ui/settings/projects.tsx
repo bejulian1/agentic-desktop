@@ -17,7 +17,7 @@ import { removeChatProject } from "../chat-projects";
 import { ChatProjectGlyph } from "../ChatProjectGlyph";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "../ContextMenu";
 import { confirmDialog, pickFolder } from "../dialogs";
-import { IconArchive, IconBranch, IconChevronDown, IconFolder, IconImage, IconInfo, IconMonitor, IconPin, IconPlus, IconTrash } from "../icons";
+import { IconArchive, IconBranch, IconChevronDown, IconFolder, IconImage, IconInfo, IconMonitor, IconPlus, IconTrash } from "../icons";
 import { ProjectGlyph } from "../ProjectGlyph";
 import { Select } from "../Select";
 import { Group, Page, reset, Row, save, Segmented, Toggle } from "./parts";
@@ -112,10 +112,12 @@ export function ProjectsPage() {
         <Show when={menu()}>{(anchor) => <ContextMenu anchor={anchor()} label={t("Prosjekt")} class="select-menu projects-scope-menu" onClose={() => setMenu(null)} entries={entries()} />}</Show>
         <button type="button" class="btn btn-small btn-quiet projects-open-folder" onClick={() => setFolderPickerOpen(true)}><IconPlus size={13} />{t("Åpne mappe…")}</button>
       </div>
-      <p class="projects-callout" role="note" data-testid="projects-callout">
-        <IconInfo size={15} />
-        <span>{t("Finner du ikke en innstilling? Hold prosjektet valgt over, eller åpne en mappe for prosjektspesifikke valg.")}</span>
-      </p>
+      <Show when={!codeProject()?.archived}>
+        <p class="projects-callout" role="note" data-testid="projects-callout">
+          <IconInfo size={15} />
+          <span>{t("Finner du ikke en innstilling? Hold prosjektet valgt over, eller åpne en mappe for prosjektspesifikke valg.")}</span>
+        </p>
+      </Show>
       <Show when={codeProject()} keyed fallback={<Show when={chatProject()} keyed fallback={<LocalSections />}>{(p) => <ChatSections project={p} />}</Show>}>
         {(p) => <ProjectSections project={p} onRemoved={() => setChosen("local")} />}
       </Show>
@@ -164,7 +166,7 @@ function LocalSections() {
           openNew={actionsEditorRequest() === LOCAL_SCOPE}
           onOpened={() => takeActionsEditorRequest(LOCAL_SCOPE)}
           onChange={saveActions}
-          onRun={(action) => void runProjectAction(LOCAL_SCOPE, action)}
+          onRun={(action) => runProjectAction(LOCAL_SCOPE, action)}
         />
       </Group>
       <Group title={t("Instruksjoner")}>
@@ -299,7 +301,7 @@ function ProjectSections(props: { project: Project; onRemoved: () => void }) {
       <Group title={t("Generelt")}>
         <Row label={t("Navn")} text={t("Vises i sidefanen og overalt ellers i appen. Mappen på disken får ikke nytt navn.")}>
           <form class="projects-name" onSubmit={(e) => { e.preventDefault(); saveName(); }}>
-            <input class="input" aria-label={t("Navn")} value={name()} maxlength={80} onInput={(e) => setName(e.currentTarget.value)} />
+            <input class="input" aria-label={t("Navn")} value={name()} maxlength={80} onInput={(e) => setName(e.currentTarget.value)} onBlur={() => { if (name().trim() && name().trim() !== project().name) saveName(); }} />
             <button type="submit" class="btn btn-small" disabled={!name().trim() || name().trim() === project().name}>{t("Lagre")}</button>
           </form>
         </Row>
@@ -342,8 +344,8 @@ function ProjectSections(props: { project: Project; onRemoved: () => void }) {
             }}
           />
         </Show>
-        <Toggle label={t("Fest prosjekt")} text={t("Festede prosjekter står først i sidefanen og prosjektvelgerne.")} icon={IconPin} checked={project().pinned} onChange={(pinned) => void change({ pinned })} />
-        <Row label={t("Arkiver prosjekt")} text={t("Skjuler prosjektet i sidefanen og prosjektvelgerne. Trådene og filene beholdes.")} icon={IconArchive}>
+        <Toggle label={t("Fest prosjekt")} text={t("Festede prosjekter står først i sidefanen og prosjektvelgerne.")} checked={project().pinned} onChange={(pinned) => void change({ pinned })} />
+        <Row label={t("Arkiver prosjekt")} text={t("Skjuler prosjektet i sidefanen og prosjektvelgerne. Trådene og filene beholdes.")}>
           <button type="button" class="btn btn-small" data-testid="project-archive" onClick={() => void archive()}>{project().archived ? t("Gjenopprett") : t("Arkiver")}</button>
         </Row>
       </Group>
@@ -387,7 +389,7 @@ function ProjectSections(props: { project: Project; onRemoved: () => void }) {
           openNew={actionsEditorRequest() === props.project.id}
           onOpened={() => takeActionsEditorRequest(props.project.id)}
           onChange={(actions) => change({ actions })}
-          onRun={(action) => void runProjectAction(props.project.id, action)}
+          onRun={(action) => runProjectAction(props.project.id, action)}
         />
       </Group>
 
@@ -427,7 +429,7 @@ function ProjectSections(props: { project: Project; onRemoved: () => void }) {
       </Group>
 
       <Group title={t("Faresone")}>
-        <Row label={t("Fjern prosjektet")} text={t("Prosjektet og trådene fjernes fra appen. Mappen og filene på disken røres aldri.")} icon={IconTrash}>
+        <Row label={t("Fjern prosjektet")} text={t("Prosjektet og trådene fjernes fra appen. Mappen og filene på disken røres aldri.")}>
           <button type="button" class="btn btn-small btn-quiet-danger projects-danger" onClick={() => void remove()}><IconTrash size={13} />{t("Fjern prosjektet…")}</button>
         </Row>
       </Group>
@@ -484,7 +486,7 @@ function ChatSections(props: { project: ChatProject }) {
             onSave={async (icon, color) => { if (await change({ icon, color })) setPicking(false); }}
           />
         </Show>
-        <Toggle label={t("Fest prosjekt")} text={t("Festede prosjekter står først i Chat.")} icon={IconPin} checked={project().pinned} onChange={(pinned) => void change({ pinned })} />
+        <Toggle label={t("Fest prosjekt")} text={t("Festede prosjekter står først i Chat.")} checked={project().pinned} onChange={(pinned) => void change({ pinned })} />
       </Group>
       <Group title={t("Minne")}>
         <Row label={t("Minner")} text={t("Eget minne holder prosjektets minner for seg. Delt minne bruker de samme minnene som vanlig Chat.")}>

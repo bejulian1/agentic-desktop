@@ -227,10 +227,10 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           <Show when={thread.forkedFrom}>
             <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
           </Show>
+          <span class="thread-title">{thread.title}</span>
           <Show when={chatProvider()}>
             {(info) => <span class="thread-provider thread-provider-chat" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
           </Show>
-          <span class="thread-title">{thread.title}</span>
           <Show when={thread.origin === "agent"}>
             <span class="thread-origin"><IconBranch size={11} />{parent() ? t("Laget av {title}", { title: parent()!.title }) : t("Laget av en agent")}</span>
           </Show>

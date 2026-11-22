@@ -5,7 +5,6 @@ import { patch } from '../../lib/api';
 import { Choice, Group, Row, reset, save, Segmented, Toggle } from './parts';
 
 import { t } from '../../lib/i18n';
-import '../../styles/projects-settings.css';
 type Palette = 'app' | 'clear' | 'warm' | 'contrast';
 // Functions, so the labels follow the active language.
 export const codeFonts = (): Array<{value:CodeFont; label:string}> => [

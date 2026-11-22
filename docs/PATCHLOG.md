@@ -4,6 +4,24 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.3.1: Klikkbare fil-, MD-, tråd- og web-lenker med fargede favicons, `$skill`-brikker og design-/kodegjennomgang (22. november 2026, bygg 85)
+
+Rike, klikkbare lenker med fargede favicons i både Chat og Kode (PR #9), fulgt opp med feilrettinger og designpolering etter uavhengig kode- og smakskritikk (`$review` + `$frontend-design`):
+
+**Klikkbare fil-, MD-, tråd- og web-lenker (PR #9)**
+
+- **Klikkbare fil- og Markdown-lenker:** Markdown-lenker til filer (`[README.md](README.md)`, `[api.ts:42](server/src/http/api.ts:42)`, `#L10-L20`, fulle stier, `file:///…`) og backtick-filbrikker (`` `Sidebar.tsx` ``) vises med fargede filtype-merker (`MD`, `TS`, `TSX`, `JSON` m.fl.) og åpner rett i mini-editoren på riktig linje (eller skrivebeskyttet i Filer på Denne datamaskinen). Usikre skjemaer (`javascript:`, `data:`, `vbscript:`), bakover-traversal (`..`) og kontrolltegn avvises trygt.
+- **Klikkbare tråd-lenker:** `thread:<id>`, `agentic-thread://<id>` og `#thread:<id>` i meldinger blir tydelige tråd-brikker med ikon og «Åpne tråd: …» ved hover som hopper rett til tråden.
+- **Tydelige fargede favicons på ALLE web-lenker:** både nakne og navngitte `http(s)`-lenker får fargede innebygde SVG-ikoner og farget tekst (med full adresse på hover og null eksterne bildeforespørsler): egne GitHub-merker for PR, issue, release, commit og diskusjon, 35+ kjente utvikler-/nettstedsikoner og fargede domene-bokstavmerker for alle andre nettsteder.
+- **Små T3-detaljer:** `$skill-name` i tekst vises som lilla skill-brikke, brikkene sitter pent på tekstlinjen, og all brikketekst holder WCAG AA (≥ 4,58:1) i alle 34 temaer.
+
+**Rettelser og smakspolering etter uavhengig kritikk (`$review` + `$frontend-design`)**
+
+- **Trygge handlings-hurtigtaster:** hurtigtaster på handlinger krever nå `Mod` eller `Alt` (en ren `Shift+T` kan ikke lenger stjele stor «T» mens du skriver), og kombinasjoner uten `Mod` fyres ikke inne i tekstfelt eller terminalen.
+- **Interaktivt skall for handlinger:** prosjekthandlinger kjøres gjennom brukerens eget skall (`$SHELL -ic` / `bash -ic`) slik at `nvm`, `pyenv`, `asdf` og aliaser virker likt som i Terminal-fanen.
+- **Tryggere sletting og arbeidstre-oppstart:** sletting av en handling viser en «Angre»-melding i 8 sekunder, «Kjør»-knappen viser kjøretilstand, og hvis én arbeidstre-handling feiler fortsetter resten å starte.
+- **Visuell opprydning nærmere T3 Code:** rettet opp etikettkolonnen i Prosjekter → Generelt, autolagring av prosjektnavn på `blur`, ingen dobbel infoboks på arkiverte prosjekter, én felles chip-stil og 4/8/12 px avstandsskala, Chat-modellmerket flyttet til høyre side i sidefanen for rette titler, maks 5 handlinger + «Alle handlinger…» med jevn ikonstørrelse i Tråddetaljer, og mer harmoniske GitHub-statusfarger mot Ocean og andre temaer.
+
 ## 1.3.0: Komplett Prosjekter-side med Handlinger/skript, Typografi, fargede ikoner overalt og automatisk «Mine på GitHub» (22. november 2026, bygg 84)
 
 En grundig opprydning og oppgradering av Prosjekter-innstillingene, typografi, modell-favicons i hele appen og GitHub-visningene (PR #7 og PR #8):

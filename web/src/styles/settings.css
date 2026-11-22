@@ -399,3 +399,10 @@ button.setting.search-result:hover { background: var(--hover); }
   flex: 1;
   min-width: 0;
 }
+
+/* Utseende → Typografi: skrift og størrelse side om side, forhåndsvisningen under. */
+.typography-row { gap: var(--space-3); }
+.typography-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); width: 100%; }
+.font-pair { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+.font-pair .select-button { min-width: 140px; }
+@media (max-width: 720px) { .typography-head { flex-direction: column; } .font-pair { justify-content: flex-start; } }

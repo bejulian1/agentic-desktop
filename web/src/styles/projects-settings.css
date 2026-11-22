@@ -1,14 +1,14 @@
-/* v1.3.0: Innstillinger → Prosjekter, som i T3 Code: valget øverst, merknaden under, brikker for
-   modell og innsats, kortet med handlinger og dialogen for prosjektikon. */
+/* v1.3.0 / v1.3.1: Innstillinger → Prosjekter, som i T3 Code: valget øverst, merknaden under,
+   brikker for modell og innsats, kortet med handlinger og dialogen for prosjektikon. */
 
 .projects-scope { position: static; flex-wrap: wrap; row-gap: var(--space-2); padding: 0; background: none; }
-.projects-scope-button { gap: 7px; }
-.projects-open-folder { display: inline-flex; align-items: center; gap: 5px; }
+.projects-scope-button { gap: var(--space-2); }
+.projects-open-folder { display: inline-flex; align-items: center; gap: var(--space-1); }
 .select-menu.projects-scope-menu { min-width: 260px; }
 
 .projects-callout {
   display: flex; align-items: flex-start; gap: var(--space-2);
-  margin: 0 0 var(--space-5); padding: 10px var(--space-3);
+  margin: 0 0 var(--space-5); padding: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--accent) 7%, transparent);
@@ -19,60 +19,57 @@
 .projects-archived-note > svg { color: var(--text-3); }
 
 /* Ikon: forhåndsvisning på 40 × 40 ved siden av knappene. */
-.projects-icon-actions { align-items: center; }
+.projects-icon-actions { align-items: center; gap: var(--space-2); }
 .projects-icon-actions .projects-icon-preview { width: 40px; height: 40px; border: 1px solid var(--border); background: var(--surface-2); }
 
 /* Modell og tenkeinnsats som to brikker. */
-.project-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.project-chip { min-width: 0; gap: 6px; }
+.project-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+.project-chip { min-width: 0; gap: var(--space-2); }
 .project-chip .select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-chip-icon { display: inline-flex; flex: none; color: var(--text-2); }
 
+/* Én felles chip-stil for hurtigtaster, arbeidsområde-merker og gren-brikker. */
+.action-kbd, .details-kbd, .action-badge, .projects-branch {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 1px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text-2);
+  font: var(--weight-medium) var(--text-2xs) / 1.45 var(--font-sans);
+}
+.projects-branch { margin-left: var(--space-2); font-family: var(--font-mono); font-weight: var(--weight-regular); }
+
 /* Handlinger. */
 .actions-card > .setting:first-child { border-bottom: 1px solid var(--border); }
-.actions-empty { margin: 0; padding: 12px var(--space-4); font-size: var(--text-sm); }
+.actions-empty { margin: 0; padding: var(--space-3) var(--space-4); font-size: var(--text-sm); }
 .action-row + .action-row, .actions-card > .setting-block + .action-row { border-top: 1px solid var(--border); }
-.action-row .setting-text strong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.action-row .setting-text strong { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .action-command-text {
   display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   margin-top: 2px; padding: 0; border: 0; background: none;
   font: var(--text-xs) / 1.5 var(--font-mono); color: var(--text-3);
 }
-.action-kbd, .details-kbd {
-  padding: 0 5px; border: 1px solid var(--border); border-radius: var(--radius-xs);
-  background: var(--surface-2); font: var(--weight-medium) var(--text-2xs) / 1.6 var(--font-sans); color: var(--text-3);
-}
-.action-badge {
-  display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: 999px;
-  background: var(--surface-2); color: var(--text-3); font-size: var(--text-2xs); font-weight: var(--weight-regular);
-}
-.action-buttons { gap: 4px; }
-.action-buttons .btn { display: inline-flex; align-items: center; gap: 5px; }
+.action-buttons { gap: var(--space-1); }
+.action-buttons .btn { display: inline-flex; align-items: center; gap: var(--space-1); }
 .icon-button-danger:hover { color: var(--danger); }
 .action-form { display: flex; flex-direction: column; gap: var(--space-3); width: 100%; }
 .action-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
 .action-form .field > span:first-child { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--text-2); }
 .action-command { width: 100%; min-height: 64px; resize: vertical; }
 .action-shortcut-input { cursor: pointer; caret-color: transparent; }
-.action-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-2); }
-.action-form-buttons { display: flex; align-items: center; gap: 6px; }
+.action-check { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2); }
+.action-form-buttons { display: flex; align-items: center; gap: var(--space-2); }
 .action-form .field-error { margin: 0; color: var(--danger); font-size: var(--text-xs); }
-.actions-card .btn { display: inline-flex; align-items: center; gap: 5px; }
+.actions-card .btn { display: inline-flex; align-items: center; gap: var(--space-1); }
 
 /* Utsjekkinger og faresonen. */
 .projects-checkout { align-items: center; }
 .projects-checkout > svg { flex: none; color: var(--text-3); }
-.projects-branch {
-  display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 0 6px; border-radius: 999px;
-  background: var(--surface-2); color: var(--text-2); font: var(--weight-regular) var(--text-xs) / 1.6 var(--font-mono);
-}
-.projects-danger { display: inline-flex; align-items: center; gap: 5px; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+.projects-danger { display: inline-flex; align-items: center; gap: var(--space-1); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
 .projects-danger:hover:not(:disabled) { background: var(--danger-soft); }
 
 /* Dialogen «Velg prosjektikon». */
 .dialog.project-icon-dialog { width: min(520px, calc(100vw - 32px)); padding: 0; overflow: hidden; }
-.project-icon-dialog-body { position: relative; padding: 20px 22px 14px; }
-.project-icon-dialog-body .dialog-head { margin-bottom: 4px; }
+.project-icon-dialog-body { position: relative; padding: var(--space-5) var(--space-6) var(--space-3); }
+.project-icon-dialog-body .dialog-head { margin-bottom: var(--space-1); }
 .project-icon-dialog-body .dialog-head h2 { font-size: var(--text-xl); }
 .project-icon-dialog-intro { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
 .project-icon-dialog-preview {
@@ -81,16 +78,9 @@
 }
 .project-icon-dialog .icon-picker { margin-top: 0; padding: 0; background: transparent; }
 .project-icon-dialog .icon-picker-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); max-height: 240px; }
-.project-icon-dialog-foot { margin-top: 0; padding: 12px 22px; border-top: 1px solid var(--border); background: var(--surface-2); }
+.project-icon-dialog-foot { margin-top: 0; padding: var(--space-3) var(--space-6); border-top: 1px solid var(--border); background: var(--surface-2); }
 
 @media (max-width: 720px) {
   .action-form-grid { grid-template-columns: 1fr; }
   .project-icon-dialog .icon-picker-grid { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); }
 }
-
-/* v1.3.0: Utseende → Typografi. Skrift og størrelse side om side, forhåndsvisningen under. */
-.typography-row { gap: var(--space-3); }
-.typography-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); width: 100%; }
-.font-pair { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.font-pair .select-button { min-width: 140px; }
-@media (max-width: 720px) { .typography-head { flex-direction: column; } .font-pair { justify-content: flex-start; } }

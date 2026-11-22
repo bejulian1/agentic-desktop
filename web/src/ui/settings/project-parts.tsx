@@ -7,7 +7,7 @@ import {
   type ProjectAction, type ReasoningEffort,
 } from "../../../../shared/protocol";
 import { lookupMessage, t } from "../../lib/i18n";
-import { app, modelDisplayName } from "../../state/app";
+import { app, modelDisplayName, toast } from "../../state/app";
 import { comboOf, displayKeys, keysFor, SHORTCUTS } from "../../state/shortcuts";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "../ContextMenu";
 import { ChatProjectGlyph } from "../ChatProjectGlyph";
@@ -264,9 +264,10 @@ export function ActionsCard(props: {
   openNew?: boolean; // open the form for a new action (Tråddetaljer → Legg til prosjektskript)
   onOpened?: () => void;
   onChange: (next: ProjectAction[]) => Promise<boolean>;
-  onRun: (action: ProjectAction) => void;
+  onRun: (action: ProjectAction) => unknown;
 }) {
   const [editing, setEditing] = createSignal<string | "new" | null>(null);
+  const [runningId, setRunningId] = createSignal<string | null>(null);
   let card!: HTMLDivElement;
   // Asked for from Tråddetaljer: the form for a new action, in view.
   createEffect(() => {
@@ -282,7 +283,20 @@ export function ActionsCard(props: {
     if (ok) setEditing(null);
     return ok;
   };
-  const remove = (action: ProjectAction) => void props.onChange(props.actions.filter((a) => a.id !== action.id));
+  const remove = async (action: ProjectAction) => {
+    const previous = [...props.actions];
+    const ok = await props.onChange(previous.filter((a) => a.id !== action.id));
+    if (ok) toast(t("Slettet «{name}».", { name: action.name }), "info", { label: t("Angre"), run: () => void props.onChange(previous) });
+  };
+  const run = async (action: ProjectAction) => {
+    if (runningId() === action.id) return;
+    setRunningId(action.id);
+    try {
+      await props.onRun(action);
+    } finally {
+      if (runningId() === action.id) setRunningId(null);
+    }
+  };
   return (
     <div class="settings-card actions-card" ref={card} data-testid="actions-card">
       <div class="setting">
@@ -313,9 +327,11 @@ export function ActionsCard(props: {
                 <code class="action-command-text" dir="ltr">{action.command}</code>
               </div>
               <div class="setting-control action-buttons">
-                <button type="button" class="btn btn-small" title={t("Kjør i en ny terminalfane")} onClick={() => props.onRun(action)}><IconPlay size={12} />{t("Kjør")}</button>
+                <button type="button" class="btn btn-small" disabled={runningId() === action.id} title={t("Kjør i en ny terminalfane")} onClick={() => void run(action)}>
+                  <Show when={runningId() === action.id} fallback={<><IconPlay size={12} />{t("Kjør")}</>}><span class="spinner" />{t("Kjører…")}</Show>
+                </button>
                 <button type="button" class="icon-button" aria-label={t("Rediger {name}", { name: action.name })} title={t("Rediger")} onClick={() => setEditing(action.id)}><IconPencil size={14} /></button>
-                <button type="button" class="icon-button icon-button-danger" aria-label={t("Slett {name}", { name: action.name })} title={t("Slett")} onClick={() => remove(action)}><IconTrash size={14} /></button>
+                <button type="button" class="icon-button icon-button-danger" aria-label={t("Slett {name}", { name: action.name })} title={t("Slett")} onClick={() => void remove(action)}><IconTrash size={14} /></button>
               </div>
             </div>
           </Show>

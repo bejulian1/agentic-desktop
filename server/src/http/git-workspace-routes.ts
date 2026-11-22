@@ -32,12 +32,12 @@ export function gitWorkspaceRoutes(route:Route,deps:ApiDeps,git:GitWorkspace,pro
     created=deps.store.project(created.id)!;
    }
    deps.publish({type:'project.changed',project:created});changed(result.state.root);
-   const started:string[]=[];
+   const started:string[]=[],failed:string[]=[];
    if(!known)for(const action of (source.actions??[]).filter(a=>a.runOnWorktreeCreate)){
     try{const terminalId=deps.terminals.runAction(created,action.name,action.command);started.push(terminalId);deps.publish({type:'terminal.started',terminalId,projectId:created.id,title:action.name});}
-    catch{break;}
+    catch{failed.push(action.name);continue;}
    }
-   return {project:created,state:result.state,worktreePath:result.path,actionsStarted:started.length};
+   return {project:created,state:result.state,worktreePath:result.path,actionsStarted:started.length,...(failed.length?{actionsFailed:failed}:{})};
   }catch{throw new HttpError(500,`Arbeidstreet er opprettet i ${result.path}, men kunne ikke legges til som prosjekt. Åpne mappen manuelt.`);}
  });
  route('POST','/api/projects/:id/git/worktrees/open',async({params,body})=>{

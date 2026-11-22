@@ -662,9 +662,10 @@
 /* Én liste etter tid: each thread with its project's mark before the title. */
 .thread-text:has(.thread-project) { flex-direction: row; align-items: center; gap: 7px; }
 .thread-project { display: inline-flex; flex: none; color: var(--text-3); }
-/* Chat rows: the model's coloured mark before the title, a touch quieter than on Kode rows. */
-.thread-text:has(.thread-provider-chat) { flex-direction: row; align-items: center; gap: 7px; }
-.thread-provider-chat { display: inline-flex; flex: none; opacity: 0.88; }
+/* Chat rows: the model's coloured mark sits on the right side of the row, keeping titles aligned. */
+.thread-text:has(.thread-provider-chat) { flex-direction: row; align-items: center; gap: var(--space-2); }
+.thread-text:has(.thread-provider-chat) .thread-title { flex: 1; min-width: 0; }
+.thread-provider-chat { display: inline-flex; flex: none; margin-left: auto; opacity: 0.9; }
 .thread-item:hover .thread-provider-chat, .thread-text[aria-current] .thread-provider-chat { opacity: 1; }
 .project-list { padding-top: 2px; }
 
