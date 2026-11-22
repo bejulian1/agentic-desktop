@@ -81,8 +81,9 @@ flow("ondsinnet Markdown og HTML i agentutdata kjører ikke og bryter ikke CSP",
 
     assert.equal(await page.evaluate(() => (window as any).__pwned), undefined, "ingen skript kjørte");
     for (const selector of ["script", "svg", "img", "style", "[onerror]", "[onclick]", "[onload]", 'a[href^="javascript"]', 'a[href^="data"]']) {
-      // The artifact box's own icons are the app's, made with createElementNS, not the model's.
-      const found = await answer.locator(selector).evaluateAll((els) => els.filter((el) => !el.closest(".artifact-box")).length);
+      // The artifact box's own icons are the app's, made with createElementNS, not the model's, and
+      // so is the coloured mark in a link chip (v1.4.0, markdown/render.ts).
+      const found = await answer.locator(selector).evaluateAll((els) => els.filter((el) => !el.closest(".artifact-box") && !el.closest("a.md-link-chip > svg.md-link-icon")).length);
       assert.equal(found, 0, `${selector} finnes ikke i svaret`);
     }
     // Since round 15 an html block with <script> is an artifact box (SPEC 31.1): no iframe in the
@@ -95,6 +96,9 @@ flow("ondsinnet Markdown og HTML i agentutdata kjører ikke og bryter ikke CSP",
     assert.equal(await answer.locator("a").count(), 1, "bare den trygge lenken ble en lenke");
     assert.equal(await answer.locator("a").getAttribute("href"), "https://example.com");
     assert.equal(await answer.locator("a").getAttribute("rel"), "noopener noreferrer");
+    // The safe link's mark is the app's monogram: one svg with a letter, nothing from the answer.
+    assert.equal(await answer.locator("a svg").count(), 1);
+    assert.equal(await answer.locator("a svg.md-link-monogram text").textContent(), "E");
     assert.ok(!requests.some((url) => url.includes("lekk.png")), "bildet ble aldri hentet");
     const text = await answer.textContent() ?? "";
     assert.match(text, /window\.__pwned = 2/, "rå HTML vises som tekst");
