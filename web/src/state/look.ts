@@ -4,6 +4,7 @@ import { t } from "../lib/i18n";
 // copy from localStorage before the first paint, so a stored accent or text size never flashes.
 // The rest are small behaviours: the mode the app opens in, a sound or a system notification when
 // a turn ends, fails or needs input/approval, and asking before the tab closes while a thread runs.
+import { setMathRendering } from "../markdown/options";
 import { threadNotificationsOf, type Settings, type Thread } from "../../../shared/protocol";
 import { on } from "../lib/socket";
 import { app, mode, scope, setMode, setSettingsOpen, settingsOpen, toast } from "./app";
@@ -26,6 +27,12 @@ function lookOf(settings: Partial<Settings>): Look {
   if (settings.themePreset && settings.themePreset !== "standard") attrs["data-palette"] = settings.themePreset;
   if (settings.density && settings.density !== "normal") attrs["data-density"] = settings.density;
   if (settings.uiFontSize && settings.uiFontSize !== 14) attrs["data-ui-size"] = String(settings.uiFontSize);
+  // v1.2.0: the strength of borders and hover surfaces, and how wide the conversation is.
+  if (settings.uiContrast && settings.uiContrast !== 100) {
+    attrs["data-ui-contrast"] = "custom";
+    vars["--ui-contrast"] = String(Math.min(115, Math.max(85, settings.uiContrast)) / 100);
+  }
+  if (settings.chatWidth && settings.chatWidth !== "comfortable") attrs["data-chat-width"] = settings.chatWidth;
   if (settings.codeFont && settings.codeFont !== "system") attrs["data-code-font"] = settings.codeFont;
   if (settings.codeFontCustom) vars["--font-mono"] = `${JSON.stringify(settings.codeFontCustom)}, monospace`;
   if (settings.codeThemeLight && settings.codeThemeLight !== "app") attrs["data-code-light"] = settings.codeThemeLight;
@@ -41,12 +48,13 @@ function lookOf(settings: Partial<Settings>): Look {
   return { attrs, vars };
 }
 
-const ATTRS = ["data-accent", "data-palette", "data-density", "data-ui-size", "data-code-font", "data-code-light", "data-code-dark", "data-motion", "data-wrap-code", "data-diff-colors", "data-code-size"];
-const VARS = ["--code-font-size", "--tab-size", "--font-mono"];
+const ATTRS = ["data-ui-contrast", "data-chat-width", "data-accent", "data-palette", "data-density", "data-ui-size", "data-code-font", "data-code-light", "data-code-dark", "data-motion", "data-wrap-code", "data-diff-colors", "data-code-size"];
+const VARS = ["--ui-contrast", "--code-font-size", "--tab-size", "--font-mono"];
 
 // Called with the settings as the server sent them, so a field that was reset is gone here too.
 export function applyLook(settings: Partial<Settings>): void {
   current = settings;
+  setMathRendering(settings.renderMath !== false);
   const root = document.documentElement;
   const look = lookOf(settings);
   for (const name of ATTRS) {

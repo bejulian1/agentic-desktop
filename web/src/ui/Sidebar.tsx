@@ -32,7 +32,8 @@ import { artifactCount, closeArtifacts, openArtifacts, room } from "../state/art
 import { actions } from "../state/actions";
 import { skillsOpen } from "../state/skills-workspace";
 import { displayKeys, keysFor } from "../state/shortcuts";
-import { clearFinished, finished, markSeen, searchOpen, setSearchOpen } from "../state/home";
+import { clearFinished, finished, gitInfo, loadGitInfo, markSeen, searchOpen, setSearchOpen } from "../state/home";
+import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
 import { STATE_LABEL, threadState, waitingCount } from "../state/thread-status";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
@@ -99,6 +100,14 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   const [pinBusy, setPinBusy] = createSignal(false);
   const parent = createMemo(() => (thread.parentThreadId ? app.threads[thread.parentThreadId] : undefined));
   let row!: HTMLDivElement;
+  // v1.2.0: under the title of a Kode thread, the branch of its project and the kind of model.
+  // The branch is read once for the project (home.ts throttles it), never per row.
+  const inProject = () => thread.mode === "code" && !!thread.projectId && !!app.projects[thread.projectId];
+  createEffect(() => { if (inProject()) loadGitInfo(thread.projectId!); });
+  const branch = () => (inProject() ? gitInfo(thread.projectId!)?.branch ?? null : null);
+  const provider = createMemo(() => (thread.mode === "code" ? modelProvider(thread.modelId) : null));
+  // Done and not looked at yet: «Ferdig» in green, where the age would be.
+  const done = () => threadState(thread, false) === "new";
 
   const open = () => {
     markSeen(thread.id);
@@ -220,6 +229,14 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           <Show when={thread.origin === "agent"}>
             <span class="thread-origin"><IconBranch size={11} />{parent() ? t("Laget av {title}", { title: parent()!.title }) : t("Laget av en agent")}</span>
           </Show>
+          <Show when={provider()}>
+            {(info) => (
+              <span class="thread-meta" data-testid="thread-meta">
+                <span class="thread-provider" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={11} /></span>
+                <Show when={branch()}>{(name) => <span class="thread-branch" title={t("Gren: {name}", { name: name() })}><IconBranch size={10} /><span>{name()}</span></span>}</Show>
+              </span>
+            )}
+          </Show>
         </button>
       </Show>
       <Show when={waitingCount(thread) > 0}>
@@ -227,7 +244,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
       </Show>
       <Show
         when={isSnoozed(thread)}
-        fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}
+        fallback={<Show when={done()} fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}><span class="thread-time thread-done" title={t("Ferdig, og du har ikke sett svaret")}>{t("Ferdig")}</span></Show>}
       >
         <button type="button" class="thread-snooze" title={t("{snooze}. Trykk for å hente den tilbake.", { snooze: snoozeLabel(thread.snoozedUntil!) })} aria-label={t("{snooze}. Hent tilbake", { snooze: snoozeLabel(thread.snoozedUntil!) })} onClick={() => setSnoozed(thread, null)}>
           <IconSnooze size={13} />

@@ -22,6 +22,7 @@ import { Appearance, General, Privacy } from "./settings/general";
 import { BrowserPage } from "./settings/browser";
 import { DiffsPage } from "./settings/diffs";
 import { ChatSettings, CodeSettings } from "./settings/modes";
+import { ProjectsPage } from "./settings/projects";
 import { Providers } from "./settings/providers";
 import { canonicalSettingsPage, matchingPages, search } from "./settings/search";
 import { Shortcuts } from "./settings/shortcuts";
@@ -52,6 +53,7 @@ const APP_SECTIONS = (): Section[] => [
   { id: "general", label: t("Generelt"), icon: IconSettings },
   { id: "code", label: t("Kode"), icon: IconCode }, // round 9: the gear opens this one from Kode
   { id: "chat", label: t("Chat"), icon: IconChat }, // and this one from Chat
+  { id: "projects", label: t("Prosjekter"), icon: IconFolder }, // v1.2.0: one project's name, icon, defaults and instructions
   { id: "appearance", label: t("Utseende"), icon: IconPalette },
   { id: "providers", label: t("Modeller og leverandører"), icon: IconCpu },
   { id: "github", label: t("GitHub"), icon: IconPullRequest }, // round 8, agent G
@@ -266,6 +268,7 @@ const VIEWS: Record<string, (props: { target?: string | null }) => JSX.Element> 
   general: General,
   code: CodeSettings,
   chat: ChatSettings,
+  projects: ProjectsPage,
   appearance: Appearance,
   providers: () => <Providers />,
   diffs: DiffsPage,

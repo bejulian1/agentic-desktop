@@ -80,6 +80,7 @@ export const IconLaptop = (p: P) => <Svg {...p}><rect x="3" y="3.5" width="10" h
 export const IconMic = (p: P) => <Svg {...p}><rect x="6" y="2" width="4" height="7.5" rx="2" /><path d="M3.75 7.75a4.25 4.25 0 0 0 8.5 0M8 12v2" /></Svg>;
 export const IconCompose = (p: P) => <Svg {...p}><path d="M13.5 8.75V12A1.5 1.5 0 0 1 12 13.5H4A1.5 1.5 0 0 1 2.5 12V4A1.5 1.5 0 0 1 4 2.5h3.25" /><path d="m11.4 2.6 2 2L8.25 9.75 6 10.25l.5-2.25z" /></Svg>;
 export const IconPlusCircle = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="5.75" /><path d="M8 5.5v5M5.5 8h5" /></Svg>;
+export const IconMoon = (p: P) => <Svg {...p}><path d="M13 9.6A5.5 5.5 0 0 1 6.4 3 5.5 5.5 0 1 0 13 9.6Z" /></Svg>;
 export const IconSun = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="2.75" /><path d="M8 1.75v1.25M8 13v1.25M1.75 8H3M13 8h1.25M3.6 3.6l.9.9M11.5 11.5l.9.9M3.6 12.4l.9-.9M11.5 4.5l.9-.9" /></Svg>;
 export const IconGauge = (p: P) => <Svg {...p}><path d="M2.75 11.5a5.5 5.5 0 1 1 10.5 0" /><path d="m8 9.25 2.5-3" /><circle cx="8" cy="9.5" r=".75" /></Svg>;
 export const IconPlug = (p: P) => <Svg {...p}><path d="M5.5 2v3M10.5 2v3M4 5h8v2.5a4 4 0 0 1-8 0zM8 11.5V14" /></Svg>;

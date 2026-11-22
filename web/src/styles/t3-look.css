@@ -1,0 +1,242 @@
+/* v1.2.0: the interface controls in Innstillinger → Utseende, smart links and file chips in the
+   conversation, and the appearance previews. Loaded after extra.css (main.tsx). Tokens only, so
+   every theme follows. */
+
+/* 1. Kontrast i grensesnittet (uiContrast): borders and the hover and pressed tints scale with
+   --ui-contrast (0.85 to 1.15). 100 % sets no attribute at all, so the theme's own values stay as
+   they are. Høy kontrast keeps its own strong borders. */
+:root[data-ui-contrast]:not([data-palette="kontrast"]) {
+  --border: color-mix(in srgb, var(--text) calc(10% * var(--ui-contrast, 1)), transparent);
+  --border-strong: color-mix(in srgb, var(--text) calc(18% * var(--ui-contrast, 1)), transparent);
+  --hover: color-mix(in srgb, var(--text) calc(5% * var(--ui-contrast, 1)), transparent);
+  --active: color-mix(in srgb, var(--text) calc(9% * var(--ui-contrast, 1)), transparent);
+}
+:root[data-ui-contrast][data-theme="dark"]:not([data-palette="kontrast"]) {
+  --border: color-mix(in srgb, var(--text) calc(9% * var(--ui-contrast, 1)), transparent);
+  --border-strong: color-mix(in srgb, var(--text) calc(17% * var(--ui-contrast, 1)), transparent);
+  --hover: color-mix(in srgb, var(--text) calc(6% * var(--ui-contrast, 1)), transparent);
+  --active: color-mix(in srgb, var(--text) calc(10% * var(--ui-contrast, 1)), transparent);
+}
+
+/* 2. Bredde på samtalen (chatWidth): the conversation and the message field share --content-max. */
+:root { --chat-max-width: 760px; }
+:root[data-chat-width="compact"] { --chat-max-width: 640px; --content-max: 640px; }
+:root[data-chat-width="wide"] { --chat-max-width: 960px; --content-max: 960px; }
+
+/* 3. Smart links in the conversation: GitHub pull requests and issues as chips, and long bare
+   addresses shortened. The full address is in the tooltip. */
+.md-link-chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: min(100%, 38ch); padding: 0 7px 0 5px; vertical-align: baseline;
+  border-radius: var(--radius-full); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--accent-text);
+  font-size: 0.92em; line-height: 1.55; text-decoration: none; white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.md-link-chip:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); text-decoration: none; }
+.md-link-chip .md-link-icon { flex: none; width: 13px; height: 13px; }
+.md-link-chip .md-link-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.md-link-github[data-kind="pull"] { --chip: var(--tok-keyword); }
+.md-link-github[data-kind="issue"] { --chip: var(--ok); }
+.md-link-github[data-kind="repo"] { --chip: var(--text-2); }
+.md-link-github { color: var(--chip, var(--text-2)); border-color: color-mix(in srgb, var(--chip, var(--text-2)) 26%, transparent); background: color-mix(in srgb, var(--chip, var(--text-2)) 9%, transparent); }
+.md-link-github:hover { background: color-mix(in srgb, var(--chip, var(--text-2)) 16%, transparent); border-color: color-mix(in srgb, var(--chip, var(--text-2)) 44%, transparent); }
+
+/* 4. File names in `code`: a small dot in the colour of the kind of file, before the name. */
+code.md-file-chip { --ext: var(--text-3); display: inline-flex; align-items: baseline; gap: 5px; }
+code.md-file-chip::before { content: ""; flex: none; align-self: center; width: 6px; height: 6px; border-radius: 50%; background: var(--ext); }
+code.md-file-chip[data-file-ext="ts"], code.md-file-chip[data-file-ext="tsx"] { --ext: #3d85d6; }
+code.md-file-chip[data-file-ext="js"], code.md-file-chip[data-file-ext="jsx"], code.md-file-chip[data-file-ext="mjs"], code.md-file-chip[data-file-ext="cjs"] { --ext: #d3a31c; }
+code.md-file-chip[data-file-ext="css"], code.md-file-chip[data-file-ext="scss"] { --ext: #a46bd8; }
+code.md-file-chip[data-file-ext="json"], code.md-file-chip[data-file-ext="toml"], code.md-file-chip[data-file-ext="yml"], code.md-file-chip[data-file-ext="yaml"] { --ext: #d98a3a; }
+code.md-file-chip[data-file-ext="md"], code.md-file-chip[data-file-ext="mdx"], code.md-file-chip[data-file-ext="txt"] { --ext: #7b8896; }
+code.md-file-chip[data-file-ext="py"] { --ext: #3f9a8a; }
+code.md-file-chip[data-file-ext="rs"], code.md-file-chip[data-file-ext="go"], code.md-file-chip[data-file-ext="c"], code.md-file-chip[data-file-ext="h"], code.md-file-chip[data-file-ext="cpp"] { --ext: #d0663f; }
+code.md-file-chip[data-file-ext="html"], code.md-file-chip[data-file-ext="vue"], code.md-file-chip[data-file-ext="svelte"] { --ext: #e0553f; }
+code.md-file-chip[data-file-ext="sh"], code.md-file-chip[data-file-ext="sql"] { --ext: #55a868; }
+code.md-file-chip[data-file-ext="java"], code.md-file-chip[data-file-ext="kt"], code.md-file-chip[data-file-ext="rb"], code.md-file-chip[data-file-ext="php"] { --ext: #c7508b; }
+
+/* 5. Tema as three cards (ui/settings/appearance-controls.tsx): System, Lys and Mørk, each a small
+   window drawn with the chosen theme's own colours. System shows both, split across the corner. */
+.scheme-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.scheme-card {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: var(--space-2) var(--space-2) var(--space-3); text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--text);
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.scheme-card:hover { background: var(--hover); }
+.scheme-card[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.scheme-card:focus-visible { outline-offset: 2px; }
+.scheme-preview { position: relative; display: block; height: 76px; overflow: hidden; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--border); }
+.scheme-window {
+  position: absolute; inset: 0; display: grid; grid-template-columns: 26% 1fr; background: var(--p-bg);
+}
+.scheme-window .tp-side { display: flex; flex-direction: column; gap: 5px; padding: 9px 7px; background: var(--p-side); }
+.scheme-window .tp-side i { display: block; height: 4px; border-radius: 2px; background: var(--p-muted); opacity: 0.45; }
+.scheme-window .tp-side i:first-child { background: var(--p-accent); opacity: 1; width: 70%; }
+.scheme-window .tp-main { display: flex; flex-direction: column; gap: 6px; padding: 9px 9px 0; min-width: 0; }
+.scheme-window .tp-title { display: block; width: 58%; height: 5px; border-radius: 2px; background: var(--p-text); }
+.scheme-window .tp-code { display: flex; gap: 4px; }
+.scheme-window .tp-code b { display: block; height: 4px; border-radius: 2px; }
+.scheme-window .tp-kw { width: 18%; background: var(--p-kw); }
+.scheme-window .tp-fn { width: 30%; background: var(--p-fn); }
+.scheme-window .tp-str { width: 26%; background: var(--p-str); }
+.scheme-window .tp-str.short { width: 34%; }
+.scheme-window .tp-muted { width: 22%; background: var(--p-muted); opacity: 0.7; }
+.scheme-window .tp-composer { display: flex; align-items: center; justify-content: flex-end; margin-top: auto; margin-bottom: 7px; height: 14px; padding: 0 3px; border-radius: 5px; background: var(--p-surface); }
+.scheme-window .tp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--p-accent); }
+.scheme-dark-half { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.scheme-card-name { display: flex; align-items: center; gap: 6px; padding: 0 2px; font-weight: var(--weight-medium); font-size: var(--text-sm); }
+.scheme-card-check { display: inline-flex; color: var(--accent-text); opacity: 0; transform: scale(0.6); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-spring); }
+.scheme-card[aria-checked="true"] .scheme-card-check { opacity: 1; transform: none; }
+.scheme-card-text { padding: 0 2px; color: var(--text-3); font-size: var(--text-xs); line-height: var(--leading-tight); }
+@media (max-width: 520px) { .scheme-cards { gap: var(--space-2); } .scheme-preview { height: 60px; } .scheme-card-text { display: none; } }
+
+/* The theme cards: a pair of orbs, light and dark, with a sun or a moon on the one that shows now. */
+.theme-orbs { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.theme-orb {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--o-bg) 0 52%, var(--o-accent) 52% 100%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent);
+  color: transparent;
+}
+.theme-orb .icon { opacity: 0; transition: opacity var(--dur-1) var(--ease-out); }
+.theme-orb[data-active="true"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent), 0 0 0 2px var(--surface), 0 0 0 3px var(--accent); }
+.theme-orb[data-active="true"] .icon { opacity: 1; color: var(--o-accent); filter: drop-shadow(0 0 1px var(--o-bg)); }
+.theme-card[aria-checked="true"] .theme-card-name { color: var(--text); }
+.theme-card { border-radius: var(--radius-lg); }
+
+/* Kontrast i grensesnittet: the slider and its value. */
+.range-field { display: inline-flex; align-items: center; gap: var(--space-3); }
+.range-field input[type="range"] { width: 160px; accent-color: var(--accent); }
+.range-field output { min-width: 4ch; color: var(--text-2); font-variant-numeric: tabular-nums; text-align: right; font-size: var(--text-sm); }
+
+/* The interface text, as it looks at the chosen size. */
+.font-preview-box { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.font-preview-box p { margin: 0; }
+.font-preview-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.font-preview-line { font-size: var(--text-md); line-height: 1.7; }
+.font-preview-small { font-size: var(--text-xs); }
+.chip-skill, .chip-file {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0 7px 0 5px; border-radius: var(--radius-full); vertical-align: baseline;
+  font-family: var(--font-mono); font-size: 0.9em; line-height: 1.55; white-space: nowrap;
+}
+.chip-skill { color: var(--tok-keyword); background: color-mix(in srgb, var(--tok-keyword) 11%, transparent); border: 1px solid color-mix(in srgb, var(--tok-keyword) 26%, transparent); }
+.chip-file { color: var(--tok-function); background: color-mix(in srgb, var(--tok-function) 10%, transparent); border: 1px solid color-mix(in srgb, var(--tok-function) 24%, transparent); }
+
+/* Forhåndsvisning av kode: a diff and a terminal in the app's own colours. */
+.code-live-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-3); }
+.code-live-block { min-width: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-md); overflow: hidden; background: var(--code-bg, var(--bg-panel)); color: var(--code-fg, var(--text)); }
+.code-live-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 5px 10px; border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--text-3); font-size: var(--text-xs); }
+.code-live-file { font-family: var(--font-mono); color: var(--text-2); }
+.code-live-block pre { margin: 0; padding: 9px 0; font: var(--code-font-size, 12.5px)/1.65 var(--font-mono); tab-size: var(--tab-size, 4); overflow-x: auto; }
+.code-live-block .code-preview-line { padding-inline: 10px; }
+.code-live-block .code-preview-line.add, .code-live-block .code-preview-line.del { padding-left: 7px; }
+.code-live-block .code-preview-line.add { background: var(--add-bg); border-left-color: var(--add-text); }
+.code-live-block .code-preview-line.del { background: var(--del-bg); border-left-color: var(--del-text); }
+:root[data-wrap-code] .code-live-block pre .code-preview-line { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.code-live-ok { color: var(--ok); }
+.code-live-fail { color: var(--danger); }
+@media (max-width: 800px) { .code-live-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* 6. Project icons: a monogram badge, an uploaded image, and the picker's monogram tab. */
+.project-glyph.has-mono, .project-glyph.has-image, .project-glyph.has-emoji { align-items: center; justify-content: center; }
+.project-mono {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 28%; box-sizing: border-box;
+  font-family: var(--font-sans); font-weight: var(--weight-semibold); line-height: 1; letter-spacing: -0.02em; overflow: hidden;
+  color: color-mix(in srgb, var(--glyph-color, var(--text-2)) 72%, var(--text)); background: color-mix(in srgb, var(--glyph-color, var(--text-3)) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glyph-color, var(--text-3)) 34%, transparent);
+}
+.project-file-icon { border-radius: 22%; }
+.icon-picker-mono { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-2); }
+.icon-picker-mono-field { display: flex; flex-direction: column; gap: 3px; font-size: var(--text-xs); color: var(--text-3); }
+.icon-picker-mono-field .input { width: 7ch; text-align: center; font-weight: var(--weight-semibold); letter-spacing: 0.04em; text-transform: uppercase; }
+.icon-picker-mono-help { flex-basis: 100%; margin: 0; }
+.icon-picker-colors { max-width: 100%; }
+
+/* 7. Innstillinger → Prosjekter */
+.projects-scope { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-4); padding: var(--space-2) 0; background: var(--bg); }
+.projects-scope-label { color: var(--text-2); font-size: var(--text-sm); }
+.projects-scope-button { max-width: min(320px, 100%); }
+.projects-scope-button .select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projects-name { display: flex; align-items: center; gap: var(--space-2); }
+.projects-name .input { width: min(260px, 40vw); }
+.projects-icon-row { align-items: center; }
+.projects-icon-preview { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--surface-2); }
+.projects-icon-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.projects-icon-actions .btn { display: inline-flex; align-items: center; gap: 5px; }
+.projects-picker .icon-picker { width: 100%; margin-top: 0; }
+.projects-path { display: block; max-width: 100%; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--text-xs); }
+.projects-instructions { width: 100%; min-height: 160px; resize: vertical; }
+.projects-instructions-actions { display: flex; justify-content: flex-end; }
+.projects-empty { align-items: center; flex-direction: row; justify-content: space-between; gap: var(--space-4); }
+@media (max-width: 720px) { .projects-name .input { width: 100%; } .projects-scope { flex-wrap: wrap; } }
+
+/* 8. Rows of Kode threads in the sidebar: under the title, the kind of model and the branch, and
+   «Ferdig» in green where the age would be when the answer has not been seen. */
+.thread-meta { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--text-2xs); line-height: var(--leading-tight); color: var(--text-3); white-space: nowrap; }
+.thread-provider { display: inline-flex; flex: none; color: var(--text-3); }
+.thread-branch { display: inline-flex; align-items: center; gap: 3px; min-width: 0; font-family: var(--font-mono); }
+.thread-branch .icon { flex: none; }
+.thread-branch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.thread-item:hover .thread-provider, .thread-item.active .thread-provider { color: var(--text-2); }
+.thread-time.thread-done { color: var(--ok); font-weight: var(--weight-medium); }
+.provider-glyph { flex: none; }
+
+/* The hover card of a thread: branch, kind of model and a dot for the state. */
+.hover-card-branch > span:first-of-type { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text); }
+.hover-card-provider { display: inline-flex; flex: none; color: var(--text-3); }
+.hover-card-status { gap: 7px; }
+.hover-card-state { flex: none; width: 7px; height: 7px; margin: 0 3.5px; border-radius: 50%; background: var(--text-4); }
+.hover-card-state[data-state="running"] { background: var(--accent); }
+.hover-card-state[data-state="waiting"] { background: var(--warn); }
+.hover-card-state[data-state="error"] { background: var(--danger); }
+.hover-card-state[data-state="new"] { background: var(--ok); }
+.hover-card-state[data-state="stopped"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-4); }
+
+/* 9. Tråddetaljer: the card under its button in the top bar. Three groups with a thin line
+   between them, like the other cards, in the app's own popover. */
+.popover.thread-details-popover {
+  width: min(320px, calc(100vw - 16px)); max-width: calc(100vw - 16px); max-height: var(--popover-room, calc(100vh - 16px));
+  padding: var(--space-1); overflow-y: auto; overflow-x: hidden;
+}
+.details-card { display: flex; flex-direction: column; }
+.details-group { display: flex; flex-direction: column; gap: 1px; padding: var(--space-1) 0; }
+.details-group + .details-group { border-top: 1px solid var(--border); }
+.details-project { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: 4px var(--space-2); }
+.details-project-glyph { display: inline-flex; flex: none; width: 20px; justify-content: center; color: var(--text-2); }
+.details-project-text { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: var(--leading-tight); }
+.details-project-text strong { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.details-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: var(--text-2xs); font-family: var(--font-mono); }
+.details-row {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 30px; padding: 0 var(--space-2); border-radius: var(--radius-md);
+  color: var(--text-2); font-size: var(--text-sm); text-align: left;
+}
+.details-row:hover { background: var(--hover); color: var(--text); }
+.details-row-icon { display: inline-flex; flex: none; justify-content: center; width: 20px; color: var(--text-3); }
+.details-row:hover .details-row-icon { color: var(--text-2); }
+.details-row-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.details-row-hint { flex: none; color: var(--text-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.details-branch { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text); }
+.details-counts { display: inline-flex; gap: 6px; }
+.details-count { min-width: 18px; padding: 0 6px; border-radius: var(--radius-full); background: var(--surface-2); color: var(--text-2); text-align: center; line-height: 18px; }
+.details-chevron { display: inline-flex; transition: transform var(--dur-1) var(--ease-out); }
+.details-chevron.open { transform: rotate(90deg); }
+.details-agent-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 0 0 var(--space-5); list-style: none; max-height: 220px; overflow-y: auto; }
+.details-agent { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 28px; padding: 0 var(--space-2) 0 0; border-radius: var(--radius-md); color: var(--text-2); font-size: var(--text-sm); text-align: left; }
+.details-agent:hover { background: var(--hover); color: var(--text); }
+.details-agent .thread-dot { margin: 0 2px 0 6px; }
+.details-agent-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.details-agent-age { flex: none; color: var(--text-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.details-empty { padding: 6px var(--space-2); color: var(--text-3); font-size: var(--text-xs); }
+
+/* 10. A pull request or issue inside the GitHub panel: the full view's own detail, with a bar on
+   top (Tilbake, Åpne i Nettleser, Åpne i fullvisning) and a size that fits the side panel. */
+.github-inline { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.github-inline-bar { position: sticky; top: 40px; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 0; background: var(--bg-panel); }
+.github-inline-bar .btn { display: inline-flex; align-items: center; gap: 5px; }
+.github-panel .github-detail h2 { font-size: var(--text-lg); margin-bottom: 6px; }
+.github-panel .github-detail { gap: 10px; }
+.github-panel .github-detail-actions { margin-top: 6px; }
+.github-panel .github-detail pre, .github-panel .github-detail .md-code { max-width: 100%; overflow-x: auto; }
+.github-project { display: inline-flex; align-items: center; flex: none; }
+.details-model { display: flex; align-items: center; gap: var(--space-2); min-height: 26px; padding: 0 var(--space-2); color: var(--text-3); font-size: var(--text-xs); }
+.details-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

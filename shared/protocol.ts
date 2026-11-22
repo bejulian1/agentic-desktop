@@ -8,8 +8,12 @@ export type Mode = "chat" | "code";
 export type ThemeSetting = "light" | "dark" | "system";
 // Round 8 (agent G): a colour theme on top of light/dark. Each one has a light and a dark variant,
 // so Lys, Mørk and System still choose which. "standard" is the app's own palette.
-export const THEME_PRESETS = ["standard", "kontrast", "varm", "kald", "fjord", "solbleket"] as const;
+// v1.2.0: Ocean, Rosa, Skog, Glød and Iris join them. The ids of the older ones never change.
+export const THEME_PRESETS = ["standard", "ocean", "rosa", "skog", "glod", "iris", "kontrast", "varm", "kald", "fjord", "solbleket"] as const;
 export type ThemePreset = (typeof THEME_PRESETS)[number];
+export const CHAT_WIDTHS = ["compact", "comfortable", "wide"] as const;
+export type ChatWidth = (typeof CHAT_WIDTHS)[number];
+export const UI_CONTRASTS = [85, 90, 95, 100, 105, 110, 115] as const;
 export type PermissionMode = "ask" | "accept-edits" | "full";
 // A saved "Tillat alltid" (Innstillinger → Tillatelser). projectId "local" is Denne datamaskinen.
 // command: one exact command line; prefix: simple commands starting with these words; tool: a tool
@@ -75,7 +79,7 @@ export interface Project {
   createdAt: number;
   lastUsedAt: number;
   color: string | null; // id from PROJECT_COLORS
-  icon: string | null; // id from PROJECT_ICONS
+  icon: string | null; // id from PROJECT_ICONS, or emoji:…, mono:… or file:… (see isProjectIcon)
   defaultModelId: string | null; // for new threads in the project
   pinned: boolean; // shown under Festede prosjekter in the sidebar
   agentBrowserAccess?: boolean | null; // null/unset follows Settings.agentBrowserAccess
@@ -138,6 +142,17 @@ export const PROJECT_COLORS: Array<{ id: string; label: string; value: string }>
   { id: "blue", label: "Blå", value: "#3b6fc4" },
   { id: "purple", label: "Lilla", value: "#8259b8" },
   { id: "gray", label: "Grå", value: "#7a766e" },
+  // v1.2.0: ten more. The eight ids above never change; saved projects keep them.
+  { id: "amber", label: "Rav", value: "#d4881c" },
+  { id: "lime", label: "Lime", value: "#7aa32a" },
+  { id: "emerald", label: "Smaragd", value: "#2f9e6e" },
+  { id: "cyan", label: "Cyan", value: "#1f9cb8" },
+  { id: "sky", label: "Himmelblå", value: "#3c93d8" },
+  { id: "indigo", label: "Indigo", value: "#5560d0" },
+  { id: "violet", label: "Fiolett", value: "#7a4fe0" },
+  { id: "fuchsia", label: "Fuksia", value: "#c04ab8" },
+  { id: "pink", label: "Rosa", value: "#d65a8f" },
+  { id: "rose", label: "Rosenrød", value: "#d64a64" },
 ];
 
 export const PROJECT_ICONS = ["folder", "code", "globe", "terminal", "spark", "game", "branch", "team",
@@ -146,11 +161,39 @@ export const PROJECT_ICONS = ["folder", "code", "globe", "terminal", "spark", "g
   "dumbbell", "notes", "scale", "planet", "plane", "wrench", "paw", "flask", "brain", "heart", "gift", "rocket", "camera", "home",
   "star", "bug", "database", "lock", "leaf", "puzzle", "cloud", "map"];
 
-// A project icon is an id from PROJECT_ICONS, or "emoji:" and one short emoji.
+// A project icon is one of
+//   an id from PROJECT_ICONS,
+//   "emoji:" and one short emoji,
+//   "mono:" and one to three letters or digits (a monogram badge, in the project's colour), or
+//   "file:" and the name of an image the user uploaded for the project (POST /api/projects/:id/icon).
+export const PROJECT_ICON_FILE_TYPES = ["png", "svg", "ico", "webp"] as const;
+export const MAX_PROJECT_ICON_BYTES = 256 * 1024;
+const PROJECT_ICON_FILE = /^file:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|svg|ico|webp)$/;
+const PROJECT_MONOGRAM = /^[\p{L}\p{N}]{1,3}$/u;
+
+export function isProjectMonogram(text: string): boolean {
+  return PROJECT_MONOGRAM.test(text);
+}
+
+export function isProjectIconFile(icon: string): boolean {
+  return PROJECT_ICON_FILE.test(icon);
+}
+
 export function isProjectIcon(icon: string): boolean {
   if (PROJECT_ICONS.includes(icon)) return true;
+  if (icon.startsWith("mono:")) return isProjectMonogram(icon.slice(5));
+  if (icon.startsWith("file:")) return isProjectIconFile(icon);
   const emoji = icon.startsWith("emoji:") ? icon.slice(6) : "";
   return emoji.length > 0 && emoji.length <= 16 && /^\p{Extended_Pictographic}/u.test(emoji) && !/[\s<>"'&]/.test(emoji);
+}
+
+// Up to three characters for a monogram badge, from a project's name: the first letters of its
+// words ("Min Nettbutikk" is MN), or the first two letters of a single word ("Rakett" is RA).
+export function suggestMonogram(name: string): string {
+  const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (!words.length) return "";
+  const letters = words.length === 1 ? Array.from(words[0]).slice(0, 2) : words.slice(0, 3).map((word) => Array.from(word)[0]);
+  return letters.join("").toLocaleUpperCase();
 }
 
 export interface ProjectConfig {
@@ -306,6 +349,9 @@ export interface Settings {
   confirmQuit?: boolean; // ask before the tab closes while a thread runs, default false
   accent?: AccentColor; // default "blue"
   uiFontSize?: number; // 13-16 px, the base text size, default 14
+  uiContrast?: number; // v1.2.0: 85-115 in steps of 5, how strong borders and hover surfaces are, default 100
+  chatWidth?: ChatWidth; // v1.2.0: how wide the conversation and the message field are, default "comfortable"
+  renderMath?: boolean; // v1.2.0: show math between dollar signs as formulas, default true
   codeFontSize?: number; // 11-18 px, code blocks and tool output, default as in the stylesheet
   density?: Density; // default "normal"
   reduceMotion?: boolean; // no animations even when the system allows them, default false
@@ -1119,7 +1165,10 @@ export interface BrowserImported {
 // PUT    /api/projects/local/layout         the pane grid of Kode without a project, like "chat"
 // POST   /api/threads/:id/fork              { from?: "last" }  "last" copies only the last message and its answer
 // GET    /api/threads/:id/context           ContextUsage
-// PATCH  /api/projects/:id                  icon may also be "emoji:<emoji>", see isProjectIcon
+// PATCH  /api/projects/:id                  icon may also be "emoji:<emoji>", "mono:<1-3 chars>" or "file:<uuid>.<ext>", see isProjectIcon
+// POST   /api/projects/:id/icon             { mime, data (base64) } a PNG, SVG, ICO or WebP up to MAX_PROJECT_ICON_BYTES; sets icon to "file:…" and returns the project
+// GET    /api/projects/:id/icon             the uploaded image, for an <img> only (nosniff, sandboxed)
+// DELETE /api/projects/:id/icon             back to the default icon (the favicon when the project has one)
 //
 // Round 11 (SPEC 24.6):
 // POST   /api/sections                      { name, mode } => SidebarSection  last in its mode

@@ -20,6 +20,30 @@ function CodePreview(props:{tone:'light'|'dark';palette:Palette}) {
    <span class="code-preview-line"><i>3</i>{'}'}</span></pre>
  </div>;
 }
+// v1.2.0: what code looks like with the choices below, in the app's own colours: a diff and a
+// terminal. The font, the size, the tab width and the wrapping follow the settings at once.
+function CodeLivePreview() {
+ return <div class="setting setting-block code-live" data-testid="code-live-preview">
+  <div class="setting-text"><strong>{t("Forhåndsvisning av kode")}</strong><span class="muted">{t("Viser skrift, størrelse, tabulatorbredde og linjebryting slik du har valgt dem.")}</span></div>
+  <div class="code-live-grid">
+   <div class="code-live-block" data-kind="diff">
+    <div class="code-live-head"><span>{t("Endringer")}</span><span class="code-live-file">src/greet.ts</span></div>
+    <pre aria-label={t("Eksempel på en endring")}><span class="code-preview-line"><i>1</i><span class="tok-keyword">export function</span> <span class="tok-function">hils</span>(navn: <span class="tok-typeName">string</span>) {'{'}</span>
+<span class="code-preview-line del"><i>2</i>{'\t'}<span class="tok-keyword">return</span> <span class="tok-string">"Hei, "</span> + navn;</span>
+<span class="code-preview-line add"><i>2</i>{'\t'}<span class="tok-keyword">return</span> <span class="tok-string">{'`Hei, ${navn}! Dette er en lang linje som viser hvordan linjebryting virker.`'}</span>;</span>
+<span class="code-preview-line"><i>3</i>{'}'}</span></pre>
+   </div>
+   <div class="code-live-block" data-kind="terminal">
+    <div class="code-live-head"><span>{t("Terminal")}</span></div>
+    <pre aria-label={t("Eksempel på terminalutdata")}><span class="code-preview-line"><span class="tok-function">$</span> npm test</span>
+<span class="code-preview-line"><span class="code-live-ok">✔</span> hils returnerer en hilsen <span class="tok-comment">(3 ms)</span></span>
+<span class="code-preview-line"><span class="code-live-fail">✖</span> hils uten navn <span class="tok-comment">(1 ms)</span></span>
+<span class="code-preview-line tok-comment">ℹ tests 2, pass 1, fail 1</span></pre>
+   </div>
+  </div>
+ </div>;
+}
+
 export function CodeAppearance() {
  const [custom,setCustom]=createSignal(app.settings.codeFontCustom??'');
  const [error,setError]=createSignal('');
@@ -36,6 +60,7 @@ export function CodeAppearance() {
     <CodePreview tone={tone} palette={value()}/>
    </div>;}}</For></div>
   </div>
+  <CodeLivePreview/>
   <Row label={t("Kodeskrift")} text={t("Velg en installert skrift. Systemets monospace brukes som reserve.")}><Choice<CodeFont> label={t("Kodeskrift")} value={app.settings.codeFont??'system'} options={fonts()} onChange={v=>{setCustom('');save({codeFont:v,codeFontCustom:''});}}/></Row>
   <Row label={t("Egen kodeskrift")} text={t("Skriv navnet på en skrift som finnes på maskinen. Tomt følger valget over. Ingen skrift lastes ned.")}><div><input class="input" aria-label={t("Egen kodeskrift")} placeholder={t("For eksempel JetBrains Mono")} maxlength="120" value={custom()} onInput={e=>setCustom(e.currentTarget.value)} onBlur={()=>void commit()} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void commit();}}}/><span class="field-error" role={error()?'alert':undefined}>{error()}</span></div></Row>
   <Row label={t("Skriftstørrelse for kode")} text={t("Kodeblokker, filvisning, differanser, kommandoutdata og terminal.")}><Choice<number> label={t("Skriftstørrelse for kode")} value={app.settings.codeFontSize??0} options={[{value:0,label:t("Standard")},...[11,12,13,14,15,16,17,18].map(n=>({value:n,label:`${n} px`}))]} onChange={v=>v===0?reset("codeFontSize"):save({codeFontSize:v})}/></Row>

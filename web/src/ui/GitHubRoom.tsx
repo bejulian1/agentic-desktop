@@ -526,6 +526,9 @@ function DetailRoom(props: { reference: GitHubReference; revision?: number; onSt
   );
 }
 
+// The pull request or issue itself, for the room and for the GitHub panel in the side panel.
+export { DetailRoom as GitHubDetailView };
+
 export default function GitHubRoom(props: { kind: GitHubKind; onStart?: (thread: Thread) => void }) {
   const [listMounted, mountList] = createSignal(!githubRoom()?.detail);
   const [settingsRevision, setSettingsRevision] = createSignal(0);

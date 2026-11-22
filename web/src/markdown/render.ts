@@ -4,6 +4,7 @@ import { t } from "../lib/i18n";
 import { Marked, type Token, type Tokens } from "marked";
 import { highlightWhenVisible } from "./highlight";
 import { renderMath } from "./math";
+import { mathRendering } from "./options";
 import { renderChart } from "./chart";
 import { openCodeBlock } from "../ui/MiniEditorHooks";
 
@@ -71,6 +72,148 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): 
   return element;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Smart links and file chips (v1.2.0). Everything is built as DOM nodes, never as HTML text, so a
+// link or a file name from the model cannot add markup. SVG needs its own namespace.
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+interface IconPart { tag: "path" | "circle"; attrs: Record<string, string> }
+const ICONS: Record<"github" | "pull" | "issue" | "link", { fill: boolean; parts: IconPart[] }> = {
+  // The GitHub mark, filled.
+  github: { fill: true, parts: [{ tag: "path", attrs: { d: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" } }] },
+  // A pull request: two ends joined by a line, and the arrow into the branch.
+  pull: { fill: false, parts: [
+    { tag: "circle", attrs: { cx: "4", cy: "3.5", r: "1.75" } },
+    { tag: "circle", attrs: { cx: "4", cy: "12.5", r: "1.75" } },
+    { tag: "circle", attrs: { cx: "12", cy: "12.5", r: "1.75" } },
+    { tag: "path", attrs: { d: "M4 5.25v5.5M12 10.75V6.5a2 2 0 0 0-2-2H8.5M10 2.5 8.5 4.5 10 6.5" } },
+  ] },
+  // An issue: a ring with a dot.
+  issue: { fill: false, parts: [
+    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.25" } },
+    { tag: "circle", attrs: { cx: "8", cy: "8", r: "1.25", fill: "currentColor", stroke: "none" } },
+  ] },
+  // A globe, for other web addresses.
+  link: { fill: false, parts: [
+    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.25" } },
+    { tag: "path", attrs: { d: "M1.75 8h12.5M8 1.75c1.8 1.7 2.7 3.8 2.7 6.25S9.8 12.3 8 14.25C6.2 12.3 5.3 10.2 5.3 8S6.2 3.45 8 1.75z" } },
+  ] },
+};
+
+function svgIcon(kind: keyof typeof ICONS): SVGSVGElement {
+  const icon = ICONS[kind];
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("width", "13");
+  svg.setAttribute("height", "13");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("class", "md-link-icon");
+  if (icon.fill) svg.setAttribute("fill", "currentColor");
+  else {
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.5");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+  }
+  for (const part of icon.parts) {
+    const node = document.createElementNS(SVG_NS, part.tag);
+    for (const [name, value] of Object.entries(part.attrs)) node.setAttribute(name, value);
+    svg.appendChild(node);
+  }
+  return svg;
+}
+
+// https://github.com/<owner>/<repo>/pull/<n> or /issues/<n>, with an optional tail (files, #fragment).
+const GITHUB_ITEM = /^https:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)\/(pull|issues)\/(\d{1,9})(?:[/?#].*)?$/i;
+const GITHUB_ANY = /^https:\/\/(?:www\.)?github\.com(?:[/?#]|$)/i;
+const MAX_CHIP_LABEL = 36;
+
+// The text a bare link shows as: host and the first folders that fit, with … for the rest.
+export function shortUrl(href: string): string {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return href.length > MAX_CHIP_LABEL ? `${href.slice(0, MAX_CHIP_LABEL - 1)}…` : href;
+  }
+  const host = url.host.replace(/^www\./i, "");
+  const segments = url.pathname.split("/").filter(Boolean);
+  const tail = url.search || url.hash ? "/…" : "";
+  const full = [host, ...segments].join("/") + tail;
+  if (full.length <= MAX_CHIP_LABEL) return full;
+  if (host.length >= MAX_CHIP_LABEL) return `${host.slice(0, MAX_CHIP_LABEL - 1)}…`;
+  let shown = host;
+  for (const segment of segments) {
+    if (`${shown}/${segment}`.length + 2 > MAX_CHIP_LABEL) break;
+    shown += `/${segment}`;
+  }
+  return `${shown}/…`;
+}
+
+// A link whose text is just the address, in any of the ways a model writes it.
+function textIsAddress(text: string, href: string): boolean {
+  const strip = (value: string) => value.trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "").toLowerCase();
+  return strip(text) === strip(href);
+}
+
+// Gives a link the look of a chip when it is one of the ones worth it, and returns true when it
+// also wrote the label. Others stay plain links.
+function decorateLink(anchor: HTMLAnchorElement, href: string, link: Tokens.Link): boolean {
+  const bare = textIsAddress(link.text, href);
+  // Hovering a chip always says where it leads: the address, after the link's own title if it has one.
+  const where = link.title ? `${link.title} (${href})` : href;
+  const item = GITHUB_ITEM.exec(href);
+  if (item) {
+    const kind = item[3].toLowerCase() === "pull" ? "pull" : "issue";
+    const repo = `${item[1]}/${item[2]}`;
+    anchor.className = "md-link-chip md-link-github";
+    anchor.dataset.kind = kind;
+    anchor.title = `${repo}#${item[4]} · ${where}`;
+    anchor.append(svgIcon(kind));
+    const label = el("span", "md-link-label");
+    if (bare) label.textContent = `#${item[4]}`;
+    else renderInline(link.tokens, label);
+    anchor.append(label);
+    return true;
+  }
+  if (GITHUB_ANY.test(href)) {
+    anchor.className = "md-link-chip md-link-github";
+    anchor.dataset.kind = "repo";
+    anchor.title = where;
+    anchor.append(svgIcon("github"));
+    const label = el("span", "md-link-label");
+    if (bare) label.textContent = shortUrl(href);
+    else renderInline(link.tokens, label);
+    anchor.append(label);
+    return true;
+  }
+  if (bare && /^https?:/i.test(href)) {
+    anchor.className = "md-link-chip";
+    anchor.title = where;
+    anchor.append(svgIcon("link"));
+    const label = el("span", "md-link-label");
+    label.textContent = shortUrl(href);
+    anchor.append(label);
+    return true;
+  }
+  return false;
+}
+
+// File names and relative paths in `code`, with a line number after them when there is one. The
+// list is the kinds of file an agent talks about most; anything else stays plain code.
+const FILE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "css", "scss", "json", "md", "mdx", "py", "rs", "go", "html", "sh", "yml", "yaml", "toml", "sql", "vue", "svelte", "java", "kt", "rb", "php", "c", "h", "cpp", "txt"]);
+const FILE_NAME = /^(?:\.{0,2}\/)?(?:[\w@.+-]+\/)*[\w@+-][\w@.+-]*\.([A-Za-z0-9]{1,6})(?::\d{1,6}(?::\d{1,4})?)?$/;
+
+export function fileExtension(text: string): string | null {
+  if (text.length > 80 || /\s/.test(text) || text.includes("://") || text.includes("..") && !text.startsWith("../")) return null;
+  const match = FILE_NAME.exec(text);
+  if (!match) return null;
+  const ext = match[1].toLowerCase();
+  return FILE_EXTENSIONS.has(ext) ? ext : null;
+}
+
 export function renderInline(tokens: Token[] | undefined, parent: Node): void {
   if (!tokens) return;
   for (const token of tokens) {
@@ -94,7 +237,14 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
       }
       case "codespan": {
         const code = el("code");
-        code.textContent = (token as Tokens.Codespan).text;
+        const text = (token as Tokens.Codespan).text;
+        code.textContent = text;
+        const ext = fileExtension(text);
+        if (ext) {
+          // A file in the answer: a small coloured dot for its kind (styles/t3-look.css).
+          code.className = "md-file-chip";
+          code.dataset.fileExt = ext;
+        }
         parent.appendChild(code);
         break;
       }
@@ -113,7 +263,7 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
         anchor.target = "_blank";
         anchor.rel = "noopener noreferrer";
         if (link.title) anchor.title = link.title;
-        renderInline(link.tokens, anchor);
+        if (!decorateLink(anchor, href, link)) renderInline(link.tokens, anchor);
         parent.appendChild(anchor);
         break;
       }
@@ -124,7 +274,9 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
         break;
       }
       case "math":
-        parent.appendChild(renderMath((token as unknown as MathToken).text, false));
+        // Off in Innstillinger: the formula stays as it was written.
+        if (mathRendering()) parent.appendChild(renderMath((token as unknown as MathToken).text, false));
+        else append(parent, token.raw);
         break;
       default:
         // html and anything unknown: shown as the literal source.
@@ -345,7 +497,12 @@ export function renderBlocks(tokens: Token[], parent: Node, tight = false, highl
         parent.appendChild(el("hr"));
         break;
       case "math":
-        parent.appendChild(renderMath((token as unknown as MathToken).text, true));
+        if (mathRendering()) parent.appendChild(renderMath((token as unknown as MathToken).text, true));
+        else {
+          const p = el("p");
+          p.textContent = token.raw.trim();
+          parent.appendChild(p);
+        }
         break;
       default: {
         // Block HTML and anything unknown: literal source, in a code-styled block.

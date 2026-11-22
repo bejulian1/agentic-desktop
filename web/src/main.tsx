@@ -25,6 +25,7 @@ import "./styles/grid.css";
 import "./styles/chat.css";
 import "./styles/motion.css";
 import "./styles/extra.css"; // round 8: colour themes, mini editor, GitHub
+import "./styles/t3-look.css"; // v1.2.0: interface controls, smart links, file chips, project icons
 import "./styles/harness.css"; // round 9b: Kode-harness, Chat-personalisering, memory upgrade, skill import
 import "./styles/runde11.css"; // round 11: top bar, panel buttons, the side panel's start page, sidebar ⋯ and sections
 import "./styles/runde11b.css"; // round 11b: the Kode start page choices and Annoter in the Browser panel

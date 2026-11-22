@@ -1,12 +1,14 @@
 // Fargetema in Innstillinger → Utseende (round 8, agent G): a small preview of each theme, drawn
 // with its own colours for the variant that shows now (light or dark), and a radio group that works
-// with the arrow keys. Choosing one fades the whole app over to it (state/themes.ts).
+// with the arrow keys. Choosing one fades the whole app over to it (state/themes.ts). v1.2.0: two
+// small orbs on each card, one for the light and one for the dark variant, with a sun or a moon on
+// the one that shows now.
 import { createSignal, For, onCleanup } from "solid-js";
 import type { ThemePreset } from "../../../shared/protocol";
 import { app } from "../state/app";
 import { THEMES, withThemeTransition, type PreviewColors } from "../state/themes";
 import { save } from "./settings/parts";
-import { IconCheck } from "./icons";
+import { IconCheck, IconMoon, IconSun } from "./icons";
 
 import { t } from "../lib/i18n";
 function useDark() {
@@ -16,6 +18,11 @@ function useDark() {
   observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   onCleanup(() => observer.disconnect());
   return dark;
+}
+
+// A round swatch of a variant: its background, with the accent coming in from the corner.
+function orbStyle(c: PreviewColors): string {
+  return `--o-bg:${c.bg};--o-side:${c.side};--o-accent:${c.accent}`;
 }
 
 function previewStyle(c: PreviewColors): string {
@@ -71,6 +78,10 @@ export function ThemePicker() {
               <span class="theme-card-name">
                 {theme.name}
                 <span class="theme-card-check"><IconCheck size={12} /></span>
+                <span class="theme-orbs" aria-hidden="true">
+                  <span class="theme-orb" data-variant="light" data-active={!dark()} style={orbStyle(theme.light)}><IconSun size={9} /></span>
+                  <span class="theme-orb" data-variant="dark" data-active={dark()} style={orbStyle(theme.dark)}><IconMoon size={9} /></span>
+                </span>
               </span>
               <span class="theme-card-text" id={`theme-text-${theme.id}`}>{theme.text}</span>
             </button>

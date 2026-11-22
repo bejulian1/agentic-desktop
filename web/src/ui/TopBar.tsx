@@ -42,6 +42,7 @@ import { useProjectPicker } from "../state/project-picker";
 import { skillsOpen } from "../state/skills-workspace";
 import { ModeSwitch } from "./ModeSwitch";
 import { PinnedSummary } from "./PinnedSummary";
+import { ThreadDetailsButton } from "./ThreadDetails";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { paneTools } from "./Pane";
 import { PANEL_TOOLS, needsProjectTip, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
@@ -482,6 +483,8 @@ export function TopBar() {
         <Show when={mode() === "code" && !away() && pinnedSummary()}><PinnedSummary thread={focusedThread()} /></Show>
         <PaneButtons />
         <span class="topbar-divider" aria-hidden="true" />
+        {/* v1.2.0: Tråddetaljer, a small card under its button (Kode). It does not open the panel. */}
+        <ThreadDetailsButton />
         <PanelButtons />
         {/* The window controls of the Electron version (minimise, maximise, close), right of the panel
             buttons. Empty and without width in a browser (WindowControls.tsx). */}

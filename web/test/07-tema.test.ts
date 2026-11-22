@@ -26,24 +26,24 @@ flow("Lys, Mørk og System, uten blink ved oppstart", async (h) => {
   const { page, context } = h;
   await page.getByRole("button", { name: "Innstillinger" }).click();
   await page.getByRole("button", { name: "Utseende", exact: true }).click();
-  const group = page.getByRole("group", { name: "Tema" });
+  const group = page.getByRole("radiogroup", { name: "Tema", exact: true });
 
-  await group.getByRole("button", { name: "Mørk" }).click();
+  await group.getByRole("radio", { name: "Mørk" }).click();
   assert.equal(await theme(page), "dark");
   assert.equal(await background(page), DARK);
 
-  await group.getByRole("button", { name: "Lys" }).click();
+  await group.getByRole("radio", { name: "Lys" }).click();
   assert.equal(await theme(page), "light");
   assert.equal(await background(page), LIGHT);
 
-  await group.getByRole("button", { name: "System" }).click();
+  await group.getByRole("radio", { name: "System" }).click();
   await page.emulateMedia({ colorScheme: "dark" });
   await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "dark");
   await page.emulateMedia({ colorScheme: "light" });
   await page.waitForFunction(() => document.documentElement.getAttribute("data-theme") === "light");
 
   // A stored dark theme on a light system: no light frame, ever.
-  await group.getByRole("button", { name: "Mørk" }).click();
+  await group.getByRole("radio", { name: "Mørk" }).click();
   await page.waitForTimeout(100);
   await context.addInitScript(WATCH_FIRST_FRAMES);
   await page.reload();
