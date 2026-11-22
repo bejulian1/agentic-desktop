@@ -130,6 +130,7 @@ export interface ApprovalRow extends RowBase {
   title: string;
   detail: string;
   canAllowAlways: boolean;
+  allowAlways?: string; // what "Tillat alltid" saves: "git status …", an exact command or a tool
   callId: string;
   tool?: string; // the tool that asks, and what it was given, for a card in plain words
   input?: unknown;
@@ -326,6 +327,7 @@ class Folder {
   private work: WorkRow | null = null; // Kode: the run being folded
   private activeModel: { runId: string; model: AnswerModel } | null = null;
   private selectedModel: AnswerModel | null = null;
+  lastRunModel: AnswerModel | null = null; // the model of the latest run, for the handoff line above the field
   private pendingModelChange: ModelChangeRow | null = null;
   private modelChanges = 0;
   private hookRows = 0;
@@ -515,6 +517,7 @@ class Folder {
           title: event.title,
           detail: event.detail,
           canAllowAlways: event.canAllowAlways,
+          allowAlways: event.allowAlways,
           callId: event.callId,
           tool: asking?.tool,
           input: asking?.input,
@@ -664,6 +667,7 @@ class Folder {
           this.add({ ...base(`model-change-run-${event.runId}`), kind: "model-change", from: this.selectedModel, to: model });
         }
         this.selectedModel = model;
+        this.lastRunModel = model;
         this.activeModel = { runId: event.runId, model };
         this.agents = null;
         this.runStats = { commands: 0, files: 0, additions: 0, deletions: 0, turnId: null };
@@ -725,6 +729,9 @@ export class ThreadModel {
   private setActivity: Setter<Activity | null>;
   readonly retry: Accessor<RetryState | null>;
   private setRetry: Setter<RetryState | null>;
+  // The model the latest run used: Composer shows a pending context handoff when the selector differs.
+  readonly lastRunModel: Accessor<AnswerModel | null>;
+  private setLastRunModel: Setter<AnswerModel | null>;
   private folder: Folder;
   readonly code: boolean;
   private loadingOlder: Promise<void> | null = null;
@@ -755,6 +762,7 @@ export class ThreadModel {
     [this.hasOlder, this.setHasOlder] = createSignal(false);
     [this.activity, this.setActivity] = createSignal<Activity | null>(null);
     [this.retry, this.setRetry] = createSignal<RetryState | null>(null);
+    [this.lastRunModel, this.setLastRunModel] = createSignal<AnswerModel | null>(null);
     this.folder.onRow = (row) => this.place(row);
   }
 
@@ -821,6 +829,7 @@ export class ThreadModel {
     this.setRetry(this.folder.retry);
     this.setQueued(this.folder.queued);
     if (this.folder.usage) this.setUsage(this.folder.usage);
+    this.setLastRunModel(this.folder.lastRunModel);
   }
 
   apply(envelope: ThreadEventEnvelope, historyRevision?: number): void {
@@ -843,6 +852,7 @@ export class ThreadModel {
     if (event.type === "question.requested" || event.type === "question.resolved" || event.type === "run.finished") this.setQuestions([...this.folder.questions.values()]);
     if (ACTIVITY_EVENTS.has(event.type) || this.folder.activity?.phase !== phase) this.syncActivity();
     if (this.retry() !== this.folder.retry) this.setRetry(this.folder.retry);
+    if (event.type === "run.started") this.setLastRunModel(this.folder.lastRunModel);
   }
 
   // The log was cut back on the server (Chat: an edited message or a new answer). The thread is
@@ -895,6 +905,7 @@ export class ThreadModel {
         this.setUsage(fresh.usage());
         this.setActivity(fresh.activity());
         this.setRetry(fresh.retry());
+        this.setLastRunModel(fresh.lastRunModel());
       });
       const held = this.held;
       this.held = null;

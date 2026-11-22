@@ -2,10 +2,10 @@ import { Rich } from "./settings/parts";
 import { language, localizedFormat, plural, t } from "../lib/i18n";
 // One component per row kind. A finished row renders once and has no reactive work left. A live
 // row only reacts to its own rev signal.
-import { createContext, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, useContext } from "solid-js";
+import { createContext, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show, useContext } from "solid-js";
 import { cancelFrameTask, frameDeadline, onNextFrame } from "../lib/frame";
 import { formatTokens } from "../lib/format";
-import { post } from "../lib/api";
+import { get, post } from "../lib/api";
 import { observeWhile, visibleSignal, whileVisible } from "../lib/visible";
 import { motionOff } from "./Motion";
 import { MarkdownStream, renderStatic } from "../markdown/stream";
@@ -16,7 +16,7 @@ import { formatElapsed, useClock } from "../state/clock";
 import { peekPanelActions } from "../state/panel";
 import { revertTurn } from "../state/project-actions";
 import type {
-  AgentsRow, ApprovalRow, ChangesRow, CompactedRow, HookRow, NoticeRow, UnsentRow, RetryState, Row, TextRow, ThinkingRow, UserRow, WorkRow,
+  AgentsRow, ApprovalRow, ChangesRow, CompactedRow, HookRow, NoticeRow, UnsentRow, RetryState, Row, SpawnedRow, TextRow, ThinkingRow, UserRow, WorkRow,
 } from "../state/thread-model";
 import type { AnswerModel, ApprovalDecision, Attachment, Thread } from "../../../shared/protocol";
 import {
@@ -30,6 +30,7 @@ import { FileChangeCounts } from "./FileChangeCounts";
 import { DiffBlock } from "./DiffBlock";
 import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
 import "../styles/hooks.css";
+import "../styles/handoff-agents.css";
 import { UserQuestionSummary } from "./UserQuestion";
 export { NowLine } from "./steps";
 
@@ -622,6 +623,15 @@ function splitTarget(path: string): [string, string] {
   return cut === -1 || /^[a-z]+:\/\//i.test(path) ? ["", path] : [path.slice(0, cut + 1), path.slice(cut + 1)];
 }
 
+// What "Tillat alltid" saves, in words: a command prefix, one exact command, every browser tool or one tool.
+export function AllowAlwaysScope(props: { rule: string; command?: boolean }) {
+  const code = (text: string) => <code>{text}</code>;
+  if (props.rule.endsWith(" …")) return <Rich text={t("Tillat alltid gjelder alle kommandoer som starter med {rule}.")} parts={{ rule: code(props.rule.slice(0, -2)) }} />;
+  if (props.rule === "browser_*") return <>{t("Tillat alltid gjelder alle handlinger i nettleseren.")}</>;
+  if (props.command) return <Rich text={t("Tillat alltid gjelder bare nøyaktig denne kommandoen: {rule}")} parts={{ rule: code(props.rule) }} />;
+  return <Rich text={t("Tillat alltid gjelder verktøyet {rule} hver gang.")} parts={{ rule: code(props.rule) }} />;
+}
+
 // The card itself sits above the message field (see Pane). In the conversation nothing stands for
 // it while it waits: the step has a small mark, and the card is the one place to answer.
 export function ApprovalCard(props: { row: ApprovalRow }) {
@@ -689,11 +699,14 @@ export function ApprovalCard(props: { row: ApprovalRow }) {
         </Show>
       </Show>
       <Show when={ask().text}><pre class="approval-detail">{ask().text}</pre></Show>
+      <Show when={row.canAllowAlways && row.allowAlways}>
+        <p class="approval-always" data-testid="approval-always"><AllowAlwaysScope rule={row.allowAlways!} command={row.tool === "run_command"} /></p>
+      </Show>
       <div class="approval-actions">
         <button type="button" class="btn" disabled={busy()} onClick={() => void answer("deny")}>{t("Avslå")}<kbd class="approval-key" aria-hidden="true">Esc</kbd></button>
         <span class="approval-spacer" />
         <Show when={row.canAllowAlways}>
-          <button type="button" class="btn" disabled={busy()} onClick={() => void answer("allow-always")}>{t("Tillat alltid")}</button>
+          <button type="button" class="btn" disabled={busy()} title={row.allowAlways ? t("Lagres under Innstillinger → Tillatelser: {rule}", { rule: row.allowAlways }) : undefined} onClick={() => void answer("allow-always")}>{t("Tillat alltid")}</button>
         </Show>
         <button type="button" class="btn btn-primary" disabled={busy()} ref={allow} onClick={() => void answer("allow")}>{row.title.startsWith("Slå på mods") ? t("Slå på") : t("Tillat")}<kbd class="approval-key" aria-hidden="true">Enter</kbd></button>
       </div>
@@ -871,30 +884,70 @@ function AgentsView(props: { row: AgentsRow; onThread: (id: string) => void }) {
         <Show when={open()}>
           <div class="agents-list">
             <For each={threads()}>
-              {(entry) => (
-                <button type="button" class="agent-row" onClick={() => props.onThread(entry.item.childThreadId)}>
-                  <span class="agent-face" data-state={entry.thread?.running ? "running" : entry.thread?.lastStatus ?? "running"}><IconAgent size={14} /></span>
-                  <span class="agent-text">
-                    <span class="agent-title">{entry.thread?.title ?? entry.item.title}</span>
-                    <Show when={entry.item.model}>{snapshot => {
-                      const label = () => assignment(snapshot());
-                      return <span class="agent-assignment" title={t("Modell ved oppstart: {model}", { model: label() })}>{label()}</span>;
-                    }}</Show>
-                    <span class="agent-sub">{entry.thread?.running ? t("Kjører…") : agentStatus(entry.thread?.lastStatus ?? null)}</span>
-                  </span>
-                  <Show when={entry.thread}>
-                    <Show when={entry.thread!.running} fallback={<span class="agent-time">{formatElapsed(entry.thread!.updatedAt - entry.thread!.createdAt)}</span>}>
-                      <span class="agent-time"><LiveElapsed since={entry.thread!.createdAt} /></span>
-                    </Show>
-                  </Show>
-                  <IconChevron size={12} />
-                </button>
-              )}
+              {(entry) => <AgentRow item={entry.item} assignment={assignment} onThread={props.onThread} />}
             </For>
           </div>
         </Show>
       </div>
     </div>
+  );
+}
+
+// One helper in the card: a badge for its provider with a live dot, its title and model, one line
+// from its latest answer, and when it finished or how long it has worked. Opens the thread.
+function AgentRow(props: { item: SpawnedRow; assignment: (model: AnswerModel) => string; onThread: (id: string) => void }) {
+  const thread = () => app.threads[props.item.childThreadId];
+  const state = () => {
+    const current = thread();
+    if (!current || current.running) return current?.pendingApprovals ? "waiting" : "running";
+    return current.lastStatus === "done" ? "done" : current.lastStatus ? "error" : "running";
+  };
+  // Asked again when the helper starts, stops or waits for an answer, not on every token.
+  const [reply] = createResource(
+    () => thread() && `${props.item.childThreadId}|${thread()!.running}|${thread()!.lastStatus}|${thread()!.pendingApprovals}`,
+    () => get<{ text: string | null }>(`/api/threads/${encodeURIComponent(props.item.childThreadId)}/latest-reply`).then((r) => r.text).catch(() => null),
+  );
+  const badge = () => {
+    const name = props.item.model?.providerName ?? props.item.model?.modelName ?? props.item.title;
+    return (name.trim().match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toLocaleUpperCase(language());
+  };
+  const tone = () => [...(props.item.model?.providerId ?? props.item.model?.providerName ?? "")].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3;
+  const preview = () => {
+    const current = thread();
+    if (current?.pendingApprovals) return t("Venter på godkjenning");
+    return reply.latest ?? (current?.running ? t("Jobber…") : agentStatus(current?.lastStatus ?? null));
+  };
+  const worked = () => {
+    const current = thread();
+    return current ? formatElapsed(current.updatedAt - current.createdAt) : "";
+  };
+  return (
+    <button type="button" class="agent-row" data-state={state()} onClick={() => props.onThread(props.item.childThreadId)}>
+      <span class="agent-badge" data-tone={tone()} data-state={state()} aria-hidden="true">
+        <span class="agent-badge-mark">{badge()}</span>
+        <span class="agent-badge-dot"><Show when={state() === "running"}><span class="spinner" /></Show></span>
+      </span>
+      <span class="agent-text">
+        <span class="agent-line">
+          <span class="agent-title">{thread()?.title ?? props.item.title}</span>
+          <Show when={props.item.model}>{snapshot => {
+            const label = () => props.assignment(snapshot());
+            return <span class="agent-assignment" title={t("Modell ved oppstart: {model}", { model: label() })}>{label()}</span>;
+          }}</Show>
+        </span>
+        <span class="agent-sub agent-preview" title={reply.latest ?? undefined}>{preview()}</span>
+      </span>
+      <Show when={thread()}>
+        <Show when={thread()!.running} fallback={
+          <span class="agent-time" title={t("Jobbet i {time}", { time: worked() })}>
+            {state() === "done" ? t("Ferdig {time}", { time: shortTime(thread()!.updatedAt) }) : t("{status} {time}", { status: agentStatus(thread()!.lastStatus), time: shortTime(thread()!.updatedAt) })}
+          </span>
+        }>
+          <span class="agent-time" title={t("Jobber nå")}><LiveElapsed since={thread()!.createdAt} /></span>
+        </Show>
+      </Show>
+      <IconChevron size={12} />
+    </button>
   );
 }
 

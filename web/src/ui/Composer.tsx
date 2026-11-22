@@ -29,7 +29,9 @@ import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
 import "../styles/queue.css";
 import { Popover } from "./Popover";
 import { PermissionPicker } from "./PermissionPicker";
+import { ProviderIcon, providerBrand, type ProviderBrand } from "./ProviderIcon";
 import "../styles/permissions.css";
+import "../styles/handoff-agents.css";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { AttachmentChip, imageUrl, showImage } from "./rows";
 import { FolderMissingBar } from "./FolderMissingBar";
@@ -126,6 +128,20 @@ function matchScore(command: CommandInfo, query: string): number | null {
 }
 
 type Chip = AttachmentRef & { label: string; key: string };
+
+const IMAGE_EXTENSIONS: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
+// A pasted picture has no name of its own (or the browser's "image.png"): it is called image.png,
+// image-2.png and so on in the draft, with the extension of its type. A real file keeps its name.
+export function imageName(name: string, mime: string, taken: string[]): string {
+  const extension = IMAGE_EXTENSIONS[mime] ?? "png";
+  const given = name.trim();
+  if (given && !/^(?:image|bilde|blob|clipboard|pasted|untitled)(?:[-_ ]?\d+)?(?:\.(?:png|jpe?g|webp|gif))?$/i.test(given)) return given;
+  const used = new Set(taken.map((label) => label.toLowerCase()));
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? `image.${extension}` : `image-${n}.${extension}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
 type Draft = { text: string; chips: Chip[]; skill: string | null };
 
 const drafts = new Map<string, string>();
@@ -493,14 +509,14 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   let frame = 0;
   const groups = createMemo(() => {
     const words = query().trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const out: Array<{ name: string; localKind?: LocalProviderKind; models: ModelConfig[] }> = [];
+    const out: Array<{ name: string; localKind?: LocalProviderKind; brand: ProviderBrand; models: ModelConfig[] }> = [];
     for (const provider of app.providers) {
       const models = app.models.filter((m) => {
         if (m.providerId !== provider.id) return false;
         const hay = `${modelDisplayName(m)} ${m.model} ${provider.name}`.toLowerCase();
         return words.every((w) => hay.includes(w));
       });
-      if (models.length) out.push({ name: provider.name, localKind: provider.localKind, models });
+      if (models.length) out.push({ name: provider.name, localKind: provider.localKind, brand: providerBrand(provider, models[0]), models });
     }
     return out;
   });
@@ -578,7 +594,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
         <For each={groups()} fallback={<p class="model-none">{t("Ingen modeller passer «{query}».", { query: query().trim() })}</p>}>
           {(group) => (
             <div role="group" aria-label={group.localKind ? t("{name} (lokal)", { name: group.name }) : group.name} class="model-group">
-              <div class="model-group-head" aria-hidden="true"><span>{group.name}</span><Show when={group.localKind}><span class="model-source">{t("Lokal")}</span></Show></div>
+              <div class="model-group-head" aria-hidden="true"><ProviderIcon brand={group.brand} size={13} /><span>{group.name}</span><Show when={group.localKind}><span class="model-source">{t("Lokal")}</span></Show></div>
               <For each={group.models}>
                 {(model) => (
                   <button
@@ -857,6 +873,21 @@ export function Composer(props: {
   const modelId = createMemo(() => {
     const id = props.threadId();
     return id ? pendingModelSelection(id)?.modelId ?? thread()?.modelId ?? null : draftModel();
+  });
+  // Kontekstoverføring venter: the thread has answered with one model and the selector now shows
+  // another. The next message hands the conversation over; until then a calm line says so, with
+  // Angre to go back. It goes the moment the message is sent or the old model is chosen again.
+  const [handoffSent, setHandoffSent] = createSignal("");
+  const handoffKey = (threadId: string, next: string | null) => `${threadId}\u0000${next ?? ""}`;
+  const handoff = createMemo(() => {
+    const id = props.threadId();
+    const current = thread();
+    const next = modelId();
+    if (!id || !current || !next || current.archived) return null;
+    const last = peekModel(id)?.lastRunModel();
+    if (!last || last.modelId === next || handoffSent() === handoffKey(id, next)) return null;
+    const from = modelFor(last.modelId) ? modelName(last.modelId) : last.modelName ?? last.model ?? last.modelId;
+    return { threadId: id, back: modelFor(last.modelId) ? last.modelId : null, from, to: modelName(next) };
   });
   const sideScope = createMemo(() => JSON.stringify([
     props.threadId(), mode(), props.projectId, project()?.path, thread()?.mode,
@@ -1583,8 +1614,8 @@ export function Composer(props: {
       setUploading((n) => n + 1);
       try {
         const data = await readBase64(file);
-        const { id } = await post<{ id: string }>("/api/images", { name: file.name, mime: file.type, data });
-        const label = file.name || "bilde";
+        const label = imageName(file.name, file.type, chips().flatMap((chip) => chip.kind === "image" ? [chip.label] : []));
+        const { id } = await post<{ id: string }>("/api/images", { name: label, mime: file.type, data });
         setChips([...chips(), { kind: "image", imageId: id, name: label, label, key: id }]);
       } catch (err) {
         report(err);
@@ -1842,6 +1873,7 @@ export function Composer(props: {
     if (deliveryOverride !== undefined) body.steer = deliveryOverride;
     else if (running() && !("shell" in body)) body.steer = busyMode() === "steer";
     const failedDraft = { text: raw, chips: startingChips, skill: startingSkill };
+    if (sourceId) setHandoffSent(handoffKey(sourceId, modelId()));
     reset();
     props.onSent();
     let saveFailed = false;
@@ -1870,6 +1902,7 @@ export function Composer(props: {
       accepted = id;
     } catch (err) {
       restoreSentDraft(restoreKey, failedDraft);
+      setHandoffSent("");
       if (!saveFailed) report(err);
     }
     // Keep a landing composer alive until attachments added during the request finish uploading.
@@ -2121,6 +2154,18 @@ export function Composer(props: {
       {/* Round 14 (SPEC 30.5): the folder is gone, so a bar takes the field's place. The form stays,
           hidden and locked, so its state and the draft are there again when the folder is back. */}
       <Show when={locked() ? project() : undefined}>{(p) => <FolderMissingBar project={p()} />}</Show>
+      <Show when={!locked() && handoff()}>{(pending) => (
+        <div class="context-handoff" role="status" data-testid="context-handoff">
+          <span class="context-handoff-dot" aria-hidden="true" />
+          <span class="context-handoff-text">
+            <strong>{t("Kontekstoverføring venter")}</strong>
+            <span class="context-handoff-detail">{t("Bytter fra {from} til {to} ved neste melding", { from: pending().from, to: pending().to })}</span>
+          </span>
+          <Show when={pending().back}>
+            <button type="button" class="context-handoff-undo" title={t("Gå tilbake til {model}", { model: pending().from })} onClick={() => { selectThreadModel(pending().threadId, pending().back!); textarea?.focus({ preventScroll: true }); }}>{t("Angre")}</button>
+          </Show>
+        </div>
+      )}</Show>
       <form
         class="composer"
         classList={{ busy: running(), locked: locked() }}
@@ -2466,6 +2511,7 @@ export function Composer(props: {
                 setEffortOpen(false);
                 setModelOpen(true);
               }}>
+                <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={13} />}</Show>
                 <span class="model-label">{modelName(modelId())}</span><IconChevronDown size={12} />
               </button>
             }

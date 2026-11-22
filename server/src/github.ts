@@ -205,22 +205,50 @@ export class GitHub {
   private cache = new Map<string, Cached>();
   private cacheIdentity = "";
   private account: GitHubStatus | null = null;
+  // Never chosen (githubAuth undefined, no token): a signed-in gh is used without asking, so pull
+  // requests and issues show up by themselves. Disconnecting saves null and ends this.
+  private autoDetect: boolean;
+  private detected: { at: number; cli: GitHubCliStatus } | null = null;
+  private detecting: Promise<void> | null = null;
 
-  constructor(secrets: Secrets, auth: { get: () => Settings["githubAuth"]; set: (method: Settings["githubAuth"]) => void }, base = apiBase()) {
+  constructor(secrets: Secrets, auth: { get: () => Settings["githubAuth"]; set: (method: Settings["githubAuth"]) => void }, base = apiBase(), autoDetect?: boolean) {
     this.secrets = secrets;
     this.selection = auth.get;
     this.select = auth.set;
     this.base = base;
     // With a test server for the API, links go to the same server, so a test never opens github.com.
     this.web = base === DEFAULT_API ? WEB : new URL(base).origin;
+    // Only against the real API, so a test with a fake API never reads the machine's own gh.
+    this.autoDetect = autoDetect ?? (base === DEFAULT_API && process.env.AD_GITHUB_AUTODETECT !== "0");
   }
 
   private method(): Settings["githubAuth"] {
     const choice = this.selection();
-    return choice === undefined && this.secrets.get(GITHUB_SECRET) ? "token" : choice;
+    if (choice === undefined && this.secrets.get(GITHUB_SECRET)) return "token";
+    if (choice === undefined && this.autoDetect && this.detected?.cli.state === "signed-in") return "gh";
+    return choice;
+  }
+
+  private undecided(): boolean {
+    return this.autoDetect && this.selection() === undefined && !this.secrets.get(GITHUB_SECRET);
+  }
+
+  // Looks once whether gh is installed and signed in, and again a minute later if it was not.
+  private async detectCli(): Promise<void> {
+    if (!this.undecided()) return;
+    if (this.detected && (this.detected.cli.state === "signed-in" || Date.now() - this.detected.at < CACHE_MS)) return;
+    this.detecting ??= (async () => {
+      const revision = this.revision;
+      const cli = await inspectGitHubCli();
+      if (revision !== this.revision || !this.undecided()) return;
+      this.detected = { at: Date.now(), cli };
+      if (cli.state === "signed-in") this.account = this.cliAccount(cli);
+    })().finally(() => { this.detecting = null; });
+    await this.detecting;
   }
 
   private async token(): Promise<string | undefined> {
+    await this.detectCli();
     const method = this.method();
     if (method === "token") return this.secrets.get(GITHUB_SECRET);
     if (method !== "gh") return;
@@ -243,10 +271,15 @@ export class GitHub {
   }
 
   async check(): Promise<GitHubStatus> {
+    await this.detectCli();
     if (this.method() === "gh") {
       const revision = this.revision;
       const cli = await inspectGitHubCli();
-      if (revision === this.revision) this.account = this.cliAccount(cli);
+      if (revision === this.revision) {
+        this.account = this.cliAccount(cli);
+        // Found by itself and signed out since: back to not chosen, and looked for again later.
+        if (this.undecided()) this.detected = { at: Date.now(), cli };
+      }
       return this.status();
     }
     const token = await this.token();

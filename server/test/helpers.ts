@@ -18,6 +18,10 @@ function processUsing(dir: string): boolean {
   return lines.some((line) => line.includes(dir) && !line.startsWith("Z"));
 }
 
+// 1.2.0: a GitHub client against the real API looks for a signed-in gh by itself. Tests never do,
+// so the machine's own gh account is never used; github-autodetect tests pass it explicitly.
+process.env.AD_GITHUB_AUTODETECT ??= "0";
+
 export function tempDir(t: TestContext, prefix = "ad-test-"): string {
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), prefix)));
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));

@@ -124,7 +124,7 @@ test("the demo model's page flow asks, and a denied write stops short of the fil
   assert.match(textOf(events), /avslo/);
 });
 
-test("allow always is stored per project as the exact command or tool", async (t) => {
+test("allow always is stored per project: a simple command by its prefix, a compound one exactly", async (t) => {
   const h = await startHarness(t);
   const llm = await startFakeLlm(t);
   const modelId = await addFakeModel(h, llm);
@@ -133,20 +133,31 @@ test("allow always is stored per project as the exact command or tool", async (t
   const thread = await h.thread(project.id, "code", modelId);
 
   llm.reply(sse(openaiToolCall("run_command", { command: "echo en" })));
-  llm.reply(sse(openaiToolCall("run_command", { command: "echo en" }, "c2")));
-  llm.reply(sse(openaiToolCall("run_command", { command: "echo to" }, "c3")));
+  llm.reply(sse(openaiToolCall("run_command", { command: "echo to" }, "c2")));
+  llm.reply(sse(openaiToolCall("run_command", { command: "echo en && echo to" }, "c3")));
+  llm.reply(sse(openaiToolCall("run_command", { command: "echo en && echo to" }, "c4")));
+  llm.reply(sse(openaiToolCall("run_command", { command: "echo to && echo en" }, "c5")));
   llm.always(sse(openaiText("ferdig")));
   await send(h, thread.id, "kjør");
   const first = await nextApproval(h, thread.id);
+  assert.equal(first.allowAlways, "echo …", "the card says what Tillat alltid covers");
   await h.api("POST", `/api/approvals/${first.approvalId}`, { decision: "allow-always" });
   const second = await nextApproval(h, thread.id, 1);
-  assert.match(second.detail, /echo to/, "the same command ran again without asking");
-  await h.api("POST", `/api/approvals/${second.approvalId}`, { decision: "deny" });
+  assert.match(second.detail, /echo en && echo to/, "echo to ran without asking, the chain asks");
+  assert.equal(second.allowAlways, "echo en && echo to");
+  await h.api("POST", `/api/approvals/${second.approvalId}`, { decision: "allow-always" });
+  const third = await nextApproval(h, thread.id, 2);
+  assert.match(third.detail, /echo to && echo en/, "the same chain ran again without asking, another chain asks");
+  await h.api("POST", `/api/approvals/${third.approvalId}`, { decision: "deny" });
   await h.finished(thread.id);
 
   const decide = (await import("../src/agent/permissions.ts")).decide;
   const tool = (await import("../src/agent/tools.ts")).TOOLS_BY_NAME.get("run_command")!;
+  assert.equal(decide(tool, { command: "echo tre" }, project, thread, h.app.store, h.app.config.dataDir).ask, false);
   assert.equal(decide(tool, { command: "echo en" }, other, thread, h.app.store, h.app.config.dataDir).ask, true, "rules do not cross projects");
+  const rules = await h.api("GET", "/api/permissions/rules");
+  assert.deepEqual(rules.filter((rule: any) => rule.projectId === project.id).map((rule: any) => [rule.kind, rule.value, rule.label]).sort(),
+    [["command", "echo en && echo to", "echo en && echo to"], ["prefix", "echo", "echo …"]]);
 });
 
 test(".env and .git/hooks ask even in full access, and search skips them", async (t) => {

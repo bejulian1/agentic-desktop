@@ -35,6 +35,7 @@ import { Playtest } from "./playtest.ts";
 import { PreviewServer } from "./preview.ts";
 import { PreviewRuntime } from "./preview-runtime.ts";
 import { apiKeyFor, createProvider } from "./providers/index.ts";
+import { fetchModelList } from "./providers/presets.ts";
 import { Secrets } from "./secrets.ts";
 import { defaultKeyring, type Keyring } from "./keyring.ts";
 import { GitHub, GITHUB_SECRET } from "./github.ts";
@@ -269,6 +270,12 @@ async function startAppWithClaim(
       if (!provider) throw new HttpError(400, "Fant ikke leverandøren");
       return createProvider(provider, { secrets, mockDelayMs: config.mockDelayMs, stallMs: options.stallMs });
     },
+    listModels: (providerId, signal) => {
+      const provider = store.provider(providerId);
+      if (!provider) return Promise.reject(new Error("Fant ikke leverandøren"));
+      return fetchModelList(provider, apiKeyFor(provider, secrets), signal);
+    },
+    modelsChanged: () => api.settingsChangedFromKeyring(),
     threadChanged,
     filesChanged: (projectId, paths) => {
       api.invalidateFiles(projectId);
