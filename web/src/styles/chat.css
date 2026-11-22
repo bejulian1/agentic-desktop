@@ -14,6 +14,15 @@
 .row.model-change-row { display: flex; justify-content: center; align-items: center; gap: 7px; padding: 10px 0 16px; color: var(--text-3); font-size: var(--text-xs); line-height: 1.5; text-align: center; }
 .model-change-row > .icon { flex: none; }
 .model-change-row > span { min-width: 0; overflow-wrap: anywhere; }
+/* Each model in «Byttet modell» with its coloured mark right before the name. */
+.model-change-model { color: var(--text-2); white-space: normal; }
+.model-change-model > svg { display: inline-block; margin-right: 4px; vertical-align: -2px; }
+.model-change-model > .icon { color: var(--text-3); }
+/* The answer's model: its coloured mark on the button and beside the name in the card. */
+.answer-model-button .provider-icon { flex: none; display: block; }
+.answer-model-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.answer-model-brand { display: inline-flex; flex: none; }
+.premium-model > .provider-icon { display: inline-block; margin-right: 4px; vertical-align: -2px; }
 
 /* A user message being edited: the bubble becomes a field of the same width. */
 .user-edit {

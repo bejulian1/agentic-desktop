@@ -11,6 +11,11 @@ const REPO = /^[a-z\d][a-z\d-]{0,38}\/(?!\.{1,2}$)[a-z\d_.-]{1,100}$/i;
 const DEFAULTS: GitHubFilters = { search: "", sort: "updated", state: "open", involvement: "any", label: "", projectId: "" };
 const SORT = { updated: "updated", newest: "created", oldest: "created", comments: "comments" } as const;
 const QUALIFIER = { author: "author", assignee: "assignee", mentions: "mentions", "review-requested": "review-requested" } as const;
+// The project filter's value for everything the signed-in account is involved in on GitHub, in
+// any repo, also repos that are not a project here. Used by itself when no project has a GitHub
+// remote, so the room is never empty just because the folders are elsewhere.
+export const GITHUB_ACCOUNT_SCOPE = "__account__";
+const LOGIN = /^[a-z\d](?:[a-z\d-]{0,38})(?:\[bot\])?$/i;
 type Reader = Awaited<ReturnType<GitHub["reader"]>>;
 
 function invalid(): never {
@@ -77,6 +82,11 @@ export function githubScopes(projects: Project[], web: string): GitHubScope[] {
 
 function projectRepos(scopes: GitHubScope[], projectId: string): string[] {
   return [...new Set(scopes.filter(project => !projectId || project.id === projectId).map(project => project.repo))].sort();
+}
+
+// Account-wide when asked for, or when «all projects» is asked for and none has a GitHub remote.
+export function githubAccountScope(scopes: GitHubScope[], projectId: string): boolean {
+  return projectId === GITHUB_ACCOUNT_SCOPE || (!projectId && !projectRepos(scopes, "").length);
 }
 
 function sourceGroups<T>(inputs: T[], size: number): T[][] {
@@ -258,7 +268,51 @@ async function numbered(reader: Reader, repo: string, kind: GitHubKind, number: 
   return item;
 }
 
+function searchParts(kind: GitHubKind, filters: GitHubFilters, involvement: string | null): string[] {
+  const parts = [kind === "pull" ? "is:pr" : "is:issue"];
+  if (filters.state !== "all") parts.push(`is:${filters.state}`);
+  if (kind === "pull" && filters.state === "closed") parts.push("is:unmerged");
+  if (filters.label) parts.push(`label:${quote(filters.label)}`);
+  if (involvement) parts.push(involvement);
+  if (filters.search) {
+    // Quote literal words individually so arbitrary input cannot inject GitHub qualifiers.
+    parts.push(...filters.search.split(/\s+/u).map(quote), "in:title,body");
+  }
+  return parts;
+}
+
+// One search across every repo the account can see, narrowed to what the account is involved in:
+// involves:<login> for «anyone», else author/assignee/mentions/review-requested:<login>. The login
+// comes from GitHub itself; anything that does not look like one falls back to @me.
+async function accountList(github: GitHub, kind: GitHubKind, filters: GitHubFilters, cursor: string | null, refresh: boolean): Promise<GitHubPage<GitHubRow>> {
+  const reader = await github.reader(refresh);
+  const me = reader.login && LOGIN.test(reader.login) ? reader.login : "@me";
+  const qualifier = filters.involvement === "any" ? "involves" : QUALIFIER[filters.involvement];
+  // Search has no qualifier for the number, so «#40» looks for the number as a word.
+  const search = /^#[1-9]\d{0,9}$/.test(filters.search) ? filters.search.slice(1) : filters.search;
+  const parts = searchParts(kind, { ...filters, search }, `${qualifier}:${me}`);
+  const page = await mergePage(1, cursor, compareRows(filters.sort), async (_, page) => {
+    if ((page - 1) * PER_PAGE >= 1000) return { rows: [], more: false };
+    const params = new URLSearchParams({
+      q: parts.join(" "), sort: SORT[filters.sort], order: filters.sort === "oldest" ? "asc" : "desc",
+      per_page: String(PER_PAGE), page: String(page),
+    });
+    const result = await reader.get(`/search/issues?${params}`) as any;
+    // Only a well-formed owner/repo becomes a row, so every link stays on GitHub's own pages.
+    // Rows are never dropped quietly: the cursor counts them against GitHub's page size.
+    const rows = asArray(result?.items).map(raw => {
+      const repo = /\/repos\/([^/]+\/[^/]+)$/.exec(text(raw?.repository_url, 500))?.[1].toLowerCase();
+      if (!repo || !REPO.test(repo)) throw new GitHubError("other", sourceText("GitHub svarte med et uventet søkeresultat."), 502);
+      return requiredData(raw, repo, kind, github.web);
+    });
+    return { rows, more: rows.length === PER_PAGE && Math.min(Number(result?.total_count), 1000) > page * PER_PAGE };
+  });
+  if (kind === "pull") await hydratePulls(reader, page.items);
+  return page;
+}
+
 export async function githubList(github: GitHub, scopes: GitHubScope[], kind: GitHubKind, filters: GitHubFilters, cursor: string | null, refresh: boolean): Promise<GitHubPage<GitHubRow>> {
+  if (githubAccountScope(scopes, filters.projectId)) return accountList(github, kind, filters, cursor, refresh);
   const repos = projectRepos(scopes, filters.projectId);
   if (!repos.length) return { items: [], next: null };
   const reader = await github.reader(refresh);
@@ -279,18 +333,8 @@ export async function githubList(github: GitHub, scopes: GitHubScope[], kind: Gi
   }
 
   const groups = sourceGroups(repos, REPOS_PER_SEARCH);
-  const parts = [kind === "pull" ? "is:pr" : "is:issue"];
-  if (filters.state !== "all") parts.push(`is:${filters.state}`);
-  if (kind === "pull" && filters.state === "closed") parts.push("is:unmerged");
-  if (filters.label) parts.push(`label:${quote(filters.label)}`);
-  if (filters.involvement !== "any") {
-    if (!reader.login) return { items: [], next: null };
-    parts.push(`${QUALIFIER[filters.involvement]}:${reader.login}`);
-  }
-  if (filters.search) {
-    // Quote literal words individually so arbitrary input cannot inject GitHub qualifiers.
-    parts.push(...filters.search.split(/\s+/u).map(quote), "in:title,body");
-  }
+  if (filters.involvement !== "any" && !reader.login) return { items: [], next: null };
+  const parts = searchParts(kind, filters, filters.involvement === "any" ? null : `${QUALIFIER[filters.involvement]}:${reader.login}`);
   const page = await mergePage(groups.length, cursor, compareRows(filters.sort), async (source, page) => {
     if ((page - 1) * PER_PAGE >= 1000) return { rows: [], more: false };
     const group = groups[source];
@@ -312,6 +356,8 @@ export async function githubList(github: GitHub, scopes: GitHubScope[], kind: Gi
 }
 
 export async function githubLabels(github: GitHub, scopes: GitHubScope[], projectId: string, refresh: boolean): Promise<GitHubItem["labels"]> {
+  // Across every repo of an account there is no shared list of labels to offer.
+  if (githubAccountScope(scopes, projectId)) return [];
   const repos = projectRepos(scopes, projectId);
   if (!repos.length) return [];
   const reader = await github.reader(refresh);

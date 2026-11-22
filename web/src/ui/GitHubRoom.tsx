@@ -1,9 +1,9 @@
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show, type Accessor } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from "solid-js";
 import type {
   DiffLineInfo, GitHubComment, GitHubDetail, GitHubFile, GitHubFilters, GitHubItem, GitHubKind, GitHubPage,
-  GitHubReference, GitHubRow, GitHubScope, GitHubStatus, GitHubView, Thread,
+  GitHubCliStatus, GitHubReference, GitHubRow, GitHubScope, GitHubStatus, GitHubView, Thread,
 } from "../../../shared/protocol";
-import { ApiError, del, get, post } from "../lib/api";
+import { ApiError, del, get, post, put } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import { plural, t } from "../lib/i18n";
 import { handleCopyClick, lex, renderBlocks } from "../markdown/render";
@@ -16,14 +16,16 @@ import { setStudioOpen } from "../state/studio";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { githubTitle } from "./GitHubNavigation";
 import { errorTitle, IconDraft, IconPullRequest, resetText } from "./GitHubShared";
-import { IconBack, IconBookmark, IconChat, IconCheck, IconChevronDown, IconClose, IconCompose, IconGlobe, IconIssue, IconReload, IconSearch, IconSort, IconTrash } from "./icons";
+import { IconBack, IconBookmark, IconChat, IconCheck, IconChevronDown, IconClose, IconCompose, IconGitHub, IconIssue, IconReload, IconSearch, IconSort, IconTrash } from "./icons";
 import { Popover } from "./Popover";
 import { fullTime } from "./rows";
 import { DiffView } from "./settings/harness";
-import { SkeletonRows } from "./settings/parts";
+import { Rich, SkeletonRows } from "./settings/parts";
 import "../styles/github-room.css";
 
 const DEFAULT_FILTERS: GitHubFilters = { search: "", sort: "updated", state: "open", involvement: "any", label: "", projectId: "" };
+// «Mine på GitHub»: everything the signed-in account is involved in, in any repo (github-pages.ts).
+const ACCOUNT = "__account__";
 
 type Problem = NonNullable<import("../../../shared/protocol").GitHubProject["error"]>;
 type Result<T> = { value: T; error?: undefined } | { value?: undefined; error: Problem };
@@ -76,11 +78,12 @@ function usePages<T>(url: Accessor<string | false>) {
   };
 }
 
-function Failure(props: { error: Problem; retry: () => unknown }) {
+function Failure(props: { error: Problem; retry: () => unknown; children?: JSX.Element }) {
   return (
     <div class="github-error github-room-error" role="alert" data-code={props.error.code}>
       <strong>{errorTitle(props.error)}</strong>
       <span>{props.error.message} {props.error.code === "rate-limit" ? resetText(props.error.resetAt) : ""}</span>
+      {props.children}
       <div class="github-error-actions">
         <Show when={props.error.code === "not-connected" || props.error.code === "bad-token"} fallback={
           <button type="button" class="btn btn-small" onClick={props.retry}>{t("Prøv igjen")}</button>
@@ -89,6 +92,33 @@ function Failure(props: { error: Problem; retry: () => unknown }) {
         </Show>
       </div>
     </div>
+  );
+}
+
+// Not connected: GitHub CLI is the quickest way in. When gh is already signed in (and was set
+// aside earlier), one button takes it into use; otherwise the command to sign in is shown.
+function NotConnected(props: { retry: () => unknown }) {
+  const [cli, { refetch }] = createResource(() => load<GitHubCliStatus>("/api/github/cli"));
+  const [busy, setBusy] = createSignal(false);
+  const useCli = async () => {
+    setBusy(true);
+    try {
+      await put<GitHubStatus>("/api/github/cli", {});
+      await props.retry();
+    } catch (err) { report(err); void refetch(); }
+    finally { setBusy(false); }
+  };
+  const signedIn = () => { const value = cli()?.value; return value?.state === "signed-in" ? value.login : null; };
+  return (
+    <Failure error={{ code: "not-connected", message: t("Koble til GitHub i Innstillinger for å se pull requests og issues.") }} retry={props.retry}>
+      <Show when={signedIn()} fallback={
+        <span class="github-room-cli"><Rich text={t("Er du logget inn med GitHub CLI ({command}), viser appen dine pull requests og issues av seg selv.")} parts={{ command: <span class="github-cli-command">gh auth login</span> }} /></span>
+      }>
+        {login => <span class="github-room-cli">
+          <button type="button" class="btn btn-small" disabled={busy()} onClick={() => void useCli()}><IconGitHub size={14} />{t("Fortsett som {login} med GitHub CLI", { login: login() })}</button>
+        </span>}
+      </Show>
+    </Failure>
   );
 }
 
@@ -184,15 +214,21 @@ function ListRoom(props: { kind: GitHubKind; initialProject?: string; status?: R
   );
   const configuredProject = createMemo(() => {
     const selected = filters().projectId;
+    if (selected === ACCOUNT) return ACCOUNT;
     return selected && scopes()?.value?.some(scope => scope.id === selected) ? selected : "";
   });
+  // No project has a GitHub remote: «Alle prosjekter» would be empty, so the account is shown.
+  const noProjects = () => scopes()?.value?.length === 0;
+  const accountWide = () => configuredProject() === ACCOUNT || (!configuredProject() && noProjects());
+  const scopeValue = () => (accountWide() ? ACCOUNT : configuredProject());
+  const login = () => props.status?.value?.login;
   const [repoLabels, { refetch: reloadLabels }] = createResource<Result<GitHubItem["labels"]>, { projectId: string }>(
-    () => !!props.status?.value?.connected && menu() === "filters" && { projectId: configuredProject() },
+    () => !!props.status?.value?.connected && menu() === "filters" && { projectId: scopeValue() },
     ({ projectId }, { refetching }) => load<GitHubItem["labels"]>(`/api/github/labels?${new URLSearchParams({ projectId, refresh: refetching === true ? "1" : "0" })}`),
   );
   const source = createMemo(() => {
-    if (!props.status?.value?.connected || !scopes()?.value?.length) return false;
-    const query = new URLSearchParams({ ...filters(), projectId: configuredProject() });
+    if (!props.status?.value?.connected || !scopes()?.value) return false;
+    const query = new URLSearchParams({ ...filters(), projectId: scopeValue() });
     return `/api/github/list/${props.kind}?${query}`;
   });
   const page = usePages<GitHubRow>(source);
@@ -309,24 +345,28 @@ function ListRoom(props: { kind: GitHubKind; initialProject?: string; status?: R
           </div>
         </Popover>
         <select class="input github-scope" aria-label={t("Prosjekt")} onChange={event => update({ projectId: event.currentTarget.value, label: "" })}>
-          <option value="" selected={!configuredProject()}>{t("Alle prosjekter")}</option>
+          <Show when={!noProjects()}><option value="" selected={!configuredProject()}>{t("Alle prosjekter")}</option></Show>
+          <option value={ACCOUNT} selected={accountWide()}>{t("Mine på GitHub")}</option>
           <For each={scopes()?.value}>{scope => <option value={scope.id} selected={configuredProject() === scope.id}>{scope.name}</option>}</For>
         </select>
         <button type="button" class="icon-button github-refresh" aria-label={t("Hent på nytt")} title={t("Hent på nytt")} onClick={() => void refresh()}><IconReload size={16} /></button>
       </div>
       <Show when={scopes()?.value}>
-        {value => <p class="github-room-source"><IconGlobe size={14} />{plural(configuredProject() ? 1 : value().length,
-          "GitHub · github.com · {count} prosjekt", "GitHub · github.com · {count} prosjekter")}</p>}
+        {value => <p class="github-room-source" data-scope={accountWide() ? "account" : "projects"}><IconGitHub size={14} />{accountWide()
+          ? login() ? t("GitHub · github.com · @{login} (alle repoer)", { login: login()! }) : t("GitHub · github.com · alle repoer")
+          : plural(configuredProject() ? 1 : value().length, "GitHub · github.com · {count} prosjekt", "GitHub · github.com · {count} prosjekter")}</p>}
+      </Show>
+      <Show when={props.status?.value?.connected && noProjects()}>
+        <p class="github-room-hint">{props.kind === "pull"
+          ? t("Ingen prosjekter har en remote på GitHub, så her er pull requestene du er involvert i på GitHub.")
+          : t("Ingen prosjekter har en remote på GitHub, så her er issuene du er involvert i på GitHub.")}</p>
       </Show>
       <Show when={props.status?.error ?? scopes()?.error}>{error => <Failure error={error()} retry={refresh} />}</Show>
       <Show when={!props.status || scopes.loading}>
         <SkeletonRows label={t("Henter…")} />
       </Show>
       <Show when={props.status?.value && !props.status.value.connected}>
-        <Failure error={{ code: "not-connected", message: t("Koble til GitHub i Innstillinger for å se pull requests og issues.") }} retry={refresh} />
-      </Show>
-      <Show when={props.status?.value?.connected && scopes()?.value && !scopes()!.value!.length}>
-        <p class="github-room-empty">{t("Ingen prosjekter har en remote på GitHub.")}</p>
+        <NotConnected retry={refresh} />
       </Show>
       <Show when={source()}>
         <Show when={page.error()}>{error => <Failure error={error()} retry={() => page.next() ? page.more() : page.refresh()} />}</Show>
@@ -343,7 +383,7 @@ function ListRoom(props: { kind: GitHubKind; initialProject?: string; status?: R
                   <span class="github-row-title"><span class="muted tabular">#{item.number}</span> {item.title}</span>
                   <span class="github-row-meta">
                     <Author login={item.author} avatarId={item.avatarId} />
-                    <Show when={!configuredProject()}><span class="github-row-repo">{item.repo}</span></Show>
+                    <Show when={!configuredProject() || configuredProject() === ACCOUNT}><span class="github-row-repo">{item.repo}</span></Show>
                     <Labels labels={item.labels} />
                   </span>
                 </span>
@@ -444,7 +484,7 @@ function DetailRoom(props: { reference: GitHubReference; revision?: number; onSt
               <p>{t("Tildelt {users}", { users: item().assignees.join(", ") })}</p>
             </Show>
             <div class="github-detail-actions">
-              <a class="btn btn-small" href={item().url} target="_blank" rel="noopener noreferrer"><IconGlobe size={14} />{t("Åpne på GitHub")}</a>
+              <a class="btn btn-small" href={item().url} target="_blank" rel="noopener noreferrer"><IconGitHub size={14} />{t("Åpne på GitHub")}</a>
               <Show when={projectIds().length > 1}>
                 <select class="input" aria-label={t("Prosjekt")} onChange={event => setSelected(event.currentTarget.value)}>
                   <For each={projectIds()}>{id => <option value={id} selected={selected() === id}>{app.projects[id]?.name}</option>}</For>

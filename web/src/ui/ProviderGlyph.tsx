@@ -9,7 +9,7 @@ import { BRAND_NAMES, BrandSvg, providerBrand, type ProviderBrand } from "./Prov
 export type ProviderFamily = ProviderBrand;
 
 export function providerFamily(
-  model: Pick<ModelConfig, "model" | "providerId" | "id"> | undefined,
+  model: (Pick<ModelConfig, "model" | "providerId" | "id"> & { name?: string }) | undefined,
   provider?: Pick<ProviderConfig, "kind" | "presetId" | "localKind" | "baseUrl" | "name">,
 ): ProviderFamily {
   if (!model) return "api";

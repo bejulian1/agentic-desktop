@@ -2,7 +2,7 @@ import { t } from "../lib/i18n";
 // Recognisable coloured brand favicons for AI providers and model families, used in the model
 // picker, model chip, sidebar rows, hover cards, Tråddetaljer, subagent cards and provider list.
 import { createUniqueId, Match, Switch } from "solid-js";
-import type { ModelConfig, ProviderConfig } from "../../../shared/protocol";
+import type { ProviderConfig } from "../../../shared/protocol";
 
 export type ProviderBrand =
   | "anthropic"
@@ -16,17 +16,29 @@ export type ProviderBrand =
   | "groq"
   | "perplexity"
   | "cohere"
+  | "qwen"
+  | "moonshot"
+  | "zhipu"
+  | "minimax"
+  | "nvidia"
+  | "huggingface"
+  | "together"
+  | "fireworks"
+  | "venice"
+  | "cerebras"
   | "github"
   | "local"
   | "demo"
   | "api";
 
 export type BrandSource = Pick<ProviderConfig, "kind" | "name"> & Partial<Pick<ProviderConfig, "presetId" | "baseUrl">> & { localKind?: unknown };
+export type BrandModel = { model?: string; name?: string };
 
+// The family of a model from its id: «claude-…», «openai/gpt-…», «Qwen/Qwen3-…», «accounts/fireworks/models/llama-…».
 function brandFromModelId(id: string): ProviderBrand | null {
   const lower = id.toLowerCase();
   if (!lower) return null;
-  if (/(?:^|\/)claude/.test(lower)) return "anthropic";
+  if (/(?:^|\/)claude/.test(lower) || /^anthropic\//.test(lower)) return "anthropic";
   if (/(?:^|\/)(?:gpt|o\d|chatgpt|codex)/.test(lower) || /^openai\//.test(lower)) return "openai";
   if (/(?:^|\/)(?:gemini|gemma)/.test(lower) || /^google\//.test(lower)) return "google";
   if (/(?:^|\/)deepseek/.test(lower)) return "deepseek";
@@ -35,34 +47,47 @@ function brandFromModelId(id: string): ProviderBrand | null {
   if (/(?:^|\/)grok/.test(lower) || /^x-?ai\//.test(lower)) return "xai";
   if (/(?:^|\/)(?:sonar|pplx)/.test(lower) || /^perplexity\//.test(lower)) return "perplexity";
   if (/(?:^|\/)command/.test(lower) || /^cohere\//.test(lower)) return "cohere";
+  if (/(?:^|\/)(?:qwen|qwq|qvq)/.test(lower) || /^(?:alibaba|aliyun)\//.test(lower)) return "qwen";
+  if (/(?:^|\/)(?:kimi|moonshot)/.test(lower)) return "moonshot";
+  if (/(?:^|\/)(?:glm|chatglm|codegeex|cogview)/.test(lower) || /^(?:z-ai|zai-org|thudm|zhipuai?)\//.test(lower)) return "zhipu";
+  if (/(?:^|\/)(?:minimax|abab)/.test(lower)) return "minimax";
+  if (/(?:^|\/)(?:nemotron|nvidia)/.test(lower)) return "nvidia";
   return null;
 }
 
-export function providerBrand(provider: BrandSource | undefined, model?: Pick<ModelConfig, "model">): ProviderBrand {
-  if (!provider) return (model ? brandFromModelId(model.model) : null) ?? "api";
-  if (provider.kind === "mock") return "demo";
-  const text = [provider.presetId, provider.baseUrl, provider.name].filter(Boolean).join(" ").toLowerCase();
-  const isGateway = /openrouter|together|fireworks|bedrock|vertex|azure|litellm|portkey|cloudflare|gateway/.test(text);
-  // On gateways or generic custom OpenAI-compatible servers, prefer the actual model family when known.
-  if (model && (isGateway || provider.kind === "openai-compatible")) {
-    const direct =
-      /anthropic|claude/.test(text) ? "anthropic"
-      : /openai\.com|(?:^|\s)openai(?:\s|$)/.test(text) ? "openai"
-      : /generativelanguage|googleapis|gemini/.test(text) ? "google"
-      : /deepseek/.test(text) ? "deepseek"
-      : /mistral/.test(text) ? "mistral"
-      : /(?:^|[^a-z])x\.ai|xai|grok/.test(text) ? "xai"
-      : /groq/.test(text) ? "groq"
-      : /perplexity/.test(text) ? "perplexity"
-      : /cohere/.test(text) ? "cohere"
-      : /github|models\.inference\.ai/.test(text) ? "github"
-      : null;
-    if (direct) return direct;
-    const fromModel = brandFromModelId(model.model);
-    if (fromModel) return fromModel;
-  }
-  if (provider.kind === "anthropic" || /anthropic|claude/.test(text)) return "anthropic";
-  if (/openrouter/.test(text)) return "openrouter";
+// The family from a display name such as «Anthropic: Claude Opus 5» or «Qwen3 Coder». Whole words
+// only, so a name never borrows a brand from a word that merely contains it.
+function brandFromName(name: string): ProviderBrand | null {
+  const lower = name.toLowerCase();
+  if (!lower) return null;
+  const word = (pattern: string) => new RegExp(`(?:^|[^a-z0-9])(?:${pattern})`).test(lower);
+  if (word("claude|anthropic")) return "anthropic";
+  if (word("chatgpt|gpt|openai|codex")) return "openai";
+  if (word("gemini|gemma|google")) return "google";
+  if (word("deepseek")) return "deepseek";
+  if (word("mistral|mixtral|codestral|pixtral|ministral|devstral|magistral")) return "mistral";
+  if (word("llama|meta:")) return "meta";
+  if (word("grok|xai")) return "xai";
+  if (word("sonar|perplexity")) return "perplexity";
+  if (word("command-|cohere")) return "cohere";
+  if (word("qwen|qwq|qvq")) return "qwen";
+  if (word("kimi|moonshot")) return "moonshot";
+  if (word("glm|chatglm|zhipu")) return "zhipu";
+  if (word("minimax")) return "minimax";
+  if (word("nemotron|nvidia")) return "nvidia";
+  return null;
+}
+
+// The id says the most; a generic id («default», «abliterated-model») falls back to the display name.
+export function brandFromModel(model: BrandModel | undefined): ProviderBrand | null {
+  if (!model) return null;
+  return brandFromModelId(model.model ?? "") ?? brandFromName(model.name ?? "");
+}
+
+// A first-party API that only serves its own models, read from the preset, address and name.
+// OpenAI and Google come last: their words also turn up in the names of other services.
+function hostBrand(text: string): ProviderBrand | null {
+  if (/anthropic|claude/.test(text)) return "anthropic";
   if (/deepseek/.test(text)) return "deepseek";
   if (/mistral/.test(text)) return "mistral";
   if (/(?:^|[^a-z])x\.ai|xai|grok/.test(text)) return "xai";
@@ -70,15 +95,49 @@ export function providerBrand(provider: BrandSource | undefined, model?: Pick<Mo
   if (/perplexity/.test(text)) return "perplexity";
   if (/cohere/.test(text)) return "cohere";
   if (/github|models\.inference\.ai/.test(text)) return "github";
+  if (/dashscope|aliyun|alibaba|qwen/.test(text)) return "qwen";
+  if (/moonshot|kimi/.test(text)) return "moonshot";
+  if (/bigmodel\.cn|zhipu|(?:^|[^a-z])z\.ai/.test(text)) return "zhipu";
+  if (/minimax/.test(text)) return "minimax";
+  if (/openai\.com|(?:^|\s)openai(?:\s|$)/.test(text)) return "openai";
+  if (/generativelanguage|googleapis|gemini/.test(text)) return "google";
+  return null;
+}
+
+// A service that hosts models from many families: its own mark only when the model's is unknown.
+function gatewayBrand(text: string): ProviderBrand | null {
+  if (/openrouter/.test(text)) return "openrouter";
+  if (/huggingface|(?:^|[^a-z])hf\.co/.test(text)) return "huggingface";
+  if (/together/.test(text)) return "together";
+  if (/fireworks/.test(text)) return "fireworks";
+  if (/venice/.test(text)) return "venice";
+  if (/cerebras/.test(text)) return "cerebras";
+  if (/nvidia/.test(text)) return "nvidia";
+  return null;
+}
+
+export function providerBrand(provider: BrandSource | undefined, model?: BrandModel): ProviderBrand {
+  if (!provider) return brandFromModel(model) ?? "api";
+  if (provider.kind === "mock") return "demo";
+  const text = [provider.presetId, provider.baseUrl, provider.name].filter(Boolean).join(" ").toLowerCase();
+  const gateway = gatewayBrand(text);
+  const isGateway = !!gateway || /bedrock|vertex|azure|litellm|portkey|cloudflare|gateway/.test(text);
+  // On gateways or generic custom OpenAI-compatible servers, prefer the actual model family when known.
+  if (model && (isGateway || provider.kind === "openai-compatible")) {
+    const direct = gateway ? null : hostBrand(text);
+    if (direct) return direct;
+    const fromModel = brandFromModel(model);
+    if (fromModel) return fromModel;
+  }
+  if (provider.kind === "anthropic" || /anthropic|claude/.test(text)) return "anthropic";
+  if (gateway) return gateway;
+  const host = hostBrand(text);
+  if (host && host !== "openai" && host !== "google") return host;
   if (/gemini|generativelanguage|googleapis|google|vertex/.test(text)) return "google";
   if (/openai\.com|(?:^|\s)openai(?:\s|$)|azure-openai/.test(text)) return "openai";
   if (/meta|llama/.test(text) && !provider.localKind && !/ollama|lm-?studio|localhost|127\.0\.0\.1/.test(text)) return "meta";
   if (provider.localKind || /ollama|lm-?studio|llama\.cpp|vllm|localhost|127\.0\.0\.1|\[::1\]|custom-local/.test(text)) return "local";
-  if (model) {
-    const fromModel = brandFromModelId(model.model);
-    if (fromModel) return fromModel;
-  }
-  return "api";
+  return brandFromModel(model) ?? "api";
 }
 
 export const BRAND_NAMES: Record<ProviderBrand, () => string> = {
@@ -93,6 +152,16 @@ export const BRAND_NAMES: Record<ProviderBrand, () => string> = {
   groq: () => "Groq",
   perplexity: () => "Perplexity",
   cohere: () => "Cohere",
+  qwen: () => "Qwen",
+  moonshot: () => "Moonshot AI",
+  zhipu: () => "Zhipu AI",
+  minimax: () => "MiniMax",
+  nvidia: () => "NVIDIA",
+  huggingface: () => "Hugging Face",
+  together: () => "Together AI",
+  fireworks: () => "Fireworks AI",
+  venice: () => "Venice",
+  cerebras: () => "Cerebras",
   github: () => "GitHub",
   local: () => t("Lokal modellserver"),
   demo: () => t("Demo-modell"),
@@ -218,6 +287,66 @@ export function BrandSvg(props: {
           <circle cx="6.4" cy="6.4" r="2.6" fill="#D18EE2" />
           <circle cx="10.2" cy="9.9" r="2.3" fill="#FF7759" />
           <circle cx="5.4" cy="10.6" r="1.7" fill="#5EEAD4" />
+        </Match>
+        {/* Qwen / Alibaba: violet-indigo badge with a crisp hexagonal star */}
+        <Match when={props.brand === "qwen"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#6366F1" />
+          <path d="M8 2.9 12.4 5.45v5.1L8 13.1 3.6 10.55v-5.1Z" stroke="#fff" stroke-width="1.3" stroke-linejoin="round" />
+          <path d="M8 5.3 10.35 9.4H5.65Z" fill="#fff" />
+        </Match>
+        {/* Moonshot AI / Kimi: deep ink badge with a white crescent and a blue moon dot */}
+        <Match when={props.brand === "moonshot"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#16191E" stroke="rgba(255,255,255,0.22)" stroke-width="0.75" />
+          <path d="M9.6 3.4a4.8 4.8 0 1 0 3 8.1 4 4 0 0 1-3-8.1Z" fill="#fff" />
+          <circle cx="11.6" cy="4.6" r="1.25" fill="#1783FF" />
+        </Match>
+        {/* Zhipu AI / GLM: cobalt badge with a bold Z */}
+        <Match when={props.brand === "zhipu"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#3859FF" />
+          <path d="M4.6 4.7h6.8L4.6 11.3h6.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </Match>
+        {/* MiniMax: rose-red badge with a waveform */}
+        <Match when={props.brand === "minimax"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#E8365D" />
+          <path d="M3.4 8.6V7.4M5.7 10.6V5.4M8 12V4M10.3 10.6V5.4M12.6 8.6V7.4" stroke="#fff" stroke-width="1.45" stroke-linecap="round" />
+        </Match>
+        {/* NVIDIA: signature green badge with the eye swirl */}
+        <Match when={props.brand === "nvidia"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#76B900" />
+          <path d="M2.9 8c1.4-2 3.2-3.1 5.1-3.1 1.6 0 3 .7 4.3 2" stroke="#fff" stroke-width="1.35" stroke-linecap="round" />
+          <path d="M5.1 8.6c.8-1.1 1.8-1.7 2.9-1.7 1 0 1.9.5 2.6 1.3-.8 1.3-1.8 2-2.9 2-.7 0-1.3-.2-1.8-.6" stroke="#fff" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" />
+        </Match>
+        {/* Hugging Face: golden smiling face */}
+        <Match when={props.brand === "huggingface"}>
+          <circle cx="8" cy="8" r="7.1" fill="#FFD21E" />
+          <circle cx="5.6" cy="6.6" r="1.05" fill="#3A3B45" />
+          <circle cx="10.4" cy="6.6" r="1.05" fill="#3A3B45" />
+          <path d="M4.9 9.2c.7 1.5 1.8 2.2 3.1 2.2s2.4-.7 3.1-2.2" fill="#FF323D" stroke="#3A3B45" stroke-width="1.1" stroke-linejoin="round" />
+        </Match>
+        {/* Together AI: bright blue badge with four joined dots */}
+        <Match when={props.brand === "together"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#0F6FFF" />
+          <circle cx="5.6" cy="5.6" r="1.75" fill="#fff" />
+          <circle cx="10.4" cy="5.6" r="1.75" fill="#fff" opacity="0.75" />
+          <circle cx="5.6" cy="10.4" r="1.75" fill="#fff" opacity="0.75" />
+          <circle cx="10.4" cy="10.4" r="1.75" fill="#fff" />
+        </Match>
+        {/* Fireworks AI: electric violet badge with a spark burst */}
+        <Match when={props.brand === "fireworks"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#6720FF" />
+          <path d="M8 3.2v2.4M8 10.4v2.4M3.2 8h2.4M10.4 8h2.4M4.6 4.6l1.7 1.7M9.7 9.7l1.7 1.7M11.4 4.6 9.7 6.3M6.3 9.7l-1.7 1.7" stroke="#fff" stroke-width="1.35" stroke-linecap="round" />
+          <circle cx="8" cy="8" r="1.1" fill="#FFB86B" />
+        </Match>
+        {/* Venice: crimson badge with a crisp V */}
+        <Match when={props.brand === "venice"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#C8102E" />
+          <path d="M4.3 4.4 8 11.8l3.7-7.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+        </Match>
+        {/* Cerebras: warm orange badge with nested arcs */}
+        <Match when={props.brand === "cerebras"}>
+          <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3.75" fill="#F15A29" />
+          <path d="M11.6 4.9a4.6 4.6 0 1 0 0 6.2" stroke="#fff" stroke-width="1.35" stroke-linecap="round" />
+          <path d="M10.1 6.3a2.5 2.5 0 1 0 0 3.4" stroke="#fff" stroke-width="1.35" stroke-linecap="round" />
         </Match>
         {/* GitHub Models */}
         <Match when={props.brand === "github"}>

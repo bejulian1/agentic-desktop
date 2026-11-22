@@ -77,7 +77,10 @@
 
 .github-toolbar .btn, .github-toolbar .github-refresh, .github-toolbar .github-scope { border: 1px solid var(--border); }
 .github-scope { width: auto; max-width: min(220px, 100%); }
-.github-room-source { display: flex; align-items: center; gap: 6px; margin: 16px 0 4px; padding: 0 8px; color: var(--text-3); font-size: var(--text-sm); }
+.github-room-source { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 16px 0 4px; padding: 0 8px; color: var(--text-3); font-size: var(--text-sm); }
+.github-room-source > .icon[data-icon="github"] { color: var(--text); }
+.github-room-hint { margin: 2px 8px 8px; color: var(--text-3); font-size: var(--text-sm); }
+.github-cli-command { font-family: var(--font-mono); font-size: var(--text-xs); padding: 1px 5px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--text-2); }
 .github-room-empty { margin: 26px 8px; color: var(--text-3); }
 .github-room-error { margin: 14px 0; }
 .github-room-list { list-style: none; padding: 0; margin: 0; }
@@ -96,10 +99,11 @@
 }
 .github-room-row:where(:hover, :focus-visible),
 .github-nav-button[aria-current] { background: var(--hover); }
-.github-row-state { display: inline-flex; flex: none; color: var(--text-3); }
-.github-row-state[data-state="open"] { color: var(--ok); }
-.github-row-state[data-state="closed"] { color: var(--danger); }
-.github-row-state[data-state="merged"] { color: var(--accent); }
+.github-row-state { display: inline-flex; flex: none; color: var(--gh-draft); }
+.github-row-state[data-state="open"] { color: var(--gh-open); }
+.github-row-state[data-state="closed"] { color: var(--gh-closed); }
+.github-row-state[data-state="merged"] { color: var(--gh-merged); }
+.github-row-state[data-state="draft"] { color: var(--gh-draft); }
 .github-row-body { display: grid; flex: 1; min-width: 0; gap: 4px; }
 .github-row-title { font-weight: 550; overflow-wrap: anywhere; }
 .github-row-meta, .github-row-end, .github-author { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; color: var(--text-3); font-size: var(--text-sm); }
