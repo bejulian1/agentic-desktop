@@ -198,7 +198,8 @@ test("required frontmatter strings and optional args are validated without crash
 test("every shipped skill parses, has the intended modes and one args placeholder", (t) => {
   const root = path.resolve(import.meta.dirname, "../../skills");
   const shipped = discoverSkills(null, tempDir(t), [], root);
-  assert.equal(shipped.length, 27);
+  assert.equal(shipped.length, 28);
+  assert.deepEqual(shipped.filter((item) => item.manual).map((item) => item.name), ["council", "handoff", "interface-recreation", "sol-loop"]);
   assert.equal(sharedSkills.length, 7);
   assert.deepEqual(shipped.map((item) => item.name), documentedSkills);
   for (const item of shipped) {

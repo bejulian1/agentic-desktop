@@ -58,7 +58,7 @@ Mapper leses ved oppstart og kontrolleres for filendringer hvert halve sekund. O
 
 ## Innebygde skills
 
-Appen har 27 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 20 er laget for Kode.
+Appen har 28 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 21 er laget for Kode.
 
 | Skill | Bruk |
 |---|---|
@@ -89,6 +89,7 @@ Appen har 27 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 20 
 | `/sol-loop` | Kjør en avgrenset kodegjennomgang med GPT Sol (manuell) |
 | `/council` | Få uavhengige vurderinger fra tre modelltilbydere (manuell) |
 | `/interface-recreation` | Gjenskap et grensesnitt fra en godkjent referanse (manuell) |
+| `/handoff` | La hovedagenten fordele oppgaver og samle korte resultater (manuell) |
 
 Skriv `$` i meldingsfeltet for å vise bare skills.
 
