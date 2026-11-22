@@ -15,6 +15,10 @@ export const CHAT_WIDTHS = ["compact", "comfortable", "wide"] as const;
 export type ChatWidth = (typeof CHAT_WIDTHS)[number];
 export const UI_CONTRASTS = [85, 90, 95, 100, 105, 110, 115] as const;
 export type PermissionMode = "ask" | "accept-edits" | "full";
+// A saved "Tillat alltid" (Innstillinger → Tillatelser). projectId "local" is Denne datamaskinen.
+// command: one exact command line; prefix: simple commands starting with these words; tool: a tool
+// by name, "browser_*" for every browser tool.
+export interface AllowRule { projectId: string; kind: "command" | "prefix" | "tool"; value: string; label: string }
 export type ProviderKind = "openai-compatible" | "anthropic" | "mock";
 export type LocalProviderKind = "ollama" | "lmstudio" | "openai-compatible";
 export const DEFAULT_LOCAL_CONTEXT_WINDOW = 4_096;
@@ -831,7 +835,8 @@ export type ThreadEvent =
   | { type: "tool.finished"; runId: string; callId: string; status: ToolStatus; result?: string; durationMs: number; screenshotId?: string; sources?: WebSource[]; files?: ChatFile[] }
   | { type: "question.requested"; threadId: string; runId: string; requestId: string; callId: string; questions: UserQuestion[] }
   | { type: "question.resolved"; runId: string; requestId: string; cancelled: boolean; answers: UserAnswer[]; reason?: UserInputCloseReason }
-  | { type: "approval.requested"; runId: string; approvalId: string; callId: string; title: string; detail: string; canAllowAlways: boolean }
+  // allowAlways: what "Tillat alltid" saves, such as "git status …" or an exact command.
+  | { type: "approval.requested"; runId: string; approvalId: string; callId: string; title: string; detail: string; canAllowAlways: boolean; allowAlways?: string }
   | { type: "approval.resolved"; runId: string; approvalId: string; decision: ApprovalDecision }
   | { type: "thread.spawned"; runId: string; childThreadId: string; title: string; model?: AnswerModel }
   | { type: "turn.changes"; runId: string; turnId: string; files: ChangedFile[] }

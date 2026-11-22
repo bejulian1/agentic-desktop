@@ -17,6 +17,7 @@ import { ThemePicker } from "../ThemePicker";
 import { ColorSchemeCards, InterfaceControls, InterfaceFontPreview } from "./appearance-controls";
 import { AppIconPicker } from "../AppIconPicker";
 import { permissionScope, permissionTitle } from "../permission-copy";
+import { ApplyPermissionToProjects } from "./permission-rules";
 import { Choice, Group, Page, Rich, Row, save, Segmented, Toggle } from "./parts";
 
 const ACCENTS = (): Array<{ value: AccentColor; label: string }> => [
@@ -177,6 +178,7 @@ function PermissionDefaults() {
         <input type="radio" name="default-code-permission" value={option.value} checked={app.settings.defaultPermissionMode === option.value} disabled={busy()} onChange={() => void choose(option.value)} />
       </Row>}</For>
     </div>
+    <ApplyPermissionToProjects />
     <Show when={error()}><p class="permission-error" role="alert">{error()}</p></Show>
   </Group>;
 }

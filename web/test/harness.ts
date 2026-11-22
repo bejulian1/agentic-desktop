@@ -33,6 +33,7 @@ export function startServer(dataDir: string, options: { port?: number; mockDelay
       AD_PORT: String(options.port ?? 0),
       AD_MOCK_DELAY_MS: String(options.mockDelayMs ?? 1),
       AD_KEYRING: "memory", // round 14: keys in memory, never the user's real keyring
+      AD_GITHUB_AUTODETECT: "0", // 1.2.0: never pick up the machine's own signed-in gh by itself
       PATH: `${path.join(ROOT, "web/test/bin")}:${process.env.PATH}`, // The real `code` opens a window.
       ...options.env,
     },
