@@ -156,7 +156,9 @@ The project owner credits the following AI models for development assistance (se
 - **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
 - **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action; **Gemini 4 Neon** finished Kode Studio and built the 1.1.0 diff, browser, notification and sidebar settings.
 - **OpenAI GPT 6.2 Sol** — built the 1.1.0 GitHub CLI integration with pull request and issue pages, and the welcome screen with project and conversation import.
-- **Anthropic Claude Opus 5.5** — also coordinated the 1.0.0 and 1.1.0 releases with Claude Code: distributing issues, pull requests and translations across sub-agents, reviewing and merging their work, and the open-source switch, release and packaging.
+- **Anthropic Claude Opus 5.5** — also coordinated the 1.0.0 and 1.1.0 releases with Claude Code, and built PR #4 for 1.2.0 (persistent prefix permissions, same-provider subagent spawning, Base URL + inline model setup, context handoff indicator, pasted-image defaults, and automatic GitHub CLI detection).
+- **Anthropic Claude Sonnet 5.5** — built PR #6 for 1.2.0 (Ocean, Pink, Grove, Ember, and Iris themes, interface contrast/width/math controls, dedicated Project Settings page, monogram and uploaded project icons, expanded favicons, smart link/file chips, inline GitHub side-panel detail view, and floating Thread Details popover).
+- **Google Gemini 4 Neon** — finished Kode Studio, built the 1.1.0 diff/browser/notification/sidebar settings, and coordinated 1.2.0 (delegating and merging PR #4 and #6, translating all 11 locales, testing, release, and packaging).
 
 GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API compatibility, setup, and local model discovery and recommendations.
 

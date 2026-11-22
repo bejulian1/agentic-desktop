@@ -4,6 +4,43 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.2.0: Tillatelser som huskes, Ocean og nye temaer, Prosjekter-innstillinger, Tråddetaljer og API-underagenter (22. november 2026, bygg 82)
+
+En stor bruksoppdatering som gjør overgangen mellom T3 Code og Agentic Desktop sømløs, fikser gjentatte godkjenningsforespørsler, legger til fem nye fargetemaer, egen Prosjekter-side i Innstillinger, flytende Tråddetaljer-meny i Kode og underagenter på valgt API-leverandør.
+
+**Tillatelser som huskes**
+
+- **Prefiksregler på kommandoer:** «Tillat alltid» på vanlige enkle kommandoer (som `git status`, `npm test`, `npm run build`, `npx tsc`, `python -m pytest`, `node --test`, `ls`, `rg`) lagrer prefikset slik at beslektede kommandoer slipper å spørre hver gang. Kjeder, pipes, omdirigeringer, `$(…)` og risikable programmer (`sudo`, `rm`, `find`, `curl` osv.) bruker fortsatt nøyaktig match, og beskyttede stier/kommandoer spør alltid.
+- **Én godkjenning for nettleseren:** «Tillat alltid» på et `browser_*`-verktøy gjelder alle nettleserhandlinger. Godkjenningskortet viser tydelig hva regelen dekker.
+- **Bruk på alle prosjekter og regeloversikt:** Under **Innstillinger → Tillatelser** og **Generelt** ser du hvor mange prosjekter som har en annen modus, kan bruke standardmodusen på alle prosjekter med ett klikk, og kan se og fjerne lagrede «Tillat alltid»-regler enkeltvis eller samlet.
+- **Denne datamaskinen:** terminal- og nettleserpanelet følger nå standard tillatelsesmodus i stedet for fast «Spør».
+
+**Utseende, temaer og typografi**
+
+- **Fem nye fargetemaer (lys og mørk, WCAG AA):** **Ocean**, **Rosa**, **Skog**, **Glød** og **Iris**, i tillegg til de seks eksisterende temaene (totalt 11 temaer / 34 varianter).
+- **Nye kontroller i Utseende og Kode:** visuelle forhåndsvisningskort for System/Lys/Mørk, to-kulers forhåndsvisning på temakortene, kontrastglidebryter for kanter og hover-flater (85–115 %), samtalebredde (Kompakt / Komfortabel / Bred), bryter for LaTeX-matte og live forhåndsvisning av grensesnitt- og kodetypografi (diff og terminal).
+
+**Prosjekter, favicons og prosjektikoner**
+
+- **Egen side «Prosjekter» i Innstillinger:** velg prosjekt øverst og styr navn, prosjektikon, festing, kildemappe, standardmodell, tillatelsesmodus, nettlesertilgang, `.agentic/AGENTS.md` og fjerning fra appen.
+- **Utvidet ikonvelger og favicons:** 18 prosjektfarger, tre faner (**Ikoner**, **Emoji**, **Monogram** med 1–3 tegn), opplasting av egen ikonfil (PNG/SVG/ICO/WebP, maks 256 KB) og bredere automatisk favicon-søk i prosjektmapper.
+
+**Sidefane, Tråddetaljer, smarte lenker og GitHub**
+
+- **Tråddetaljer i Kode:** flytende knapp øverst til høyre (`Ctrl+Shift+D`) med prosjekt/mappe, Åpne i VS Code, snarvei til Prosjekter-innstillinger, aktiv Git-gren, Git-arbeidsområde, live Endringer (`+N −M`) og underagenter — uten å åpne sidepanelet.
+- **Sidefane og hover-kort:** Kode-tråder viser aktiv gren, leverandørmerke og grønt «Ferdig»-merke for usette svar, og hover-kortet viser gren og leverandør.
+- **Smarte lenker i meldinger:** GitHub PR-/issue-lenker og nakne URL-er forkortes til fargede brikker med ikon og full destinasjonsadresse ved hover, og filreferanser i kodebrikker får fargemerke etter filtype.
+- **Innebygd GitHub-detalj og automatisk `gh`:** klikk på en PR eller issue i GitHub-sidepanelet åpner detaljvisning med diff og kommentarer rett i panelet, og en innlogget GitHub CLI (`gh`) kobles til automatisk så lenge brukeren ikke har koblet fra manuelt.
+
+**Leverandører, modellbytte, underagenter og bilder**
+
+- **Koble til Egendefinert / OpenAI-kompatibel:** feltet heter nå **API-adresse (Base URL)**, og et valgfritt **Modell-ID (valgfri)**-felt lar deg legge til modellen direkte i oppkoblingsskjemaet.
+- **Kontekstoverføring venter:** bytter du modell i en besvart tråd, vises en rolig indikator over meldingsfeltet før neste melding sendes, med Angre-knapp.
+- **Underagenter på valgt API-leverandør:** `thread_models` kan hente leverandørens egne modeller, og `thread_create` kan starte underagenter med modell-ID-er fra samme leverandør uten manuelt forhåndsoppsett. Underagentkort i chatten viser leverandørmerke, statusprikk, utdrag fra siste svar og ferdigtidspunkt.
+- **Innlimte bilder og modellvelger:** innlimte bilder får automatisk navn som `image.png` / `image-2.png`, nye skybaserte OpenAI-kompatible modeller har bildestøtte på som standard, og modellvelgeren viser leverandørmerker.
+
+**Kontroll:** typekontroll (server, web, Electron), 635 servertester, WCAG AA/AAA-kontrastsjekk for alle 34 temaer, streng oversettelsessjekk (0 manglende av 4 676 tekster i alle elleve språk), målrettede og nye UI-forløp samt kontroll av ferdigpakket Electron-app består. Testene bruker isolerte data og lokale testmodeller; ekte leverandørmodeller er ikke prøvd i testkjøringen. Oversettelsene av de nye tekstene er modellgenererte.
+
 ## 1.1.0: GitHub i sidefanen, velkomstskjerm og nye innstillinger (21. november 2026, bygg 81)
 
 GitHub kobles til med GitHub CLI, og pull requests og issues fra alle prosjektene har egne sider. Nye brukere møter en velkomstskjerm som setter opp modeller og kan hente prosjekter og samtaler fra andre kodeapper. Differ, nettleser, varsler og rekkefølgen i sidefanen har fått egne innstillinger.

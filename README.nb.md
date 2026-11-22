@@ -312,7 +312,8 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
 - **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til kommandoveiledningen, skills og kommandoer for samtaler og prosjektpaneler. Codex har også bidratt med diagrammer og gjennomgang av datamappelåsen, gjenkobling etter omskriving og åpning i standardnettleseren.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
-- **Google Gemini** bidro med første versjon av datamappelåsen, gjenkoblingsrettelsen og menyvalget for standardnettleseren.
+- **Anthropic Claude Sonnet 5.5** bygde PR #6 i v1.2.0: temaene Ocean, Rosa, Skog, Glød og Iris, kontrast-/breddeinnstillinger, egen Prosjekter-side i Innstillinger, monogram- og bildeikoner, utvidet favicon-søk, smarte lenke-/filbrikker, innebygd GitHub-detaljvisning i sidepanelet og flytende Tråddetaljer-meny.
+- **Google Gemini** bidro med første versjon av datamappelåsen, gjenkoblingsrettelsen og menyvalget for standardnettleseren; **Gemini 4 Neon** fullførte Kode Studio, bygde innstillingene for differ, nettleser, varsler og sidefane i v1.1.0, og koordinerte v1.2.0 med fletting av PR #4 og #6, oversettelse av alle elleve språk, bygg og utgivelse.
 
 GPT 6.2 Sol og GPT 6.2 Astra bidro også med leverandørkatalogen, API-kompatibilitet, oppsett og anbefalinger for lokale modellservere.
 

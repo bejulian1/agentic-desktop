@@ -8,7 +8,7 @@ Prosjekteieren krediterer disse modellene for AI-assistanse i utviklingen:
 
 | Leverandør | Modell |
 |---|---|
-| Anthropic | Claude Opus 5.5 |
+| Anthropic | Claude Opus 5.5 og Claude Sonnet 5.5 |
 | OpenAI | GPT 6.1 Sol |
 | OpenAI | GPT 6.2 Sol og GPT 6.2 Astra |
 | Anthropic | Claude Fable 5.2 |
@@ -74,6 +74,10 @@ Katalogene for de elleve språkene ble oversatt av underagenter, hvert språk le
 To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiensk, men stoppet på kvotegrensen før de hadde levert noe, så det arbeidet ble gjort på nytt av Fable 5.2. GPT 6.2 Astra flettet de fire konverteringsgruppene og oversettelsene, ryddet tekst ingen gruppe eide og la inn den strenge oversettelsessjekken i CI.
 
 **Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
+
+## 1.2.0
+
+**Claude Opus 5.5** implementerte PR #4: prefiksregler for «Tillat alltid», felles nettlesergodkjenning, «Bruk på alle prosjekter» og regeloversikt, «API-adresse (Base URL)» og valgfritt modellfelt i egendefinert leverandøroppsett, underagenter mot valgt API-leverandør med oppgraderte underagentkort, «Kontekstoverføring venter», navngiving og bildestøtte for innlimte bilder, leverandørmerker i modellvelgeren og automatisk GitHub CLI-oppdagelse. **Claude Sonnet 5.5** implementerte PR #6: de fem nye fargetemaene (Ocean, Rosa, Skog, Glød, Iris) med WCAG AA-kontroll, System/Lys/Mørk-kort, kontrast- og breddeinnstillinger, live typografi- og kodeforhåndsvisning, den nye Prosjekter-siden i Innstillinger, 18 prosjektfarger, monogram- og bildeopplasting for prosjektikoner, utvidet favicon-søk, oppdatert sidefane og hover-kort, smarte lenke- og filbrikker i meldinger, innebygd GitHub-detaljvisning i sidepanelet og den flytende Tråddetaljer-menyen. **Gemini 4 Neon** koordinerte utgivelsen, fordelte og flettet de to PR-ene, oversatte alle 131 nye tekster til de elleve språkene, og sto for kontroll, bygg, utgivelse og lokal installasjon.
 
 ## 1.1.0
 
