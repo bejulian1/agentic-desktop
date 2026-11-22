@@ -4,6 +4,32 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.3.0: Komplett Prosjekter-side med Handlinger/skript, Typografi, fargede ikoner overalt og automatisk «Mine på GitHub» (22. november 2026, bygg 84)
+
+En grundig opprydning og oppgradering av Prosjekter-innstillingene, typografi, modell-favicons i hele appen og GitHub-visningene (PR #7 og PR #8):
+
+**Komplett Innstillinger → Prosjekter (T3 Code-paritet)**
+
+- **Alltid nyttig, også uten åpen mappe:** toppfeltet **Gjelder for** og **+ Åpne mappe…** vises alltid, med valg for **Ingen prosjekt (Denne datamaskinen)**, **Kode-prosjekter**, **Arkiverte** og **Chat-prosjekter** — aldri en tom blindvei.
+- **Ingen prosjekt (Denne datamaskinen):** still inn standardmodell og tenkeinnsats, tillatelsesmodus, agenttilgang til nettleseren, handlinger som kjøres i hjemmemappen, og globale `AGENTS.md`-instruksjoner direkte.
+- **Kode-prosjekter:** navn, egen ikonmodal (**Ikoner**, **Emoji**, **Monogram**, 18 farger, søk, Avbryt/Lagre) pluss **Velg fil** og **Bruk favicon**, **Fest prosjekt**, **Arkiver / Gjenopprett** (skjuler fra sidefane og velgere uten å røre tråder eller filer), **Nye tråder** med modell + tenkeinnsats, arbeidsområde (**Gjeldende mappe** eller **Nytt arbeidstre**), tillatelser og nettlesertilgang, **Handlinger (prosjektskript)**, **Utsjekkinger** (sti, gren og bytt mappe), `.agentic/AGENTS.md` og **Faresone**.
+- **Handlinger / prosjektskript:** lagre og kjør kommandoer i en ny terminalfane fra Prosjekter-innstillingene, fra **Tråddetaljer** (sammen med **+ Legg til prosjektskript** rett under «Åpne i VS Code»), med egen hurtigtast (med konfliktsjekk mot appens snarveier), eller automatisk når et nytt arbeidstre opprettes.
+- **Chat-prosjekter:** rediger navn, ikon, festing, eget eller delt minne, automatisk minne, instruksjoner og fjerning rett i Prosjekter.
+
+**Typografi i Utseende**
+
+- **Skrift for grensesnittet og kode:** velg både skrifttype (bl.a. System, Inter, Ubuntu, Noto Sans for grensesnitt, og Liberation Mono lagt til i kodeskriftene) og størrelse side om side med live forhåndsvisning av grensesnitt, diff og terminal, samt linjebryting.
+
+**Fargede leverandør- og modell-favicons overalt**
+
+- **Chat og Kode:** hover-kort i Chat, modellbytte-linjen (`Byttet modell: … → …`, med fargede merker for både gammel og ny modell), svarmodell-knappen og detaljkortet under hvert svar, Chat-rader i sidefanen og tenkevisning viser nå ekte fargede leverandør-/modellmerker i stedet for grå brikker.
+- **Utvidet modellgjenkjenning:** leser også visningsnavnet til modellen og gjenkjenner Qwen, Kimi, GLM, MiniMax, NVIDIA, Hugging Face, Together, Fireworks, Venice og Cerebras i tillegg til tidligere leverandører.
+
+**GitHub: Octocat-ikon og automatisk «Mine på GitHub» via `gh`**
+
+- **Ekte GitHub-ikoner og statusfarger:** GitHub Octocat erstatter globusen i Pull requests, Issues, GitHub-panelet og Innstillinger, med tydelige GitHub-statusfarger (åpen grønn, slått sammen lilla, lukket rød, utkast grå).
+- **Automatisk «Mine på GitHub»:** når ingen lokale prosjekter har en GitHub-remote (eller når du velger **Mine på GitHub** i prosjektfilteret), henter appen automatisk pull requests og issues du er involvert i på tvers av hele GitHub-kontoen din (`@me`), inkludert full detaljvisning med diff og kommentarer også for repoer som ikke er åpnet lokalt.
+
 ## 1.2.1: Lysere Ocean-tema og ekte fargede favicons på leverandører, lenker og filer (22. november 2026, bygg 83)
 
 En målrettet visuell polering etter tilbakemelding på v1.2.0:

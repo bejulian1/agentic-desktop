@@ -1,5 +1,9 @@
 # Status
 
+## 1.3.0
+
+**v1.3.0 (bygg 84):** komplett oppgradering av **Innstillinger → Prosjekter** (alltid synlig velger med *Ingen prosjekt (Denne datamaskinen)*, Kode-prosjekter, Arkiverte og Chat-prosjekter; ikonmodal, arkivering/gjenoppretting, modell + tenkeinnsats, arbeidsområde lokalt/arbeidstre, kjørbare **Handlinger / prosjektskript** med hurtigtaster, arbeidstre-oppstart og integrasjon i Tråddetaljer, Utsjekkinger, instruksjoner og Faresone) og **Typografi** (skrifttype + størrelse med live forhåndsvisning for både grensesnitt og kode). Fargede leverandør- og modell-favicons nå også på Chat-hoverkort, modellbytte-linjer, svarmodell-knapp/kort, Chat-rader i sidefanen og tenkevisning, med utvidet modellgjenkjenning. GitHub-rommene og panelet bruker nå ekte GitHub-ikon og statusfarger, og bytter automatisk til **«Mine på GitHub»** (`@me` over alle repoer) når ingen lokale prosjekter har GitHub-remote, inkludert full detaljvisning. PR #7 og #8. Kontroll: typekontroll, 646 servertester, WCAG-kontrast (34 temaer), streng oversettelsessjekk (11 språk), berørte UI-forløp og pakkekontroll (55 kontroller) består. Ikke prøvd mot ekte modeller.
+
 ## 1.2.1
 
 **v1.2.1 (bygg 83):** lysere Ocean-tema i mørk variant (`#1f2b36` hovedflate, `#253340` sidefane, `#58ded9` aksent, WCAG AA lavest 6,02:1), fargede leverandør- og modell-favicons (Anthropic, OpenAI, Google/Gemini, OpenRouter, DeepSeek, Mistral, Meta, xAI, Groq, Perplexity, Cohere, GitHub, lokal server og demo) i modellvelgeren, sidefanen, hover-kort, Tråddetaljer, underagentkort og leverandørkatalogen, blått VS Code-ikon på «Åpne i VS Code», fargede SVG-favicons og farget tekst på kjente lenker (uten eksterne bildeforespørsler), samt fargede filtype-merker (`TS`, `TSX`, `JS`, `PY`, `JSON` m.fl.) på filbrikker. Kontroll: typekontroll, 635 servertester, WCAG-kontrast (34 temaer), streng oversettelsessjekk, berørte UI-forløp og pakkekontroll (55 kontroller) består. Ikke prøvd mot ekte modeller.

@@ -75,6 +75,10 @@ To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiens
 
 **Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
 
+## 1.3.0
+
+To **Claude Opus 5.5**-agenter (`effort: high`) bygde oppdateringen: PR #8 bygde opp hele **Innstillinger → Prosjekter** med *Ingen prosjekt (Denne datamaskinen)*, Chat-prosjekter, arkivering, ikonmodal, modell + tenkeinnsats, arbeidsområde, kjørbare handlinger/prosjektskript (også i Tråddetaljer og ved opprettelse av arbeidstrær) og skrifttypevalg under Typografi; PR #7 oppgraderte fargede leverandør- og modell-favicons i Chat-hoverkort, modellbytte-linjer, svarmodell-knappen/kortet, Chat-rader i sidefanen og tenkevisning, la til ekte GitHub-ikon og statusfarger, og innførte automatisk «Mine på GitHub» over alle repoer via `gh` CLI. **Gemini 4 Neon** koordinerte oppgavene, flettet PR #7 og PR #8, oppdaterte oversettelsene til alle elleve språk, rettet en utdatert testforventning i `20-innstillinger-runde5.test.ts`, og sto for kontroll, bygg, utgivelse og lokal installasjon.
+
 ## 1.2.1
 
 **Gemini 4 Neon** gjorde Ocean-temaet lysere i mørk variant (WCAG AA) og oppgraderte leverandør-, VS Code-, lenke- og filtype-ikoner til ekte fargede SVG-favicons i hele appen, samt sto for kontroll, bygg, utgivelse og lokal installasjon.

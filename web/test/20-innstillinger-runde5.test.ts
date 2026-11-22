@@ -205,7 +205,7 @@ flow("leverandører: de opprinnelige valgene, tilkoblingstest, Koble til med nø
     const view = page.getByRole("region", { name: "Koble til abliteration.ai" });
     assert.equal(await view.locator(".beta-tag, .beta-note").count(), 0);
     await view.locator("summary", { hasText: "Adresse" }).click();
-    const address = view.getByLabel("API-adresse", { exact: true });
+    const address = view.getByLabel("API-adresse (Base URL)", { exact: true });
     assert.equal(await address.inputValue(), "https://api.abliteration.ai/v1");
     await address.fill(`http://127.0.0.1:${(fake.address() as AddressInfo).port}/v1`);
     const key = view.getByLabel("abliteration.ai-API-nøkkel");
