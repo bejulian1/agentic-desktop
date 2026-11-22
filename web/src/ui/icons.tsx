@@ -52,6 +52,8 @@ export const IconBranch = (p: P) => <Svg {...p}><circle cx="4.5" cy="3.5" r="1.5
 export const IconAt = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="2.5" /><path d="M10.5 5.5v3.25a1.75 1.75 0 0 0 3.5 0V8a6 6 0 1 0-2.4 4.8" /></Svg>;
 export const IconArrowDown = (p: P) => <Svg {...p}><path d="M8 3v9.5M3.75 8.5 8 12.75l4.25-4.25" /></Svg>;
 export const IconUser = (p: P) => <Svg {...p}><circle cx="8" cy="5.5" r="2.75" /><path d="M3 13.5c.6-2.6 2.6-3.75 5-3.75s4.4 1.15 5 3.75" /></Svg>;
+// A skill: an open cube, as on the skill chips in answers (markdown/render.ts draws the same one).
+export const IconCube = (p: P) => <Svg {...p}><path d="M8 1.75 13.5 4.6v6.8L8 14.25 2.5 11.4V4.6Z" /><path d="M2.5 4.6 8 7.5l5.5-2.9M8 7.5v6.75" /></Svg>;
 export const IconSpark = (p: P) => <Svg {...p}><path d="M8 2.5 9.4 6.6 13.5 8 9.4 9.4 8 13.5 6.6 9.4 2.5 8l4.1-1.4z" /></Svg>;
 export const IconPin = (p: P) => <Svg {...p}><path d="M6 2.5h4M6.75 2.5v4L4.5 9h7L9.25 6.5v-4M8 9v4.5" /></Svg>;
 export const IconNewThread = (p: P) => <Svg {...p}><path d="M13.5 8.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V4A1.5 1.5 0 0 1 4 2.5h3.5" /><path d="M11.5 1.75v4.5M9.25 4h4.5" /></Svg>;

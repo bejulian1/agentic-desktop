@@ -18,6 +18,7 @@ import { app, modelName, report, toast } from "../state/app";
 import { patch, post } from "../lib/api";
 import { openThread } from "../state/navigate";
 import { openLink } from "../lib/links";
+import { attachRichLinks } from "./conversation-links";
 import { githubReference } from "../state/github";
 import { registerJumper } from "../state/message-jump";
 import { confirmDialog, promptDialog } from "./dialogs";
@@ -655,6 +656,8 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
     scroller.addEventListener("click", onShiftClick);
     scroller.addEventListener("click", onRun);
     scroller.addEventListener("click", onLinkClick);
+    // File and thread chips in the answers (ui/conversation-links.ts).
+    const detachRichLinks = attachRichLinks(scroller, { threadId: () => props.model.id, openThread: (id) => props.onThread(id) });
     // Ctrl+F searches the conversation of the pane that has focus.
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "f") return;
@@ -667,6 +670,7 @@ export function Conversation(props: { model: ThreadModel; onThread: (id: string)
     document.addEventListener("keydown", onKey);
     onCleanup(() => {
       document.removeEventListener("keydown", onKey);
+      detachRichLinks();
       chunkObserver.disconnect();
       edges.disconnect();
       userObserver?.disconnect();

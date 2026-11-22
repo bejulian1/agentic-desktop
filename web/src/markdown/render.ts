@@ -7,6 +7,9 @@ import { renderMath } from "./math";
 import { mathRendering } from "./options";
 import { renderChart } from "./chart";
 import { openCodeBlock } from "../ui/MiniEditorHooks";
+import { app } from "../state/app";
+import { ICONS, monogramFor, SITE_COLORS, siteOfHost, type SiteKind } from "./site-icons";
+import { baseName, codeFileTarget, fileBadge, fileTarget, SKILL_MENTION, threadTarget, type FileTarget } from "./link-targets";
 
 const SAFE_LINK = /^(https?|mailto):/i;
 
@@ -73,178 +76,26 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): 
 }
 
 // ---------------------------------------------------------------------------------------------
-// Smart links and file chips (v1.2.0, expanded with coloured site favicons in v1.2.1). Everything
-// is built as DOM nodes, never as HTML text, and never loads remote images from untrusted output.
+// Smart links, file chips and thread chips (v1.2.0; every web link with a coloured mark, file and
+// thread links, and $skill mentions in v1.4.0). Everything is built as DOM nodes, never as HTML
+// text, and nothing loads a remote image: the marks are drawn here (markdown/site-icons.ts).
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-type SiteKind =
-  | "github" | "pull" | "issue" | "gitlab" | "youtube" | "npm" | "stackoverflow" | "mdn"
-  | "docker" | "huggingface" | "anthropic" | "openai" | "google" | "reddit" | "wikipedia"
-  | "figma" | "linear" | "vercel" | "x" | "discord" | "python" | "rust" | "node" | "localhost" | "link";
-
-interface IconPart { tag: "path" | "circle" | "rect" | "polygon"; attrs: Record<string, string> }
-interface IconSpec { fill?: string; stroke?: string; strokeWidth?: string; parts: IconPart[] }
-
-const ICONS: Record<SiteKind, IconSpec> = {
-  // GitHub Octocat
-  github: { fill: "currentColor", parts: [{ tag: "path", attrs: { d: "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" } }] },
-  // GitHub Pull Request
-  pull: { stroke: "#3FB950", strokeWidth: "1.6", parts: [
-    { tag: "circle", attrs: { cx: "4", cy: "3.5", r: "1.75" } },
-    { tag: "circle", attrs: { cx: "4", cy: "12.5", r: "1.75" } },
-    { tag: "circle", attrs: { cx: "12", cy: "12.5", r: "1.75" } },
-    { tag: "path", attrs: { d: "M4 5.25v5.5M12 10.75V6.5a2 2 0 0 0-2-2H8.5M10 2.5 8.5 4.5 10 6.5" } },
-  ] },
-  // GitHub Issue
-  issue: { stroke: "#A371F7", strokeWidth: "1.6", parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6" } },
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "1.5", fill: "#A371F7", stroke: "none" } },
-  ] },
-  // GitLab fox
-  gitlab: { parts: [
-    { tag: "path", attrs: { d: "M8 14.5 10.7 6.3H5.3L8 14.5Z", fill: "#E24329" } },
-    { tag: "path", attrs: { d: "M8 14.5 5.3 6.3H1.5L8 14.5Z", fill: "#FC6D26" } },
-    { tag: "path", attrs: { d: "M1.5 6.3.7 8.9c-.1.3 0 .7.3.9L8 14.5 1.5 6.3Z", fill: "#FCA326" } },
-    { tag: "path", attrs: { d: "M1.5 6.3h3.8L3.7 1.3c-.1-.3-.5-.3-.6 0L1.5 6.3Z", fill: "#E24329" } },
-    { tag: "path", attrs: { d: "M8 14.5 10.7 6.3h3.8L8 14.5Z", fill: "#FC6D26" } },
-    { tag: "path", attrs: { d: "M14.5 6.3l.8 2.6c.1.3 0 .7-.3.9L8 14.5l6.5-8.2Z", fill: "#FCA326" } },
-    { tag: "path", attrs: { d: "M14.5 6.3h-3.8l1.6-5c.1-.3.5-.3.6 0l1.6 5Z", fill: "#E24329" } },
-  ] },
-  // YouTube red play badge
-  youtube: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "2.5", width: "14.5", height: "11", rx: "3", fill: "#FF0000" } },
-    { tag: "polygon", attrs: { points: "6.4,5.4 11.4,8 6.4,10.6", fill: "#FFFFFF" } },
-  ] },
-  // npm red square
-  npm: { parts: [
-    { tag: "rect", attrs: { x: "1", y: "1", width: "14", height: "14", rx: "2.2", fill: "#CB3837" } },
-    { tag: "path", attrs: { d: "M3.5 12.2V3.8h9v8.4h-2.3V6.1H8v6.1H3.5Z", fill: "#FFFFFF" } },
-  ] },
-  // Stack Overflow orange stack
-  stackoverflow: { parts: [
-    { tag: "path", attrs: { d: "M3 10.2v3.3h9.5v-3.3", stroke: "#94A3B8", "stroke-width": "1.5", fill: "none" } },
-    { tag: "path", attrs: { d: "M4.8 11.6h6M5.1 9.1l5.8 1.2M5.9 6.5l5.4 2.5M7.5 4.1l4.6 3.8M9.8 2l3.4 4.8", stroke: "#F48024", "stroke-width": "1.35", "stroke-linecap": "round" } },
-  ] },
-  // MDN Web Docs blue badge
-  mdn: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "0.75", width: "14.5", height: "14.5", rx: "3", fill: "#0284C7" } },
-    { tag: "path", attrs: { d: "M3 11.5V4.5l2.5 3.8L8 4.5v7M10.4 4.5h1.5a2 2 0 0 1 0 7h-1.5V4.5Z", stroke: "#FFFFFF", "stroke-width": "1.35", fill: "none", "stroke-linejoin": "round" } },
-  ] },
-  // Docker blue containers
-  docker: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "0.75", width: "14.5", height: "14.5", rx: "3", fill: "#2496ED" } },
-    { tag: "rect", attrs: { x: "3", y: "6.4", width: "2.1", height: "1.9", fill: "#FFFFFF" } },
-    { tag: "rect", attrs: { x: "5.6", y: "6.4", width: "2.1", height: "1.9", fill: "#FFFFFF" } },
-    { tag: "rect", attrs: { x: "8.2", y: "6.4", width: "2.1", height: "1.9", fill: "#FFFFFF" } },
-    { tag: "rect", attrs: { x: "5.6", y: "4", width: "2.1", height: "1.9", fill: "#FFFFFF" } },
-    { tag: "path", attrs: { d: "M2.3 9c.2 2.4 2 3.8 5.2 3.8 3 0 5.3-1.4 6.1-3.8-.8-.4-1.7-.3-2.3 0H2.3Z", fill: "#FFFFFF" } },
-  ] },
-  // Hugging Face warm gold badge
-  huggingface: { parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.8", fill: "#FFD21E" } },
-    { tag: "circle", attrs: { cx: "5.8", cy: "6.6", r: "1", fill: "#1F2937" } },
-    { tag: "circle", attrs: { cx: "10.2", cy: "6.6", r: "1", fill: "#1F2937" } },
-    { tag: "path", attrs: { d: "M5.3 9.7c.7 1.3 1.7 1.8 2.7 1.8s2-.5 2.7-1.8", stroke: "#1F2937", "stroke-width": "1.3", "stroke-linecap": "round", fill: "none" } },
-  ] },
-  // Anthropic / Claude coral starburst
-  anthropic: { stroke: "#D97757", strokeWidth: "1.7", parts: [
-    { tag: "path", attrs: { d: "M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2" } },
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "1.7", fill: "#D97757", stroke: "none" } },
-  ] },
-  // OpenAI emerald badge
-  openai: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "0.75", width: "14.5", height: "14.5", rx: "3.5", fill: "#10A37F" } },
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "4", stroke: "#FFFFFF", "stroke-width": "1.5", fill: "none" } },
-    { tag: "path", attrs: { d: "M8 4v8M4.5 6l7 4M11.5 6l-7 4", stroke: "#FFFFFF", "stroke-width": "1.1" } },
-  ] },
-  // Google 4-colour G badge
-  google: { parts: [
-    { tag: "path", attrs: { d: "M14.4 8.2c0-.5 0-.9-.1-1.3H8v2.6h3.6a3.1 3.1 0 0 1-1.3 2v1.7h2.2c1.3-1.2 1.9-2.9 1.9-5Z", fill: "#4285F4" } },
-    { tag: "path", attrs: { d: "M8 14.8c1.8 0 3.3-.6 4.5-1.6l-2.2-1.7c-.6.4-1.4.7-2.3.7-1.8 0-3.3-1.2-3.8-2.8H2v1.8A6.7 6.7 0 0 0 8 14.8Z", fill: "#34A853" } },
-    { tag: "path", attrs: { d: "M4.2 9.4a4 4 0 0 1 0-2.8V4.8H2a6.7 6.7 0 0 0 0 6.4l2.2-1.8Z", fill: "#FBBC05" } },
-    { tag: "path", attrs: { d: "M8 3.8c1 0 1.9.3 2.6 1l1.9-1.9A6.6 6.6 0 0 0 8 1.2 6.7 6.7 0 0 0 2 4.8l2.2 1.8C4.7 5 6.2 3.8 8 3.8Z", fill: "#EA4335" } },
-  ] },
-  // Reddit orange-red circle
-  reddit: { parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "7", fill: "#FF4500" } },
-    { tag: "circle", attrs: { cx: "8", cy: "9.2", r: "3.7", fill: "#FFFFFF" } },
-    { tag: "circle", attrs: { cx: "6.5", cy: "8.8", r: "0.8", fill: "#FF4500" } },
-    { tag: "circle", attrs: { cx: "9.5", cy: "8.8", r: "0.8", fill: "#FF4500" } },
-    { tag: "path", attrs: { d: "M8 5.5 9.2 3.3 11.4 3.8", stroke: "#FFFFFF", "stroke-width": "1.1", fill: "none", "stroke-linecap": "round" } },
-  ] },
-  // Wikipedia badge
-  wikipedia: { parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.8", fill: "#E2E8F0" } },
-    { tag: "path", attrs: { d: "M3.4 4.8 5.6 11.4 8 6.4l2.4 5 2.2-6.6", stroke: "#1E293B", "stroke-width": "1.4", fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" } },
-  ] },
-  // Figma multi-colour
-  figma: { parts: [
-    { tag: "circle", attrs: { cx: "5.8", cy: "3.5", r: "2.3", fill: "#F24E1E" } },
-    { tag: "circle", attrs: { cx: "10.2", cy: "3.5", r: "2.3", fill: "#FF7262" } },
-    { tag: "circle", attrs: { cx: "5.8", cy: "8", r: "2.3", fill: "#A259FF" } },
-    { tag: "circle", attrs: { cx: "10.2", cy: "8", r: "2.3", fill: "#1ABCFE" } },
-    { tag: "circle", attrs: { cx: "5.8", cy: "12.5", r: "2.3", fill: "#0ACF83" } },
-  ] },
-  // Linear indigo
-  linear: { parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.8", fill: "#5E6AD2" } },
-    { tag: "path", attrs: { d: "M3.6 9.5 6.5 12.4M3.3 6.8 9.2 12.7M4.8 4.8l6.4 6.4", stroke: "#FFFFFF", "stroke-width": "1.35", "stroke-linecap": "round" } },
-  ] },
-  // Vercel triangle
-  vercel: { parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.8", fill: "#18181B" } },
-    { tag: "polygon", attrs: { points: "8,3.6 12.6,11.4 3.4,11.4", fill: "#FFFFFF" } },
-  ] },
-  // X / Twitter
-  x: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "0.75", width: "14.5", height: "14.5", rx: "3.2", fill: "#18181B" } },
-    { tag: "path", attrs: { d: "M4 3.8 12 12.2M12 3.8 4 12.2", stroke: "#FFFFFF", "stroke-width": "1.6", "stroke-linecap": "round" } },
-  ] },
-  // Discord blurple
-  discord: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "0.75", width: "14.5", height: "14.5", rx: "3.5", fill: "#5865F2" } },
-    { tag: "path", attrs: { d: "M4.5 10.6c1 .8 2.2 1.1 3.5 1.1s2.5-.3 3.5-1.1l.6-4.5c-.8-.6-1.7-1-2.6-1.1l-.4.8a6 6 0 0 0-2.2 0l-.4-.8c-.9.1-1.8.5-2.6 1.1l.6 4.5Z", fill: "#FFFFFF" } },
-    { tag: "circle", attrs: { cx: "6.4", cy: "8.4", r: "0.85", fill: "#5865F2" } },
-    { tag: "circle", attrs: { cx: "9.6", cy: "8.4", r: "0.85", fill: "#5865F2" } },
-  ] },
-  // Python blue & yellow
-  python: { parts: [
-    { tag: "path", attrs: { d: "M8 1.5c-2.6 0-2.8 1.1-2.8 2.4v1.6h3v.7H4.1C2.6 6.2 1.5 7.2 1.5 9c0 1.9 1.1 2.8 2.6 2.8h1.1V10c0-1.4 1.1-2.5 2.5-2.5h3c1.2 0 2.1-.9 2.1-2.1V3.9c0-1.3-1.1-2.4-2.8-2.4H8Z", fill: "#3776AB" } },
-    { tag: "path", attrs: { d: "M11.9 6.2h-1.1V8c0 1.4-1.1 2.5-2.5 2.5h-3c-1.2 0-2.1.9-2.1 2.1v1.5c0 1.3 1.1 2.4 2.8 2.4h2c2.6 0 2.8-1.1 2.8-2.4v-1.6h-3v-.7h4.1c1.5 0 2.6-1 2.6-2.8 0-1.9-1.1-2.8-2.6-2.8Z", fill: "#FFD43B" } },
-  ] },
-  // Rust orange gear
-  rust: { parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.2", fill: "#EA580C" } },
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "2.8", fill: "#FFFFFF" } },
-  ] },
-  // Node.js green hex
-  node: { parts: [
-    { tag: "polygon", attrs: { points: "8,1.2 14,4.6 14,11.4 8,14.8 2,11.4 2,4.6", fill: "#5FA04E" } },
-    { tag: "path", attrs: { d: "M5.8 10.6V5.4l4.4 5.2V5.4", stroke: "#FFFFFF", "stroke-width": "1.5", fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" } },
-  ] },
-  // Local dev server emerald badge
-  localhost: { parts: [
-    { tag: "rect", attrs: { x: "0.75", y: "0.75", width: "14.5", height: "14.5", rx: "3.2", fill: "#16A34A" } },
-    { tag: "path", attrs: { d: "m4.3 5.5 2.6 2.5-2.6 2.5M8.2 10.5h3.5", stroke: "#FFFFFF", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round" } },
-  ] },
-  // Generic web globe (accent coloured)
-  link: { stroke: "currentColor", strokeWidth: "1.5", parts: [
-    { tag: "circle", attrs: { cx: "8", cy: "8", r: "6.25" } },
-    { tag: "path", attrs: { d: "M1.75 8h12.5M8 1.75c1.8 1.7 2.7 3.8 2.7 6.25S9.8 12.3 8 14.25C6.2 12.3 5.3 10.2 5.3 8S6.2 3.45 8 1.75z" } },
-  ] },
-};
-
-function svgIcon(kind: SiteKind): SVGSVGElement {
-  const icon = ICONS[kind];
+function svgFrame(className: string): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
   svg.setAttribute("width", "13");
   svg.setAttribute("height", "13");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
-  svg.setAttribute("class", "md-link-icon");
-  if (icon.fill) svg.setAttribute("fill", icon.fill);
-  else svg.setAttribute("fill", "none");
+  svg.setAttribute("class", className);
+  return svg;
+}
+
+function svgIcon(kind: SiteKind): SVGSVGElement {
+  const icon = ICONS[kind];
+  const svg = svgFrame("md-link-icon");
+  svg.setAttribute("fill", icon.fill ?? "none");
   if (icon.stroke) {
     svg.setAttribute("stroke", icon.stroke);
     svg.setAttribute("stroke-width", icon.strokeWidth ?? "1.5");
@@ -259,44 +110,32 @@ function svgIcon(kind: SiteKind): SVGSVGElement {
   return svg;
 }
 
-// Recognised hosts get their authentic coloured favicon mark on both bare and named links.
-const KNOWN_SITES: Array<[RegExp, SiteKind]> = [
-  [/^(?:www\.)?gitlab\.com$/i, "gitlab"],
-  [/^(?:www\.|m\.)?(?:youtube\.com|youtu\.be)$/i, "youtube"],
-  [/^(?:www\.)?npmjs\.(?:com|org)$/i, "npm"],
-  [/^(?:www\.)?(?:stackoverflow\.com|stackexchange\.com|superuser\.com|serverfault\.com)$/i, "stackoverflow"],
-  [/^developer\.mozilla\.org$/i, "mdn"],
-  [/^(?:www\.|hub\.|docs\.)?docker\.com$/i, "docker"],
-  [/^(?:www\.)?huggingface\.co$/i, "huggingface"],
-  [/^(?:www\.|docs\.|console\.)?(?:anthropic\.com|claude\.ai)$/i, "anthropic"],
-  [/^(?:www\.|platform\.|chat\.|community\.)?(?:openai\.com|chatgpt\.com)$/i, "openai"],
-  [/^(?:www\.|docs\.|ai\.|cloud\.|developers\.)?(?:google\.com|gemini\.google\.com|web\.dev)$/i, "google"],
-  [/^(?:www\.|old\.)?reddit\.com$/i, "reddit"],
-  [/^(?:[a-z]{2,3}\.)?wikipedia\.org$/i, "wikipedia"],
-  [/^(?:www\.)?figma\.com$/i, "figma"],
-  [/^(?:www\.)?linear\.app$/i, "linear"],
-  [/^(?:www\.)?(?:vercel\.com|nextjs\.org)$/i, "vercel"],
-  [/^(?:www\.)?(?:x\.com|twitter\.com)$/i, "x"],
-  [/^(?:www\.)?(?:discord\.com|discord\.gg)$/i, "discord"],
-  [/^(?:www\.|docs\.|pypi\.)?(?:python\.org|pypi\.org)$/i, "python"],
-  [/^(?:www\.|doc\.|docs\.)?(?:rust-lang\.org|crates\.io|docs\.rs)$/i, "rust"],
-  [/^(?:www\.)?nodejs\.org$/i, "node"],
-  [/^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i, "localhost"],
-];
+// Any other site: the first letter of its host, white on a colour chosen from the host.
+function monogramIcon(host: string): SVGSVGElement {
+  const { letter, color } = monogramFor(host);
+  const svg = svgFrame("md-link-icon md-link-monogram");
+  const square = document.createElementNS(SVG_NS, "rect");
+  for (const [name, value] of Object.entries({ x: "0.5", y: "0.5", width: "15", height: "15", rx: "3.75", fill: color })) square.setAttribute(name, value);
+  const text = document.createElementNS(SVG_NS, "text");
+  for (const [name, value] of Object.entries({ x: "8", y: "11.75", "text-anchor": "middle", fill: "#FFFFFF", "font-size": "10.5", "font-weight": "700" })) text.setAttribute(name, value);
+  text.textContent = letter;
+  svg.append(square, text);
+  return svg;
+}
 
 function knownSite(href: string): SiteKind | null {
   try {
-    const host = new URL(href).hostname.toLowerCase();
-    for (const [pattern, site] of KNOWN_SITES) if (pattern.test(host)) return site;
+    return siteOfHost(new URL(href).hostname);
   } catch {
     return null;
   }
-  return null;
 }
 
 // https://github.com/<owner>/<repo>/pull/<n> or /issues/<n>, with an optional tail (files, #fragment).
 const GITHUB_ITEM = /^https:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)\/(pull|issues)\/(\d{1,9})(?:[/?#].*)?$/i;
+const GITHUB_PAGE = /^https:\/\/(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+\/(releases|commit|commits|discussions)(?:[/?#]|$)/i;
 const GITHUB_ANY = /^https:\/\/(?:www\.)?github\.com(?:[/?#]|$)/i;
+const IP_HOST = /^(?:\d{1,3}(?:\.\d{1,3}){3}|\[[\da-f:]+\])$/i;
 const MAX_CHIP_LABEL = 36;
 
 // The text a bare link shows as: host and the first folders that fit, with … for the rest.
@@ -327,61 +166,151 @@ function textIsAddress(text: string, href: string): boolean {
   return strip(text) === strip(href);
 }
 
-// Gives a link the look of a chip with a coloured favicon when it is GitHub, a known site, or a
-// bare URL, and returns true when it also wrote the label. Other named links stay plain links
-// (with their full address in title on hover).
+// A link's own text, rendered inside the link. A `file.ts` in it is part of the link, not a
+// second control: it keeps its look but is not focusable or clickable on its own.
+function renderLabel(tokens: Token[] | undefined, label: HTMLElement): void {
+  renderInline(tokens, label);
+  for (const chip of label.querySelectorAll<HTMLElement>("code.md-file-chip[data-file-path]")) {
+    delete chip.dataset.filePath;
+    delete chip.dataset.fileLine;
+    chip.removeAttribute("tabindex");
+    chip.removeAttribute("role");
+    chip.removeAttribute("title");
+  }
+}
+
+function chipLabel(anchor: HTMLAnchorElement, link: Tokens.Link, bare: boolean, bareText: string): void {
+  const label = el("span", "md-link-label");
+  if (bare) label.textContent = bareText;
+  else renderLabel(link.tokens, label);
+  anchor.append(label);
+}
+
+// Every web link becomes a chip with a coloured mark: GitHub's own marks for pull requests,
+// issues, releases, commits and discussions, a site's mark when it is a known one, and the
+// monogram for the rest. Named links keep their text; bare ones show a short address. Hovering
+// always says where the link leads. Returns false for what stays a plain link (mailto:).
 function decorateLink(anchor: HTMLAnchorElement, href: string, link: Tokens.Link): boolean {
+  if (!/^https?:/i.test(href)) return false;
+  let host = "";
+  try {
+    host = new URL(href).hostname;
+  } catch {
+    return false;
+  }
   const bare = textIsAddress(link.text, href);
-  // Hovering a chip always says where it leads: the address, after the link's own title if it has one.
   const where = link.title ? `${link.title} (${href})` : href;
   const item = GITHUB_ITEM.exec(href);
   if (item) {
     const kind = item[3].toLowerCase() === "pull" ? "pull" : "issue";
-    const repo = `${item[1]}/${item[2]}`;
     anchor.className = "md-link-chip md-link-github";
     anchor.dataset.kind = kind;
-    anchor.title = `${repo}#${item[4]} · ${where}`;
+    anchor.title = `${item[1]}/${item[2]}#${item[4]} · ${where}`;
     anchor.append(svgIcon(kind));
-    const label = el("span", "md-link-label");
-    if (bare) label.textContent = `#${item[4]}`;
-    else renderInline(link.tokens, label);
-    anchor.append(label);
+    chipLabel(anchor, link, bare, `#${item[4]}`);
     return true;
   }
   if (GITHUB_ANY.test(href)) {
+    const page = GITHUB_PAGE.exec(href)?.[1].toLowerCase();
+    const kind = page === "releases" ? "release" : page === "commit" || page === "commits" ? "commit" : page === "discussions" ? "discussion" : "repo";
     anchor.className = "md-link-chip md-link-github";
-    anchor.dataset.kind = "repo";
+    anchor.dataset.kind = kind;
     anchor.title = where;
-    anchor.append(svgIcon("github"));
-    const label = el("span", "md-link-label");
-    if (bare) label.textContent = shortUrl(href);
-    else renderInline(link.tokens, label);
-    anchor.append(label);
+    anchor.append(svgIcon(kind === "repo" ? "github" : kind));
+    chipLabel(anchor, link, bare, shortUrl(href));
     return true;
   }
-  const site = /^https?:/i.test(href) ? knownSite(href) : null;
+  anchor.className = "md-link-chip";
+  anchor.title = where;
+  const site = knownSite(href);
   if (site) {
-    anchor.className = "md-link-chip";
     anchor.dataset.site = site;
-    anchor.title = where;
+    const colors = SITE_COLORS[site];
+    if (colors) {
+      anchor.style.setProperty("--chip-light", colors[0]);
+      anchor.style.setProperty("--chip-dark", colors[1]);
+    }
     anchor.append(svgIcon(site));
-    const label = el("span", "md-link-label");
-    if (bare) label.textContent = shortUrl(href);
-    else renderInline(link.tokens, label);
-    anchor.append(label);
-    return true;
+  } else {
+    anchor.dataset.site = "web";
+    anchor.append(IP_HOST.test(host) ? svgIcon("link") : monogramIcon(host));
   }
-  if (bare && /^https?:/i.test(href)) {
-    anchor.className = "md-link-chip";
-    anchor.title = where;
-    anchor.append(svgIcon("link"));
-    const label = el("span", "md-link-label");
-    label.textContent = shortUrl(href);
-    anchor.append(label);
-    return true;
+  chipLabel(anchor, link, bare, shortUrl(href));
+  return true;
+}
+
+// A link to a file: a button with the file's badge and name. The conversation opens it in the
+// mini editor (ui/conversation-links.ts); the full path and line are in the tooltip.
+function fileLink(target: FileTarget, link: Tokens.Link): HTMLButtonElement {
+  const button = el("button", "md-file-chip md-file-link");
+  button.type = "button";
+  const name = baseName(target.path);
+  button.dataset.fileExt = target.ext || name.toLowerCase();
+  button.dataset.fileBadge = fileBadge(target.ext, name);
+  button.dataset.filePath = target.path;
+  if (target.line) button.dataset.fileLine = String(target.line);
+  const where = target.line ? `${target.path}:${target.line}` : target.path;
+  button.title = link.title ? `${link.title} (${where})` : where;
+  const label = el("span", "md-file-label");
+  // A label that only repeats the path shows the file name, with the line after it.
+  const text = link.text.trim().replace(/^file:\/\//i, "");
+  if (!text || text === link.href.trim() || text === target.path || text === where || text === `./${target.path}`) {
+    label.textContent = target.line ? `${name}:${target.line}` : name;
+  } else renderLabel(link.tokens, label);
+  button.append(label);
+  return button;
+}
+
+// A link to another thread: a chip that opens it, with its title in the tooltip when it is known.
+function threadLink(id: string, link: Tokens.Link): HTMLButtonElement {
+  const button = el("button", "md-thread-chip");
+  button.type = "button";
+  button.dataset.threadId = id;
+  const thread = app.threads[id];
+  button.title = t("Åpne tråd: {title}", { title: thread?.title || link.text.trim() || id });
+  const svg = svgFrame("md-thread-icon");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.5");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  const bubble = document.createElementNS(SVG_NS, "path");
+  bubble.setAttribute("d", "M8 2.5c3.3 0 5.75 2.1 5.75 4.9S11.3 12.3 8 12.3c-.65 0-1.3-.08-1.9-.24L3 13.5l.6-2.6C2.75 10 2.25 8.75 2.25 7.4 2.25 4.6 4.7 2.5 8 2.5Z");
+  const lines = document.createElementNS(SVG_NS, "path");
+  lines.setAttribute("d", "M5.5 6.4h5M5.5 8.6h3.2");
+  svg.append(bubble, lines);
+  const label = el("span", "md-thread-label");
+  if (link.text.trim() && link.text.trim() !== link.href.trim()) renderLabel(link.tokens, label);
+  else label.textContent = thread?.title || t("Tråd");
+  button.append(svg, label);
+  return button;
+}
+
+// $skill-name in running text: a small purple chip with a cube, like the skill chips in the
+// message field. The text itself stays text.
+function appendText(parent: Node, text: string): void {
+  if (!text.includes("$")) return append(parent, text);
+  let last = 0;
+  for (const match of text.matchAll(SKILL_MENTION)) {
+    const name = match[2];
+    if (name.replace(/^[^:]*:/, "").length < 3) continue;
+    const start = match.index + match[1].length;
+    if (start > last) append(parent, text.slice(last, start));
+    const chip = el("span", "md-skill-chip chip-skill");
+    chip.title = t("Skill: {name}", { name });
+    const svg = svgFrame("md-skill-icon");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.4");
+    svg.setAttribute("stroke-linejoin", "round");
+    const cube = document.createElementNS(SVG_NS, "path");
+    cube.setAttribute("d", "M8 1.75 13.5 4.6v6.8L8 14.25 2.5 11.4V4.6Z M2.5 4.6 8 7.5l5.5-2.9M8 7.5v6.75");
+    svg.append(cube);
+    chip.append(svg, name);
+    parent.appendChild(chip);
+    last = start + 1 + name.length;
   }
-  if (!anchor.title && /^https?:/i.test(href)) anchor.title = href;
-  return false;
+  if (last < text.length) append(parent, text.slice(last));
 }
 
 // File names and relative paths in `code`, with a line number after them when there is one. The
@@ -404,7 +333,7 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
       case "text": {
         const text = token as Tokens.Text;
         if (text.tokens?.length) renderInline(text.tokens, parent);
-        else append(parent, text.text);
+        else appendText(parent, text.text);
         break;
       }
       case "escape":
@@ -424,9 +353,19 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
         code.textContent = text;
         const ext = fileExtension(text);
         if (ext) {
-          // A file in the answer: a small coloured dot for its kind (styles/t3-look.css).
+          // A file in the answer: a coloured badge for its kind (styles/t3-look.css). The
+          // conversation opens it in the mini editor on a click (ui/conversation-links.ts).
+          const target = codeFileTarget(text);
           code.className = "md-file-chip";
           code.dataset.fileExt = ext;
+          code.dataset.fileBadge = fileBadge(ext);
+          if (!target.path.startsWith("../")) {
+            code.dataset.filePath = target.path;
+            if (target.line) code.dataset.fileLine = String(target.line);
+            code.tabIndex = 0;
+            code.setAttribute("role", "button");
+            code.title = t("Åpne {path} i mini-editoren", { path: text });
+          }
         }
         parent.appendChild(code);
         break;
@@ -438,7 +377,11 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
         const link = token as Tokens.Link;
         const href = safeHref(link.href);
         if (!href) {
-          renderInline(link.tokens, parent);
+          const thread = threadTarget(link.href);
+          const file = thread ? null : fileTarget(link.href);
+          if (thread) parent.appendChild(threadLink(thread, link));
+          else if (file) parent.appendChild(fileLink(file, link));
+          else renderInline(link.tokens, parent);
           break;
         }
         const anchor = el("a");
@@ -446,7 +389,7 @@ export function renderInline(tokens: Token[] | undefined, parent: Node): void {
         anchor.target = "_blank";
         anchor.rel = "noopener noreferrer";
         if (link.title) anchor.title = link.title;
-        if (!decorateLink(anchor, href, link)) renderInline(link.tokens, anchor);
+        if (!decorateLink(anchor, href, link)) renderLabel(link.tokens, anchor);
         parent.appendChild(anchor);
         break;
       }

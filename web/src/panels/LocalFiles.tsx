@@ -1,10 +1,11 @@
 // The user's file viewer on Denne datamaskinen. It never selects a project or grants model tools.
 import { t } from "../lib/i18n";
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import type { ChangedFile, FileContent, FileEntry } from "../../../shared/protocol";
 import { get, post } from "../lib/api";
 import { IconBack, IconFolder, IconFolderOpen, IconReload } from "../ui/icons";
 import { FileTreeEntry } from "./FileTree";
+import { localFileRequest } from "../state/nav";
 import type { ReadonlyEditor } from "./editor";
 import "../styles/local-files.css";
 
@@ -87,15 +88,26 @@ export default function LocalFiles() {
       if (alive && navigation === mine && choice.path) await openFolder(choice.path);
     } catch { if (alive && navigation === mine) setFolderError(t("Mappevelgeren er ikke tilgjengelig. Skriv en full mappesti i feltet over.")); }
   };
+  // A file link from a conversation: its folder, then the file. Handled once per request.
+  let handledRequest = 0;
+  const openRequested = async () => {
+    const request = localFileRequest();
+    if (!request || request.n === handledRequest) return false;
+    handledRequest = request.n;
+    await openFolder(parentOf(request.path));
+    if (alive && root() === parentOf(request.path)) await openFile(request.path);
+    return true;
+  };
   onMount(() => {
     const mine = navigation;
-    void get<{ path: string }>("/api/local/files/root").then((value) => {
+    void get<{ path: string }>("/api/local/files/root").then(async (value) => {
       if (!alive) return;
       setHome(value.path);
       if (navigation !== mine) return;
-      void openFolder(rememberedFolder ?? value.path);
+      if (!(await openRequested())) void openFolder(rememberedFolder ?? value.path);
     }).catch((err) => { if (alive && navigation === mine) { setFolderError(message(err)); setBusy(false); } });
   });
+  createEffect(on(localFileRequest, (request) => { if (request && home()) void openRequested(); }, { defer: true }));
   onCleanup(() => { alive = false; ++navigation; ++fileRequest; editor?.destroy(); });
 
   return <div class="files-panel local-files-panel" data-testid="files-panel" data-scope="local">

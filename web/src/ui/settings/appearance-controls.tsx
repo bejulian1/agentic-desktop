@@ -7,7 +7,7 @@ import { t } from "../../lib/i18n";
 import { app, setApp } from "../../state/app";
 import { applyLook } from "../../state/look";
 import { themeInfo, type PreviewColors } from "../../state/themes";
-import { IconCheck, IconSpark } from "../icons";
+import { IconCheck, IconCube } from "../icons";
 import { Choice, Group, reset, Row, save, Segmented, Toggle } from "./parts";
 import { CodeLivePreview, MonoFontControls } from "./code-appearance";
 
@@ -191,7 +191,7 @@ export function InterfaceFontPreview(props: { bare?: boolean }) {
       <div class="font-preview-box" data-testid="interface-font-preview">
         <p class="font-preview-title">{t("Rydd opp i innstillingene")}</p>
         <p class="font-preview-line">
-          {t("Jeg brukte")} <span class="chip-skill"><IconSpark size={12} />frontend-design</span> {t("og endret")} <code class="md-file-chip" data-file-ext="ts">surface.test.ts</code> {t("og")} <code class="md-file-chip" data-file-ext="tsx">SettingsPanels.tsx</code>.
+          {t("Jeg brukte")} <span class="chip-skill"><IconCube size={12} />frontend-design</span> {t("og endret")} <code class="md-file-chip" data-file-ext="ts">surface.test.ts</code> {t("og")} <code class="md-file-chip" data-file-ext="tsx">SettingsPanels.tsx</code>.
         </p>
         <p class="font-preview-small muted">{t("Små etiketter og hjelpetekst ser slik ut.")}</p>
       </div>

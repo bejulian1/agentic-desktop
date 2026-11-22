@@ -461,7 +461,7 @@ flow("samtalen: GitHub-lenker og lange adresser som chips, filnavn med fargeprik
     // Egen tekst beholdes, med ikon og chip.
     const release = page.locator("a.md-link-github", { hasText: "Release v1.1.0" });
     assert.equal(await release.locator(".md-link-label").textContent(), "Release v1.1.0");
-    assert.equal(await release.getAttribute("data-kind"), "repo");
+    assert.equal(await release.getAttribute("data-kind"), "release");
     assert.equal(await page.locator('a.md-link-github[data-kind="pull"] .md-link-label', { hasText: "en pull request" }).count(), 1);
     // Lange adresser kortes ned, den fulle adressen står i tittelen.
     const docs = page.locator("a.md-link-chip:not(.md-link-github)", { has: page.locator(".md-link-label", { hasText: "docs.example.com" }) });
@@ -471,9 +471,19 @@ flow("samtalen: GitHub-lenker og lange adresser som chips, filnavn med fargeprik
     assert.equal(await docs.getAttribute("title"), "https://docs.example.com/guide/getting-started/installation/linux/ubuntu?utm=1");
     assert.equal(await docs.getAttribute("href"), "https://docs.example.com/guide/getting-started/installation/linux/ubuntu?utm=1");
     assert.equal(await page.locator("a.md-link-chip .md-link-label", { hasText: /^example\.com$/ }).count(), 1, "en kort adresse vises hel (uten / på slutten)");
-    // En lenke med egen tekst er ellers en vanlig lenke, og mailto er det også.
-    assert.equal(await page.locator('a[href="https://example.com/a"]').getAttribute("class"), null);
-    assert.equal(await page.locator('a[href^="mailto:"]').count() >= 0, true);
+    // v1.4.0: en lenke med egen tekst får også merke og farget tekst, beholder teksten sin og viser
+    // adressen ved hover. E-post er fortsatt en vanlig lenke.
+    const named = page.locator('a[href="https://example.com/a"]');
+    assert.match((await named.getAttribute("class")) ?? "", /\bmd-link-chip\b/);
+    assert.equal(await named.getAttribute("data-site"), "web");
+    assert.equal(await named.locator(".md-link-label").textContent(), "tekst");
+    assert.equal(await named.getAttribute("title"), "https://example.com/a");
+    assert.equal(await named.locator("svg.md-link-icon.md-link-monogram").count(), 1);
+    assert.equal(await named.locator("svg").evaluate((el) => el.namespaceURI), "http://www.w3.org/2000/svg");
+    const mail = page.locator('a[href="mailto:test@example.com"]');
+    assert.equal(await mail.count(), 1);
+    assert.equal(await mail.getAttribute("class"), null);
+    assert.equal(await mail.locator("svg").count(), 0);
     // Filnavn: bare ekte filnavn med kjent endelse får chip.
     const sidebar = page.locator("code.md-file-chip", { hasText: "src/ui/Sidebar.tsx" });
     assert.equal(await sidebar.getAttribute("data-file-ext"), "tsx");

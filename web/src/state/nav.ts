@@ -101,6 +101,14 @@ export function requestFile(projectId: string, path: string): void {
   setFileRequest({ projectId, path, n: ++requests });
 }
 
+// A file on Denne datamaskinen that should open in the local Files panel (a file link in a Kode
+// thread without a project). An absolute path; the panel opens its folder and shows it read-only.
+const [localFileRequest, setLocalFileRequest] = createSignal<{ path: string; n: number } | null>(null);
+export { localFileRequest };
+export function requestLocalFile(path: string): void {
+  setLocalFileRequest({ path, n: ++requests });
+}
+
 // Projects with a favicon of their own, with its version. Fetched at start and when a project
 // changes, never on a timer.
 const [favicons, setFavicons] = createSignal<Record<string, number>>({});

@@ -23,63 +23,93 @@
 :root[data-chat-width="compact"] { --chat-max-width: 640px; --content-max: 640px; }
 :root[data-chat-width="wide"] { --chat-max-width: 960px; --content-max: 960px; }
 
-/* 3. Smart links in the conversation: GitHub PRs/issues, recognised sites and bare URLs as
-   coloured favicon chips with full destination URL on hover. */
-.md-link-chip {
+/* 3. Links in the conversation (v1.2.0, every web link in v1.4.0): a coloured mark and coloured
+   text in a quiet pill, with the full address on hover. GitHub uses its own marks and tokens,
+   known sites lean towards their colour (markdown/site-icons.ts sets --chip-light and
+   --chip-dark), and other sites get a monogram mark with the accent text. The label mixes the
+   site colour with the theme's text, which keeps 4.5:1 on every theme
+   (web/test/rike-lenker-enhet.test.ts). */
+.md-link-chip, .md-thread-chip {
   --chip: var(--accent-text);
-  display: inline-flex; align-items: center; gap: 5px; max-width: min(100%, 40ch); padding: 0 8px 0 5px; vertical-align: baseline;
-  border-radius: var(--radius-full); border: 1px solid color-mix(in srgb, var(--chip) 28%, transparent);
-  background: color-mix(in srgb, var(--chip) 10%, transparent); color: var(--chip);
+  --chip-ink: color-mix(in srgb, var(--chip) 80%, var(--text));
+  /* The label sets the baseline, so the chip sits on the line like the words around it. */
+  display: inline-flex; align-items: baseline; gap: 5px; max-width: min(100%, 40ch); padding: 0 7px 0 4px; vertical-align: baseline;
+  border-radius: var(--radius-full); border: 1px solid color-mix(in srgb, var(--chip) 22%, transparent);
+  background: color-mix(in srgb, var(--chip) 6%, transparent); color: var(--chip-ink);
   font-size: 0.92em; line-height: 1.55; text-decoration: none; white-space: nowrap;
-  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.md-link-chip:hover { background: color-mix(in srgb, var(--chip) 18%, transparent); border-color: color-mix(in srgb, var(--chip) 46%, transparent); text-decoration: none; }
-.md-link-chip .md-link-icon { flex: none; width: 13px; height: 13px; }
-.md-link-chip .md-link-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.md-link-github[data-kind="pull"] { --chip: var(--ok); }
+.md a.md-link-chip { color: var(--chip-ink); }
+.md-link-chip:hover, .md-thread-chip:hover { background: color-mix(in srgb, var(--chip) 12%, transparent); border-color: color-mix(in srgb, var(--chip) 44%, transparent); text-decoration: none; }
+.md-link-chip:active, .md-thread-chip:active { background: color-mix(in srgb, var(--chip) 16%, transparent); }
+.md-link-chip:hover .md-link-label, .md-thread-chip:hover .md-thread-label { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.md-link-chip:focus-visible, .md-thread-chip:focus-visible, .md-file-link:focus-visible, code.md-file-chip[role="button"]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.md-link-chip .md-link-icon, .md-thread-chip .md-thread-icon { flex: none; align-self: center; width: 13px; height: 13px; }
+.md-link-chip .md-link-label, .md-thread-chip .md-thread-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.md-link-monogram text { font-family: var(--font-sans); letter-spacing: -0.02em; }
+.md-link-github[data-kind="pull"], .md-link-github[data-kind="release"] { --chip: var(--ok); }
 .md-link-github[data-kind="issue"] { --chip: var(--tok-keyword); }
-.md-link-github[data-kind="repo"] { --chip: var(--text); }
-.md-link-chip[data-site="youtube"] { --chip: #e53935; }
-.md-link-chip[data-site="npm"] { --chip: #d94645; }
-.md-link-chip[data-site="gitlab"], .md-link-chip[data-site="stackoverflow"], .md-link-chip[data-site="reddit"], .md-link-chip[data-site="rust"] { --chip: #ea6b2b; }
-.md-link-chip[data-site="anthropic"] { --chip: #d97757; }
-.md-link-chip[data-site="openai"], .md-link-chip[data-site="node"], .md-link-chip[data-site="localhost"] { --chip: var(--ok); }
-.md-link-chip[data-site="mdn"], .md-link-chip[data-site="docker"], .md-link-chip[data-site="google"], .md-link-chip[data-site="python"] { --chip: #3898ec; }
-.md-link-chip[data-site="linear"], .md-link-chip[data-site="discord"], .md-link-chip[data-site="figma"] { --chip: #7c84f7; }
-.md-link-chip[data-site="huggingface"] { --chip: var(--warn); }
-.md-link-chip[data-site="vercel"], .md-link-chip[data-site="x"], .md-link-chip[data-site="wikipedia"] { --chip: var(--text-2); }
-:root[data-theme="dark"] .md-link-chip[data-site="youtube"] { --chip: #ff6b6b; }
-:root[data-theme="dark"] .md-link-chip[data-site="npm"] { --chip: #ff7a79; }
-:root[data-theme="dark"] .md-link-chip[data-site="gitlab"], :root[data-theme="dark"] .md-link-chip[data-site="stackoverflow"], :root[data-theme="dark"] .md-link-chip[data-site="reddit"], :root[data-theme="dark"] .md-link-chip[data-site="rust"] { --chip: #ff9457; }
-:root[data-theme="dark"] .md-link-chip[data-site="anthropic"] { --chip: #eb9375; }
-:root[data-theme="dark"] .md-link-chip[data-site="mdn"], :root[data-theme="dark"] .md-link-chip[data-site="docker"], :root[data-theme="dark"] .md-link-chip[data-site="google"], :root[data-theme="dark"] .md-link-chip[data-site="python"] { --chip: #6cb8ff; }
-:root[data-theme="dark"] .md-link-chip[data-site="linear"], :root[data-theme="dark"] .md-link-chip[data-site="discord"], :root[data-theme="dark"] .md-link-chip[data-site="figma"] { --chip: #a5abff; }
+.md-link-github[data-kind="repo"], .md-link-github[data-kind="commit"] { --chip: var(--text); }
+.md-link-github[data-kind="discussion"] { --chip: var(--accent-text); }
+.md-link-chip[data-site] { --chip: var(--chip-light, var(--text-2)); --chip-ink: color-mix(in srgb, var(--chip) 65%, var(--text)); }
+:root[data-theme="dark"] .md-link-chip[data-site] { --chip: var(--chip-dark, var(--text-2)); }
+.md-link-chip[data-site="web"], :root[data-theme="dark"] .md-link-chip[data-site="web"] { --chip: var(--accent-text); --chip-ink: color-mix(in srgb, var(--chip) 80%, var(--text)); }
+.md-thread-chip { --chip: var(--accent-text); font-family: inherit; cursor: pointer; }
+.md-thread-chip .md-thread-icon { color: var(--accent); }
 
-/* 4. File names in `code`: crisp coloured filetype badge (like TS / TSX / PY / JSON) before the name. */
-code.md-file-chip {
+/* 4. Files: a crisp coloured badge (TS, TSX, MD, JSON …) before the name. In `code` it keeps the
+   code look; as a link it is a name in the link colour, like T3 Code. Both open the file in the
+   mini editor (ui/conversation-links.ts). */
+.md-file-chip {
   --ext: #64748b; --ext-fg: #ffffff;
-  display: inline-flex; align-items: center; gap: 5px;
-  color: color-mix(in srgb, var(--ext) 68%, var(--text));
-  border-color: color-mix(in srgb, var(--ext) 26%, var(--border));
+  display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%; vertical-align: baseline;
 }
-code.md-file-chip::before {
-  content: attr(data-file-ext); flex: none; display: inline-flex; align-items: center; justify-content: center;
+code.md-file-chip {
+  color: color-mix(in srgb, var(--ext) 35%, var(--text));
+  overflow-wrap: anywhere;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.md-file-chip::before {
+  content: attr(data-file-badge); flex: none; align-self: center; display: inline-flex; align-items: center; justify-content: center;
   min-width: 17px; height: 14px; padding: 0 3.5px; border-radius: 3px;
   background: var(--ext); color: var(--ext-fg);
-  font-family: var(--font-sans); font-size: 8.5px; font-weight: 700; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase;
+  font-family: var(--font-sans); font-size: 8.5px; font-weight: 700; font-style: normal; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase;
 }
-code.md-file-chip[data-file-ext="ts"] { --ext: #3178c6; }
-code.md-file-chip[data-file-ext="tsx"] { --ext: #0ea5e9; }
-code.md-file-chip[data-file-ext="js"], code.md-file-chip[data-file-ext="jsx"], code.md-file-chip[data-file-ext="mjs"], code.md-file-chip[data-file-ext="cjs"] { --ext: #eab308; --ext-fg: #18181b; }
-code.md-file-chip[data-file-ext="css"], code.md-file-chip[data-file-ext="scss"] { --ext: #a855f7; }
-code.md-file-chip[data-file-ext="json"], code.md-file-chip[data-file-ext="toml"], code.md-file-chip[data-file-ext="yml"], code.md-file-chip[data-file-ext="yaml"] { --ext: #f59e0b; --ext-fg: #18181b; }
-code.md-file-chip[data-file-ext="md"], code.md-file-chip[data-file-ext="mdx"], code.md-file-chip[data-file-ext="txt"] { --ext: #64748b; }
-code.md-file-chip[data-file-ext="py"] { --ext: #3776ab; }
-code.md-file-chip[data-file-ext="rs"], code.md-file-chip[data-file-ext="c"], code.md-file-chip[data-file-ext="h"], code.md-file-chip[data-file-ext="cpp"] { --ext: #ea580c; }
-code.md-file-chip[data-file-ext="go"] { --ext: #00add8; }
-code.md-file-chip[data-file-ext="html"], code.md-file-chip[data-file-ext="vue"], code.md-file-chip[data-file-ext="svelte"] { --ext: #e34f26; }
-code.md-file-chip[data-file-ext="sh"], code.md-file-chip[data-file-ext="sql"] { --ext: #16a34a; }
-code.md-file-chip[data-file-ext="java"], code.md-file-chip[data-file-ext="kt"], code.md-file-chip[data-file-ext="rb"], code.md-file-chip[data-file-ext="php"] { --ext: #ec4899; }
+.md-file-chip:not([data-file-badge])::before { content: attr(data-file-ext); }
+code.md-file-chip[data-file-path] { cursor: pointer; }
+code.md-file-chip[data-file-path]:hover { background: color-mix(in srgb, var(--ext) 14%, var(--active)); color: var(--text); }
+.md-file-link {
+  margin: 0; padding: 0 2px 0 1px; border: 0; border-radius: var(--radius-xs); background: transparent; cursor: pointer;
+  color: var(--accent-text); font: inherit; line-height: inherit; text-align: start;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.md-file-link .md-file-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-medium); }
+.md-file-link:hover { background: var(--hover); }
+.md-file-link:hover .md-file-label { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.md-file-link:active { background: var(--active); }
+.md-file-chip[data-file-ext="ts"], .md-file-chip[data-file-ext="mts"], .md-file-chip[data-file-ext="cts"] { --ext: #3178c6; }
+.md-file-chip[data-file-ext="tsx"] { --ext: #0e7490; }
+.md-file-chip:is([data-file-ext="js"], [data-file-ext="jsx"], [data-file-ext="mjs"], [data-file-ext="cjs"]) { --ext: #d4a106; --ext-fg: #18181b; }
+.md-file-chip:is([data-file-ext="css"], [data-file-ext="scss"], [data-file-ext="less"]) { --ext: #9333ea; }
+.md-file-chip:is([data-file-ext="json"], [data-file-ext="jsonc"], [data-file-ext="toml"], [data-file-ext="yml"], [data-file-ext="yaml"]) { --ext: #f59e0b; --ext-fg: #18181b; }
+.md-file-chip:is([data-file-ext="md"], [data-file-ext="mdx"], [data-file-ext="txt"], [data-file-ext="lock"], [data-file-ext="env"], [data-file-ext="ini"]) { --ext: #64748b; }
+.md-file-chip[data-file-ext="py"] { --ext: #3776ab; }
+.md-file-chip:is([data-file-ext="rs"], [data-file-ext="zig"]) { --ext: #b45309; }
+.md-file-chip:is([data-file-ext="c"], [data-file-ext="h"], [data-file-ext="cpp"], [data-file-ext="hpp"]) { --ext: #4f46e5; }
+.md-file-chip[data-file-ext="go"] { --ext: #00add8; --ext-fg: #0f172a; }
+.md-file-chip:is([data-file-ext="html"], [data-file-ext="htm"], [data-file-ext="xml"], [data-file-ext="svelte"], [data-file-ext="swift"]) { --ext: #c2410c; }
+.md-file-chip:is([data-file-ext="sh"], [data-file-ext="bash"], [data-file-ext="zsh"], [data-file-ext="vue"], [data-file-ext="csv"], [data-file-ext="xlsx"]) { --ext: #15803d; }
+.md-file-chip[data-file-ext="sql"] { --ext: #0f766e; }
+.md-file-chip:is([data-file-ext="java"], [data-file-ext="rb"]) { --ext: #be123c; }
+.md-file-chip:is([data-file-ext="kt"], [data-file-ext="cs"]) { --ext: #7c3aed; }
+.md-file-chip[data-file-ext="php"] { --ext: #4f5b93; }
+.md-file-chip:is([data-file-ext="doc"], [data-file-ext="docx"], [data-file-ext="odt"]) { --ext: #1d4ed8; }
+.md-file-chip:is([data-file-ext="pdf"], [data-file-ext="ppt"], [data-file-ext="pptx"]) { --ext: #b91c1c; }
+.md-file-chip:is([data-file-ext="svg"], [data-file-ext="png"], [data-file-ext="jpg"], [data-file-ext="jpeg"], [data-file-ext="gif"], [data-file-ext="webp"]) { --ext: #a21caf; }
+
+/* $skill-name in an answer: the purple cube chip from the message field. */
+.md-skill-chip { align-items: baseline; }
+.md-skill-chip .md-skill-icon { flex: none; align-self: center; width: 12px; height: 12px; }
 
 /* 5. Tema as three cards (ui/settings/appearance-controls.tsx): System, Lys and Mørk, each a small
    window drawn with the chosen theme's own colours. System shows both, split across the corner. */
