@@ -186,7 +186,7 @@ export function systemLayers(
   const out: PromptLayer[] = [];
   if (thread.mode === "chat") {
     out.push(...chatLayers(thread, chat, extras));
-    const offered = skills.filter((skill) => skill.mode !== "code");
+    const offered = skills.filter((skill) => !skill.manual && skill.mode !== "code");
     if (offered.length && extras.tools?.includes("use_skill")) out.push({
       id: "skills", title: sourceText("Skills"), source: chat.project ? sourceText("Innebygde app-skills") : sourceText("Appens og dine Chat-skills"),
       text: [
@@ -205,7 +205,7 @@ export function systemLayers(
       // for Chat are left out, and so are the two that need a tool this thread is not offered. The
       // last line points at those two, so corrections become memories and repeated procedures become
       // skills, without widening the task.
-      const offered = skills.filter((s) => s.mode !== "chat" && (s.name !== "memory" || s.source !== "app" || extras.memoryTools) && (s.name !== "skill-creator" || s.source !== "app" || extras.skillTools));
+      const offered = skills.filter((s) => !s.manual && s.mode !== "chat" && (s.name !== "memory" || s.source !== "app" || extras.memoryTools) && (s.name !== "skill-creator" || s.source !== "app" || extras.skillTools));
       const has = (name: string) => offered.some((s) => s.name === name);
       const learn = [
         extras.memoryTools && has("memory") ? "when the user corrects you or states a lasting preference, save it with remember (the memory skill says what is worth saving)" : "",

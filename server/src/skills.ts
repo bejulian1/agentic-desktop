@@ -20,6 +20,7 @@ export interface Skill {
   description: string;
   source: "project" | "user" | "app";
   args?: string;
+  manual?: boolean;
   mode?: "code" | "chat"; // from `mode:` in the frontmatter: where the skill is offered; both when absent
   file: string;
   dir?: string; // the skill folder, as found (not resolved through symlinks)
@@ -129,6 +130,7 @@ function scanDir(dir: string, source: Skill["source"], root: string | null, foun
         name: skillName,
         description: meta.description,
         ...(meta.args !== undefined ? { args: meta.args } : {}),
+        ...(meta["disable-model-invocation"] === "true" ? { manual: true } : {}),
         ...(meta.mode === "code" || meta.mode === "chat" ? { mode: meta.mode } : {}),
         source,
         file,
@@ -163,6 +165,10 @@ export function discoverSkills(projectPath: string | null, userDir: string | nul
 export function loadSkillBody(skill: Skill): string {
   const text = readFileSync(skill.file, "utf8").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
   return text.length > MAX_BODY_CHARS ? `${text.slice(0, MAX_BODY_CHARS)}\n\n[Skillen ble avkortet]` : text;
+}
+
+export function explicitSkillName(text: string): string | undefined {
+  return /^(?:bruk|use)\s+(?:the\s+)?([a-z0-9][a-z0-9-]{0,63})\s+skill(?:$|[\s.,:!?])/i.exec(text)?.[1].toLowerCase();
 }
 
 export function renderSkill(skill: Skill, args = ""): string {
