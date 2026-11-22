@@ -11,7 +11,7 @@ import { gitInfo, loadGitInfo } from "../state/home";
 import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
 import { STATE_LABEL, threadState } from "../state/thread-status";
 import { openChatProject, openThread } from "../state/navigate";
-import { IconBranch, IconChat, IconClock, IconCode, IconCpu, IconMonitor, IconFolder, IconPin, IconSettings } from "./icons";
+import { IconBranch, IconChat, IconClock, IconCode, IconMonitor, IconFolder, IconPin, IconSettings } from "./icons";
 import { forkSource, forkSourceTitle, openForkSource } from "../state/fork";
 import { IconSnooze } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
@@ -74,7 +74,8 @@ function ThreadCard(props: { thread: Thread }) {
   // The model is loaded when the pointer reaches the row (preloadThread), so this is usually known.
   const model = () => peekModel(props.thread.id);
   const snoozed = () => (props.thread.snoozedUntil && props.thread.snoozedUntil > Date.now() ? props.thread.snoozedUntil : null);
-  // v1.2.0: the branch of the project and the kind of model, for Kode threads.
+  // v1.2.0: the branch of the project, for Kode threads; the coloured mark of the model's company
+  // or service for every thread, Chat too.
   createEffect(() => { if (props.thread.projectId && app.projects[props.thread.projectId]) loadGitInfo(props.thread.projectId); });
   const git = () => (props.thread.projectId && app.projects[props.thread.projectId] ? gitInfo(props.thread.projectId) : undefined);
   const provider = () => modelProvider(props.thread.modelId);
@@ -94,7 +95,7 @@ function ThreadCard(props: { thread: Thread }) {
         {(branch) => <div class="hover-card-row hover-card-branch" data-testid="hover-card-branch"><IconBranch size={14} /><span>{branch()}</span><Show when={git()?.detached}><span class="hover-card-mode">{t("frakoblet HEAD")}</span></Show></div>}
       </Show>
       <div class="hover-card-row muted hover-card-facts" data-testid="hover-card-model">
-        <Show when={props.thread.mode === "code"} fallback={<IconCpu size={14} />}><span class="hover-card-provider" title={provider().label}><ProviderGlyph family={provider().family} size={14} /></span></Show>
+        <span class="hover-card-provider" title={provider().label}><ProviderGlyph family={provider().family} size={14} /></span>
         <span>{modelName(props.thread.modelId)}</span>
         <Show when={model()}>{(m) => <span class="hover-card-count">{messageCount(m())}</span>}</Show>
       </div>

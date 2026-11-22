@@ -11,7 +11,7 @@ import { send } from "../lib/socket";
 import { app, setSettingsOpen } from "../state/app";
 import { showPanel } from "../state/panel";
 import { errorTitle, IconDraft, IconPullRequest, resetText } from "./GitHubShared";
-import { IconBack, IconChat, IconGlobe, IconIssue, IconReload } from "./icons";
+import { IconBack, IconChat, IconGitHub, IconGlobe, IconIssue, IconReload } from "./icons";
 import { IconExpand } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { Rich } from "./settings/parts";
@@ -84,7 +84,7 @@ export default function GitHubPanel(props: { projectId: string }) {
   return (
     <div class="github-panel" data-testid="github-panel">
       <div class="github-head">
-        <span class="github-title">GitHub</span>
+        <span class="github-title"><IconGitHub size={15} />GitHub</span>
         <Show when={app.projects[props.projectId]}>{(project) => <span class="github-project" title={project().name} data-testid="github-project-glyph"><ProjectGlyph project={project()} size={14} /></span>}</Show>
         <Show when={data()?.remote}>
           <button type="button" class="github-repo" title={t("Åpne {url} i Nettleser", { url: data()!.remote!.url })} onClick={() => openLink(data()!.repo?.url ?? data()!.remote!.url)}>
@@ -195,7 +195,7 @@ export default function GitHubPanel(props: { projectId: string }) {
               </For>
             </ul>
             <button type="button" class="btn btn-small btn-ghost github-all" onClick={() => openLink(`${data()!.remote!.url}/${list() === "pulls" ? "pulls" : "issues"}`)}>
-              <IconGlobe size={13} />{t("Alle på GitHub")}
+              <IconGitHub size={13} />{t("Alle på GitHub")}
             </button>
             <button type="button" class="btn btn-small btn-ghost" onClick={() => openGitHubRoom(list() === "pulls" ? "pull" : "issues", props.projectId ?? undefined)}>{t("Vis i appen")}</button>
           </Show>

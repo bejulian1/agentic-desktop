@@ -194,6 +194,83 @@ flow("GitHub-siden viser API-grensen og henter listen igjen", async h => {
   await row.waitFor();
 }, { env });
 
+flow("GitHub-konto uten prosjekter: pull requests og issues fra alle repoer, med detaljer", async h => {
+  await h.api("PUT", "/api/github/token", { token: GOOD_TOKEN });
+  const { page } = h;
+  await sidebar(h).getByRole("button", { name: "Pull requests" }).click();
+  const room = page.getByTestId("github-room");
+  const source = room.locator(".github-room-source");
+  await source.getByText("GitHub · github.com · @testbruker (alle repoer)", { exact: true }).waitFor();
+  await source.locator('svg[data-icon="github"]').waitFor();
+  assert.equal(await source.locator('svg[data-icon="globe"], svg:not([data-icon])').count(), 0, "GitHub-merket, ikke en globus");
+  await room.getByText("Ingen prosjekter har en remote på GitHub, så her er pull requestene du er involvert i på GitHub.").waitFor();
+  const rows = room.locator(".github-room-row");
+  await waitFor(async () => (await rows.count()) === 3, "kontoens pull requests");
+  assert.match((await rows.first().textContent()) ?? "", /Konto-PR i et annet repo.*ekstern\/verktoy/);
+  const scope = room.getByLabel("Prosjekt", { exact: true });
+  assert.equal(await scope.inputValue(), "__account__");
+  assert.deepEqual(await scope.locator("option").allTextContents(), ["Mine på GitHub"]);
+  // GitHub's own colours for the state.
+  const open = await rows.first().locator(".github-row-state").evaluate(el => getComputedStyle(el).color);
+  assert.ok(["rgb(26, 127, 55)", "rgb(63, 185, 80)"].includes(open), `grønn for åpen: ${open}`);
+
+  await room.getByRole("button", { name: "Visninger" }).click();
+  await page.getByRole("button", { name: "Mine", exact: true }).click();
+  await waitFor(async () => (await rows.count()) === 1, "bare egne pull requests");
+  await rows.first().click();
+  await room.getByRole("heading", { name: /Konto-PR i et annet repo/ }).waitFor();
+  await room.getByText("En PR utenfor prosjektene.").waitFor();
+  await room.getByText("Ser bra ut.").waitFor();
+  await room.locator('.github-detail-actions a svg[data-icon="github"]').waitFor();
+  assert.equal(await room.getByRole("button", { name: "Start en Kode-tråd" }).count(), 0, "ingen Kode-tråd uten et lokalt prosjekt");
+  await room.locator(".github-detail .segmented").getByText("Filer", { exact: true }).click();
+  await room.locator("summary").filter({ hasText: "lib/verktoy.ts" }).waitFor();
+  await room.getByRole("button", { name: "Tilbake til listen" }).click();
+
+  await room.getByRole("button", { name: "Lukk", exact: true }).click();
+  await sidebar(h).getByRole("button", { name: "Issues" }).click();
+  await room.getByText("Konto-issue i et annet repo", { exact: false }).waitFor();
+  await room.getByText("Æ, ø og å i filnavn vises feil", { exact: false }).waitFor();
+}, { env });
+
+flow("GitHub-konto: med prosjekter kan Mine på GitHub velges ved siden av Alle prosjekter", async h => {
+  gitProject(h.projectDir, "rakett");
+  await h.createProject("Rakett");
+  await h.api("PUT", "/api/github/token", { token: GOOD_TOKEN });
+  await sidebar(h).getByRole("button", { name: "Pull requests" }).click();
+  const room = h.page.getByTestId("github-room");
+  await room.getByText("GitHub · github.com · 1 prosjekt").waitFor();
+  const scope = room.getByLabel("Prosjekt", { exact: true });
+  assert.deepEqual(await scope.locator("option").allTextContents(), ["Alle prosjekter", "Mine på GitHub", "Rakett"]);
+  const rows = room.locator(".github-room-row");
+  await waitFor(async () => (await rows.count()) === 2, "prosjektets pull requests");
+  assert.equal(await room.getByText("Konto-PR i et annet repo", { exact: false }).count(), 0);
+  await scope.selectOption("__account__");
+  await room.getByText("GitHub · github.com · @testbruker (alle repoer)", { exact: true }).waitFor();
+  await room.getByText("Konto-PR i et annet repo", { exact: false }).waitFor();
+}, { env });
+
+const signedInBin = mkdtempSync(path.join(tmpdir(), "ad-github-cli-inne-"));
+const signedIn = fakeGh(signedInBin, true);
+after(() => rmSync(signedInBin, { recursive: true, force: true }));
+
+flow("GitHub ikke tilkoblet: innlogget GitHub CLI tas i bruk med én knapp fra Issues", async h => {
+  await sidebar(h).getByRole("button", { name: "Issues" }).click();
+  const room = h.page.getByTestId("github-room");
+  await room.getByText("Ikke koblet til GitHub", { exact: true }).waitFor();
+  await room.getByRole("button", { name: "Åpne GitHub-innstillinger" }).waitFor();
+  await room.getByRole("button", { name: "Fortsett som testbruker med GitHub CLI" }).click();
+  await room.getByText("Konto-issue i et annet repo", { exact: false }).waitFor();
+  assert.equal((await h.api("GET", "/api/bootstrap")).settings.githubAuth, "gh");
+}, { env: { ...env, GH_CONFIG_DIR: path.join(signedInBin, "config"), PATH: signedIn.path } });
+
+flow("GitHub ikke tilkoblet: uten GitHub CLI vises kommandoen for å logge inn", async h => {
+  await sidebar(h).getByRole("button", { name: "Pull requests" }).click();
+  const room = h.page.getByTestId("github-room");
+  await room.getByText("Ikke koblet til GitHub", { exact: true }).waitFor();
+  await room.locator(".github-cli-command").getByText("gh auth login", { exact: true }).waitFor();
+}, { env: { ...env, PATH: path.join(bin, "empty") } });
+
 flow("GitHub-innstillinger lenker til installasjon når gh mangler", async h => {
   await openSettings(h);
   await h.page.getByText("GitHub CLI er ikke installert.").waitFor();

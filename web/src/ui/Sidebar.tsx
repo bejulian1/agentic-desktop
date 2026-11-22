@@ -106,6 +106,8 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   createEffect(() => { if (inProject()) loadGitInfo(thread.projectId!); });
   const branch = () => (inProject() ? gitInfo(thread.projectId!)?.branch ?? null : null);
   const provider = createMemo(() => (thread.mode === "code" ? modelProvider(thread.modelId) : null));
+  // Chat rows carry the same coloured mark, small and before the title, without a second line.
+  const chatProvider = createMemo(() => (thread.mode === "code" ? null : modelProvider(thread.modelId)));
   // Done and not looked at yet: «Ferdig» in green, where the age would be.
   const done = () => threadState(thread, false) === "new";
 
@@ -224,6 +226,9 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
           {/* Round 14 (SPEC 30.3): a fork has a small fork mark; the hover card links back. */}
           <Show when={thread.forkedFrom}>
             <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
+          </Show>
+          <Show when={chatProvider()}>
+            {(info) => <span class="thread-provider thread-provider-chat" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
           </Show>
           <span class="thread-title">{thread.title}</span>
           <Show when={thread.origin === "agent"}>

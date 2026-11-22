@@ -60,6 +60,18 @@ const ATLAS_ISSUES = Array.from({ length: 29 }, (_, i) => ({
   created_at: iso(10_000 + i), updated_at: iso(100 + i), comments: 0, labels: [],
 }));
 
+// Account-wide search (no repo: qualifier): a repo that is not a project anywhere, where the
+// signed-in account wrote one pull request and one issue and was asked to review another.
+const ELSEWHERE_PULLS = [
+  { number: 7, title: "Konto-PR i et annet repo", user: { login: "testbruker" }, created_at: iso(200), updated_at: iso(2), comments: 1, draft: false, head: { ref: "konto" }, labels: [{ name: "forbedring", color: "a2eeef" }] },
+  { number: 8, title: "Gjennomgang ønsket fra kontoen", user: { login: "noen" }, requested_reviewers: [{ login: "testbruker" }], created_at: iso(400), updated_at: iso(30), comments: 0, draft: false, head: { ref: "gjennomgang" }, labels: [] },
+];
+const ELSEWHERE_ISSUES = [
+  { number: 9, title: "Konto-issue i et annet repo", body: "Fra kontoen.", user: { login: "testbruker" }, created_at: iso(800), updated_at: iso(3), comments: 2, labels: [] },
+];
+const involves = (item: any) => item.user?.login === "testbruker" || item.assignees?.some((user: any) => user.login === "testbruker")
+  || item.requested_reviewers?.some((user: any) => user.login === "testbruker") || [40, 42].includes(item.number);
+
 const CHECKS = { state: "PENDING", contexts: { nodes: [{ name: "Typecheck", status: "COMPLETED", conclusion: "SUCCESS" }, { context: "UI", state: "PENDING" }] } };
 
 export async function startFakeGitHub(): Promise<FakeGitHub> {
@@ -102,7 +114,9 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
           const pulls = Object.fromEntries([...query.matchAll(/(p\d+):pullRequest\(number:(\d+)\)/g)].map(([, alias, number]) => [
             alias, { merged: number === "38", isDraft: number === "41", statusCheckRollup: number === "42" ? CHECKS : null },
           ]));
-          return send(200, { data: { r0: pulls } });
+          // Every repository block gets the same answers by alias, so lists across repos work too.
+          const repos = [...query.matchAll(/(r\d+):repository\(/g)].map(([, alias]) => alias);
+          return send(200, { data: Object.fromEntries((repos.length ? repos : ["r0"]).map(alias => [alias, pulls])) });
         }
         if (query.startsWith("query PullDetail")) return send(200, { data: { repository: { pullRequest: { reviewDecision: "REVIEW_REQUIRED", statusCheckRollup: CHECKS } } } });
         if (!query.startsWith("query PullWatch(") || variables.owner !== "acme" || variables.name !== "rakett") {
@@ -122,12 +136,17 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
       if (url.pathname === "/search/issues") {
         const q = url.searchParams.get("q") ?? "";
         const isPull = q.includes("is:pr");
-        const groups = [...q.matchAll(/repo:(\S+)/g)].map(match => match[1]);
-        const query = q.replace(/(?:repo|is|in|author|assignee|mentions|review-requested):\S+/g, "").replace(/label:"[^"]+"/g, "").replace(/"/g, "").trim();
+        const repos = [...q.matchAll(/repo:(\S+)/g)].map(match => match[1]);
+        // Without repo: the search is account-wide and must say whose account it is about.
+        const account = !repos.length;
+        if (account && !/(?:involves|author|assignee|mentions|review-requested):(?:testbruker|annen|@me)\b/.test(q)) return send(422, { message: "Validation Failed" });
+        const groups = account ? ["acme/rakett", "ekstern/verktoy"] : repos;
+        const query = q.replace(/(?:repo|is|in|author|assignee|mentions|review-requested|involves):\S+/g, "").replace(/label:"[^"]+"/g, "").replace(/"/g, "").trim();
         const label = /label:"([^"]+)"/.exec(q)?.[1];
         const merged = { ...PULLS[0], number: 38, title: "Slått sammen", state: "closed", pull_request: { merged_at: iso(60) } };
         const rows = groups.flatMap(repo => {
-          const all = repo === "acme/atlas" ? (isPull ? [] : ATLAS_ISSUES) : repo === "acme/rakett" ? (isPull ? [...PULLS, merged] : ISSUES.filter(issue => !issue.pull_request)) : [];
+          const all = repo === "acme/atlas" ? (isPull ? [] : ATLAS_ISSUES) : repo === "acme/rakett" ? (isPull ? [...PULLS, merged] : ISSUES.filter(issue => !issue.pull_request))
+            : repo === "ekstern/verktoy" ? (isPull ? ELSEWHERE_PULLS : ELSEWHERE_ISSUES) : [];
           return all.map(item => ({ state: "open", ...item, repository_url: `https://api.github.com/repos/${repo}` }));
         }).filter((item: any) => (
           (!q.includes("is:open") || item.state === "open") &&
@@ -137,7 +156,8 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
           (!q.includes("assignee:") || item.assignees?.some((user: any) => user.login === "testbruker")) &&
           (!q.includes("author:") || item.user?.login === "testbruker") &&
           (!q.includes("mentions:") || item.number === 40) &&
-          (!q.includes("review-requested:") || item.number === 42) &&
+          (!q.includes("review-requested:") || item.number === 42 || item.number === 8) &&
+          (!q.includes("involves:") || involves(item)) &&
           (!label || item.labels.some((l: any) => l.name === label)) &&
           (!query || query.split(/\s+/).every(word => `${item.title} ${item.body ?? ""}`.toLowerCase().includes(word.toLowerCase())))
         ));
@@ -169,6 +189,11 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
       if (url.pathname === "/repos/acme/rakett/pulls/42/reviews") return send(200, [{ id: 2, body: "Denne delen ser bra ut.", user: { login: "reviewer" }, state: "COMMENTED", submitted_at: iso(25) }]);
       if (url.pathname === "/repos/acme/rakett/pulls/42/comments") return send(200, [{ id: 3, path: "src/start.ts", body: "En kommentar på linjen.", user: { login: "reviewer" }, created_at: iso(15) }]);
       if (url.pathname === "/repos/acme/rakett/pulls/42/files") return send(200, [{ filename: "src/start.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-før\n+etter" }]);
+      if (url.pathname === "/repos/ekstern/verktoy/pulls/7") return send(200, { ...ELSEWHERE_PULLS[0], state: "open", base: { ref: "main" }, body: "En PR utenfor prosjektene." });
+      if (url.pathname === "/repos/ekstern/verktoy/issues/7/comments") return send(200, [{ id: 11, body: "Ser bra ut.", user: { login: "noen" }, created_at: iso(1) }]);
+      if (url.pathname === "/repos/ekstern/verktoy/pulls/7/reviews" || url.pathname === "/repos/ekstern/verktoy/pulls/7/comments") return send(200, []);
+      if (url.pathname === "/repos/ekstern/verktoy/pulls/7/files") return send(200, [{ filename: "lib/verktoy.ts", additions: 2, deletions: 0, patch: "@@ -0,0 +1,2 @@\n+a\n+b" }]);
+      if (url.pathname === "/repos/ekstern/verktoy/issues/9") return send(200, { ...ELSEWHERE_ISSUES[0], state: "open" });
       if (url.pathname === "/repos/acme/tom") return send(200, { description: null, private: true, default_branch: "trunk", stargazers_count: 0 });
       if (url.pathname === "/repos/acme/tom/pulls" || url.pathname === "/repos/acme/tom/issues") return send(200, []);
       return send(404, { message: "Not Found" });

@@ -28,8 +28,8 @@ import { enter, seconds, StepsView, SummaryView, ToolView } from "./steps";
 import { stepSentence } from "./step-words";
 import { FileChangeCounts } from "./FileChangeCounts";
 import { DiffBlock } from "./DiffBlock";
-import { AnswerModelButton, answerModelInfo } from "./AnswerModel";
-import { ProviderIcon, providerBrand } from "./ProviderIcon";
+import { AnswerModelButton, answerModelBrand, answerModelInfo } from "./AnswerModel";
+import { ProviderIcon, type ProviderBrand } from "./ProviderIcon";
 import "../styles/hooks.css";
 import "../styles/handoff-agents.css";
 import { UserQuestionSummary } from "./UserQuestion";
@@ -412,7 +412,7 @@ function latestSentence(text: string): string {
   return pick.length > 90 ? `${pick.slice(0, 88).trimEnd()}…` : pick;
 }
 
-function ThinkingCard(props: { row: ThinkingRow; model: string }) {
+function ThinkingCard(props: { row: ThinkingRow; model: string; brand?: ProviderBrand }) {
   const { row } = props;
   const [open, setOpen] = createSignal(false);
   const [visible, watch] = visibleSignal();
@@ -440,7 +440,7 @@ function ThinkingCard(props: { row: ThinkingRow; model: string }) {
     <div class="row row-thinking row-premium" data-row="thinking" data-enter={enter(row.at)}>
       <div class="premium-card" classList={{ done: compact(), finishing: done() && !compact(), open: open() }} ref={watch} data-testid="thinking-card" role="group" aria-label={t("Forespørsel til {model}", { model: props.model })}>
         <div class="premium-main">
-          <div class="premium-title"><Rich text={t("Forespørsel til {model}")} parts={{ model: <span class="premium-model">{props.model}</span> }} /></div>
+          <div class="premium-title"><Rich text={t("Forespørsel til {model}")} parts={{ model: <span class="premium-model"><Show when={props.brand}>{brand => <ProviderIcon brand={brand()} size={13} decorative />}</Show>{props.model}</span> }} /></div>
           <Show
             when={!compact()}
             fallback={
@@ -478,7 +478,7 @@ function ThinkingView(props: { row: ThinkingRow }) {
   const premium = () => app.settings.thinkingView === "premium" && thread()?.mode !== "code";
   return (
     <Show when={premium()} fallback={<ThinkingFold row={row} />}>
-      <ThinkingCard row={row} model={answerModelInfo(row.model).name} />
+      <ThinkingCard row={row} model={answerModelInfo(row.model).name} brand={answerModelInfo(row.model).known ? answerModelBrand(row.model) : undefined} />
     </Show>
   );
 }
@@ -908,15 +908,7 @@ function AgentRow(props: { item: SpawnedRow; assignment: (model: AnswerModel) =>
     () => thread() && `${props.item.childThreadId}|${thread()!.running}|${thread()!.lastStatus}|${thread()!.pendingApprovals}`,
     () => get<{ text: string | null }>(`/api/threads/${encodeURIComponent(props.item.childThreadId)}/latest-reply`).then((r) => r.text).catch(() => null),
   );
-  const brand = () => {
-    const m = props.item.model;
-    if (!m) return null;
-    const provider = m.providerId ? app.providers.find((p) => p.id === m.providerId) : undefined;
-    return providerBrand(
-      provider ?? { kind: "openai-compatible", name: m.providerName ?? "" },
-      { model: m.model ?? m.modelName ?? "" },
-    );
-  };
+  const brand = () => (props.item.model ? answerModelBrand(props.item.model) : null);
   const badge = () => {
     const name = props.item.model?.providerName ?? props.item.model?.modelName ?? props.item.title;
     return (name.trim().match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toLocaleUpperCase(language());
@@ -1017,7 +1009,17 @@ function RowKind(props: { row: Row; onThread: (id: string) => void }) {
   switch (row.kind) {
     case "model-change": {
       const models = () => ({ from: answerModelInfo(row.from).name, to: answerModelInfo(row.to).name });
-      return <div class="row model-change-row" data-row="model-change" role="note"><IconCpu size={12} /><span aria-hidden="true">{t("Byttet modell: {from} → {to}", models())}</span><span class="sr-only">{t("Byttet modell: {from} til {to}", models())}</span></div>;
+      // Each model with the coloured mark of its company or service, right before its name.
+      const model = (snapshot: AnswerModel, name: string) => {
+        const known = answerModelInfo(snapshot).known;
+        return <span class="model-change-model" data-brand={known ? answerModelBrand(snapshot) : undefined}>
+          <Show when={known} fallback={<IconCpu size={12} />}><ProviderIcon brand={answerModelBrand(snapshot)} size={13} decorative /></Show>{name}
+        </span>;
+      };
+      return <div class="row model-change-row" data-row="model-change" role="note">
+        <span class="model-change-text" aria-hidden="true"><Rich text={t("Byttet modell: {from} → {to}")} parts={{ from: model(row.from, models().from), to: model(row.to, models().to) }} /></span>
+        <span class="sr-only">{t("Byttet modell: {from} til {to}", models())}</span>
+      </div>;
     }
     case "user":
       return <UserView row={row} onThread={props.onThread} />;

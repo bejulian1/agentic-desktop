@@ -14,7 +14,7 @@ import { archiveScope, restoreMany, setArchiveScope } from "../state/archive";
 import { openThread } from "../state/navigate";
 import { confirmDialog, setInfoDialog } from "./dialogs";
 import {
-  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconClose, IconDiff, IconFolder, IconCpu, IconGauge, IconGlobe, IconInfo, IconKeyboard,
+  IconAnchor, IconArchive, IconBack, IconBook, IconBranch, IconCheck, IconClose, IconDiff, IconFolder, IconCpu, IconGauge, IconGitHub, IconGlobe, IconInfo, IconKeyboard,
   IconChat, IconCode, IconHand, IconPalette, IconPencil, IconSearch, IconServer, IconSettings, IconShield, IconShieldCheck, IconSliders, IconSpark, IconClock,
 } from "./icons";
 import { Group, Page, Row, SkeletonRows, type Icon } from "./settings/parts";
@@ -34,7 +34,6 @@ import { Skills } from "./settings/skills";
 import { HooksPage } from "./settings/hooks";
 import { StoragePage } from "./settings/storage";
 import { GitHubSettings } from "./GitHubSettings";
-import { IconPullRequest } from "./GitHubShared";
 import { permissionScope, permissionTitle } from "./permission-copy";
 import { ApplyPermissionToProjects, SavedAllowRules } from "./settings/permission-rules";
 import { welcomeView } from "../state/welcome";
@@ -56,7 +55,7 @@ const APP_SECTIONS = (): Section[] => [
   { id: "projects", label: t("Prosjekter"), icon: IconFolder }, // v1.2.0: one project's name, icon, defaults and instructions
   { id: "appearance", label: t("Utseende"), icon: IconPalette },
   { id: "providers", label: t("Modeller og leverandører"), icon: IconCpu },
-  { id: "github", label: t("GitHub"), icon: IconPullRequest }, // round 8, agent G
+  { id: "github", label: t("GitHub"), icon: IconGitHub }, // round 8, agent G
   { id: "usage", label: t("Bruk"), icon: IconGauge },
   { id: "storage", label: t("Lagring"), icon: IconFolder },
   { id: "privacy", label: t("Personvern og data"), icon: IconShieldCheck },

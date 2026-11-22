@@ -662,6 +662,10 @@
 /* Én liste etter tid: each thread with its project's mark before the title. */
 .thread-text:has(.thread-project) { flex-direction: row; align-items: center; gap: 7px; }
 .thread-project { display: inline-flex; flex: none; color: var(--text-3); }
+/* Chat rows: the model's coloured mark before the title, a touch quieter than on Kode rows. */
+.thread-text:has(.thread-provider-chat) { flex-direction: row; align-items: center; gap: 7px; }
+.thread-provider-chat { display: inline-flex; flex: none; opacity: 0.88; }
+.thread-item:hover .thread-provider-chat, .thread-text[aria-current] .thread-provider-chat { opacity: 1; }
 .project-list { padding-top: 2px; }
 
 /* The gear, and the profile without the version under the name (SPEC 21.6). */

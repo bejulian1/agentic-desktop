@@ -5,6 +5,7 @@ import { t } from "../lib/i18n";
 import { app, currentProject, report, saveSettings, toast } from "../state/app";
 import { confirmDialog } from "./dialogs";
 import { resetText } from "./GitHubShared";
+import { IconGitHub } from "./icons";
 import { Group, Page, Rich, Row, Toggle } from "./settings/parts";
 import { SecretInput } from "./SecretInput";
 
@@ -88,7 +89,7 @@ export function GitHubSettings() {
     <Page title="GitHub" intro={t("Se pull requests og issues fra prosjektene dine.")}>
       <Group title={t("Konto")}>
         <Show when={status()?.connected}>
-          <Row label={<Rich text={t("Tilkoblet som {login}")} parts={{ login: <span class="github-login">{status()!.login ?? t("ukjent konto")}</span> }} />} text={status()?.method === "gh" ? t("GitHub CLI") : status()!.name ? `${status()!.name}. ${scopeText(status()!)}` : scopeText(status()!)}>
+          <Row label={<Rich text={t("Tilkoblet som {login}")} parts={{ login: <span class="github-login">{status()!.login ?? t("ukjent konto")}</span> }} />} icon={IconGitHub} text={status()?.method === "gh" ? t("GitHub CLI") : status()!.name ? `${status()!.name}. ${scopeText(status()!)}` : scopeText(status()!)}>
             <button type="button" class="btn btn-small btn-quiet-danger" disabled={busy()} onClick={() => void disconnect()}>{t("Koble fra")}</button>
           </Row>
         </Show>
