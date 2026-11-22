@@ -14,7 +14,7 @@ import { openWelcome } from "../../state/welcome";
 import { confirmDialog } from "../dialogs";
 import { IconPlay } from "../icons";
 import { ThemePicker } from "../ThemePicker";
-import { ColorSchemeCards, InterfaceControls, InterfaceFontPreview } from "./appearance-controls";
+import { ColorSchemeCards, InterfaceControls, Typography } from "./appearance-controls";
 import { AppIconPicker } from "../AppIconPicker";
 import { permissionScope, permissionTitle } from "../permission-copy";
 import { ApplyPermissionToProjects } from "./permission-rules";
@@ -301,16 +301,8 @@ export function Appearance() {
       <Group title={t("Grensesnitt")}>
         <InterfaceControls />
       </Group>
-      <Group title={t("Tekst og bevegelse")}>
-        <Row label={t("Tekststørrelse")} text={t("Grunnstørrelsen for tekst i hele appen. Vis → Zoom forstørrer alt, også bilder.")}>
-          <Choice<number>
-            label={t("Tekststørrelse")}
-            value={app.settings.uiFontSize ?? 14}
-            options={[{ value: 13, label: t("Liten (13 px)") }, { value: 14, label: t("Standard (14 px)") }, { value: 15, label: t("Stor (15 px)") }, { value: 16, label: t("Større (16 px)") }]}
-            onChange={(v) => save({ uiFontSize: v })}
-          />
-        </Row>
-        <InterfaceFontPreview />
+      <Typography />
+      <Group title={t("Tetthet og bevegelse")}>
         <Row label={t("Tetthet")} text={t("Høyden på rader og knapper i sidefanen, menyene og her.")}>
           <Segmented<Density>
             label={t("Tetthet")}

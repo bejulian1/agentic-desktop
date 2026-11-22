@@ -917,7 +917,11 @@ export function Composer(props: {
       const pending = pendingEffort();
       return Object.hasOwn(pending, current.id) ? pending[current.id] : current.reasoning;
     }
-    return draftReasoning() ?? null;
+    // v1.3.0: a new Kode thread starts with the project's effort, or the app's default for new threads.
+    // null is a choice too (the model's own); undefined is no choice yet.
+    const draft = draftReasoning();
+    if (draft !== undefined) return draft;
+    return kode() ? project()?.defaultReasoningEffort ?? app.settings.defaultReasoningEffort ?? null : null;
   };
   // The steps the model takes (SPEC 21.3). A model that takes none has no effort button.
   const steps = createMemo(() => {

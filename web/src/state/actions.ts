@@ -9,7 +9,7 @@ import { canGoBack, canGoForward, goHistory, projectIdFromVisit } from "./histor
 import { newThreadIn, openChatProject, openThread } from "./navigate";
 import { requestBrowserTab, showPanel, togglePanel, type PanelTab } from "./panel";
 import { requestAnnotate } from "./annotate";
-import { revertLastTurn } from "./project-actions";
+import { revertLastTurn, runActionShortcut } from "./project-actions";
 import { matchShortcut } from "./shortcuts";
 import { promptDialog, setInfoDialog } from "../ui/dialogs";
 import { finished, markSeen, markUnread, setSearchOpen } from "./home";
@@ -191,7 +191,11 @@ const HANDLERS: Record<string, () => unknown> = {
 export function handleShortcut(event: KeyboardEvent): void {
   if (event.defaultPrevented || event.isComposing) return;
   const id = matchShortcut(event);
-  if (!id) return;
+  if (!id) {
+    // v1.3.0: the shortcut of one of the project's actions.
+    if (runActionShortcut(event)) event.preventDefault();
+    return;
+  }
   event.preventDefault();
   // The conversation stays mounted behind Settings; its shortcuts must stay inactive there.
   if (settingsOpen()) {

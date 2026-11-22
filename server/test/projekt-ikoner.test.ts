@@ -1,13 +1,16 @@
 // v1.2.0: richer project icons. A wider palette, monogram badges and uploaded images as icons, the
 // extra places a project's own favicon is looked for, and the new Utseende settings.
+// v1.3.0: Innstillinger → Prosjekter as in T3 Code (archive, effort and workspace for new threads,
+// project actions) and the Typografi settings.
 // Only the demo model; no real API is called.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { isProjectIcon, MAX_PROJECT_ICON_BYTES, PROJECT_COLORS, suggestMonogram } from "../../shared/protocol.ts";
+import { cleanProjectActions, isProjectIcon, MAX_PROJECT_ACTIONS, MAX_PROJECT_ICON_BYTES, PROJECT_COLORS, suggestMonogram } from "../../shared/protocol.ts";
 import { FAVICON_DIRS, FAVICON_NAMES } from "../src/favicon.ts";
-import { startHarness, tempDir } from "./helpers.ts";
+import { startHarness, tempDir, until } from "./helpers.ts";
 
 const JSON_HEADERS = { "content-type": "application/json" };
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40, 1)]);
@@ -191,4 +194,159 @@ test("Utseende: contrast, chat width and formulas are saved, checked and reset",
   const reset = await h.api("PATCH", "/api/settings", { uiContrast: null, chatWidth: null, renderMath: null });
   assert.deepEqual([reset.uiContrast, reset.chatWidth, reset.renderMath], [undefined, undefined, undefined]);
   for (const preset of ["ocean", "rosa", "skog", "glod", "iris"]) assert.equal((await h.api("PATCH", "/api/settings", { themePreset: preset })).themePreset, preset);
+});
+
+const refused = async (h: any, method: string, url: string, body: unknown) => (await h.raw(method, url, { headers: JSON_HEADERS, body: JSON.stringify(body) })).status;
+const action = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: `Handling ${id}`, command: `echo ${id}`, ...extra });
+
+test("Prosjekter: archive, effort and workspace for new threads are saved, checked and sent with every project", async (t) => {
+  const h = await startHarness(t);
+  const project = await h.project();
+  // The defaults, always present.
+  assert.equal(project.archived, false);
+  assert.equal(project.defaultReasoningEffort, null);
+  assert.equal(project.defaultWorkspaceMode, "local");
+  assert.deepEqual(project.actions, []);
+
+  const updated = await h.api("PATCH", `/api/projects/${project.id}`, { archived: true, defaultReasoningEffort: "high", defaultWorkspaceMode: "worktree" });
+  assert.deepEqual([updated.archived, updated.defaultReasoningEffort, updated.defaultWorkspaceMode], [true, "high", "worktree"]);
+  const listed = (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id);
+  assert.deepEqual([listed.archived, listed.defaultReasoningEffort, listed.defaultWorkspaceMode], [true, "high", "worktree"], "kept, and archived projects are still listed");
+  // An archived project keeps its threads and can be restored.
+  const thread = await h.thread(project.id);
+  assert.ok((await h.api("GET", "/api/bootstrap")).threads.some((x: any) => x.id === thread.id));
+  const restored = await h.api("PATCH", `/api/projects/${project.id}`, { archived: false, defaultReasoningEffort: null, defaultWorkspaceMode: "local" });
+  assert.deepEqual([restored.archived, restored.defaultReasoningEffort, restored.defaultWorkspaceMode], [false, null, "local"]);
+
+  for (const body of [{ archived: "ja" }, { archived: null }, { defaultReasoningEffort: "ultra" }, { defaultReasoningEffort: 3 }, { defaultWorkspaceMode: "sky" }, { defaultWorkspaceMode: null }]) {
+    assert.equal(await refused(h, "PATCH", `/api/projects/${project.id}`, body), 400, JSON.stringify(body));
+  }
+  assert.equal((await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).archived, false, "unchanged after the refusals");
+});
+
+test("Prosjekter: new Kode threads start with the project's effort, or else the app's default", async (t) => {
+  const h = await startHarness(t);
+  const project = await h.project(undefined, { defaultReasoningEffort: "max" });
+  assert.equal((await h.thread(project.id)).reasoning, "max");
+  // The app's default reaches projects without their own, and Denne datamaskinen.
+  await h.api("PATCH", "/api/settings", { defaultReasoningEffort: "low" });
+  const plain = await h.project();
+  assert.equal((await h.thread(plain.id)).reasoning, "low");
+  assert.equal((await h.thread(null, "code")).reasoning, "low");
+  assert.equal((await h.thread(project.id)).reasoning, "max", "the project's own goes first");
+  // Chat is not Kode.
+  assert.equal((await h.thread(null, "chat")).reasoning, null);
+  // Reset: the model's own effort again.
+  assert.equal((await h.api("PATCH", "/api/settings", { defaultReasoningEffort: null })).defaultReasoningEffort, undefined);
+  assert.equal((await h.thread(plain.id)).reasoning, null);
+  assert.equal(await refused(h, "PATCH", "/api/settings", { defaultReasoningEffort: "enorm" }), 400);
+});
+
+test("project actions: validation of names, commands, ids and shortcuts", () => {
+  assert.deepEqual(cleanProjectActions([]), []);
+  assert.deepEqual(
+    cleanProjectActions([{ id: "a1", name: "  Test ", command: "npm test\r\n", shortcut: "Mod+Shift+T", runOnWorktreeCreate: true }, { id: "b2", name: "Bygg", command: "npm run build", shortcut: "", runOnWorktreeCreate: false }]),
+    [{ id: "a1", name: "Test", command: "npm test", shortcut: "Mod+Shift+T", runOnWorktreeCreate: true }, { id: "b2", name: "Bygg", command: "npm run build" }],
+    "trimmed, and empty or false fields left out",
+  );
+  const bad: unknown[] = [
+    "ikke en liste",
+    [null],
+    [{ id: "", name: "x", command: "y" }],
+    [{ id: "a b", name: "x", command: "y" }],
+    [action("a"), action("a")],
+    [{ id: "a", name: " ", command: "y" }],
+    [{ id: "a", name: "x".repeat(61), command: "y" }],
+    [{ id: "a", name: "x\u0007", command: "y" }],
+    [{ id: "a", name: "x", command: "" }],
+    [{ id: "a", name: "x", command: "y".repeat(4001) }],
+    [action("a", { shortcut: "T" })],
+    [action("a", { shortcut: "Mod+" })],
+    [action("a", { shortcut: 5 })],
+    [action("a", { shortcut: "Mod+T" }), action("b", { shortcut: "Mod+T" })],
+    [action("a", { runOnWorktreeCreate: "ja" })],
+    Array.from({ length: MAX_PROJECT_ACTIONS + 1 }, (_, i) => action(`a${i}`)),
+  ];
+  for (const value of bad) assert.equal(typeof cleanProjectActions(value), "string", JSON.stringify(value).slice(0, 80));
+});
+
+test("project actions: saved, changed and removed per project, and refused when invalid", async (t) => {
+  const h = await startHarness(t);
+  const project = await h.project();
+  const saved = await h.api("PATCH", `/api/projects/${project.id}`, { actions: [action("test", { shortcut: "Mod+Shift+T" }), action("build", { runOnWorktreeCreate: true })] });
+  assert.deepEqual(saved.actions.map((a: any) => a.id), ["test", "build"]);
+  assert.equal(saved.actions[0].shortcut, "Mod+Shift+T");
+  assert.equal(saved.actions[1].runOnWorktreeCreate, true);
+  // Change one, remove the other.
+  const changed = await h.api("PATCH", `/api/projects/${project.id}`, { actions: [{ ...saved.actions[0], name: "Kjør testene", command: "npm test -- --watch=false" }] });
+  assert.deepEqual(changed.actions, [{ id: "test", name: "Kjør testene", command: "npm test -- --watch=false", shortcut: "Mod+Shift+T" }]);
+  assert.deepEqual((await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).actions, changed.actions);
+  for (const actions of [[action("x"), action("x")], [{ id: "x", name: "", command: "ls" }], "ls", [action("x", { shortcut: "Q" })]]) {
+    assert.equal(await refused(h, "PATCH", `/api/projects/${project.id}`, { actions }), 400, JSON.stringify(actions));
+  }
+  assert.deepEqual((await h.api("PATCH", `/api/projects/${project.id}`, { actions: [] })).actions, []);
+  // Another project has its own.
+  const other = await h.project();
+  assert.deepEqual(other.actions, []);
+});
+
+test("project actions run only as saved, in a new terminal tab in the project folder", async (t) => {
+  const home = tempDir(t, "ad-home-");
+  const h = await startHarness(t, { homeDir: home });
+  const socket = await h.socket();
+  const project = await h.project(undefined, { actions: [{ id: "write", name: "Skriv fil", command: "printf 'svar-%s' $((40+2)) > action-ut.txt" }] });
+  const started = await h.api("POST", `/api/projects/${project.id}/actions/write/run`);
+  assert.equal(started.title, "Skriv fil");
+  await until(() => existsSync(path.join(project.path, "action-ut.txt")) && readFileSync(path.join(project.path, "action-ut.txt"), "utf8") === "svar-42", "the command ran in the project folder");
+  const message = await socket.waitFor((m) => m.type === "terminal.started" && m.terminalId === started.terminalId);
+  assert.equal((message as any).projectId, project.id);
+  assert.ok((await h.api("GET", `/api/projects/${project.id}/terminals`)).some((x: any) => x.terminalId === started.terminalId && x.title === "Skriv fil"));
+  // Only a saved action, never a command from the request.
+  assert.equal(await refused(h, "POST", `/api/projects/${project.id}/actions/missing/run`, { command: "touch nei" }), 404);
+  assert.equal(existsSync(path.join(project.path, "nei")), false);
+
+  // Denne datamaskinen: actions in the settings, run in the home folder.
+  const settings = await h.api("PATCH", "/api/settings", { localActions: [{ id: "home", name: "Hjem", command: "touch hjemme.txt" }] });
+  assert.equal(settings.localActions.length, 1);
+  await h.api("POST", "/api/projects/local/actions/home/run");
+  await until(() => existsSync(path.join(home, "hjemme.txt")), "the local action ran in the home folder");
+  assert.equal(await refused(h, "PATCH", "/api/settings", { localActions: [{ id: "x", name: "", command: "ls" }] }), 400);
+  assert.equal((await h.api("PATCH", "/api/settings", { localActions: [] })).localActions, undefined, "an empty list is left out");
+});
+
+test("a new worktree gets the project's actions, and runs the ones marked for new worktrees", async (t) => {
+  const root = tempDir(t, "ad-git-actions-");
+  const repo = path.join(root, "repo");
+  mkdirSync(repo);
+  const env = { ...process.env, HOME: root, XDG_CONFIG_HOME: root, GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" };
+  for (const name of Object.keys(env)) if (/^GIT_/i.test(name) && !["GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT"].includes(name)) delete env[name as keyof typeof env];
+  const git = (...args: string[]) => execFileSync("git", ["-c", "core.hooksPath=/dev/null", "-C", repo, ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
+  git("init", "-b", "main");
+  writeFileSync(path.join(repo, "README.md"), "hei\n");
+  git("add", ".");
+  git("-c", "user.name=Test", "-c", "user.email=test@localhost", "commit", "-m", "initial");
+
+  const h = await startHarness(t);
+  const project = await h.project(repo, {
+    defaultReasoningEffort: "high",
+    defaultWorkspaceMode: "worktree",
+    actions: [{ id: "setup", name: "Oppsett", command: "touch oppsett-kjort.txt", runOnWorktreeCreate: true }, { id: "test", name: "Test", command: "touch test-kjort.txt" }],
+  });
+  const result = await h.api("POST", `/api/projects/${project.id}/git/worktrees`, { branch: "funksjon", path: path.join(root, "funksjon") });
+  assert.deepEqual(result.project.actions.map((a: any) => a.id), ["setup", "test"]);
+  assert.equal(result.project.defaultReasoningEffort, "high");
+  assert.equal(result.project.defaultWorkspaceMode, "local", "a worktree starts its own threads where it is");
+  assert.equal(result.actionsStarted, 1);
+  await until(() => existsSync(path.join(result.project.path, "oppsett-kjort.txt")), "the setup action ran in the new worktree");
+  assert.equal(existsSync(path.join(result.project.path, "test-kjort.txt")), false, "only the marked action runs");
+  assert.equal(existsSync(path.join(repo, "oppsett-kjort.txt")), false, "and not in the source checkout");
+});
+
+test("Typografi: the interface font and the code fonts are checked and reset", async (t) => {
+  const h = await startHarness(t);
+  for (const uiFont of ["inter", "ubuntu", "noto", "system"]) assert.equal((await h.api("PATCH", "/api/settings", { uiFont })).uiFont, uiFont);
+  assert.equal((await h.api("PATCH", "/api/settings", { codeFont: "liberation" })).codeFont, "liberation");
+  for (const body of [{ uiFont: "comic" }, { uiFont: 1 }, { codeFont: "papyrus" }]) assert.equal(await refused(h, "PATCH", "/api/settings", body), 400, JSON.stringify(body));
+  const reset = await h.api("PATCH", "/api/settings", { uiFont: null, codeFont: null });
+  assert.deepEqual([reset.uiFont, reset.codeFont], [undefined, undefined]);
 });

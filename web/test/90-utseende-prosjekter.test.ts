@@ -101,28 +101,75 @@ flow("Utseende: tema som tre kort, orber på fargetemaene og grensesnittkontroll
   assert.ok((await live.locator(".code-preview-line.add").count()) === 1 && (await live.locator(".code-preview-line.del").count()) === 1);
 });
 
-flow("Innstillinger → Prosjekter: navn, ikon (monogram og eget bilde), fest, instruksjoner og fjerning", async (h) => {
-  const { page } = h;
-  // Uten prosjekter: en rolig tom side.
-  await openSettings(page, "Prosjekter");
-  await page.getByTestId("projects-empty").waitFor();
-  await page.getByRole("button", { name: "Åpne mappe…" }).waitFor();
-  await page.getByRole("button", { name: "Tilbake til appen" }).click();
+const projectOf = async (h: any, id: string) => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === id);
 
+flow("Innstillinger → Prosjekter uten prosjekter: Ingen prosjekt (Denne datamaskinen) med ekte valg", async (h) => {
+  const { page } = h;
+  await openSettings(page, "Prosjekter");
+  // Aldri en tom side: valget øverst, merknaden og innstillingene for tråder uten prosjekt.
+  const scope = page.getByTestId("projects-scope");
+  await scope.getByText("Gjelder for").waitFor();
+  await scope.getByRole("button", { name: /Ingen prosjekt \(Denne datamaskinen\)/ }).waitFor();
+  await scope.getByRole("button", { name: "Åpne mappe…" }).waitFor();
+  await page.getByTestId("projects-callout").getByText("Finner du ikke en innstilling?", { exact: false }).waitFor();
+  assert.equal(await page.getByTestId("projects-empty").count(), 0);
+
+  // Nye tråder: modell med leverandørmerke, tenkeinnsats, tillatelser og nettleseren.
+  await page.getByTestId("project-model").locator("svg").first().waitFor();
+  await page.getByRole("button", { name: "Tenkeinnsats" }).click();
+  await page.getByRole("menuitemradio", { name: "Høy", exact: true }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.defaultReasoningEffort === "high", "innsatsen er lagret");
+  await page.getByRole("button", { name: "Tenkeinnsats" }).click();
+  await page.getByRole("menuitemradio", { name: "Modellens standard" }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.defaultReasoningEffort === undefined, "tilbake til modellens standard");
+  await page.getByRole("button", { name: "Standard tillatelsesmodus" }).click();
+  await page.getByRole("menuitemradio", { name: "Godta redigeringer" }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.defaultPermissionMode === "accept-edits", "standard tillatelsesmodus");
+  await page.getByRole("button", { name: "Agenttilgang til nettleseren" }).click();
+  await page.getByRole("menuitemradio", { name: "Av" }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.agentBrowserAccess === false, "nettleseren er av");
+
+  // Handlinger for Denne datamaskinen.
+  const card = page.getByTestId("actions-card");
+  await card.getByTestId("actions-empty").getByText("Ingen handlinger konfigurert ennå.").waitFor();
+  await card.getByRole("button", { name: "Legg til handling" }).click();
+  const form = card.getByTestId("action-form");
+  await form.getByRole("textbox", { name: "Navn på handlingen" }).fill("Hjemme");
+  await form.getByRole("textbox", { name: "Kommando" }).fill("touch hjemme-fra-ui.txt");
+  assert.equal(await form.getByRole("checkbox").count(), 0, "ingen arbeidstrær uten prosjekt");
+  await form.getByRole("button", { name: "Lagre handling" }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.localActions?.[0]?.name === "Hjemme", "handlingen er lagret");
+  await card.getByTestId("action-row").getByRole("button", { name: "Kjør" }).click();
+  await waitFor(async () => existsSync(path.join(h.home, "hjemme-fra-ui.txt")), "handlingen kjørte i hjemmemappen");
+
+  // Globale instruksjoner (AGENTS.md i konfigurasjonsmappen).
+  const global = page.getByRole("textbox", { name: "Globale instruksjoner" });
+  await global.fill("Svar kort.");
+  await page.getByTestId("global-instructions").getByRole("button", { name: "Lagre instruksjoner" }).click();
+  await page.locator(".toast", { hasText: "AGENTS.md" }).waitFor();
+  assert.equal((await h.api("GET", "/api/config")).agentsMd, "Svar kort.");
+  await page.getByRole("button", { name: "Åpne mappe…" }).last().waitFor();
+});
+
+flow("Innstillinger → Prosjekter: navn, ikondialog, fest, arkiv, nye tråder, handlinger, utsjekking, instruksjoner og fjerning", async (h) => {
+  const { page } = h;
   const project = await openProject(h, "Demo");
   await openSettings(page, "Prosjekter");
   const scope = page.getByTestId("projects-scope");
   await scope.getByText("Gjelder for").waitFor();
   await scope.getByRole("button", { name: /Demo/ }).waitFor();
 
-  // Med flere prosjekter: velgeren bytter hva siden gjelder.
+  // Med flere prosjekter: velgeren bytter hva siden gjelder, og Ingen prosjekt er alltid med.
   const second = await h.api("POST", "/api/projects", { name: "Annet", path: h.home });
   await scope.getByRole("button", { name: /Demo/ }).click();
-  await page.getByRole("menu", { name: "Prosjekt" }).getByRole("menuitemradio", { name: "Annet" }).click();
+  const menu = page.getByRole("menu", { name: "Prosjekt" });
+  await menu.getByRole("menuitemradio", { name: "Ingen prosjekt (Denne datamaskinen)" }).waitFor();
+  await menu.getByText("Kode-prosjekter").waitFor();
+  await menu.getByRole("menuitemradio", { name: "Annet" }).click();
   await scope.getByRole("button", { name: /Annet/ }).waitFor();
   assert.equal(await page.getByRole("textbox", { name: "Navn" }).inputValue(), "Annet");
   await scope.getByRole("button", { name: /Annet/ }).click();
-  await page.getByRole("menu", { name: "Prosjekt" }).getByRole("menuitemradio", { name: "Demo" }).click();
+  await menu.getByRole("menuitemradio", { name: "Demo" }).click();
   await page.getByRole("textbox", { name: "Navn" }).waitFor();
   assert.equal(await page.getByRole("textbox", { name: "Navn" }).inputValue(), "Demo");
 
@@ -132,56 +179,115 @@ flow("Innstillinger → Prosjekter: navn, ikon (monogram og eget bilde), fest, i
   assert.equal(await saveName.isDisabled(), true);
   await name.fill("Nettbutikk");
   await saveName.click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).name === "Nettbutikk", "navnet er lagret");
+  await waitFor(async () => (await projectOf(h, project.id)).name === "Nettbutikk", "navnet er lagret");
 
-  // Ikon: monogram med forslag fra navnet, i prosjektets farge.
+  // Ikon: en egen dialog med Ikoner, Emoji og Monogram, 18 farger, søk, og Avbryt eller Lagre ikon.
   await page.getByRole("button", { name: "Velg ikon" }).click();
-  const picker = page.getByTestId("icon-picker");
+  const dialog = page.getByTestId("project-icon-dialog");
+  await dialog.getByRole("heading", { name: "Velg prosjektikon" }).waitFor();
+  const picker = dialog.getByTestId("icon-picker");
   assert.deepEqual(await picker.getByRole("tab").allTextContents(), ["Ikoner", "Emoji", "Monogram"]);
+  assert.equal(await picker.getByRole("radiogroup", { name: "Farge" }).getByRole("radio").count(), 19, "ingen farge og 18 farger");
+  await picker.getByRole("searchbox", { name: "Søk etter ikoner" }).fill("rak");
+  assert.ok((await picker.getByRole("radiogroup", { name: "Ikoner" }).getByRole("radio").count()) >= 1);
   await picker.getByRole("radio", { name: "Rosenrød" }).click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).color === "rose", "ny farge");
+  await dialog.getByRole("button", { name: "Avbryt" }).click();
+  await dialog.waitFor({ state: "detached" });
+  assert.equal((await projectOf(h, project.id)).color, null, "Avbryt lagrer ingenting");
+  await page.getByRole("button", { name: "Velg ikon" }).click();
+  await picker.getByRole("radio", { name: "Rosenrød" }).click();
   await picker.getByRole("tab", { name: "Monogram" }).click();
   const mono = picker.getByRole("textbox", { name: "Monogram" });
   assert.equal(await mono.inputValue(), "NE", "foreslått fra navnet");
   await mono.fill("nb!x9");
   assert.equal(await mono.inputValue(), "NBX", "bare bokstaver og tall, høyst tre");
   await picker.getByRole("button", { name: "Bruk monogram" }).click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).icon === "mono:NBX", "monogrammet er lagret");
+  assert.equal((await projectOf(h, project.id)).icon, null, "ikke lagret før Lagre ikon");
+  await dialog.getByRole("button", { name: "Lagre ikon" }).click();
+  await dialog.waitFor({ state: "detached" });
+  await waitFor(async () => { const p = await projectOf(h, project.id); return p.icon === "mono:NBX" && p.color === "rose"; }, "ikon og farge er lagret");
   await page.getByTestId("project-icon-row").locator(".project-mono").getByText("NBX").waitFor();
+  assert.ok(((await page.getByTestId("project-icon-row").locator(".projects-icon-preview").boundingBox())?.width ?? 0) >= 39, "40 × 40 forhåndsvisning");
 
   // Eget bilde fra en fil.
   await page.locator('input[type="file"][aria-label="Last opp ikon"]').setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
-  await waitFor(async () => /^file:[0-9a-f-]{36}\.png$/.test((await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).icon ?? ""), "bildet er lagret som ikon");
-  const stored = (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).icon as string;
+  await waitFor(async () => /^file:[0-9a-f-]{36}\.png$/.test((await projectOf(h, project.id)).icon ?? ""), "bildet er lagret som ikon");
+  const stored = (await projectOf(h, project.id)).icon as string;
   assert.ok(existsSync(path.join(h.dataDir, "project-icons", stored.slice(5))), "filen ligger i datamappen");
   const image = page.getByTestId("project-icon-row").locator("img.project-file-icon");
   await image.waitFor();
   await waitFor(async () => (await image.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)), "bildet lastes");
-  // Bildet står også i sidefanen.
   await page.locator('.group[data-project="Nettbutikk"] img.project-file-icon').first().waitFor({ state: "attached" });
-  // For store eller feil filer gir en melding, ikke et nytt ikon.
   await page.locator('input[type="file"][aria-label="Last opp ikon"]').setInputFiles({ name: "notat.txt", mimeType: "text/plain", buffer: Buffer.from("hei") });
   await page.locator(".toast", { hasText: "PNG-, SVG-, ICO- eller WebP-bilde" }).waitFor();
-  assert.equal((await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).icon, stored);
-  // Bruk favicon: tilbake til standard, og bildefilen er borte.
+  assert.equal((await projectOf(h, project.id)).icon, stored);
   await page.getByRole("button", { name: "Bruk favicon" }).click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).icon === null, "tilbake til standard");
+  await waitFor(async () => (await projectOf(h, project.id)).icon === null, "tilbake til standard");
   assert.equal(existsSync(path.join(h.dataDir, "project-icons", stored.slice(5))), false);
 
-  // Fest prosjekt, kildemappe.
+  // Fest og arkiver: arkivert er borte fra sidefanen og står under Arkiverte i valget.
   await page.getByRole("switch", { name: "Fest prosjekt" }).click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).pinned === true, "festet");
-  await page.getByText(h.projectDir, { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Bytt mappe…" }).waitFor();
+  await waitFor(async () => (await projectOf(h, project.id)).pinned === true, "festet");
+  await page.getByTestId("project-archive").getByText("Arkiver", { exact: true }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).archived === true, "arkivert");
+  await page.getByTestId("project-archived-note").waitFor();
+  await waitFor(async () => (await page.locator('.group[data-project="Nettbutikk"]').count()) === 0, "borte fra sidefanen");
+  await scope.getByRole("button", { name: /Nettbutikk/ }).click();
+  await menu.getByText("Arkiverte").waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("project-archive").getByText("Gjenopprett", { exact: true }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).archived === false, "gjenopprettet");
+  await page.locator('.group[data-project="Nettbutikk"]').first().waitFor({ state: "attached" });
 
-  // Nye tråder.
+  // Nye tråder: modell og innsats, arbeidsområde, tillatelser og nettleseren.
+  await page.getByRole("button", { name: "Standardmodell" }).waitFor();
+  await page.getByRole("button", { name: "Tenkeinnsats" }).click();
+  await page.getByRole("menuitemradio", { name: "Maks" }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).defaultReasoningEffort === "max", "innsatsen for prosjektet");
+  const created = await h.api("POST", "/api/threads", { projectId: project.id, mode: "code" });
+  assert.equal(created.reasoning, "max", "en ny tråd arver innsatsen");
+  await page.getByRole("group", { name: "Arbeidsområde" }).getByRole("button", { name: "Nytt arbeidstre" }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).defaultWorkspaceMode === "worktree", "nytt arbeidstre");
+  await page.getByRole("group", { name: "Arbeidsområde" }).getByRole("button", { name: "Gjeldende mappe" }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).defaultWorkspaceMode === "local", "gjeldende mappe");
   await page.getByRole("button", { name: "Tillatelsesmodus" }).click();
   await page.getByRole("menuitemradio", { name: "Godta redigeringer" }).click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).permissionMode === "accept-edits", "tillatelsesmodus");
+  await waitFor(async () => (await projectOf(h, project.id)).permissionMode === "accept-edits", "tillatelsesmodus");
   await page.getByRole("button", { name: "Agenttilgang til nettleseren" }).click();
   await page.getByRole("menuitemradio", { name: "Av" }).click();
-  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).agentBrowserAccess === false, "nettleseren er av for prosjektet");
-  await page.getByRole("button", { name: "Standardmodell" }).waitFor();
+  await waitFor(async () => (await projectOf(h, project.id)).agentBrowserAccess === false, "nettleseren er av for prosjektet");
+
+  // Handlinger: tomt kort, ny, endre med hurtigtast, slette.
+  const card = page.getByTestId("actions-card");
+  await card.getByText("Ingen handlinger konfigurert ennå.").waitFor();
+  await card.getByRole("button", { name: "Legg til handling" }).click();
+  const form = card.getByTestId("action-form");
+  await form.getByRole("button", { name: "Lagre handling" }).click();
+  await form.getByRole("alert").getByText("Gi handlingen et navn.").waitFor();
+  await form.getByRole("textbox", { name: "Navn på handlingen" }).fill("Test");
+  await form.getByRole("textbox", { name: "Kommando" }).fill("npm test");
+  await form.getByRole("checkbox").check();
+  await form.getByRole("button", { name: "Lagre handling" }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).actions?.[0]?.runOnWorktreeCreate === true, "handlingen er lagret");
+  const row = card.getByTestId("action-row");
+  await row.getByText("npm test").waitFor();
+  await row.getByRole("button", { name: "Rediger Test" }).click();
+  const shortcut = form.getByRole("textbox", { name: "Hurtigtast for handlingen" });
+  await shortcut.focus();
+  await page.keyboard.press("Control+J");
+  await form.getByRole("button", { name: "Lagre handling" }).click();
+  await form.getByRole("alert").getByText("brukes allerede av appen", { exact: false }).waitFor();
+  await shortcut.focus();
+  await page.keyboard.press("Control+Shift+Y");
+  assert.equal(await shortcut.inputValue(), "Ctrl+Shift+Y");
+  await form.getByRole("button", { name: "Lagre handling" }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).actions?.[0]?.shortcut === "Mod+Shift+Y", "hurtigtasten er lagret");
+  await row.locator(".action-kbd").getByText("Ctrl+Shift+Y").waitFor();
+
+  // Utsjekkinger: navn, sti og Bytt mappe.
+  const checkout = page.getByTestId("project-checkout");
+  await checkout.getByText(h.projectDir, { exact: true }).waitFor();
+  await checkout.getByRole("button", { name: "Bytt mappe…" }).waitFor();
 
   // Instruksjoner i .agentic/AGENTS.md.
   const text = page.getByRole("textbox", { name: "Instruksjoner for prosjektet" });
@@ -192,15 +298,117 @@ flow("Innstillinger → Prosjekter: navn, ikon (monogram og eget bilde), fest, i
   await page.locator(".toast", { hasText: ".agentic/AGENTS.md" }).waitFor();
   assert.equal(readFileSync(path.join(h.projectDir, ".agentic/AGENTS.md"), "utf8"), "Bruk tabulatorer.");
 
-  // Faresone: spør først, og mappen røres ikke.
+  // Slette handlingen.
+  await row.getByRole("button", { name: "Slett Test" }).click();
+  await waitFor(async () => (await projectOf(h, project.id)).actions?.length === 0, "handlingen er slettet");
+
+  // Faresone: spør først, og mappen røres ikke. Siden går til Ingen prosjekt etterpå.
   await page.getByRole("button", { name: "Fjern prosjektet…" }).click();
   await page.getByRole("dialog").filter({ hasText: "Fjerne prosjektet?" }).getByRole("button", { name: "Avbryt" }).click();
-  assert.ok((await h.api("GET", "/api/bootstrap")).projects.some((p: any) => p.id === project.id));
+  assert.ok(await projectOf(h, project.id));
   await page.getByRole("button", { name: "Fjern prosjektet…" }).click();
   await page.getByRole("dialog").filter({ hasText: "Fjerne prosjektet?" }).getByRole("button", { name: "Fjern", exact: true }).click();
-  await waitFor(async () => !(await h.api("GET", "/api/bootstrap")).projects.some((p: any) => p.id === project.id), "prosjektet er fjernet");
+  await waitFor(async () => !(await projectOf(h, project.id)), "prosjektet er fjernet");
   assert.ok(existsSync(h.projectDir), "mappen er der fortsatt");
+  await scope.getByRole("button", { name: /Ingen prosjekt/ }).waitFor();
   assert.ok(second.id);
+});
+
+flow("Innstillinger → Prosjekter: et Chat-prosjekt har egne valg i samme side", async (h) => {
+  const { page } = h;
+  const chat = await h.api("POST", "/api/chat-projects", { name: "Reise" });
+  await openSettings(page, "Prosjekter");
+  const scope = page.getByTestId("projects-scope");
+  await scope.getByRole("button", { name: /Ingen prosjekt/ }).click();
+  const menu = page.getByRole("menu", { name: "Prosjekt" });
+  await menu.getByText("Chat-prosjekter").waitFor();
+  await menu.getByRole("menuitemradio", { name: "Reise" }).click();
+  await scope.getByRole("button", { name: /Reise/ }).waitFor();
+  const chatOf = async () => (await h.api("GET", "/api/bootstrap")).chatProjects.find((p: any) => p.id === chat.id);
+
+  await page.getByRole("textbox", { name: "Navn" }).fill("Reiser");
+  await page.getByRole("button", { name: "Lagre", exact: true }).click();
+  await waitFor(async () => (await chatOf()).name === "Reiser", "nytt navn");
+  await page.getByRole("button", { name: "Velg ikon" }).click();
+  const dialog = page.getByTestId("chat-icon-dialog");
+  await dialog.getByRole("radio", { name: "Reise" }).click();
+  await dialog.getByRole("radio", { name: "Smaragd" }).click();
+  await dialog.getByRole("button", { name: "Lagre ikon" }).click();
+  await waitFor(async () => { const p = await chatOf(); return p.icon === "plane" && p.color === "emerald"; }, "ikon og farge");
+  await page.getByRole("switch", { name: "Fest prosjekt" }).click();
+  await waitFor(async () => (await chatOf()).pinned === true, "festet");
+  await page.getByRole("group", { name: "Minner" }).getByRole("button", { name: "Delt minne" }).click();
+  await waitFor(async () => (await chatOf()).memoryMode === "shared", "delt minne");
+  await page.getByRole("textbox", { name: "Instruksjoner for Chat-prosjektet" }).fill("Svar med reisetips.");
+  await page.getByRole("button", { name: "Lagre instruksjoner" }).click();
+  await waitFor(async () => (await chatOf()).instructions === "Svar med reisetips.", "instruksjonene");
+  await page.getByRole("button", { name: "Fjern prosjektet…" }).click();
+  await page.getByRole("dialog").filter({ hasText: "Fjerne Chat-prosjektet?" }).getByRole("button", { name: "Fjern prosjektet" }).click();
+  await waitFor(async () => !(await chatOf()), "fjernet");
+  await scope.getByRole("button", { name: /Ingen prosjekt/ }).waitFor();
+});
+
+flow("Tråddetaljer: prosjektets handlinger kjøres i terminalen, og Legg til prosjektskript åpner Handlinger", async (h) => {
+  const { page } = h;
+  const project = await openProject(h, "Demo");
+  await h.api("PATCH", `/api/projects/${project.id}`, { actions: [{ id: "skriv", name: "Skriv fil", command: "printf ferdig > fra-detaljer.txt" }] });
+  await send(page, "hjelp");
+  await page.getByText("Dette er demo-modellen").first().waitFor();
+  const button = page.getByTestId("thread-details-button");
+  await button.click();
+  const details = page.getByTestId("thread-details-card");
+  await details.waitFor();
+  // Rekkefølgen som i T3 Code: VS Code, handlingene, og så Legg til prosjektskript.
+  const order = await details.locator('[data-group="project"] .details-row').evaluateAll((els) => els.map((el) => el.getAttribute("data-testid")));
+  assert.deepEqual(order.slice(0, 3), ["details-vscode", "details-action", "details-add-action"]);
+  await details.getByTestId("details-action").getByText("Skriv fil").click();
+  await details.waitFor({ state: "detached" });
+  await waitFor(async () => existsSync(path.join(h.projectDir, "fra-detaljer.txt")), "handlingen kjørte");
+  await page.getByTestId("terminal-panel").waitFor();
+  await waitFor(async () => (await page.locator(".panel-workspace-bar, .terminal-tabs").getByText("Skriv fil").count()) > 0, "fanen heter som handlingen");
+
+  // Legg til prosjektskript: Innstillinger → Prosjekter for dette prosjektet, med skjemaet åpent.
+  await button.click();
+  await page.getByTestId("details-add-action").click();
+  await page.getByTestId("projects-scope").getByRole("button", { name: /Demo/ }).waitFor();
+  await page.getByTestId("actions-card").getByTestId("action-form").getByRole("textbox", { name: "Navn på handlingen" }).waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Navn på handlingen");
+});
+
+flow("Utseende → Typografi: skrifttype og størrelse for grensesnitt og kode, med levende forhåndsvisning", async (h) => {
+  const { page } = h;
+  await openSettings(page, "Utseende");
+  const ui = page.getByTestId("typography-interface");
+  await ui.getByRole("button", { name: "Skrifttype for grensesnittet" }).click();
+  await page.getByRole("menuitemradio", { name: "Inter" }).click();
+  await waitFor(async () => (await page.evaluate(() => document.documentElement.dataset.uiFont)) === "inter", "Inter");
+  assert.match(await rootVar(page, "--font-sans"), /^"Inter Variable"/);
+  const line = page.getByTestId("interface-font-preview").locator(".font-preview-line");
+  assert.match(await line.evaluate((el) => getComputedStyle(el).fontFamily), /Inter/);
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.uiFont === "inter", "lagret");
+  await ui.getByRole("button", { name: "Tekststørrelse" }).click();
+  await page.getByRole("menuitemradio", { name: "Stor (15 px)" }).click();
+  await waitFor(async () => (await line.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))) >= 15, "størrelsen følger");
+  await ui.getByRole("button", { name: "Skrifttype for grensesnittet" }).click();
+  await page.getByRole("menuitemradio", { name: "Systemets skrift" }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.uiFont === undefined, "systemets skrift fjerner valget");
+  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute("data-ui-font")), false);
+
+  const mono = page.getByTestId("typography-mono");
+  await mono.getByRole("button", { name: "Kodeskrift" }).click();
+  await page.getByRole("menuitemradio", { name: "Liberation Mono" }).click();
+  await waitFor(async () => /^"Liberation Mono"/.test(await rootVar(page, "--font-mono")), "Liberation Mono");
+  const code = mono.getByTestId("code-live-preview");
+  await code.getByText("src/greet.ts").waitFor();
+  assert.match(await code.locator("pre").first().evaluate((el) => getComputedStyle(el).fontFamily), /Liberation Mono/);
+  await mono.getByRole("button", { name: "Skriftstørrelse for kode" }).click();
+  await page.getByRole("menuitemradio", { name: "16 px" }).click();
+  await waitFor(async () => (await code.locator("pre").first().evaluate((el) => getComputedStyle(el).fontSize)) === "16px", "kodestørrelsen følger");
+  const wrapLine = code.locator(".code-preview-line.add");
+  assert.equal(await wrapLine.evaluate((el) => getComputedStyle(el).whiteSpace), "pre");
+  await page.getByRole("switch", { name: "Bryt lange linjer" }).click();
+  await waitFor(async () => (await wrapLine.evaluate((el) => getComputedStyle(el).whiteSpace)) === "pre-wrap", "linjebryting i forhåndsvisningen");
+  await waitFor(async () => { const s = (await h.api("GET", "/api/bootstrap")).settings; return s.codeFont === "liberation" && s.codeFontSize === 16 && s.wrapCode === true; }, "alt er lagret");
 });
 
 function chunk(text: string, finish: "stop" | null = null): string {

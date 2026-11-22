@@ -5,6 +5,7 @@ import type { Thread } from "../../../shared/protocol";
 import { post } from "../lib/api";
 import { app, LOCAL_SCOPE, projectOfScope, refreshProject, report, scopeOf, setMode, setProjectId } from "./app";
 import { gridFor } from "./grid";
+import { openGitWorkspace } from "../ui/dialog-state";
 import { loadModel, peekModel } from "./thread-model";
 import { markSeen } from "./home";
 import { beginNavigation, currentNavigationGeneration, showChatProjectPage } from "./nav";
@@ -59,6 +60,12 @@ function showScope(key: string): void {
 
 // projectId null is Chat, or Kode without a project (Denne datamaskinen) with code.
 export async function newThreadIn(projectId: string | null, code = false, chatProjectId: string | null = null): Promise<void> {
+  // v1.3.0: a project set to start new threads in a new worktree asks for the branch first; the
+  // worktree opens as its own project, where the new thread then starts.
+  if (projectId && app.projects[projectId]?.defaultWorkspaceMode === "worktree" && !app.projects[projectId]?.folderMissing) {
+    openGitWorkspace(projectId, true);
+    return;
+  }
   const seq = beginNavigation(); // A thread still loading must not take the pane back afterwards.
   const key = projectId ?? (code ? LOCAL_SCOPE : "chat");
   const grid = gridFor(key);

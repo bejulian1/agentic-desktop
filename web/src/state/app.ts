@@ -273,7 +273,10 @@ function sortByProjectOrder<T extends { name: string; createdAt: number; lastUse
   return list.sort((a, b) => b.lastUsedAt - a.lastUsedAt || b.createdAt - a.createdAt);
 }
 
-export const sortedProjects = createMemo(() => sortByProjectOrder(Object.values(app.projects).filter(Boolean), effectiveProjectOrder()));
+// v1.3.0: archived projects are left out of the sidebar and the pickers; Innstillinger → Prosjekter
+// lists them all (allProjects), so they can be restored.
+export const sortedProjects = createMemo(() => sortByProjectOrder(Object.values(app.projects).filter((p): p is Project => !!p && !p.archived), effectiveProjectOrder()));
+export const allProjects = createMemo(() => sortByProjectOrder(Object.values(app.projects).filter((p): p is Project => !!p), effectiveProjectOrder()));
 // Sections of the mode shown, in their order (round 11).
 export const sectionsFor = (m: Mode) => Object.values(app.sections).filter((s): s is SidebarSection => !!s && s.mode === m).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
 export const sortedChatProjects = createMemo(() => sortByProjectOrder(Object.values(app.chatProjects).filter(Boolean), effectiveProjectOrder()));

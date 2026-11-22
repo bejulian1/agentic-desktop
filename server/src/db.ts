@@ -39,9 +39,11 @@ import type {
   ThreadEventEnvelope,
   Usage,
   ArtifactLang,
+  ProjectAction,
+  WorkspaceMode,
 } from "../../shared/protocol.ts";
 import type { Message } from "./providers/types.ts";
-import { agentSettingsOf, modelContextOf, searchEngineOf, threadNotificationsOf } from "../../shared/protocol.ts";
+import { agentSettingsOf, cleanProjectActions, EFFORT_STEPS, modelContextOf, searchEngineOf, threadNotificationsOf } from "../../shared/protocol.ts";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -238,6 +240,17 @@ export interface TurnFileRow {
 
 export type StoredArtifact = Omit<ArtifactSummary, "previewUrl">;
 
+// v1.3.0: a project's actions as stored. A damaged value is an empty list, never an error on read.
+function storedActions(text: unknown): ProjectAction[] {
+  if (typeof text !== "string" || !text) return [];
+  try {
+    const list = cleanProjectActions(JSON.parse(text));
+    return typeof list === "string" ? [] : list;
+  } catch {
+    return [];
+  }
+}
+
 function folderExists(dir: string): boolean {
   try {
     return statSync(dir).isDirectory();
@@ -312,6 +325,11 @@ export class Store {
     add("projects", "default_model_id", "TEXT");
     add("projects", "pinned", "INTEGER NOT NULL DEFAULT 0");
     add("projects", "agent_browser_access", "INTEGER");
+    // v1.3.0: Innstillinger → Prosjekter, as in T3 Code.
+    add("projects", "archived", "INTEGER NOT NULL DEFAULT 0");
+    add("projects", "default_reasoning_effort", "TEXT");
+    add("projects", "default_workspace_mode", "TEXT NOT NULL DEFAULT 'local'");
+    add("projects", "actions", "TEXT");
     add("threads", "pinned", "INTEGER NOT NULL DEFAULT 0");
     add("threads", "snoozed_until", "INTEGER");
     add("threads", "temporary", "INTEGER NOT NULL DEFAULT 0");
@@ -419,6 +437,10 @@ export class Store {
     defaultModelId: row.default_model_id ?? null,
     pinned: row.pinned === 1,
     agentBrowserAccess: row.agent_browser_access === null || row.agent_browser_access === undefined ? null : row.agent_browser_access === 1,
+    archived: row.archived === 1,
+    defaultReasoningEffort: EFFORT_STEPS.includes(row.default_reasoning_effort) ? row.default_reasoning_effort : null,
+    defaultWorkspaceMode: row.default_workspace_mode === "worktree" ? "worktree" : "local",
+    actions: storedActions(row.actions),
     // Checked on every read, so a folder that was moved or deleted shows the next time anyone looks.
     ...(folderExists(row.path) ? {} : { folderMissing: true }),
   });
@@ -445,7 +467,11 @@ export class Store {
     return this.project(id)!;
   }
 
-  updateProject(id: string, patch: { name?: string; permissionMode?: PermissionMode; color?: string | null; icon?: string | null; defaultModelId?: string | null; path?: string; pinned?: boolean; agentBrowserAccess?: boolean | null }): void {
+  updateProject(id: string, patch: { name?: string; permissionMode?: PermissionMode; color?: string | null; icon?: string | null; defaultModelId?: string | null; path?: string; pinned?: boolean; agentBrowserAccess?: boolean | null; archived?: boolean; defaultReasoningEffort?: ReasoningEffort | null; defaultWorkspaceMode?: WorkspaceMode; actions?: ProjectAction[] }): void {
+    if (patch.archived !== undefined) this.q("UPDATE projects SET archived = ? WHERE id = ?").run(patch.archived ? 1 : 0, id);
+    if (patch.defaultReasoningEffort !== undefined) this.q("UPDATE projects SET default_reasoning_effort = ? WHERE id = ?").run(patch.defaultReasoningEffort, id);
+    if (patch.defaultWorkspaceMode !== undefined) this.q("UPDATE projects SET default_workspace_mode = ? WHERE id = ?").run(patch.defaultWorkspaceMode, id);
+    if (patch.actions !== undefined) this.q("UPDATE projects SET actions = ? WHERE id = ?").run(patch.actions.length ? JSON.stringify(patch.actions) : null, id);
     if (patch.name !== undefined) this.q("UPDATE projects SET name = ? WHERE id = ?").run(patch.name, id);
     if (patch.permissionMode) this.q("UPDATE projects SET permission_mode = ? WHERE id = ?").run(patch.permissionMode, id);
     if (patch.color !== undefined) this.q("UPDATE projects SET color = ? WHERE id = ?").run(patch.color, id);

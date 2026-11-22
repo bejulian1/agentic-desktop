@@ -33,11 +33,17 @@
 :root[data-density="compact"] .settings-nav .nav-item { height: 30px; }
 :root[data-density="comfortable"] .settings-nav .nav-item { height: 38px; }
 
+/* v1.3.0: skrift for grensesnittet. Bare installerte skrifter; systemets stabel står bak. */
+:root[data-ui-font="inter"] { --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; }
+:root[data-ui-font="ubuntu"] { --font-sans: Ubuntu, "Ubuntu Sans", system-ui, -apple-system, "Segoe UI", Cantarell, sans-serif; }
+:root[data-ui-font="noto"] { --font-sans: "Noto Sans", system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; }
+
 /* Kodeskrift. Systemets stabel står igjen bak, i tilfelle skriften ikke er installert. */
 :root[data-code-font="ubuntu"] { --font-mono: "Ubuntu Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
 :root[data-code-font="dejavu"] { --font-mono: "DejaVu Sans Mono", ui-monospace, monospace; }
 :root[data-code-font="jetbrains"] { --font-mono: "JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
 :root[data-code-font="fira"] { --font-mono: "Fira Code", ui-monospace, "DejaVu Sans Mono", monospace; }
+:root[data-code-font="liberation"] { --font-mono: "Liberation Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
 :root[data-code-font="cascadia"] { --font-mono: "Cascadia Code", "Cascadia Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
 
 /* Skriftstørrelse for kode, bare når den er valgt. */

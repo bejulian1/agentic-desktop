@@ -2,13 +2,14 @@
 // the interface controls (contrast, width of the conversation, formulas) and a live preview of the
 // interface text. The colours in the pictures are the chosen theme's own (state/themes.ts).
 import { For } from "solid-js";
-import type { ChatWidth, ThemeSetting } from "../../../../shared/protocol";
+import type { ChatWidth, ThemeSetting, UiFont } from "../../../../shared/protocol";
 import { t } from "../../lib/i18n";
 import { app, setApp } from "../../state/app";
 import { applyLook } from "../../state/look";
 import { themeInfo, type PreviewColors } from "../../state/themes";
 import { IconCheck, IconSpark } from "../icons";
-import { reset, Row, save, Segmented, Toggle } from "./parts";
+import { Choice, Group, reset, Row, save, Segmented, Toggle } from "./parts";
+import { CodeLivePreview, MonoFontControls } from "./code-appearance";
 
 function previewStyle(c: PreviewColors): string {
   return `--p-bg:${c.bg};--p-side:${c.side};--p-surface:${c.surface};--p-text:${c.text};--p-muted:${c.muted};--p-accent:${c.accent};--p-kw:${c.keyword};--p-str:${c.string};--p-fn:${c.fn}`;
@@ -139,21 +140,69 @@ export function InterfaceControls() {
   );
 }
 
+const UI_FONT_OPTIONS = (): Array<{ value: UiFont; label: string }> => [
+  { value: "system", label: t("Systemets skrift") },
+  { value: "inter", label: "Inter" },
+  { value: "ubuntu", label: "Ubuntu" },
+  { value: "noto", label: "Noto Sans" },
+];
+const UI_SIZES = (): Array<{ value: number; label: string }> => [
+  { value: 13, label: t("Liten (13 px)") }, { value: 14, label: t("Standard (14 px)") }, { value: 15, label: t("Stor (15 px)") }, { value: 16, label: t("Større (16 px)") },
+];
+
+// v1.3.0: Typografi, as in T3 Code: the interface font and size with a preview of the text, the
+// code font and size with a diff and a terminal, and line wrapping. Both previews use the app's own
+// variables, so they follow every choice at once.
+export function Typography() {
+  return (
+    <Group title={t("Typografi")}>
+      <div class="setting setting-block typography-row" data-testid="typography-interface">
+        <div class="typography-head">
+          <div class="setting-text">
+            <strong>{t("Skrift for grensesnittet")}</strong>
+            <span class="muted">{t("Alt utenfor kodeblokker og terminalen. Bare installerte skrifter brukes; ingenting lastes ned.")}</span>
+          </div>
+          <div class="font-pair">
+            <Choice<UiFont> label={t("Skrifttype for grensesnittet")} value={app.settings.uiFont ?? "system"} options={UI_FONT_OPTIONS()} onChange={(v) => (v === "system" ? reset("uiFont") : save({ uiFont: v }))} />
+            <Choice<number> label={t("Tekststørrelse")} value={app.settings.uiFontSize ?? 14} options={UI_SIZES()} onChange={(v) => save({ uiFontSize: v })} />
+          </div>
+        </div>
+        <InterfaceFontPreview bare />
+      </div>
+      <div class="setting setting-block typography-row" data-testid="typography-mono">
+        <div class="typography-head">
+          <div class="setting-text">
+            <strong>{t("Skrift for kode")}</strong>
+            <span class="muted">{t("Kodeblokker, differanser, filvisning og terminalen.")}</span>
+          </div>
+          <MonoFontControls />
+        </div>
+        <CodeLivePreview bare />
+      </div>
+      <Toggle label={t("Bryt lange linjer")} text={t("Bryt lange linjer i kodeblokker, differanser og filvisning fremfor å rulle sidelengs.")} checked={app.settings.wrapCode ?? false} onChange={(v) => save({ wrapCode: v })} />
+    </Group>
+  );
+}
+
 // What the interface text looks like at the chosen size: a line of text with the chips the
 // conversation uses for skills and files. It follows the size at once, since it uses the app's own.
-export function InterfaceFontPreview() {
-  return (
-    <div class="setting setting-block font-preview" data-testid="interface-font-preview">
-      <div class="setting-text">
-        <strong>{t("Forhåndsvisning av grensesnittet")}</strong>
-      </div>
-      <div class="font-preview-box">
+export function InterfaceFontPreview(props: { bare?: boolean }) {
+  const box = (
+      <div class="font-preview-box" data-testid="interface-font-preview">
         <p class="font-preview-title">{t("Rydd opp i innstillingene")}</p>
         <p class="font-preview-line">
           {t("Jeg brukte")} <span class="chip-skill"><IconSpark size={12} />frontend-design</span> {t("og endret")} <code class="md-file-chip" data-file-ext="ts">surface.test.ts</code> {t("og")} <code class="md-file-chip" data-file-ext="tsx">SettingsPanels.tsx</code>.
         </p>
         <p class="font-preview-small muted">{t("Små etiketter og hjelpetekst ser slik ut.")}</p>
       </div>
+  );
+  if (props.bare) return box;
+  return (
+    <div class="setting setting-block font-preview">
+      <div class="setting-text">
+        <strong>{t("Forhåndsvisning av grensesnittet")}</strong>
+      </div>
+      {box}
     </div>
   );
 }

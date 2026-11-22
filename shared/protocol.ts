@@ -84,6 +84,61 @@ export interface Project {
   pinned: boolean; // shown under Festede prosjekter in the sidebar
   agentBrowserAccess?: boolean | null; // null/unset follows Settings.agentBrowserAccess
   folderMissing?: boolean; // round 9: the folder is gone or moved; set only when true, checked on every read
+  // v1.3.0, Innstillinger → Prosjekter (T3 Code parity). The server always sends these four.
+  archived?: boolean; // hidden from the sidebar and project pickers; threads and files are kept
+  defaultReasoningEffort?: ReasoningEffort | null; // effort for new threads; null follows Settings.defaultReasoningEffort
+  defaultWorkspaceMode?: WorkspaceMode; // where a new thread starts, default "local"
+  actions?: ProjectAction[]; // commands run in the project's terminal, from Tråddetaljer or a shortcut
+}
+
+// v1.3.0: where a new thread in a project starts. local: in the project folder; worktree: the app
+// asks for a branch and opens a new Git worktree first (GitWorkspace).
+export type WorkspaceMode = "local" | "worktree";
+export const WORKSPACE_MODES: WorkspaceMode[] = ["local", "worktree"];
+
+// v1.3.0: a project script (T3 Code's Actions). Runs in a new terminal tab in the project's folder,
+// never by the model. runOnWorktreeCreate: also run in a new worktree made from the project.
+export interface ProjectAction {
+  id: string;
+  name: string;
+  command: string;
+  shortcut?: string; // like the app's shortcuts, "Mod+Shift+T"
+  runOnWorktreeCreate?: boolean;
+}
+export const MAX_PROJECT_ACTIONS = 40;
+export const MAX_ACTION_NAME = 60;
+export const MAX_ACTION_COMMAND = 4000;
+export const ACTION_SHORTCUT = /^((Mod|Alt|Shift)\+){1,3}[^+\s]{1,12}$/;
+
+// Checks a list of actions from a request. Returns the cleaned list, or a Norwegian error message.
+export function cleanProjectActions(value: unknown): ProjectAction[] | string {
+  if (!Array.isArray(value)) return "Handlingene må være en liste";
+  if (value.length > MAX_PROJECT_ACTIONS) return `Høyst ${MAX_PROJECT_ACTIONS} handlinger`;
+  const out: ProjectAction[] = [];
+  const ids = new Set<string>();
+  const shortcuts = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return "Ugyldig handling";
+    const { id, name, command, shortcut, runOnWorktreeCreate } = item as Record<string, unknown>;
+    if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || ids.has(id)) return "Ugyldig id for handling";
+    if (typeof name !== "string" || !name.trim() || name.trim().length > MAX_ACTION_NAME || /[\u0000-\u001f\u007f]/.test(name)) return `Navnet på handlingen må ha 1–${MAX_ACTION_NAME} tegn`;
+    if (typeof command !== "string" || !command.trim() || command.length > MAX_ACTION_COMMAND || /\u0000/.test(command)) return `Kommandoen må ha 1–${MAX_ACTION_COMMAND} tegn`;
+    if (shortcut !== undefined && shortcut !== null && shortcut !== "" && (typeof shortcut !== "string" || !ACTION_SHORTCUT.test(shortcut))) return "Ugyldig hurtigtast for handling";
+    if (typeof shortcut === "string" && shortcut) {
+      if (shortcuts.has(shortcut)) return "To handlinger har samme hurtigtast";
+      shortcuts.add(shortcut);
+    }
+    if (runOnWorktreeCreate !== undefined && runOnWorktreeCreate !== null && typeof runOnWorktreeCreate !== "boolean") return "Ugyldig verdi for runOnWorktreeCreate";
+    ids.add(id);
+    out.push({
+      id,
+      name: name.trim(),
+      command: command.replace(/\r\n/g, "\n").trim(),
+      ...(typeof shortcut === "string" && shortcut ? { shortcut } : {}),
+      ...(runOnWorktreeCreate === true ? { runOnWorktreeCreate: true } : {}),
+    });
+  }
+  return out;
 }
 
 export interface GitWorkspaceState {
@@ -396,6 +451,10 @@ export interface Settings {
   threadNotifications?: ThreadNotifications; // "off" | "notify" | "sound"; replaces notifyOnDone + soundOnDone
   inAppNotifications?: boolean; // toast when another thread finishes, fails or needs input/approval while focused
   projectOrder?: ProjectOrder; // sidebar, project picker and command palette project order, default "recent"
+  // v1.3.0, Innstillinger → Prosjekter → Ingen prosjekt and Utseende → Typografi.
+  defaultReasoningEffort?: ReasoningEffort; // effort for new Kode threads without a project setting; unset is the model's own
+  localActions?: ProjectAction[]; // actions for Denne datamaskinen (Kode without a project), run in the home folder
+  uiFont?: UiFont; // the interface font, default "system"
 }
 
 export interface ModelContextModeSettings {
@@ -605,7 +664,11 @@ export type StartMode = "last" | "chat" | "code";
 export type TurnNotify = "off" | "unfocused" | "always";
 export type AccentColor = "blue" | "violet" | "green" | "orange" | "pink" | "red" | "graphite";
 export type Density = "compact" | "normal" | "comfortable";
-export type CodeFont = "system" | "jetbrains" | "fira" | "cascadia" | "dejavu" | "ubuntu";
+export type CodeFont = "system" | "jetbrains" | "fira" | "cascadia" | "dejavu" | "ubuntu" | "liberation";
+export const CODE_FONTS: CodeFont[] = ["system", "jetbrains", "fira", "cascadia", "dejavu", "ubuntu", "liberation"];
+// v1.3.0: the font for everything outside code. Installed fonts only, nothing is downloaded.
+export type UiFont = "system" | "inter" | "ubuntu" | "noto";
+export const UI_FONTS: UiFont[] = ["system", "inter", "ubuntu", "noto"];
 
 // The branch chip above the message field. Read from .git/HEAD, never by running git.
 export interface GitInfo {
@@ -1304,6 +1367,7 @@ export type ServerMessage =
   | { type: "project.watch-state"; projectId: string; directories: string[]; watching: boolean }
   | { type: "playtest.state"; state: PlaytestState }
   | { type: "terminal.opened"; terminalId: string; projectId: string; title: string; replay: string }
+  | { type: "terminal.started"; terminalId: string; projectId: string; title: string } // v1.3.0: a project action, to every window
   | { type: "terminal.output"; terminalId: string; data: string }
   | { type: "terminal.exit"; terminalId: string; code: number | null }
   | { type: "browser.state"; projectId: string; tabId?: string; state: BrowserState }
