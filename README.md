@@ -6,11 +6,25 @@
 
 Agentic Desktop is a local-first Linux desktop application (Electron + Node.js + SolidJS) for chatting and coding with large language models using **your own API keys** or local models. Talk to models in **Chat**, or hand them a folder in **Code** (`Kode`) where the agent can read and edit files, run terminal commands, and inspect what it builds in an integrated browser. Conversations, projects, and settings are stored locally in SQLite—no Agentic Desktop account, no telemetry, and a built-in demo model lets you explore the interface and tools without an API key.
 
+Agentic Desktop is open source under the [MIT License](LICENSE). The current release is **v1.3.1 (build 85)**.
+
 | Chat workspace | Code workspace | Appearance settings |
 | --- | --- | --- |
 | [![Chat workspace](docs/bilder/en/chat.png)](docs/bilder/en/chat.png) | [![Code workspace](docs/bilder/en/kode.png)](docs/bilder/en/kode.png) | [![Appearance settings](docs/bilder/en/appearance.png)](docs/bilder/en/appearance.png) |
 
-*Click a screenshot for full size. These views use temporary demo data.*
+*Click a screenshot for full size. These views use temporary demo data and predate some of the 1.2–1.3 settings pages.*
+
+## What's New in 1.2.0 – 1.3.1
+
+- **Permissions that stick.** "Allow always" on simple commands (`git status`, `npm test`, `npx tsc`, …) saves a prefix rule; chains, pipes, redirects, and risky programs still need an exact match, and protected paths always prompt. One rule covers all `browser_*` tools. **Settings → Permissions** lists saved rules and has **Apply to all projects** for the default mode.
+- **Appearance and Typography.** 11 color themes with light and dark variants checked against WCAG AA: Standard, Ocean, Pink, Forest, Ember, Iris, High contrast, Warm, Cool, Fjord, and Sun-faded. **Settings → Appearance** adds System/Light/Dark cards, an interface contrast slider, conversation width, a math toggle, and **Typography** pickers for interface and code fonts with live previews.
+- **Settings → Projects.** Always available, with a selector for **No project (This machine)**, Code projects, Archived projects, and Chat projects. Code projects get an icon picker (Icons, Emoji, Monogram, 18 colors, your own file, or the project favicon), pin, archive/restore, default model and thinking effort, workspace mode (current checkout or new Git worktree), permissions and browser access, **Actions** (saved project scripts with optional `Mod`/`Alt` shortcuts, runnable from Settings, Thread details, or automatically when a new worktree is created), Checkouts, and `.agentic/AGENTS.md`.
+- **Thread details (`Ctrl+Shift+D`).** A floating panel in Code with the project folder, **Open in VS Code**, project Actions, the active Git branch and worktree, live changes (`+N −M`), and subagents.
+- **Rich links and colored marks.** Markdown and backtick file links (`api.ts:42`, `#L10-L20`) show colored file-type badges and open in the mini-editor at that line. `thread:<id>` links become thread chips, `$skill-name` becomes a skill chip, and every web link gets a colored inline-SVG mark—no external image requests. Provider and model marks appear in the model picker, sidebars, hover cards, model-switch dividers, answer model cards, thinking views, and subagent cards.
+- **Providers and subagents.** The custom OpenAI-compatible form has **API address (Base URL)** and an optional **Model ID** field. Subagents can start on models from the same API provider, and switching models in an answered thread shows **Context handoff pending** with Undo.
+- **GitHub pull requests and issues.** The GitHub CLI (`gh`) is detected automatically. When no local project has a GitHub remote—or when you pick it in the filter—**Mine on GitHub** lists pull requests and issues involving you (`@me`) across your account, with GitHub state colors and inline details, diffs, and comments.
+
+See the [full changelog](docs/PATCHLOG.md) (Norwegian) for every change.
 
 ## Features
 
@@ -21,13 +35,13 @@ Agentic Desktop is a local-first Linux desktop application (Electron + Node.js +
 - **Code agent (`Kode`) with tools and approvals:** Works inside a project folder with tools for reading, editing, creating, and deleting files, searching (`ripgrep`), running shell commands, web search/fetch, and browser automation. Includes three permission modes (**Ask**, **Accept edits**, **Full access**), read-only **Plan mode** (`/plan`), turn-level undo, local Git branch and worktree management (`/worktree`, [Git & tools](docs/GIT-AND-TOOLS.md)), bidirectional sub-agent instances with read receipts, and shortcuts `/agents`, `/diff`, `/context`, and `/stop` ([Instances & read receipts](docs/AGENT-COLLABORATION.md)).
 - **This machine (`Denne datamaskinen`):** Work in Code without selecting a project—the agent uses your home directory as its workspace with standard approvals, per-rule "Allow always", and turn undo, while sensitive paths under your home directory always prompt and are excluded from search.
 - **Side panels:** A shared tab bar for **Files** (with a mini-editor in projects and read-only browsing without a project), **Changes** (stacked or side-by-side line diffs with word highlights, whitespace toggle, colour-blind-friendly palette, and undo), **Terminal**, **Browser** (configurable search engine, agent access toggle with per-project overrides, link routing, default zoom, and appearance), **Session**, **Team**, and **GitHub**. The Browser supports element annotations and can open the active page in the system browser ([Side panel workspace](docs/SIDEPANEL-WORKSPACE.md)).
-- **GitHub:** Connect with GitHub CLI and browse pull requests and issues across projects, with details, checks, and diffs ([GitHub guide in Norwegian](docs/GITHUB.md)).
+- **GitHub:** Connect with GitHub CLI or a personal access token and browse pull requests and issues across projects—or across your whole account with **Mine on GitHub**—with details, checks, and diffs. The app does not write to GitHub ([GitHub guide in Norwegian](docs/GITHUB.md)).
 - **MCP servers:** Built-in Model Context Protocol client supporting **stdio** and **Streamable HTTP** (`2025-11-25` and earlier), presets for GitHub and Playwright, secrets stored in the system keyring, per-tool approval, and up to 60 MCP tools per turn ([MCP servers](docs/MCP.md)).
 - **Hooks:** Run your own shell commands on `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, and `Stop` using a Claude Code-compatible JSON stdin/stdout contract, managed globally in Settings ([Hooks](docs/HOOKS.md)).
 - **Commands and skills:** Type `/` for the active mode's commands and skills, `$` for skills only, or `/help` (alias `/commands`) for a searchable guide. Chat and Code share commands such as `/new`, `/sessions`, `/find`, and `/fork`; Code also has `/worktree` and project panel commands. There are 24 built-in skills for Code, seven of which also work in Chat: `/excel`, `/word`, `/powerpoint`, `/data-files`, `/source-brief`, `/action-items`, and `/analyze-data`. Code-only examples include `/debug`, `/benchmark`, and `/ci-triage`. Add custom skills in a Code project's `.agentic/skills/` or in `~/.config/agentic-desktop/skills/` for Code and ordinary Chat ([Command and skill guide](docs/SLASH-SKILLS.md)).
 - **Inline charts:** Request a bar or line chart in Chat or Code. Charts render locally and do not require enabling Python or Artifacts.
-- **Providers including local models:** Built-in presets for **OpenRouter**, **abliteration.ai**, **Anthropic**, **OpenAI**, and any **OpenAI-compatible** endpoint—including local models via **Ollama** and **LM Studio** without an API key—plus the built-in **Demo model** (no network or API key required).
-- **Themes & visual mods:** Light and dark modes, custom global wallpaper with opacity/blur and three glass styles, and per-conversation declarative visual mods (built-in Aurora, Starry Sky, and Ocean presets, or model-authored pixel-art and color themes with per-conversation consent and WCAG contrast validation) ([Themes & visual mods](docs/UI-MODS.md)).
+- **Providers including local models:** Built-in presets for **OpenRouter**, **abliteration.ai**, **Anthropic**, **OpenAI**, and any **OpenAI-compatible** endpoint (Base URL plus your own model ID)—including local models via **Ollama** and **LM Studio** without an API key—plus the built-in **Demo model** (no network or API key required).
+- **Themes & visual mods:** 11 color themes in light and dark, custom global wallpaper with opacity/blur and three glass styles, and per-conversation declarative visual mods (built-in Aurora, Starry Sky, and Ocean presets, or model-authored pixel-art and color themes with per-conversation consent and WCAG contrast validation) ([Themes & visual mods](docs/UI-MODS.md)).
 
 More feature screenshots are available in the [Norwegian gallery](README.nb.md).
 
@@ -35,7 +49,13 @@ More feature screenshots are available in the [Norwegian gallery](README.nb.md).
 
 ### AppImage and `.deb` (Linux x86_64)
 
-Download prebuilt packages from [GitHub Releases](https://github.com/bejulian1/agentic-desktop/releases). The [latest release](https://github.com/bejulian1/agentic-desktop/releases/latest) includes an **AppImage**, a **`.deb`**, `SHA256SUMS`, release metadata (`RELEASEINFO.json`), and the full changelog. Builds are tested on Ubuntu 26.04. The repository is private; cloning and downloading require access on GitHub.
+Download prebuilt packages from [GitHub Releases](https://github.com/bejulian1/agentic-desktop/releases)—no GitHub account needed. Each release includes an **AppImage**, a **`.deb`**, `SHA256SUMS`, the full changelog (`VERSJONSLOGG.md`), and `RELEASEINFO.json` with version, build number, platform, and source commit. Builds are tested on Ubuntu 26.04.
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing   # verify the files you downloaded
+chmod +x Agentic-Desktop-*-x86_64.AppImage && ./Agentic-Desktop-*-x86_64.AppImage
+# or: sudo apt install ./agentic-desktop_*_amd64.deb
+```
 
 ### Build and Install from Source
 
@@ -150,15 +170,12 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for se
 
 The project owner credits the following AI models for development assistance (see [CREDITS.md](CREDITS.md) for version-by-version details):
 
-- **Anthropic Claude Opus 5.5** — used with Claude Code for the initial implementation through v0.11.0, as well as sub-agent implementation, independent code reviews, and UI test maintenance.
-- **OpenAI GPT 6.1 Sol** — used with Codex and sub-agents for ongoing feature development, reviews, and fixes (including v0.11.0–v0.24.0, v0.27.0–v0.29.0, agent communication, and parent chains).
-- **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff.
+- **Anthropic Claude Opus 5.5** — used with Claude Code for the initial implementation through v0.11.0, sub-agent implementation, independent code reviews, and UI test maintenance. Coordinated the 1.0.0 and 1.1.0 releases, built PR #4 for 1.2.0 (prefix permissions, same-provider subagents, Base URL and model ID setup, context handoff indicator, pasted-image defaults, automatic `gh` detection), PR #7 and #8 for 1.3.0 (complete Projects settings, Actions, Typography, colored model marks, Mine on GitHub), and PR #9 for 1.3.1 (clickable file/thread links, web-link marks, `$skill` chips), plus a separate read-only `$review` and `$frontend-design` critique of 1.3.0 that led to the 1.3.1 fixes. Also updated this README, the Norwegian README, and CREDITS.md for 1.3.1.
+- **Anthropic Claude Sonnet 5.5** — built PR #6 for 1.2.0: the Ocean, Pink, Forest, Ember, and Iris themes, contrast/width/math controls, the first Projects settings page, monogram and uploaded project icons, expanded favicons, smart link/file chips, inline GitHub detail view, and the floating Thread details panel.
 - **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
-- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action; **Gemini 4 Neon** finished Kode Studio and built the 1.1.0 diff, browser, notification and sidebar settings.
-- **OpenAI GPT 6.2 Sol** — built the 1.1.0 GitHub CLI integration with pull request and issue pages, and the welcome screen with project and conversation import.
-- **Anthropic Claude Opus 5.5** — also coordinated the 1.0.0 and 1.1.0 releases with Claude Code, and built PR #4 for 1.2.0 (persistent prefix permissions, same-provider subagent spawning, Base URL + inline model setup, context handoff indicator, pasted-image defaults, and automatic GitHub CLI detection).
-- **Anthropic Claude Sonnet 5.5** — built PR #6 for 1.2.0 (Ocean, Pink, Grove, Ember, and Iris themes, interface contrast/width/math controls, dedicated Project Settings page, monogram and uploaded project icons, expanded favicons, smart link/file chips, inline GitHub side-panel detail view, and floating Thread Details popover).
-- **Google Gemini 4 Neon** — finished Kode Studio, built the 1.1.0 diff/browser/notification/sidebar settings, and coordinated 1.2.0 (delegating and merging PR #4 and #6, translating all 11 locales, testing, release, and packaging).
+- **OpenAI GPT 6.1 Sol** — used with Codex and sub-agents for ongoing feature development, reviews, and fixes (including v0.11.0–v0.24.0, v0.27.0–v0.29.0, agent communication, and parent chains).
+- **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff. GPT 6.2 Sol built the 1.1.0 GitHub CLI integration and the welcome screen with project and conversation import.
+- **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action. **Gemini 4 Neon** finished Kode Studio, built the 1.1.0 diff, browser, notification, and sidebar settings, built the lighter Ocean theme and colored favicons in 1.2.1, and, working in Google Antigravity, coordinated 1.2.0–1.3.1: merging PRs, translating new text into all 11 locales, fixes and design polish after the 1.3.1 review, testing, release, and packaging.
 
 GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API compatibility, setup, and local model discovery and recommendations.
 

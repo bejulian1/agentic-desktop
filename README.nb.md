@@ -4,6 +4,8 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
+Agentic Desktop er åpen kildekode under [MIT-lisensen](LICENSE). Gjeldende utgave er **v1.3.1 (bygg 85)**.
+
 [English README](README.md) · [Last ned siste utgave](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
 | Kode og endringer | Chat-prosjekt | React-artifacts |
@@ -15,6 +17,18 @@ Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-lev
 ![Lesestatus i Kode](docs/bilder/lesestatus.png)
 
 *Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2/v0.26.0/v0.28.0. Alle bruker demo og midlertidige data.*
+
+## Nytt i v1.2.0 – v1.3.1
+
+- **Tillatelser som huskes.** «Tillat alltid» på enkle kommandoer (`git status`, `npm test`, `npx tsc` …) lagrer en prefiksregel. Kjeder, pipes, omdirigeringer og risikable programmer krever fortsatt nøyaktig treff, og beskyttede stier spør alltid. Én regel dekker alle `browser_*`-verktøy. **Innstillinger → Tillatelser** viser lagrede regler og har **Bruk på alle prosjekter** for standardmodusen.
+- **Utseende og Typografi.** 11 fargetemaer med lys og mørk variant, kontrollert mot WCAG AA: Standard, Ocean, Rosa, Skog, Glød, Iris, Høy kontrast, Varm, Kald, Fjord og Solbleket. **Innstillinger → Utseende** har System/Lys/Mørk-kort, kontrastglidebryter, samtalebredde, matte-bryter og **Typografi** med skriftvalg for grensesnitt og kode og live forhåndsvisning.
+- **Innstillinger → Prosjekter.** Alltid tilgjengelig, med velger for **Ingen prosjekt (Denne datamaskinen)**, Kode-prosjekter, Arkiverte og Chat-prosjekter. Kode-prosjekter har ikonmodal (Ikoner, Emoji, Monogram, 18 farger, egen fil eller prosjektets favicon), festing, arkivering/gjenoppretting, standardmodell og tenkeinnsats, arbeidsområde (gjeldende mappe eller nytt Git-arbeidstre), tillatelser og nettlesertilgang, **Handlinger** (lagrede prosjektskript med valgfri `Mod`/`Alt`-hurtigtast, som kan kjøres fra Innstillinger, Tråddetaljer eller automatisk når et nytt arbeidstre opprettes), Utsjekkinger og `.agentic/AGENTS.md`.
+- **Tråddetaljer (`Ctrl+Shift+D`).** Flytende panel i Kode med prosjektmappe, **Åpne i VS Code**, prosjektets handlinger, aktiv Git-gren og arbeidstre, live endringer (`+N −M`) og underagenter.
+- **Rike lenker og fargede merker.** Markdown- og backtick-fillenker (`api.ts:42`, `#L10-L20`) får fargede filtype-merker og åpnes i mini-editoren på riktig linje. `thread:<id>` blir en trådbrikke, `$skill-navn` en skill-brikke, og alle web-lenker får et farget inline-SVG-merke uten eksterne bildeforespørsler. Leverandør- og modellmerker vises i modellvelgeren, sidefanen, hover-kort, modellbytte-linjer, svarmodellkort, tenkevisning og underagentkort.
+- **Leverandører og underagenter.** Skjemaet for egendefinert OpenAI-kompatibel leverandør har **API-adresse (Base URL)** og et valgfritt **Modell-ID**-felt. Underagenter kan startes på modeller fra samme API-leverandør, og modellbytte i en besvart tråd viser **Kontekstoverføring venter** med Angre.
+- **Pull requests og issues på GitHub.** GitHub CLI (`gh`) oppdages automatisk. Når ingen lokale prosjekter har GitHub-remote, eller du velger det i filteret, viser **Mine på GitHub** pull requests og issues du er involvert i (`@me`) på tvers av kontoen, med GitHub-statusfarger og detaljer, diff og kommentarer i appen.
+
+Se [versjonsloggen](docs/PATCHLOG.md) for alle endringer.
 
 **v1.1.0:** GitHub kobles til med GitHub CLI, og knappene ved innstillingshjulet åpner pull requests og issues fra alle prosjektene, med detaljer, sjekker og diff i appen. Nye brukere får en velkomstskjerm som setter opp modeller og kan hente prosjekter og samtaler fra Claude Code, Codex CLI, Gemini CLI og Pi. Differ kan vises side om side, og nettleser, varsler og sidefanen har fått nye innstillinger. Se [versjonsloggen](docs/PATCHLOG.md).
 
@@ -118,13 +132,13 @@ Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
   - Boksen åpner et panel med **Forhåndsvisning** og **Kode**, og du kan bla mellom versjonene.
   - React kjører lokalt og uten nett, i en isolert sandkasse som ikke når appen eller filene dine.
 - **Verktøy ved siden av samtalen:** terminal, filer, endringer (diff) med angre, mini-editor, økt, team og en nettleser som agenten kan styre med Playwright. Åpne verktøy får egne lukkbare faner; pluss lager en ny verktøystartside eller nettleserfane, etter eget valg. Nettleser, terminal og lokal fillesing fungerer også uten prosjektmappe. Se [`docs/SIDEPANEL-WORKSPACE.md`](docs/SIDEPANEL-WORKSPACE.md).
-- **GitHub:** Koble til med GitHub CLI og se pull requests og issues på tvers av prosjekter, med detaljer, sjekker og diff ([GitHub i Agentic Desktop](docs/GITHUB.md)).
+- **GitHub:** Koble til med GitHub CLI eller personlig tilgangstoken og se pull requests og issues på tvers av prosjekter, eller hele kontoen med **Mine på GitHub**, med detaljer, sjekker og diff. Appen skriver ikke til GitHub ([GitHub i Agentic Desktop](docs/GITHUB.md)).
 - **Tråder som samarbeider.** Hjelpetråder, team med oppgaveliste, flere ruter side om side og tråder i egne vinduer.
 - **Gafler og arkiv.**
   - Du kan lage en gaffel fra hvilken som helst melding, og gaffelen viser hvor den kom fra.
   - Du kan arkivere én tråd eller et helt prosjekt, med angre.
 - **Prosjektmenyer og kø.** Høyreklikk, informasjonskort, merk som ulest og lokal eksport. Kømeldinger kan redigeres, fjernes eller flyttes til et usendt sideutkast. Se [`docs/SIDEBAR-AND-QUEUE.md`](docs/SIDEBAR-AND-QUEUE.md).
-- **Tillatelser.** Velg Be om godkjenning, Godkjenn for meg eller Full tilgang direkte fra meldingsfeltet i Kode. Godkjenningskort kommer rett over meldingsfeltet.
+- **Tillatelser.** Velg Be om godkjenning, Godkjenn for meg eller Full tilgang direkte fra meldingsfeltet i Kode. Godkjenningskort kommer rett over meldingsfeltet, og «Tillat alltid»-regler kan ses og fjernes under **Innstillinger → Tillatelser**.
 - **Nøklene ligger i GNOME-nøkkelringen.** Nye nøkler lagres der når nøkkelringen kan brukes, ellers bare i øktminnet. Grensesnittet viser lagringsstatus og eventuell eldre nøkkelfil som venter på flytting; nøklene sendes aldri tilbake til grensesnittet.
 - **Skills, AGENTS.md og minner,** både globalt og per prosjekt. Skills har eget søkbart arbeidsområde med filtre, redigering, import og egne varianter av appens skills.
 - **Samlede modellinnstillinger.** Modeller og leverandører på én side, prosjektvelger ved topplinjen og lokal miljømeny med faktisk gren og mappe. Se [`docs/WORKSPACE-POLISH.md`](docs/WORKSPACE-POLISH.md).
@@ -186,7 +200,13 @@ Den samme historikken kan åpnes i appen fra **Profil → Versjonslogg**.
 
 ## Last ned en ferdig utgave
 
-[Releases](https://github.com/bejulian1/agentic-desktop/releases) har AppImage og `.deb` for Linux x86_64, med SHA-256-kontrollsummer, bygginformasjon og full versjonslogg. Utgavene er bygget og testet på Ubuntu 26.04. Privat repo krever GitHub-tilgang også for nedlasting.
+[Releases](https://github.com/bejulian1/agentic-desktop/releases) er åpne for alle, uten GitHub-konto. Hver utgave har AppImage og `.deb` for Linux x86_64, `SHA256SUMS`, full versjonslogg (`VERSJONSLOGG.md`) og `RELEASEINFO.json` med versjon, bygg, plattform og kildecommit. Utgavene er bygget og testet på Ubuntu 26.04.
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing   # kontroller filene du lastet ned
+chmod +x Agentic-Desktop-*-x86_64.AppImage && ./Agentic-Desktop-*-x86_64.AppImage
+# eller: sudo apt install ./agentic-desktop_*_amd64.deb
+```
 
 ## Bygg og installer fra kildekode
 
@@ -308,12 +328,12 @@ Valgfri modellkontekst er beskrevet i [kontekstveiledningen](docs/MODEL-CONTEXT.
 
 Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
-- **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen.
+- **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen. Koordinerte 1.0.0 og 1.1.0, bygde PR #4 i v1.2.0 (prefiksregler, underagenter på samme API-leverandør, Base URL og Modell-ID, kontekstoverføring, innlimte bilder og automatisk `gh`), PR #7 og #8 i v1.3.0 (komplett Prosjekter-side, Handlinger, Typografi, fargede modellmerker og Mine på GitHub) og PR #9 i v1.3.1 (klikkbare fil- og trådlenker, merker på web-lenker og `$skill`-brikker), og en egen skrivebeskyttet `$review`- og `$frontend-design`-gjennomgang av v1.3.0 som ga rettelsene i v1.3.1. Oppdaterte også README-ene og CREDITS.md for v1.3.1.
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
 - **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til kommandoveiledningen, skills og kommandoer for samtaler og prosjektpaneler. Codex har også bidratt med diagrammer og gjennomgang av datamappelåsen, gjenkobling etter omskriving og åpning i standardnettleseren.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 - **Anthropic Claude Sonnet 5.5** bygde PR #6 i v1.2.0: temaene Ocean, Rosa, Skog, Glød og Iris, kontrast-/breddeinnstillinger, egen Prosjekter-side i Innstillinger, monogram- og bildeikoner, utvidet favicon-søk, smarte lenke-/filbrikker, innebygd GitHub-detaljvisning i sidepanelet og flytende Tråddetaljer-meny.
-- **Google Gemini** bidro med første versjon av datamappelåsen, gjenkoblingsrettelsen og menyvalget for standardnettleseren; **Gemini 4 Neon** fullførte Kode Studio, bygde innstillingene for differ, nettleser, varsler og sidefane i v1.1.0, og koordinerte v1.2.0 med fletting av PR #4 og #6, oversettelse av alle elleve språk, bygg og utgivelse.
+- **Google Gemini** bidro med første versjon av datamappelåsen, gjenkoblingsrettelsen og menyvalget for standardnettleseren; **Gemini 4 Neon** fullførte Kode Studio, bygde innstillingene for differ, nettleser, varsler og sidefane i v1.1.0, gjorde Ocean-temaet lysere og la inn fargede favicons i v1.2.1, og koordinerte v1.2.0–v1.3.1 i Google Antigravity med fletting av PR-ene, oversettelse til alle elleve språk, rettelser og designpolering etter gjennomgangen av v1.3.1, kontroll, bygg og utgivelse.
 
 GPT 6.2 Sol og GPT 6.2 Astra bidro også med leverandørkatalogen, API-kompatibilitet, oppsett og anbefalinger for lokale modellservere.
 
