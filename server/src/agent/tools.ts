@@ -753,8 +753,9 @@ export const useSkillTool: Tool = {
   },
   summary: (input) => String(input.name ?? ""),
   async run(input, ctx) {
-    const skill = ctx.skills().find((s) => s.name === input.name);
-    if (!skill) return fail(`Fant ikke skillen ${input.name}. Skills som finnes: ${ctx.skills().map((s) => s.name).join(", ") || "ingen"}.`);
+    const available = ctx.skills().filter((skill) => !skill.manual);
+    const skill = available.find((s) => s.name === input.name);
+    if (!skill) return fail(`Fant ikke skillen ${input.name}. Skills som finnes: ${available.map((s) => s.name).join(", ") || "ingen"}.`);
     return { text: renderSkill(skill) };
   },
 };

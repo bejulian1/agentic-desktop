@@ -34,7 +34,7 @@ import { HttpError } from "../errors.ts";
 import { LOCAL_PANEL, PathError } from "../paths.ts";
 import { ProviderError, type Block, type ImageData, type Message, type Provider, type StopReason, type ToolDef } from "../providers/types.ts";
 import { MAX_ATTACHMENTS, DEFAULT_MAX_STEPS_PER_TURN, agentSettingsOf, modelContextOf } from "../../../shared/protocol.ts";
-import { discoverSkills, renderSkill, SkillChanges, SkillStore, PROJECT_DIRS, type Skill } from "../skills.ts";
+import { discoverSkills, explicitSkillName, renderSkill, SkillChanges, SkillStore, PROJECT_DIRS, type Skill } from "../skills.ts";
 import { correctionIn, relatedMemory, temporaryNote, captureMemories, cleanMemory, looksSecret, MAX_MEMORIES, memoryId, Memories } from "../memory.ts";
 import { HarnessStore, type UpgradeOp, type UpgradeProposal } from "./harness.ts";
 import { parseModelOps, proposeByRules, UPGRADE_SYSTEM, upgradeRequest, type UpgradeItem } from "./memory-upgrade.ts";
@@ -521,6 +521,12 @@ export class Runner {
     const parts: string[] = [];
     let shown = text;
     let skillInstruction: string | undefined;
+    const named = !input.from && !input.skill ? explicitSkillName(text) : undefined;
+    if (named) {
+      const available = thread.mode === "chat" ? this.chatSkills(!!thread.chatProjectId) : this.skillsFor(project, "code");
+      const manualSkill = available.find((skill) => skill.manual && skill.name === named);
+      if (manualSkill) skillInstruction = renderSkill(manualSkill, rawText);
+    }
     if (input.skill) {
       const eligible = (thread.mode === "chat" ? this.chatSkills(!!thread.chatProjectId) : this.skillsFor(project, "code")).find((s) => s.name === input.skill);
       const skill = eligible ?? (thread.mode === "chat" && thread.chatProjectId

@@ -58,7 +58,7 @@ Mapper leses ved oppstart og kontrolleres for filendringer hvert halve sekund. O
 
 ## Innebygde skills
 
-Appen har 24 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 17 er laget for Kode. Beskrivelsen i menyen er på norsk, og instruksjonene til modellen er på engelsk.
+Appen har 29 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 22 er laget for Kode.
 
 | Skill | Bruk |
 |---|---|
@@ -86,8 +86,15 @@ Appen har 24 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 17 
 | `/gauntlet-loop` | Intensiv runde med bygging, kritikk og forbedring |
 | `/skill-creator` | Lag eller forbedre en skill i Agentic Desktop |
 | `/memory` | Lær av rettelser og husk varige fakta i MEMORY.md |
+| `/sol-loop` | Kjør en avgrenset kodegjennomgang med GPT Sol (manuell) |
+| `/council` | Få uavhengige vurderinger fra tre modelltilbydere (manuell) |
+| `/interface-recreation` | Gjenskap et grensesnitt fra en godkjent referanse (manuell) |
+| `/handoff` | La hovedagenten fordele oppgaver og samle korte resultater (manuell) |
+| `/performance-optimization` | Mål, finn flaskehalsen og verifiser en avgrenset ytelsesendring (manuell) |
 
 Skriv `$` i meldingsfeltet for å vise bare skills.
+
+Manuelle skills vises i menyen, men lastes ikke automatisk. Velg en manuelt, eller start meldingen med for eksempel `Bruk council skill` eller `Use the council skill`. Et løst navn er ikke nok. For egne skills setter `disable-model-invocation: true` i YAML-hodet samme regel.
 
 ![De sju innebygde skillene i Chat-menyen](bilder/skill-katalog-chat.png)
 

@@ -27,6 +27,33 @@ async function setup(t: TestContext) {
   return { h, llm, project, thread, appSkillsDir, userSkillsDir };
 }
 
+test("manual skills require an explicit selection, not a bare name", async (t) => {
+  const { h, llm, project, thread } = await setup(t);
+  skill(path.join(project.path, "skills"), "manual-check", "MANUAL-BODY", "disable-model-invocation: true\n");
+  skill(path.join(project.path, "skills"), "ordinary-check", "ORDINARY-BODY");
+  const examples = ["manual-check", "Bruk manual-check skill på denne endringen", "Review this change"];
+  for (const [index, text] of examples.entries()) {
+    llm.reply(sse(openaiText("OK")));
+    await h.api("POST", `/api/threads/${thread.id}/messages`, { text });
+    await h.finished(thread.id, index + 1);
+    const prompt = llm.requests[index].body.messages[0].content;
+    assert.equal(prompt.includes("MANUAL-BODY"), index === 1);
+    assert.equal(prompt.includes("manual-check: Gjennomgå"), false);
+    assert.ok(prompt.includes("ordinary-check: Gjennomgå"));
+  }
+  llm.reply(sse(openaiToolCall("use_skill", { name: "manual-check" }, "manual-load")));
+  llm.reply(sse(openaiText("OK")));
+  await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "Review this change" });
+  const attempt = ofType(await h.finished(thread.id, 4), "tool.finished").find((event) => event.callId === "manual-load");
+  assert.ok(attempt);
+  assert.notEqual(attempt.status, "done");
+  assert.doesNotMatch(attempt.result ?? "", /MANUAL-BODY/);
+  llm.reply(sse(openaiText("OK")));
+  await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "Review this change", skill: "manual-check" });
+  await h.finished(thread.id, 5);
+  assert.match(llm.requests.at(-1)!.body.messages[0].content, /MANUAL-BODY/);
+});
+
 test("slash skills use raw multiline arguments only in the current turn's system instruction, including retry", async (t) => {
   const { h, llm, project, thread } = await setup(t);
   skill(path.join(project.path, "skills"), "testskill", "ONLY-INSTRUCTION-BEGIN[{{args}}]ONLY-INSTRUCTION-END");
@@ -171,7 +198,8 @@ test("required frontmatter strings and optional args are validated without crash
 test("every shipped skill parses, has the intended modes and one args placeholder", (t) => {
   const root = path.resolve(import.meta.dirname, "../../skills");
   const shipped = discoverSkills(null, tempDir(t), [], root);
-  assert.equal(shipped.length, 24);
+  assert.equal(shipped.length, 29);
+  assert.deepEqual(shipped.filter((item) => item.manual).map((item) => item.name), ["council", "handoff", "interface-recreation", "performance-optimization", "sol-loop"]);
   assert.equal(sharedSkills.length, 7);
   assert.deepEqual(shipped.map((item) => item.name), documentedSkills);
   for (const item of shipped) {
