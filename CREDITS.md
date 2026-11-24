@@ -12,7 +12,7 @@ Prosjekteieren krediterer disse modellene for AI-assistanse i utviklingen:
 | OpenAI | GPT 6.1 Sol |
 | OpenAI | GPT 6.2 Sol og GPT 6.2 Astra |
 | Anthropic | Claude Fable 5.2 |
-| Google | Gemini 4 Neon |
+| Google | Gemini 4 Neon (koordinator i Google Antigravity for 1.2.0–1.3.1) |
 
 ## Claude Code – Anthropic
 
@@ -60,6 +60,8 @@ Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrette
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.
 
+Fra v1.2.0 til v1.3.1 var **Gemini 4 Neon** i Google Antigravity koordinator: fordelte oppgaver til Claude-agentene, gjennomgikk og flettet PR #4, #6, #7, #8 og #9, laget v1.2.1 selv, fullførte oversettelsene og sto for kontroll, bygg, utgivelse og lokal installasjon. Se versjonsavsnittene under.
+
 ## Språk og 1.0.0
 
 Codex (GPT 6.2 Astra) implementerte språkvalget, katalogverktøyene og de første oversatte flatene i nettgrensesnittet og Electron. Codex gjorde også meldingsfeltet, agentvisningene, sidepanelene og skallet oversettbare, integrerte endringene og testet språkbytte og responsiv layout. Claude Fable 5.2 gjorde blant annet innstillingene, Git- og GitHub-visningene oversettbare og la til `Rich` for setninger med innebygde elementer. Codex rettet senere oppdelte kildesetninger, oppdaterte de elleve katalogene og laget de engelske README-bildene.
@@ -75,21 +77,25 @@ To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiens
 
 **Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
 
+## Dokumentasjon etter 1.3.1
+
+En **Claude Opus 5.5**-underagent i Claude Code oppdaterte `README.md`, `README.nb.md` og denne filen til å beskrive v1.2.0–v1.3.1, det offentlige repoet og krediteringen. Ingen appversjon eller ny binærutgivelse.
+
 ## 1.3.1
 
-En **Claude Opus 5.5**-agent (`effort: high`) bygde PR #9 (klikkbare fil-, MD- og tråd-lenker, tydelige fargede inline-SVG-favicons på alle web-lenker, `$skill`-brikker og kontrastløft). En egen skrivebeskyttet **Claude Opus 5.5**-kritiker (`effort: high`) gjennomførte en uavhengig `$review`- og `$frontend-design`-gjennomgang mot T3 Code-referansene. **Gemini 4 Neon** flettet PR #9, implementerte kritikerens feilrettinger (Shift-only hurtigtast-sperre, interaktivt skall, Angre ved sletting, arbeidstre-feilhåndtering) og designpolering, oversatte alle nye tekster til alle elleve språk, og sto for kontroll, bygg og utgivelse.
+En **Claude Opus 5.5**-agent (`effort: high`) bygde PR #9 (`f48832f`: klikkbare fil-, MD- og tråd-lenker, tydelige fargede inline-SVG-favicons på alle web-lenker, `$skill`-brikker og kontrastløft). En egen skrivebeskyttet **Claude Opus 5.5**-kritiker (`effort: high`) gjennomførte en uavhengig `$review`- og `$frontend-design`-gjennomgang av v1.3.0 mot T3 Code-referansene og fant blant annet hurtigtaster med bare Shift, ikke-interaktivt skall for handlinger, manglende Angre ved sletting og avvik i avstand, typografi, sidefane og GitHub-farger. **Gemini 4 Neon** (Google, koordinator i Antigravity) flettet PR #9, implementerte kritikerens feilrettinger (Shift-only hurtigtast-sperre, interaktivt skall, Angre ved sletting, arbeidstre-feilhåndtering) og designpolering, oversatte alle nye tekster til alle elleve språk, og sto for kontroll, bygg og utgivelse.
 
 ## 1.3.0
 
-To **Claude Opus 5.5**-agenter (`effort: high`) bygde oppdateringen: PR #8 bygde opp hele **Innstillinger → Prosjekter** med *Ingen prosjekt (Denne datamaskinen)*, Chat-prosjekter, arkivering, ikonmodal, modell + tenkeinnsats, arbeidsområde, kjørbare handlinger/prosjektskript (også i Tråddetaljer og ved opprettelse av arbeidstrær) og skrifttypevalg under Typografi; PR #7 oppgraderte fargede leverandør- og modell-favicons i Chat-hoverkort, modellbytte-linjer, svarmodell-knappen/kortet, Chat-rader i sidefanen og tenkevisning, la til ekte GitHub-ikon og statusfarger, og innførte automatisk «Mine på GitHub» over alle repoer via `gh` CLI. **Gemini 4 Neon** koordinerte oppgavene, flettet PR #7 og PR #8, oppdaterte oversettelsene til alle elleve språk, rettet en utdatert testforventning i `20-innstillinger-runde5.test.ts`, og sto for kontroll, bygg, utgivelse og lokal installasjon.
+To **Claude Opus 5.5**-agenter (`effort: high`) bygde oppdateringen parallelt: PR #8 (`10bc98b`) bygde opp hele **Innstillinger → Prosjekter** med *Ingen prosjekt (Denne datamaskinen)*, Chat-prosjekter, arkivering, ikonmodal, modell + tenkeinnsats, arbeidsområde, kjørbare handlinger/prosjektskript (også i Tråddetaljer og ved opprettelse av arbeidstrær) og skrifttypevalg under Typografi; PR #7 (`0eeb855`) oppgraderte fargede leverandør- og modell-favicons i Chat-hoverkort, modellbytte-linjer, svarmodell-knappen/kortet, Chat-rader i sidefanen og tenkevisning, la til ekte GitHub-ikon og statusfarger, og innførte automatisk «Mine på GitHub» over alle repoer via `gh` CLI. **Gemini 4 Neon** (Google, koordinator i Antigravity) koordinerte oppgavene, gjennomgikk og flettet PR #7 og PR #8, oppdaterte oversettelsene til alle elleve språk, rettet en utdatert testforventning i `20-innstillinger-runde5.test.ts`, og sto for kontroll, bygg, utgivelse og lokal installasjon.
 
 ## 1.2.1
 
-**Gemini 4 Neon** gjorde Ocean-temaet lysere i mørk variant (WCAG AA) og oppgraderte leverandør-, VS Code-, lenke- og filtype-ikoner til ekte fargede SVG-favicons i hele appen, samt sto for kontroll, bygg, utgivelse og lokal installasjon.
+**Gemini 4 Neon** (Google, i Antigravity) gjorde Ocean-temaet lysere i mørk variant (WCAG AA) og oppgraderte leverandør-, VS Code-, lenke- og filtype-ikoner til ekte fargede SVG-favicons i hele appen, samt sto for kontroll, bygg, utgivelse og lokal installasjon.
 
 ## 1.2.0
 
-**Claude Opus 5.5** implementerte PR #4: prefiksregler for «Tillat alltid», felles nettlesergodkjenning, «Bruk på alle prosjekter» og regeloversikt, «API-adresse (Base URL)» og valgfritt modellfelt i egendefinert leverandøroppsett, underagenter mot valgt API-leverandør med oppgraderte underagentkort, «Kontekstoverføring venter», navngiving og bildestøtte for innlimte bilder, leverandørmerker i modellvelgeren og automatisk GitHub CLI-oppdagelse. **Claude Sonnet 5.5** implementerte PR #6: de fem nye fargetemaene (Ocean, Rosa, Skog, Glød, Iris) med WCAG AA-kontroll, System/Lys/Mørk-kort, kontrast- og breddeinnstillinger, live typografi- og kodeforhåndsvisning, den nye Prosjekter-siden i Innstillinger, 18 prosjektfarger, monogram- og bildeopplasting for prosjektikoner, utvidet favicon-søk, oppdatert sidefane og hover-kort, smarte lenke- og filbrikker i meldinger, innebygd GitHub-detaljvisning i sidepanelet og den flytende Tråddetaljer-menyen. **Gemini 4 Neon** koordinerte utgivelsen, fordelte og flettet de to PR-ene, oversatte alle 131 nye tekster til de elleve språkene, og sto for kontroll, bygg, utgivelse og lokal installasjon.
+**Claude Opus 5.5** implementerte PR #4 (`b8a7b1a`): prefiksregler for «Tillat alltid», felles nettlesergodkjenning, «Bruk på alle prosjekter» og regeloversikt, «API-adresse (Base URL)» og valgfritt modellfelt i egendefinert leverandøroppsett, underagenter mot valgt API-leverandør med oppgraderte underagentkort, «Kontekstoverføring venter», navngiving og bildestøtte for innlimte bilder, leverandørmerker i modellvelgeren og automatisk GitHub CLI-oppdagelse. **Claude Sonnet 5.5** implementerte PR #6 (`edb0d55`): de fem nye fargetemaene (Ocean, Rosa, Skog, Glød, Iris) med WCAG AA-kontroll, System/Lys/Mørk-kort, kontrast- og breddeinnstillinger, live typografi- og kodeforhåndsvisning, den nye Prosjekter-siden i Innstillinger, 18 prosjektfarger, monogram- og bildeopplasting for prosjektikoner, utvidet favicon-søk, oppdatert sidefane og hover-kort, smarte lenke- og filbrikker i meldinger, innebygd GitHub-detaljvisning i sidepanelet og den flytende Tråddetaljer-menyen. **Gemini 4 Neon** (Google, koordinator i Antigravity) koordinerte utgivelsen, fordelte og flettet de to PR-ene, oversatte alle 131 nye tekster til de elleve språkene, og sto for kontroll, bygg, utgivelse og lokal installasjon.
 
 ## 1.1.0
 
