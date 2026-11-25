@@ -22,7 +22,7 @@ import { findEdit } from "./edit.ts";
 import { effectiveMode } from "./permissions.ts";
 import { hashContent, type FileState } from "./filestate.ts";
 import { countChanges, type Turns } from "./turns.ts";
-import { webSearchTool, type WebAccess } from "./web.ts";
+import { webFetchTool, webSearchTool, type WebAccess } from "./web.ts";
 
 export const MAX_RESULT_CHARS = 30_000;
 const MAX_LINE_CHARS = 2000;
@@ -1006,6 +1006,7 @@ export const CODE_TOOLS: Tool[] = [
   globTool,
   runCommandTool,
   webSearchTool, // offered only when the thread has a way to search (Runner.toolDefs)
+  webFetchTool, // offered whenever the headless web reader is available (Runner.toolDefs)
   ...browserTools,
   ...threadTools,
   ...taskTools,

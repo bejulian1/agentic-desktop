@@ -130,6 +130,43 @@ test("an untouched default from an earlier version follows the app; anything the
   const own = tempDir(t);
   writeFileSync(path.join(own, "harness.json"), JSON.stringify({ version: 1, chat: { instructions: `${oldChat}\nSvar alltid kort.` } }));
   assert.match(new Store(own).state().chat.instructions, /Svar alltid kort/);
+
+  // The v0.26-v1.4 shipped defaults also auto-upgrade cleanly while custom edits stay intact.
+  const prevAgents = [
+    "# Mine instruksjoner",
+    "",
+    "## Svar",
+    "- Svar på språket jeg skriver på. Start med resultatet, og skriv kort og konkret.",
+    "- Bruk filnavn og linjenummer når det hjelper meg å finne noe. Sett kode og kommandoer jeg skal kopiere, i kodeblokker.",
+    "- Si tydelig hva du har kontrollert, hva du antar, og hva du ikke fikk sjekket.",
+    "",
+    "## Arbeid",
+    "- Gjør oppgaven ferdig uten å spørre om småting, og si kort hvilke antakelser du tok.",
+    "- Spør før nye avhengigheter, global installasjon, omfattende sletting, endring av git-historikk og alt som publiseres eller sendes til andre, med mindre jeg allerede har bedt om akkurat det.",
+    "- Commit og push bare når jeg ber om det.",
+    "",
+  ].join("\n");
+  const prevChat = [
+    "Skill tydelig mellom det du vet, det du antar og det du ikke vet. Ikke finn på kilder, sitater eller tall.",
+    "",
+    "Når jeg ber om en tekst, gi meg teksten ferdig til bruk først, og eventuelle kommentarer etterpå.",
+    "",
+    "Foreslå Kode med et prosjekt når oppgaven krever endringer i filene mine eller kommandoer på maskinen min.",
+  ].join("\n");
+  const prevAgentsDir = tempDir(t);
+  writeFileSync(path.join(prevAgentsDir, "AGENTS.md"), prevAgents);
+  assert.equal(upgradeGlobalAgents(prevAgentsDir), "upgraded");
+  assert.equal(readFileSync(path.join(prevAgentsDir, "AGENTS.md"), "utf8"), DEFAULT_AGENTS_MD);
+  const prevEditedDir = tempDir(t);
+  writeFileSync(path.join(prevEditedDir, "AGENTS.md"), `${prevAgents}\n- Min egen linje.\n`);
+  assert.equal(upgradeGlobalAgents(prevEditedDir), "kept");
+
+  const prevChatDir = tempDir(t);
+  writeFileSync(path.join(prevChatDir, "harness.json"), JSON.stringify({ version: 1, chat: { instructions: prevChat, about: "Utvikler" } }));
+  const prevChatStore = new Store(prevChatDir);
+  assert.equal(prevChatStore.state().chat.instructions, DEFAULT_CHAT_SYSTEM_INSTRUCTIONS);
+  assert.equal(prevChatStore.state().chatInstructionsCustomized, false);
+  assert.equal(prevChatStore.state().chat.about, "Utvikler");
 });
 
 test("the agent's picture of itself comes from the tool registry", async (t) => {

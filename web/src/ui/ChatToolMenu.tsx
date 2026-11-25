@@ -38,7 +38,7 @@ export function useChatTools(threadId: Accessor<string | null>, modelId: Accesso
   const model = () => modelFor(modelId() ?? app.settings.defaultModelId);
   const provider = () => app.providers.find((p) => p.id === model()?.providerId);
   const toolsAllowed = () => modelAllowsTools(model(), provider()?.localKind);
-  const route = createMemo(() => webSearchRoute(model(), provider()?.kind, app.settings, provider()?.localKind));
+  const route = createMemo(() => webSearchRoute(model(), provider()?.kind, app.settings, provider()?.localKind, provider()?.baseUrl));
   const set = (id: ChatToolId, on: boolean) => {
     const current = thread();
     if (id === "memory" && current?.temporary) return;

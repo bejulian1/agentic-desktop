@@ -635,6 +635,7 @@ export class Runner {
     if (thread.mode !== "code" || !project) return [...mods, requestUserInputTool];
     const hidden = new Set<string>();
     if (!this.codeWeb(thread, model)) hidden.add("web_search");
+    if (!this.deps.web) hidden.add("web_fetch");
     if (!skills.some((skill) => skill.mode !== "chat")) hidden.add("use_skill");
     if (!this.memoriesOn()) hidden.add("remember").add("forget");
     if (!skills.some(skill => skill.source !== "app" && !skill.outside && skill.mode !== "chat")) hidden.add("propose_skill_edit");
@@ -663,7 +664,7 @@ export class Runner {
   // search page from Innstillinger, or demo sources. null when it cannot.
   webRoute(thread: Thread, model = this.resolveModelSafe(thread)): WebSearchRoute | null {
     const provider = model ? this.store.provider(model.providerId) : undefined;
-    return webSearchRoute(model, provider?.kind, this.store.settings(), provider && localKindFor(provider));
+    return webSearchRoute(model, provider?.kind, this.store.settings(), provider && localKindFor(provider), provider?.baseUrl);
   }
 
   private webAccess(route: WebSearchRoute | null): WebAccess | undefined {
@@ -672,10 +673,15 @@ export class Runner {
     return browserWeb(this.deps.web, modelSearchUrl(this.store.settings()));
   }
 
-  // Kode searches with the browser or as a demo; the provider's own search is for Chat.
+  // Kode uses the app's headless browser (or demo sources for the mock model), including when a
+  // model has provider-native search in Chat, so Kode never loses web_search.
   private codeWeb(thread: Thread, model = this.resolveModelSafe(thread)): WebAccess | undefined {
     const route = this.webRoute(thread, model);
-    return route === "browser" || route === "demo" ? this.webAccess(route) : undefined;
+    if (route === "demo") return this.webAccess("demo");
+    if ((route === "browser" || route === "provider") && this.deps.web && modelSearchUrl(this.store.settings())) {
+      return this.webAccess("browser");
+    }
+    return undefined;
   }
 
   // Tools from MCP servers switched on for this mode, never in plan mode (they are not read-only).
@@ -1770,7 +1776,11 @@ export class Runner {
       output: this.outputWriter(active, call.id),
       filesChanged: (paths) => this.deps.filesChanged(project.id, paths),
       saveScreenshot: (png) => this.saveScreenshot(png),
-      web: call.name === "web_search" ? this.codeWeb(thread) : undefined,
+      web: call.name === "web_search"
+        ? this.codeWeb(thread)
+        : call.name === "web_fetch" && this.deps.web
+          ? browserWeb(this.deps.web, undefined)
+          : undefined,
       memories: this.memoriesOn() ? this.memories : undefined,
       modelId: active.model.id,
       maxResultChars: resultBudget(active.model),

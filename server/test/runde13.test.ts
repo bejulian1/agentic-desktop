@@ -9,8 +9,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { test, type TestContext } from "node:test";
 import type { ThreadEvent } from "../../shared/protocol.ts";
+import { webSearchRoute } from "../../shared/protocol.ts";
 import { demoSources, searchUrlFor } from "../src/agent/web.ts";
-import { anthropicEvents, OPENAI_DONE, openaiChunk, openaiText, openaiUsage, sse, startFakeLlm } from "./fake-llm.ts";
+import { anthropicEvents, openaiText, sse, startFakeLlm } from "./fake-llm.ts";
 import { ofType, startHarness, textOf, type Harness } from "./helpers.ts";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
@@ -215,35 +216,49 @@ test("Anthropic's own web search: the server tool is offered, the sources come b
   assert.equal((assistant.content[1].content as Array<Record<string, unknown>>)[0].encrypted_content, "kryptert-a");
 });
 
-test("OpenAI-compatible web search: web_search_options when the model has it, sources from url_citation; nothing when it has not", async (t) => {
+test("OpenAI-compatible web search routes third-party endpoints to browser tools out of the box and Kode keeps web_search + web_fetch for all models", async (t) => {
   const h = await startHarness(t);
   const llm = await startFakeLlm(t);
   const provider = await h.api("POST", "/api/providers", { kind: "openai-compatible", name: "Fake", baseUrl: `${llm.url}/v1`, apiKey: "sk-test" });
-  const searching = await h.api("POST", "/api/models", { providerId: provider.id, name: "Med søk", model: "fake-search", contextWindow: 100_000, webSearch: true });
+  const flagged = await h.api("POST", "/api/models", { providerId: provider.id, name: "Med søk", model: "fake-search", contextWindow: 100_000, webSearch: true });
   const plain = await h.api("POST", "/api/models", { providerId: provider.id, name: "Uten søk", model: "fake", contextWindow: 100_000 });
 
-  const cite = (url: string, title: string) => ({ type: "url_citation", url_citation: { url, title, start_index: 0, end_index: 4 } });
-  llm.reply(sse(
-    openaiChunk({ role: "assistant", content: "Svar med kilder." }) +
-    openaiChunk({ annotations: [cite("https://kilde.example/1", "Første kilde"), cite("https://kilde.example/1", "Første kilde")] }) +
-    openaiChunk({ annotations: [cite("https://kilde.example/2", "Andre kilde")] }) +
-    openaiChunk({}, "stop") + openaiUsage(10, 5) + OPENAI_DONE,
-  ));
-  const withSearch = await chat(h, { web: true }, searching.id);
-  const events = await say(h, withSearch.id, "Hva skjer i dag?");
-  assert.deepEqual(llm.requests[0].body.web_search_options, {});
-  assert.deepEqual(llm.requests[0].body.tools.map((t:any)=>t.function.name), ["ui_mod", "request_user_input"]);
-  const [finished] = ofType(events, "tool.finished");
-  assert.deepEqual(finished.sources?.map((s) => s.title), ["Første kilde", "Andre kilde"]);
+  // Route selection: native web_search_options only for known OpenAI/OpenRouter endpoints (or Anthropic);
+  // third-party OpenAI-compatible endpoints get working browser search out of the box; mock stays demo.
+  assert.equal(webSearchRoute({ supportsTools: true, webSearch: true }, "openai-compatible", {}, undefined, "https://api.openai.com/v1"), "provider");
+  assert.equal(webSearchRoute({ supportsTools: true, webSearch: true }, "openai-compatible", {}, undefined, "https://openrouter.ai/api/v1"), "provider");
+  assert.equal(webSearchRoute({ supportsTools: true, webSearch: true }, "openai-compatible", {}, undefined, "https://api.abliteration.ai/v1"), "browser");
+  assert.equal(webSearchRoute({ supportsTools: true }, "openai-compatible", {}, undefined, "https://api.abliteration.ai/v1"), "browser");
+  assert.equal(webSearchRoute({ supportsTools: true }, "anthropic", {}, undefined, "https://api.anthropic.com"), "provider");
+  assert.equal(webSearchRoute({ supportsTools: true }, "mock", {}), "demo");
+  assert.equal(webSearchRoute({ supportsTools: true }, "mock", { searchEngine: "brave" }), "browser");
 
-  // A model without its own search, and no search page: no search at all, and the model is not told it has one.
-  llm.reply(sse(openaiText("Uten nettsøk.")));
-  const without = await chat(h, { web: true }, plain.id);
-  await say(h, without.id, "Hva skjer i dag?");
+  // Third-party OpenAI-compatible endpoint: never blindly sends web_search_options, offers web_search tool out of the box.
+  llm.reply(sse(openaiText("Svar via appens søk.")));
+  const withFlag = await chat(h, { web: true }, flagged.id);
+  await say(h, withFlag.id, "Hva skjer i dag?");
+  assert.equal(llm.requests[0].body.web_search_options, undefined);
+  assert.deepEqual(llm.requests[0].body.tools.map((tool: any) => tool.function.name), ["ui_mod", "web_search", "request_user_input"]);
+  assert.match(llm.requests[0].body.messages[0].content, /Web search is on/);
+
+  llm.reply(sse(openaiText("Svar uten webSearch-flagg.")));
+  const withoutFlag = await chat(h, { web: true }, plain.id);
+  await say(h, withoutFlag.id, "Hva skjer i dag?");
   assert.equal(llm.requests[1].body.web_search_options, undefined);
-  assert.deepEqual(llm.requests[1].body.tools.map((t:any)=>t.function.name), ["ui_mod", "request_user_input"]);
-  assert.doesNotMatch(llm.requests[1].body.messages[0].content, /Web search is on/);
+  assert.deepEqual(llm.requests[1].body.tools.map((tool: any) => tool.function.name), ["ui_mod", "web_search", "request_user_input"]);
+  assert.match(llm.requests[1].body.messages[0].content, /Web search is on/);
   assert.match(llm.requests[1].body.messages[0].content, /Chat cannot inspect or edit/);
+
+  // Kode mode: both OpenAI-compatible AND provider-native (Anthropic) models get web_search + web_fetch.
+  const project = await h.project();
+  const anthropicProvider = await h.api("POST", "/api/providers", { kind: "anthropic", name: "Fake Anthropic", baseUrl: llm.url, apiKey: "sk-ant-test" });
+  const claude = await h.api("POST", "/api/models", { providerId: anthropicProvider.id, name: "Claude", model: "claude-test", contextWindow: 200_000, thinking: false });
+  for (const modelId of [plain.id, claude.id]) {
+    const codeThread = await h.thread(project.id, "code", modelId);
+    const names = h.app.runner.toolDefs(codeThread, project, []).map((d) => d.name);
+    assert.ok(names.includes("web_search"), `Kode offers web_search for ${modelId}`);
+    assert.ok(names.includes("web_fetch"), `Kode offers web_fetch for ${modelId}`);
+  }
 });
 
 test("the app's browser searches the search page from Settings and reads a page, against a local fake site", async (t) => {
@@ -279,4 +294,47 @@ test("the app's browser searches the search page from Settings and reads a page,
   const own = await chat(h, { fetch: true });
   events = await say(h, own.id, `les ${h.origin}/api/bootstrap`);
   assert.equal(ofType(events, "tool.finished").at(-1)!.status, "error");
+});
+
+test("headless web search uses non-HeadlessChrome UA, waits for JS-rendered results, and parses DuckDuckGo HTML markup", async (t) => {
+  let seenUserAgent = "";
+  const server = http.createServer((req, res) => {
+    seenUserAgent = String(req.headers["user-agent"] ?? "");
+    const url = new URL(req.url!, "http://x");
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    if (url.pathname === "/js-search") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return void res.end(`<!doctype html><title>JS Search</title><body><div id="out"></div><script>
+        setTimeout(() => {
+          document.getElementById("out").innerHTML = '<div class="item"><h3><a href="${base}/target">Sen JS-treff</a></h3><p>Beskrivelse som rendres etter innlasting.</p></div>';
+        }, 200);
+      </script></body>`);
+    }
+    if (url.pathname === "/ddg-html") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return void res.end(`<!doctype html><title>DDG HTML</title><body>
+        <div class="result"><a class="result__a" href="/l/?uddg=${encodeURIComponent("https://example.org/docs")}">DDG Treff</a><a class="result__snippet">Kort utdrag fra statisk HTML.</a></div>
+      </body>`);
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const h = await startHarness(t, { webTesting: { allowLoopback: true } });
+
+  const jsResults = await h.app.web.searchPage(`${base}/js-search?q=test`);
+  assert.equal(jsResults.length, 1);
+  assert.equal(jsResults[0].title, "Sen JS-treff");
+  assert.match(seenUserAgent, /Chrome\/\d+\.0\.0\.0/);
+  assert.doesNotMatch(seenUserAgent, /HeadlessChrome/);
+
+  const ddgResults = await h.app.web.searchPage(`${base}/ddg-html?q=test`);
+  assert.equal(ddgResults.length, 1);
+  assert.equal(ddgResults[0].title, "DDG Treff");
+  assert.equal(ddgResults[0].url, "https://example.org/docs");
+  assert.equal(ddgResults[0].snippet, "Kort utdrag fra statisk HTML.");
 });
