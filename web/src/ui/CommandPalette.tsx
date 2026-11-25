@@ -22,6 +22,8 @@ import { displayKeys, keysFor } from "../state/shortcuts";
 import { IconArchive, IconArtifact, IconChat, IconCode, IconCompose, IconFile, IconFolder, IconHelp, IconInfo, IconIssue, IconKeyboard, IconPanel, IconSearch, IconSettings, IconSidebar, IconSpark, IconSplitRight, IconStudio, IconSun, IconUser, IconClock, IconPin, IconBranch, IconGlobe, IconBookmark } from "./icons";
 import { IconCookie, IconPencil } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
+import { terminalDrawerAvailable } from "../state/terminal-drawer";
+import { IconTerminalDrawer } from "./TerminalDrawer";
 
 const TABS: Array<{ id: PaletteTab; label: string }> = [
   { id: "all", get label() { return t("Alle"); } },
@@ -71,6 +73,7 @@ const ACTIONS = (): ActionDef[] => [
   { label: t("Søk i tråder"), icon: IconSearch, keys: "thread.search", run: actions.searchThreads },
   { label: t("Vis eller skjul sidefanen"), icon: IconSidebar, keys: "view.sidebar", run: actions.toggleSidebar },
   { label: t("Vis eller skjul panelet"), icon: IconPanel, keys: "view.panel", run: actions.togglePanel },
+  { label: t("Vis eller skjul terminalfeltet"), icon: IconTerminalDrawer, keys: "view.terminalDrawer", when: terminalDrawerAvailable, run: actions.toggleTerminalDrawer },
   { label: t("Festet sammendrag"), icon: IconPin, keys: "view.summary", run: actions.toggleSummary },
   { label: t("Ny fane i nettleseren"), words: t("nettleser fane browser"), icon: IconGlobe, keys: "browser.newTab", run: () => { actions.showTab("browser"); requestBrowserTab(false); } },
   { label: t("Importer bokmerker fra Chrome"), words: t("nettleser chrome chromium bokmerker historikk import"), icon: IconBookmark, run: openChromeImport },

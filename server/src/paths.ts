@@ -2,6 +2,8 @@
 import { lstatSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import type { Project } from "../../shared/protocol.ts";
+import type { Store } from "./db.ts";
 
 export class PathError extends Error {
   status = 403;
@@ -125,6 +127,11 @@ export function isProtectedCommand(command: string, dataDir: string, configDir =
 // project id, for the terminal and the Browser panel, and for the agent in Kode without a project,
 // which then works in the home folder (Runner.localProject).
 export const LOCAL_PANEL = "local";
+
+// This machine has no stored project. The shell still needs a scope and starting folder.
+export function localPanelProject(folder: string, store: Pick<Store, "settings">): Project {
+  return { id: LOCAL_PANEL, name: "Denne datamaskinen", path: folder, permissionMode: store.settings().defaultPermissionMode ?? "ask", createdAt: 0, lastUsedAt: 0, color: null, icon: null, defaultModelId: null, pinned: false };
+}
 
 // The folder a terminal without a project starts in: the home folder, as its real path, an existing
 // directory, not the filesystem root, and never inside the app's data folder. The project rule that

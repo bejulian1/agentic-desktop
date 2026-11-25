@@ -238,7 +238,7 @@ flow("innstillingsredigering beskytter bakgrunnstråden mot dokumentsnarveier", 
     if (["POST", "PATCH", "DELETE"].includes(request.method()) && /\/api\/threads(?:\/|$)/.test(new URL(request.url()).pathname)) mutations.push(request.url());
   });
   await page.keyboard.press("Control+Shift+A");
-  await page.keyboard.press("Control+J");
+  await page.keyboard.press("Control+Alt+N");
   await page.keyboard.press("Control+Alt+P");
   await page.keyboard.press("Control+Shift+M");
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));

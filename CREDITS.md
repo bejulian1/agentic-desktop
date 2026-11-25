@@ -58,6 +58,8 @@ Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrette
 
 Codex med GPT 6.2 Sol implementerte trådinnboksen, automatisk ferdigstilling, utsettelsesvalgene og `/grill-me` for Chat og Kode, med isolerte server- og grensesnittester.
 
+Codex med GPT 6.2 Sol implementerte det justerbare terminalfeltet under meldingsfeltet i Kode, med flere faner, snarvei og isolerte grensesnittester.
+
 ## Gemini – Google
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.

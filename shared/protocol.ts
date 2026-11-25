@@ -71,6 +71,13 @@ export interface BuildInfo {
   signature: "Code Pro";
 }
 
+export interface DrawerTerminal {
+  terminalId: string;
+  shell: string;
+  cwd: string;
+  exited: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -1171,7 +1178,10 @@ export interface BrowserImported {
 // GET    /api/projects/:id/layout           { layout: unknown }  pane grid, opaque to the server
 // PUT    /api/projects/:id/layout           { layout }  use "chat" as id for threads without a project
 // POST   /api/projects/:id/init             { path }  writes an AGENTS.md template, 409 if it exists
-// GET    /api/projects/:id/terminals        { terminalId, title, exited }[]  to reattach after a reload
+// GET    /api/projects/:id/terminals         { terminalId, title, exited }[]  to reattach after a reload
+// GET    /api/projects/:id/terminal-drawer   DrawerTerminal[]
+// POST   /api/projects/:id/terminal-drawer   start a shell, returns DrawerTerminal
+// DELETE /api/projects/:id/terminal-drawer/:terminalId  close the shell
 // GET    /api/projects/:id/playtest         PlaytestState
 // GET    /api/screenshots/:id               image/png
 // GET    /api/turns/:id/diff                TurnDiff
@@ -1328,6 +1338,8 @@ export type ClientMessage =
   | { type: "project.watch"; projectId: string; directories: string[] }
   | { type: "project.unwatch"; projectId: string }
   | { type: "terminal.open"; projectId: string; terminalId?: string; cols: number; rows: number }
+  | { type: "terminal.attach"; projectId: string; terminalId: string; cols: number; rows: number }
+  | { type: "terminal.detach"; terminalId: string }
   | { type: "terminal.input"; terminalId: string; data: string }
   | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
   | { type: "terminal.close"; terminalId: string }
@@ -1375,7 +1387,8 @@ export type ServerMessage =
   | { type: "project.files-changed"; projectId: string; paths: string[] }
   | { type: "project.watch-state"; projectId: string; directories: string[]; watching: boolean }
   | { type: "playtest.state"; state: PlaytestState }
-  | { type: "terminal.opened"; terminalId: string; projectId: string; title: string; replay: string }
+  | { type: "terminal.opened"; terminalId: string; projectId: string; title: string; replay: string; surface?: "drawer" }
+  | { type: "terminal.closed"; terminalId: string }
   | { type: "terminal.started"; terminalId: string; projectId: string; title: string } // v1.3.0: a project action, to every window
   | { type: "terminal.output"; terminalId: string; data: string }
   | { type: "terminal.exit"; terminalId: string; code: number | null }

@@ -11,7 +11,7 @@ export interface ShortcutDef {
 }
 
 export const SHORTCUTS: ShortcutDef[] = [
-  { id: "thread.new", get label() { return t("Ny tråd"); }, group: "Tråder", keys: "Mod+J" },
+  { id: "thread.new", get label() { return t("Ny tråd"); }, group: "Tråder", keys: "Mod+Alt+N" },
   { id: "thread.back", get label() { return t("Forrige tråd"); }, group: "Tråder", keys: "Alt+ArrowLeft" },
   { id: "thread.forward", get label() { return t("Neste tråd"); }, group: "Tråder", keys: "Alt+ArrowRight" },
   { id: "thread.search", get label() { return t("Søk i tråder"); }, group: "Tråder", keys: "Mod+Shift+K" },
@@ -20,6 +20,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "settings.open", get label() { return t("Innstillinger"); }, group: "Vindu", keys: "Mod+," },
   { id: "view.sidebar", get label() { return t("Vis eller skjul sidefanen"); }, group: "Visning", keys: "Mod+B" },
   { id: "view.panel", get label() { return t("Vis eller skjul panelet"); }, group: "Visning", keys: "Mod+Shift+B" },
+  { id: "view.terminalDrawer", get label() { return t("Vis eller skjul terminalfeltet"); }, group: "Visning", keys: "Mod+J" },
   { id: "view.summary", get label() { return t("Festet sammendrag"); }, group: "Visning", keys: "Mod+Shift+S" },
   { id: "view.details", get label() { return t("Vis eller skjul tråddetaljer"); }, group: "Visning", keys: "Mod+Shift+D" },
   { id: "view.mode", get label() { return t("Bytt mellom Chat, Kode og Kode Studio"); }, group: "Visning", keys: "Mod+Shift+M" },

@@ -17,6 +17,7 @@ import { chatProjectPageId, openPalette } from "./nav";
 import { chooseSnoozeTime, setPinned, sideChat, toggleArchived } from "./thread-actions";
 import { toggleThreadDetails } from "./thread-details";
 import { openSkills, skillsOpen } from "./skills-workspace";
+import { terminalDrawerAvailable, toggleTerminalDrawer } from "./terminal-drawer";
 
 export function focusedThreadId(): string | null {
   if (mode() === "chat" && chatProjectPageId()) return null;
@@ -59,6 +60,7 @@ export const actions = {
     togglePanel();
   },
   toggleSummary: () => setPinnedSummary(!pinnedSummary()),
+  toggleTerminalDrawer,
   toggleMode: () => {
     if (mode() === "chat") { setStudioOpen(false); setMode("code"); }
     else if (!studioOpen()) { setMode("code"); setStudioOpen(true); }
@@ -138,6 +140,7 @@ const HANDLERS: Record<string, () => unknown> = {
   "settings.open": () => actions.settings(),
   "view.sidebar": actions.toggleSidebar,
   "view.panel": actions.togglePanel,
+  "view.terminalDrawer": actions.toggleTerminalDrawer,
   "view.summary": actions.toggleSummary,
   "view.details": () => {
     if (mode() !== "code") return toast(t("Tråddetaljer finnes i Kode."), "info");
@@ -200,6 +203,7 @@ export function handleShortcut(event: KeyboardEvent): void {
     if (runActionShortcut(event)) event.preventDefault();
     return;
   }
+  if (id === "view.terminalDrawer" && !terminalDrawerAvailable()) return;
   event.preventDefault();
   // The conversation stays mounted behind Settings; its shortcuts must stay inactive there.
   if (settingsOpen()) {

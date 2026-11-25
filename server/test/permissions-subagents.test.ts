@@ -7,7 +7,7 @@ import { test } from "node:test";
 import type { PermissionMode, ThreadEvent } from "../../shared/protocol.ts";
 import { allowRule, commandPrefix, decide } from "../src/agent/permissions.ts";
 import { TOOLS_BY_NAME } from "../src/agent/tools.ts";
-import { localPanelProject } from "../src/http/ws.ts";
+import { localPanelProject } from "../src/paths.ts";
 import { openaiText, openaiToolCall, sse, startFakeLlm, type FakeLlm } from "./fake-llm.ts";
 import { ofType, startHarness, until, type Harness } from "./helpers.ts";
 

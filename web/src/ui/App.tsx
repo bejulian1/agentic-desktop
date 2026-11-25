@@ -21,6 +21,7 @@ import { Sidebar } from "./Sidebar";
 import { SidebarRail } from "./SidebarRail";
 import { onQuietWord } from "../lib/sequence";
 import { TopBar } from "./TopBar";
+import { TerminalDrawer } from "./TerminalDrawer";
 import { markSeen, setVisibleCheck } from "../state/home";
 import type { PaneState } from "../state/grid";
 import { room } from "../state/artifacts";
@@ -224,6 +225,7 @@ export function App() {
             {(key) => <GridView grid={gridFor(key)} projectId={projectOfScope(key)} code={key !== "chat"} />}
           </Show>
           </StudioWorkspace>
+          <TerminalDrawer />
         </div>
         <Show when={chatProjectPage() && !away() ? chatProjectPageId() : null} keyed>
           {(id) => <Suspense><ChatProjectPage project={app.chatProjects[id]} /></Suspense>}

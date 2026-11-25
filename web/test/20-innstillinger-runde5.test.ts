@@ -271,7 +271,7 @@ flow("hurtigtaster: søk, ta opp, bytt ved konflikt, nettleserens taster, fjern 
   await page.keyboard.press("Control+W");
   await newThread.getByText("brukes av nettleseren").waitFor();
   await page.keyboard.press("Escape");
-  await newThread.locator("kbd", { hasText: "Ctrl+J" }).waitFor();
+  await newThread.locator("kbd", { hasText: "Ctrl+Alt+N" }).waitFor();
   await page.getByRole("region", { name: "Innstillinger" }).waitFor();
 
   await newThread.getByRole("button", { name: /^Endre hurtigtast/ }).click();
@@ -279,7 +279,7 @@ flow("hurtigtaster: søk, ta opp, bytt ved konflikt, nettleserens taster, fjern 
   await newThread.locator("kbd", { hasText: "Ingen" }).waitFor();
   await waitFor(async () => (await shortcuts())["thread.new"] === "", "fjernet");
   await newThread.getByRole("button", { name: "Tilbakestill Ny tråd" }).click();
-  await newThread.locator("kbd", { hasText: "Ctrl+J" }).waitFor();
+  await newThread.locator("kbd", { hasText: "Ctrl+Alt+N" }).waitFor();
 
   await page.getByRole("button", { name: "Tilbakestill alle" }).click();
   await waitFor(async () => Object.keys(await shortcuts()).length === 0, "alt er standard igjen");
