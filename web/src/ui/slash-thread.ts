@@ -3,7 +3,7 @@ import type { Thread } from "../../../shared/protocol";
 import { THREAD_SLASH_COMMANDS } from "../../../shared/slash-thread";
 import { renameThread, toast } from "../state/app";
 import { archiveMany, restoreMany } from "../state/archive";
-import { copyThread, forkFromLast, openInWindow, setPinned, setSnoozed, snoozeTimes, threadEventPages } from "../state/thread-actions";
+import { chooseSnoozeTime, copyThread, forkFromLast, openInWindow, setPinned, setSnoozed, snoozeTimes, threadEventPages } from "../state/thread-actions";
 import { exportThread } from "./ChatTools";
 import { promptDialog } from "./dialogs";
 
@@ -47,6 +47,9 @@ const operations: Record<string, ThreadAction> = {
     if (archive) await archiveMany({ ids: [thread.id] }, t("denne ruten"));
     else await restoreMany([thread.id]);
   },
+  settle(thread, arg) {
+    return operations.archive(thread, arg);
+  },
   async "fork-last"(thread) {
     if (thread.running) return toast(t("Vent til den aktive turen er ferdig før du lager en gaffel fra siste melding."), "info");
     // Older forks can have a full conversation and no lastStatus of their own.
@@ -66,15 +69,16 @@ const operations: Record<string, ThreadAction> = {
   },
   snooze(thread, arg) {
     const choice = arg.toLowerCase();
+    if (!choice) return chooseSnoozeTime(thread);
     if (choice === "off" || choice === "av") return setSnoozed(thread, null);
-    const aliases: Record<string, string> = { "om 1 time": "1h", "i morgen": "tomorrow", "neste uke": "week" };
+    const aliases: Record<string, string> = { "om 1 time": "1h", "om 3 timer": "3h", "i morgen": "tomorrow", "neste uke": "week" };
     const time = snoozeTimes().find((item) => item.id === (aliases[choice] ?? choice) || item.label.toLowerCase() === choice);
-    if (!time) return toast(t("Velg /snooze 1h, /snooze tomorrow, /snooze week eller /snooze off."), "info");
+    if (!time) return toast(t("Velg /snooze 1h, /snooze 3h, /snooze tomorrow, /snooze week eller /snooze off."), "info");
     return setSnoozed(thread, time.at);
   },
 };
 
-const sidebarActions = new Set(["pin", "archive", "snooze"]);
+const sidebarActions = new Set(["pin", "archive", "settle", "snooze"]);
 
 export const threadSlashActions: Readonly<Record<string, (context: ThreadContext) => void | Promise<void>>> =
   Object.fromEntries(THREAD_SLASH_COMMANDS.map(({ name, args }) => [name, ({ thread, arg }: ThreadContext) => {

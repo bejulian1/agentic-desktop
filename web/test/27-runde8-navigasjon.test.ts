@@ -162,7 +162,7 @@ flow("Utsett virker i standard sidefane: dempet nederst med en klokke som henter
 
   await item.click({ button: "right" });
   await page.getByRole("menuitem", { name: /Utsett/ }).hover();
-  await page.locator('.context-menu[data-depth="1"]').getByRole("menuitem", { name: "Om 1 time" }).click();
+  await page.locator('.context-menu[data-depth="1"]').getByRole("menuitem", { name: "1 time", exact: true }).click();
   await page.locator(`.thread-item.snoozed[data-thread-item="${second.id}"]`).waitFor();
   const order = await page.locator(".thread-item").evaluateAll((items) => items.map((el) => el.getAttribute("data-thread-item")));
   assert.ok(order.indexOf(second.id) > order.indexOf(first.id), "den utsatte står nederst");

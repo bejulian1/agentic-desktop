@@ -1,4 +1,5 @@
 import { sourceText } from "../../../shared/i18n.ts";
+import { pullWatchVersion } from "../../../shared/linked-pr.ts";
 // Round 8 (agent G): GitHub, read only, and saving from the mini editor. Kept apart from
 // api.ts so the round's agents do not edit the same lines.
 //
@@ -93,23 +94,25 @@ export function githubRoutes(route: Route, deps: ApiDeps, h: { project: (id: str
 
   route("GET", "/api/projects/:id/github", ({ params, query }) => github.project(h.project(params.id).path, query.get("refresh") === "1"));
 
-  route("GET", "/api/github/pull-watch", async ({ query }) => {
-    const number = query.get("number");
-    if (!number || !/^[1-9]\d{0,9}$/.test(number)) throw new HttpError(400, "Skriv et gyldig PR-nummer.");
-    const projectId = query.get("project");
-    let repo = query.get("repo");
+  const readPullWatch = (number: unknown, repo: unknown, projectId: unknown) => run(async () => {
+    if (typeof number !== "string" || !/^[1-9]\d{0,9}$/.test(number)) throw new HttpError(400, "Skriv et gyldig PR-nummer.");
     if (projectId && !repo) {
+      if (typeof projectId !== "string") throw new HttpError(400, "Velg et gyldig prosjekt.");
       const { remote, reason } = readGitHubRemote(h.project(projectId).path);
       if (!remote) throw new HttpError(400, reason ?? "Prosjektet har ingen GitHub-tilkobling.");
       repo = `${remote.owner}/${remote.repo}`;
     }
-    if (!repo) throw new HttpError(400, "Velg et prosjekt eller oppgi en GitHub-PR-lenke.");
-    try {
-      return await github.pullWatch(repo, Number(number));
-    } catch (err) {
-      if (err instanceof GitHubError) throw new HttpError(err.status, err.message, { code: err.code, resetAt: err.resetAt });
-      throw err;
-    }
+    if (typeof repo !== "string" || !repo) throw new HttpError(400, "Velg et prosjekt eller oppgi en GitHub-PR-lenke.");
+    return github.pullWatch(repo, Number(number));
+  });
+  route("GET", "/api/github/pull-watch", ({ query }) => readPullWatch(query.get("number"), query.get("repo"), query.get("project")));
+  route("POST", "/api/github/pull-watch", async ({ body }) => {
+    const thread = typeof body.threadId === "string" ? store.thread(body.threadId) : undefined;
+    if (!thread || thread.temporary) throw new HttpError(404, "Fant ikke tråden");
+    const pull = await readPullWatch(body.number, body.repo, body.projectId);
+    const activity = typeof body.previous === "string" && body.previous !== pullWatchVersion(pull);
+    deps.threadInbox.onWatchedPull(thread.id, pull, body.link === true, activity);
+    return pull;
   });
 
   // The mini editor reads a file through here, to get the hash it saves against.

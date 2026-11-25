@@ -1,15 +1,16 @@
 // The thread menu, on right-click and on ⋯ in the sidebar: one list of entries for both, and for
 // the cards in the smart sidebar.
 import { t } from "../lib/i18n";
+import { parsePullUrl, pullUrl } from "../../../shared/linked-pr";
 import type { Thread } from "../../../shared/protocol";
 import { app, deleteThread, moveToSection, report, sectionsFor, sortedChatProjects } from "../state/app";
 import { patch } from "../lib/api";
 import { finished, markSeen, markUnread } from "../state/home";
 import { newChatProject } from "./chat-projects";
-import { copyThread, forkFromLast, forkWhole, openInPane, openInWindow, setPinned, setSnoozed, sideChat, snoozeTimes, toggleArchived } from "../state/thread-actions";
-import { confirmDialog } from "./dialogs";
+import { chooseSnoozeTime, copyThread, forkFromLast, forkWhole, openInPane, openInWindow, setPinned, setSnoozed, sideChat, snoozeTimes, toggleArchived } from "../state/thread-actions";
+import { confirmDialog, promptDialog } from "./dialogs";
 import { newSection } from "./sidebar-sections";
-import { IconArchive, IconAt, IconDownload, IconEye, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
+import { IconArchive, IconAt, IconDownload, IconEye, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconGlobe, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
 import type { MenuEntry } from "./ContextMenu";
 import { IconPencil, IconSnooze, IconWindow } from "./nav-icons";
 
@@ -80,14 +81,18 @@ export function threadMenuEntries(thread: Thread, startRename: () => void): Menu
         { label: t("Fra siste melding"), run: () => forkFromLast(thread), title: t("En ny tråd med bare den siste meldingen og svaret") },
       ],
     },
-    {
+    ...(!thread.temporary ? [{
       label: t("Utsett"),
       icon: IconSnooze,
       children: [
-        ...snoozeTimes().map((t) => ({ label: t.label, run: () => setSnoozed(thread, t.at) })),
+        ...snoozeTimes().map(({ id, label }) => ({ label, run: () => {
+          const time = snoozeTimes().find((item) => item.id === id)!;
+          return setSnoozed(thread, time.at);
+        } })),
+        { label: t("Velg tidspunkt…"), keys: "thread.snooze", run: () => chooseSnoozeTime(thread) },
         ...(snoozed ? (["sep", { label: t("Hent tilbake"), run: () => setSnoozed(thread, null) }] as MenuEntry[]) : []),
       ],
-    },
+    } satisfies MenuEntry, ...pullEntries(thread)] : []),
     "sep",
     { label: t("Eksporter samtale…"), icon: IconDownload, title: t("Last ned samtalen som en Markdown-fil du kan dele selv"), run: () => import("./ChatTools").then(({ exportThread }) => exportThread(thread.id)) },
     {
@@ -113,4 +118,34 @@ export function threadMenuEntries(thread: Thread, startRename: () => void): Menu
       },
     },
   ];
+}
+
+function pullEntries(thread: Thread): MenuEntry[] {
+  const linked = thread.linkedPr;
+  const update = (linkedPr: Thread["linkedPr"]) => patch(`/api/threads/${thread.id}`, { linkedPr }).catch(report);
+  const link = {
+    label: linked ? t("Endre GitHub-PR…") : t("Knytt til GitHub-PR…"),
+    icon: IconBranch,
+    run: async () => {
+      const value = await promptDialog({
+        title: t("Lenke til GitHub-PR"),
+        value: linked ? linked.url ?? pullUrl(linked) : "",
+        confirm: t("Lagre"),
+        validate: (value) => parsePullUrl(value) ? undefined : t("Lim inn en gyldig lenke til en GitHub-PR."),
+      });
+      if (value) await update(parsePullUrl(value));
+    },
+  };
+  if (!linked) return [link];
+  const openUrl = linked.url ?? pullUrl(linked);
+  return [{
+    label: t("Tilknyttet PR #{number}", { number: linked.number }),
+    title: linked.repo,
+    icon: IconBranch,
+    children: [
+      { label: t("Åpne på GitHub"), icon: IconGlobe, run: () => { window.open(openUrl, "_blank", "noopener,noreferrer"); } },
+      link,
+      { label: t("Fjern PR-tilknytning"), run: () => update(null) },
+    ],
+  }];
 }

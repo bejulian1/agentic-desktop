@@ -15,7 +15,7 @@ import { relativeTime } from "../lib/format";
 import { connection } from "../lib/socket";
 import type { ChatProject, Project, Thread } from "../../../shared/protocol";
 import {
-  app, collapsed, listed, setApp, mode, projectId, renameThread, report, scope, setFolderPickerOpen, setSettingsOpen, setSidebarWidth,
+  app, collapsed, listed, saveSettings, setApp, mode, projectId, renameThread, report, scope, setFolderPickerOpen, setSettingsOpen, setSidebarWidth,
   setSidebarOpen, setMode, setProjectId, settingsOpen, sortedProjects, toast, toggleCollapsed,
 } from "../state/app";
 import { applyDrop, beginDrag, sectionTarget } from "../state/drag";
@@ -35,6 +35,7 @@ import { displayKeys, keysFor } from "../state/shortcuts";
 import { clearFinished, finished, gitInfo, loadGitInfo, markSeen, searchOpen, setSearchOpen } from "../state/home";
 import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
 import { STATE_LABEL, threadState, waitingCount } from "../state/thread-status";
+import { inboxOrder, nextWake, snoozedAt, splitInbox } from "../state/thread-inbox";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
@@ -79,7 +80,7 @@ const THREADS_SHOWN = 10;
 // The clock for snoozed threads. It moves only when a snooze runs out (one timer, see Sidebar), so
 // a snoozed row wakes up by itself and nothing ticks while nothing is snoozed.
 const [snoozeNow, setSnoozeNow] = createSignal(Date.now());
-export const isSnoozed = (t: Thread, now = snoozeNow()) => !!t.snoozedUntil && t.snoozedUntil > now;
+export const isSnoozed = (thread: Thread, now = snoozeNow()) => snoozedAt(thread, now);
 const snoozeLabel = (at: number) =>
   t("Utsatt til {time}", { time: new Date(at).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) });
 
@@ -93,7 +94,7 @@ export function initials(name: string | undefined): string {
   return words.map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; showProject?: boolean }) {
+function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; showProject?: boolean; inbox?: boolean }) {
   const { thread } = props;
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
   const [renaming, setRenaming] = createSignal(false);
@@ -105,6 +106,8 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   const inProject = () => thread.mode === "code" && !!thread.projectId && !!app.projects[thread.projectId];
   createEffect(() => { if (inProject()) loadGitInfo(thread.projectId!); });
   const branch = () => (inProject() ? gitInfo(thread.projectId!)?.branch ?? null : null);
+  const project = () => thread.projectId ? app.projects[thread.projectId] : undefined;
+  const chatProject = () => thread.chatProjectId ? app.chatProjects[thread.chatProjectId] : undefined;
   const provider = createMemo(() => (thread.mode === "code" ? modelProvider(thread.modelId) : null));
   // Chat rows carry the same coloured mark, small and before the title, without a second line.
   const chatProvider = createMemo(() => (thread.mode === "code" ? null : modelProvider(thread.modelId)));
@@ -220,7 +223,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
             if (e.detail === 0) open();
           }}
         >
-          <Show when={props.showProject && thread.projectId ? app.projects[thread.projectId] : undefined}>
+          <Show when={props.showProject && project()}>
             {(p) => <span class="thread-project" title={p().name}><ProjectGlyph project={p()} size={12} /></span>}
           </Show>
           {/* Round 14 (SPEC 30.3): a fork has a small fork mark; the hover card links back. */}
@@ -228,6 +231,14 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
             <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
           </Show>
           <span class="thread-title">{thread.title}</span>
+          <Show when={props.inbox && (project() || chatProject())}>
+            <span class="thread-inbox-project" title={project()?.name ?? chatProject()?.name}>
+              <Show when={project()} fallback={<ChatProjectGlyph project={chatProject()!} size={12} />}>
+                {(p) => <ProjectGlyph project={p()} size={12} />}
+              </Show>
+              <span>{project()?.name ?? chatProject()?.name}</span>
+            </span>
+          </Show>
           <Show when={chatProvider()}>
             {(info) => <span class="thread-provider thread-provider-chat" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
           </Show>
@@ -726,22 +737,35 @@ const SORTS: Array<{ id: ProjectSort; label: string }> = [
 // Round 11 (SPEC 24.6): one ⋯ at the top of the sidebar for what used to be spread out: how the
 // sidebar is organised and folded, how the threads are sorted, what is shown, a new project and a
 // new section. It stays inside the sidebar like the profile menu; the submenus open to the side.
-function SidebarMenu(props: { foldIds: () => string[] }) {
+function SidebarMenu(props: { foldIds: () => string[]; inbox: boolean; onFoldAll?: (folded: boolean) => void; anyInboxOpen?: () => boolean; anyInboxFolded?: () => boolean }) {
   const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
   const inChat = () => mode() === "chat";
-  const anyOpen = () => props.foldIds().some((id) => !collapsed().includes(id));
-  const anyFolded = () => props.foldIds().some((id) => collapsed().includes(id));
+  const anyOpen = () => props.foldIds().some((id) => !collapsed().includes(id)) || (props.anyInboxOpen?.() ?? false);
+  const anyFolded = () => props.foldIds().some((id) => collapsed().includes(id)) || (props.anyInboxFolded?.() ?? false);
+  const setGrouping = (next: "project" | "list" | "inbox") => {
+    if (next === "inbox") {
+      if (!props.inbox) void saveSettings({ sidebarGroupBy: "inbox" }).catch(report);
+      return;
+    }
+    if (props.inbox) void saveSettings({ sidebarGroupBy: "project" }).catch(report);
+    setProjectGroup(next);
+  };
+  const foldAll = (folded: boolean) => {
+    setAllCollapsed(props.foldIds(), folded);
+    props.onFoldAll?.(folded);
+  };
   const entries = (): MenuEntry[] => [
     {
       label: t("Organiser sidepanelet"),
       icon: IconSidebar,
       children: [
         { heading: <span class="menu-heading">{t("Grupper")}</span> },
-        { label: t("Etter prosjekt"), chosen: projectGroup() === "project", title: inChat() ? t("Chattene i prosjektene sine, og resten under Chatter") : t("Hvert prosjekt med trådene sine"), run: () => setProjectGroup("project") },
-        { label: t("Etter dato"), chosen: projectGroup() === "list", title: t("Én liste med I dag, I går og eldre"), run: () => setProjectGroup("list") },
+        { label: t("Etter prosjekt"), chosen: !props.inbox && projectGroup() === "project", title: inChat() ? t("Chattene i prosjektene sine, og resten under Chatter") : t("Hvert prosjekt med trådene sine"), run: () => setGrouping("project") },
+        { label: t("Etter dato"), chosen: !props.inbox && projectGroup() === "list", title: t("Én liste med I dag, I går og eldre"), run: () => setGrouping("list") },
+        { label: t("Innboks-liste"), chosen: props.inbox, title: t("Én prioritert liste på tvers av prosjekter"), run: () => setGrouping("inbox") },
         "sep",
-        { label: t("Fold sammen alle"), icon: IconFoldAll, disabled: !anyOpen(), run: () => setAllCollapsed(props.foldIds(), true) },
-        { label: t("Fold ut alle"), icon: IconUnfoldAll, disabled: !anyFolded(), run: () => setAllCollapsed(props.foldIds(), false) },
+        { label: t("Fold sammen alle"), icon: IconFoldAll, disabled: !anyOpen(), run: () => foldAll(true) },
+        { label: t("Fold ut alle"), icon: IconUnfoldAll, disabled: !anyFolded(), run: () => foldAll(false) },
       ],
     },
     {
@@ -869,6 +893,52 @@ function DateList(props: { threads: Thread[]; activeIds: ReadonlySet<string>; sh
   );
 }
 
+const INBOX_FOLDS_KEY = "ad-sidebar-inbox-folds";
+type InboxFoldState = { working: boolean; snoozed: boolean };
+function readInboxFolds(): InboxFoldState {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(INBOX_FOLDS_KEY) ?? "null") as Partial<InboxFoldState> | null;
+    return { working: parsed?.working === true, snoozed: parsed?.snoozed === true };
+  } catch {
+    return { working: false, snoozed: false };
+  }
+}
+
+function InboxFold(props: { kind: "working" | "snoozed"; threads: Thread[]; activeIds: ReadonlySet<string>; open: boolean; onToggle: () => void }) {
+  return (
+    <Show when={props.threads.length}>
+      <div class="group inbox-fold" data-inbox-fold={props.kind}>
+        <button type="button" class="smart-group-head" aria-expanded={props.open} onClick={props.onToggle}>
+          <Show when={props.kind === "working"}><span class="smart-state" data-state="running" aria-hidden="true" /></Show>
+          <span>{props.kind === "working" ? t("Jobber") : t("Utsatt")}</span>
+          <span class="sidebar-spacer" />
+          <span class="smart-count">{props.threads.length}</span>
+          <span class="fold-chevron" classList={{ open: props.open }}><IconChevron size={12} /></span>
+        </button>
+        <Show when={props.open}>
+          <For each={props.threads}>{(thread) => <ThreadItem thread={thread} active={props.activeIds.has(thread.id)} inbox />}</For>
+        </Show>
+      </div>
+    </Show>
+  );
+}
+
+function InboxList(props: { threads: Thread[]; activeIds: ReadonlySet<string> }) {
+  const [all, setAll] = createSignal(false);
+  const LIMIT = THREADS_SHOWN * 2;
+  const shown = () => (all() || props.threads.length <= LIMIT + 2 ? props.threads : props.threads.filter((t, i) => i < LIMIT || props.activeIds.has(t.id) || t.running || t.pendingApprovals > 0));
+  return (
+    <div class="group" data-testid="sidebar-inbox">
+      <For each={shown()} fallback={<div class="sidebar-empty">{t("Innboksen er tom")}</div>}>
+        {(thread) => <ThreadItem thread={thread} active={props.activeIds.has(thread.id)} inbox />}
+      </For>
+      <Show when={shown().length < props.threads.length || all()}>
+        <button type="button" class="show-more" onClick={() => setAll(!all())}>{all() ? t("Vis færre") : t("Vis flere ({count})", { count: props.threads.length - shown().length })}</button>
+      </Show>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const [query, setQuery] = createSignal("");
   const [results, setResults] = createSignal<Thread[]>([]);
@@ -897,13 +967,36 @@ export function Sidebar() {
 
   const smart = () => app.settings.sidebarLayout === "smart";
   const inChat = () => mode() === "chat";
-  // Sorted as chosen in ⋯ → Sorter samtaler etter. Snoozed threads sink to the bottom of their list,
-  // dimmed with a clock, until the time is up.
+  const inbox = () => app.settings.sidebarGroupBy === "inbox";
+  const hideWorking = () => app.settings.hideWorkingThreads === true;
+  const separateInbox = () => inbox() || hideWorking();
+  const [inboxFolds, setInboxFolds] = createSignal<InboxFoldState>(readInboxFolds());
+  const setFoldState = (next: InboxFoldState) => {
+    setInboxFolds(next);
+    try { localStorage.setItem(INBOX_FOLDS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  const toggleInboxFold = (kind: "working" | "snoozed") => setFoldState({ ...inboxFolds(), [kind]: !inboxFolds()[kind] });
+  const activeIds = createMemo<ReadonlySet<string>>(() => {
+    const key = scope();
+    if (!key || (mode() === "chat" && chatProjectPageId())) return new Set();
+    return new Set(gridFor(key).panes().flatMap((p) => p.threadId() ?? []));
+  });
+  // Sorted as chosen in ⋯ → Sorter samtaler etter. In default project mode, snoozed threads stay last in their list.
   const order = (a: Thread, b: Thread) =>
-    Number(isSnoozed(a)) - Number(isSnoozed(b)) ||
     (effectiveProjectOrder() === "name" ? a.title.localeCompare(b.title, language(), { sensitivity: "base" }) : effectiveProjectOrder() === "created" ? b.createdAt - a.createdAt : b.updatedAt - a.updatedAt);
+  const listOrder = (a: Thread, b: Thread) => {
+    const now = snoozeNow();
+    return (!separateInbox() ? Number(snoozedAt(a, now)) - Number(snoozedAt(b, now)) : 0) || order(a, b);
+  };
   const threads = createMemo(() => Object.values(app.threads).filter(listed));
-  const live = createMemo(() => threads().filter((t) => !t.archived).sort(order));
+  const unread = createMemo(() => new Set(finished()));
+  const groups = createMemo(() => splitInbox(threads().filter((t) => !t.archived).sort(listOrder), snoozeNow(), hideWorking(), unread(), activeIds(), separateInbox()));
+  const live = () => groups().active;
+  const inMode = (thread: Thread) => thread.mode === mode();
+  const inboxThreads = createMemo(() => live().filter(inMode).sort(inboxOrder(unread(), order)));
+  const visibleInFold = (thread: Thread) => inMode(thread) || (!inbox() && showPinned() && thread.pinned);
+  const workingFoldThreads = createMemo(() => (separateInbox() ? groups().working.filter(visibleInFold) : []));
+  const snoozedFoldThreads = createMemo(() => (separateInbox() ? groups().snoozed.filter(visibleInFold) : []));
   // ⋯ → Vis → Festet. Pinned threads get their own place under Festet and are not shown twice; with
   // Festet off they stand where they otherwise belong.
   const festet = () => showPinned();
@@ -937,28 +1030,24 @@ export function Sidebar() {
     return list.filter((p, i) => i < PROJECTS_SHOWN || p.id === projectId() || forProject(p.id).some((t) => t.running || t.pendingApprovals > 0));
   });
   // What Fold sammen alle and Fold ut alle work on.
-  const foldIds = () => [
+  const foldIds = () => (inbox() ? [] : [
     ...sections().map((section) => `sec:${section.id}`),
     ...(inChat()
       ? (chatProjectsShown() ? sortedChatProjects().map((p) => `chat:${p.id}`) : [])
       : [...(projectGroup() === "project" ? otherProjects().map((p) => p.id) : []), ...pinnedProjects().map((p) => p.id), ...(localThreads().length ? [LOCAL_SCOPE] : [])]),
-  ];
+  ]);
+  const anyInboxOpen = () => (workingFoldThreads().length > 0 && inboxFolds().working) || (snoozedFoldThreads().length > 0 && inboxFolds().snoozed);
+  const anyInboxFolded = () => (workingFoldThreads().length > 0 && !inboxFolds().working) || (snoozedFoldThreads().length > 0 && !inboxFolds().snoozed);
+  const foldAllInbox = (folded: boolean) => setFoldState({ working: !folded, snoozed: !folded });
 
   // One timer, for the next snooze that runs out.
   createEffect(() => {
-    const now = snoozeNow();
-    const next = Math.min(...threads().map((t) => (t.snoozedUntil && t.snoozedUntil > now ? t.snoozedUntil : Infinity)));
+    const next = nextWake(threads(), snoozeNow());
     if (!Number.isFinite(next)) return;
     const timer = setTimeout(() => setSnoozeNow(Date.now()), Math.min(next - Date.now() + 50, 2 ** 31 - 1));
     onCleanup(() => clearTimeout(timer));
   });
   const anyPinned = () => pinnedThreads().length > 0 || pinnedProjects().length > 0 || (inChat() && pinnedChatProjects().length > 0);
-
-  const activeIds = createMemo<ReadonlySet<string>>(() => {
-    const key = scope();
-    if (!key || (mode() === "chat" && chatProjectPageId())) return new Set();
-    return new Set(gridFor(key).panes().flatMap((p) => p.threadId() ?? []));
-  });
 
   let resizeTarget = 0;
   const applyWidth = () => setSidebarWidth(resizeTarget);
@@ -995,7 +1084,7 @@ export function Sidebar() {
           </button>
         </Show>
         <Notifications />
-        <Show when={!smart()}><SidebarMenu foldIds={foldIds} /></Show>
+        <Show when={!smart()}><SidebarMenu foldIds={foldIds} inbox={inbox()} onFoldAll={foldAllInbox} anyInboxOpen={anyInboxOpen} anyInboxFolded={anyInboxFolded} /></Show>
       </div>
       <Show when={searchOpen() && !smart()}>
         <div class="sidebar-search">
@@ -1048,6 +1137,7 @@ export function Sidebar() {
               </div>
             }
           >
+            <Show when={inbox()} fallback={<>
             {/* Festet (SPEC 21.2): only when something is pinned, in both modes, and ⋯ → Vis → Festet is on. */}
             <Show when={anyPinned()}>
               <div class="section-head" data-section="pinned">
@@ -1124,6 +1214,11 @@ export function Sidebar() {
                 <LocalGroup threads={localThreads()} activeIds={activeIds()} />
               </Show>
             </Show>
+            </>}>
+              <InboxList threads={inboxThreads()} activeIds={activeIds()} />
+            </Show>
+            <InboxFold kind="working" threads={workingFoldThreads()} activeIds={activeIds()} open={inboxFolds().working} onToggle={() => toggleInboxFold("working")} />
+            <InboxFold kind="snoozed" threads={snoozedFoldThreads()} activeIds={activeIds()} open={inboxFolds().snoozed} onToggle={() => toggleInboxFold("snoozed")} />
             <Show when={archivedCount()}>
               <button type="button" class="show-more archived-link" aria-label={t("Arkiverte ({count})", { count: archivedCount() })} title={t("Arkiverte tråder: ingenting er slettet, og de kan hentes tilbake")} onClick={() => openArchive()}><IconArchive size={14} /><span>{t("Arkiverte")}</span><span class="archived-count">{archivedCount()}</span></button>
             </Show>

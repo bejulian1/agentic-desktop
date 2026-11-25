@@ -8,6 +8,7 @@ import { forkThread } from "./actions";
 import { gridFor } from "./grid";
 import { openThread } from "./navigate";
 import { openDetachedWindow } from "./windows";
+import { promptDialog } from "../ui/dialogs";
 
 export async function setPinned(thread: Thread, pinned: boolean): Promise<void> {
   try {
@@ -27,20 +28,41 @@ export async function setSnoozed(thread: Thread, until: number | null): Promise<
   }
 }
 
-// The snooze choices: an hour, tomorrow morning and next Monday morning, in local time.
-export function snoozeTimes(now = new Date()): Array<{ id: "1h" | "tomorrow" | "week"; label: string; at: number }> {
+// Tomorrow and next Monday use local wall time, including across daylight-saving changes.
+export function snoozeTimes(now = new Date()): Array<{ id: "1h" | "3h" | "tomorrow" | "week"; label: string; at: number }> {
   const morning = (days: number) => {
     const d = new Date(now);
     d.setDate(d.getDate() + days);
-    d.setHours(8, 0, 0, 0);
+    d.setHours(9, 0, 0, 0);
     return d.getTime();
   };
   const toMonday = ((8 - now.getDay()) % 7) || 7;
   return [
-    { id: "1h", label: t("Om 1 time"), at: now.getTime() + 3_600_000 },
-    { id: "tomorrow", label: t("I morgen"), at: morning(1) },
+    { id: "1h", label: t("1 time"), at: now.getTime() + 3_600_000 },
+    { id: "3h", label: t("3 timer"), at: now.getTime() + 10_800_000 },
+    { id: "tomorrow", label: t("I morgen kl. 09:00"), at: morning(1) },
     { id: "week", label: t("Neste uke"), at: morning(toMonday) },
   ];
+}
+
+const localDateTime = (at: Date): string =>
+  new Date(at.getTime() - at.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
+export async function chooseSnoozeTime(thread: Thread): Promise<void> {
+  if (thread.temporary) return;
+  const value = await promptDialog({
+    title: t("Velg tidspunkt for å vekke tråden"),
+    value: localDateTime(new Date(Date.now() + 3_600_000)),
+    min: localDateTime(new Date(Date.now() + 60_000)),
+    confirm: t("Utsett"),
+    type: "datetime-local",
+    validate: (value) => {
+      const date = new Date(value);
+      if (date.getTime() > Date.now() && localDateTime(date) === value) return;
+      return t("Velg et gyldig tidspunkt i fremtiden.");
+    },
+  });
+  if (value) await setSnoozed(thread, new Date(value).getTime());
 }
 
 // The copy or the side chat opens beside the original, so both stay in view.

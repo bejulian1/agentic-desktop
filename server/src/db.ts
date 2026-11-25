@@ -22,6 +22,7 @@ import type {
   SummaryTurnChanges,
   SidebarSection,
   HomeStats,
+  LinkedPr,
   ModelConfig,
   Mode,
   ProfileStats,
@@ -44,6 +45,17 @@ import type {
 } from "../../shared/protocol.ts";
 import type { Message } from "./providers/types.ts";
 import { agentSettingsOf, cleanProjectActions, EFFORT_STEPS, modelContextOf, searchEngineOf, threadNotificationsOf } from "../../shared/protocol.ts";
+
+function parseLinkedPr(raw: unknown): LinkedPr | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<LinkedPr> | null;
+    if (parsed && typeof parsed.repo === "string" && typeof parsed.number === "number") return parsed as LinkedPr;
+  } catch {
+    // Ignore corrupt JSON in legacy or manually edited rows.
+  }
+  return null;
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -168,7 +180,11 @@ function countStreaks(active: string[], today: string): { current: number; longe
 export const MOCK_PROVIDER_ID = "mock";
 export const MOCK_MODEL_ID = "mock-demo";
 
-const DEFAULT_SETTINGS: Settings = { theme: "system", defaultModelId: null, defaultPermissionMode: "ask", autoOpenAgentThreads: true };
+const DEFAULT_SETTINGS: Settings = {
+  theme: "system", defaultModelId: null, defaultPermissionMode: "ask", autoOpenAgentThreads: true,
+  autoSettleAfterHours: null, autoSettleOnPrClose: false, snoozeWakeOnActivity: true,
+  hideWorkingThreads: false, sidebarGroupBy: "project",
+};
 
 // Round 11b (SPEC 25.2): the two old Kode start choices become one. Any "cards" (Prosjektkort, or
 // Hilsen med prosjektkort) is Prosjektboks; otherwise a stored "greeting" is Tekst in Middels. Nothing
@@ -215,7 +231,8 @@ export interface ThreadPatch {
   reasoning?: ReasoningEffort | null;
   personality?: string | null;
   pinned?: boolean;
-  snoozedUntil?: number | null; // hidden under Utsatt in the smart sidebar until then
+  snoozedUntil?: number | null;
+  linkedPr?: Thread["linkedPr"];
   chatTools?: ChatTools | null; // round 13: the tools of a chat; null follows the defaults again
 }
 
@@ -332,6 +349,7 @@ export class Store {
     add("projects", "actions", "TEXT");
     add("threads", "pinned", "INTEGER NOT NULL DEFAULT 0");
     add("threads", "snoozed_until", "INTEGER");
+    add("threads", "linked_pr", "TEXT");
     add("threads", "temporary", "INTEGER NOT NULL DEFAULT 0");
     // Round 9: Chat projects. A chat whose project is removed stays, outside any project.
     add("threads", "chat_project_id", "TEXT REFERENCES chat_projects(id) ON DELETE SET NULL");
@@ -701,6 +719,7 @@ export class Store {
     lastStatus: this.lastRun(row.id)?.status ?? null,
     pinned: row.pinned === 1,
     snoozedUntil: row.snoozed_until ?? null,
+    linkedPr: parseLinkedPr(row.linked_pr),
     ...(row.temporary === 1 ? { temporary: true } : {}),
     ...(row.chat_project_id ? { chatProjectId: row.chat_project_id } : {}),
     ...(row.section_id ? { sectionId: row.section_id } : {}),
@@ -711,6 +730,18 @@ export class Store {
 
   threads(): Thread[] {
     return this.q("SELECT * FROM threads ORDER BY updated_at DESC").all().map(this.toThread);
+  }
+
+  inboxCandidates(now: number, criteria: { inactiveSince: number } | { linkedPr: true }): Thread[] {
+    const eligible = "archived = 0 AND temporary = 0 AND pinned = 0 AND (snoozed_until IS NULL OR snoozed_until <= ?)";
+    if ("inactiveSince" in criteria) {
+      return this.q(`SELECT * FROM threads WHERE ${eligible} AND MAX(updated_at, COALESCE(snoozed_until, 0)) <= ?`).all(now, criteria.inactiveSince).map(this.toThread);
+    }
+    return this.q(`SELECT * FROM threads WHERE ${eligible} AND linked_pr IS NOT NULL`).all(now).map(this.toThread);
+  }
+
+  wakeSnoozedThread(id: string, now: number): boolean {
+    return !!this.q("UPDATE threads SET snoozed_until = NULL WHERE id = ? AND snoozed_until > ?").run(id, now).changes;
   }
 
   thread(id: string): Thread | undefined {
@@ -765,7 +796,10 @@ export class Store {
 
   updateThread(id: string, patch: ThreadPatch): void {
     if (patch.title !== undefined) this.q("UPDATE threads SET title = ? WHERE id = ?").run(patch.title, id);
-    if (patch.archived !== undefined) this.q("UPDATE threads SET archived = ? WHERE id = ?").run(patch.archived ? 1 : 0, id);
+    if (patch.archived !== undefined) {
+      if (patch.archived) this.q("UPDATE threads SET archived = 1 WHERE id = ?").run(id);
+      else this.q("UPDATE threads SET archived = 0, updated_at = CASE WHEN archived = 1 THEN ? ELSE updated_at END WHERE id = ?").run(Date.now(), id);
+    }
     if (patch.modelId !== undefined) this.q("UPDATE threads SET model_id = ? WHERE id = ?").run(patch.modelId, id);
     if (patch.goal !== undefined) this.setGoal(id, patch.goal);
     if (patch.goalPaused !== undefined) this.pauseGoal(id, patch.goalPaused);
@@ -776,6 +810,7 @@ export class Store {
     if (patch.personality !== undefined) this.q("UPDATE threads SET personality = ? WHERE id = ?").run(patch.personality, id);
     if (patch.pinned !== undefined) this.q("UPDATE threads SET pinned = ? WHERE id = ?").run(patch.pinned ? 1 : 0, id);
     if (patch.snoozedUntil !== undefined) this.q("UPDATE threads SET snoozed_until = ? WHERE id = ?").run(patch.snoozedUntil, id);
+    if (patch.linkedPr !== undefined) this.q("UPDATE threads SET linked_pr = ? WHERE id = ?").run(patch.linkedPr ? JSON.stringify(patch.linkedPr) : null, id);
     if (patch.chatTools !== undefined) this.q("UPDATE threads SET chat_tools = ? WHERE id = ?").run(patch.chatTools ? JSON.stringify(patch.chatTools) : null, id);
   }
 

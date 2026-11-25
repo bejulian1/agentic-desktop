@@ -5,10 +5,11 @@ import {setModsOpen,uiMods} from "../../state/ui-mods";
 // Generelt, Utseende and Personvern og data. Kode and Chat are in ./modes.tsx (round 9). Every control here is saved on the server and acts at
 // once. Native window behavior is shown only inside the Electron app.
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
-import { threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThreadNotifications } from "../../../../shared/protocol";
+import { AUTO_SETTLE_HOURS, threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThreadNotifications } from "../../../../shared/protocol";
 import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
 import { app, deleteThread, effectiveProjectOrder, report, setApp, setProjectSort, setSettingsOpen, toast } from "../../state/app";
+import { restoreMany } from "../../state/archive";
 import { allowNotifications, chime } from "../../state/look";
 import { openWelcome } from "../../state/welcome";
 import { confirmDialog } from "../dialogs";
@@ -273,6 +274,7 @@ export function Appearance() {
           />
         </Row>
       </Group>
+      <InboxSettings />
       {/* Round 11 (SPEC 24.2 and 24.3) */}
       <Group title={t("Panelknapper og sidepanel")}>
         <Row label={t("Panelknapper")} text={t("Knappene øverst til høyre. Samlet: ⋯, én knapp for sidepanelet og + for å legge til et panel. Hver for seg: én knapp per panel. I Chat står bare ⋯, fordi Chat ikke har sidepanel.")}>
@@ -320,6 +322,73 @@ export function Appearance() {
       </Group>
       <Group title={t("Kodevisning")}><Row label={t("Tilpass kodeutseendet")} text={t("Lyst og mørkt kodetema, skrift, linjebryting og standard samtalevisning finnes under Kode.")}><button type="button" class="btn btn-small" onClick={() => setSettingsOpen("code")}>{t("Åpne Kode-innstillinger")}</button></Row></Group>
     </Page>
+  );
+}
+
+function InboxSettings() {
+  const inactivityOptions = () => {
+    const labels = { 24: t("24 timer"), 72: t("3 dager"), 168: t("7 dager"), 336: t("14 dager"), 720: t("30 dager") };
+    return [{ value: "off" as const, label: t("Av") }, ...AUTO_SETTLE_HOURS.map((value) => ({ value, label: labels[value] }))];
+  };
+  const changeInactivity = async (value: number | "off") => {
+    if (value === "off") return save({ autoSettleAfterHours: null });
+    try {
+      const preview = await get<{ ids: string[]; count: number }>(`/api/threads/inbox-preview?hours=${value}`);
+      if (preview.count > 0) {
+        const ok = await confirmDialog({
+          title: plural(preview.count, "Ferdigstille {count} eldre tråd nå?", "Ferdigstille {count} eldre tråder nå?"),
+          text: t("Trådene arkiveres – ingenting slettes, og du kan angre eller hente dem tilbake fra Arkiverte."),
+          confirm: t("Ferdigstill"),
+        });
+        if (!ok) return;
+      }
+      save({ autoSettleAfterHours: value });
+      if (preview.ids.length > 0) {
+        toast(plural(preview.ids.length, "Arkiverte {count} eldre tråd.", "Arkiverte {count} eldre tråder."), "info", {
+          label: t("Angre"),
+          run: () => void restoreMany(preview.ids),
+        });
+      }
+    } catch (err) {
+      report(err);
+    }
+  };
+  const applyInboxPreset = () => save({ sidebarGroupBy: "inbox", hideWorkingThreads: true, snoozeWakeOnActivity: true });
+  const resetDefaults = () => save({ sidebarGroupBy: "project", hideWorkingThreads: false, autoSettleAfterHours: null, autoSettleOnPrClose: false, snoozeWakeOnActivity: true });
+  return (
+    <Group title={t("Innboks og rydding")}>
+      <Row label={t("Hurtigvalg")} text={t("Bytt til innboks-flyt med ett klikk, eller gå tilbake til standard prosjektvisning.")}>
+        <div class="row-actions">
+          <button type="button" class="btn btn-small" onClick={applyInboxPreset}>{t("Bruk innboks-oppsett")}</button>
+          <button type="button" class="btn btn-small" onClick={resetDefaults}>{t("Tilbakestill til standard")}</button>
+        </div>
+      </Row>
+      <Row label={t("Trådgruppering")} text={t("Velg prosjekter med egne lister, eller én prioritert innboks-liste på tvers av prosjekter.")}>
+        <Segmented<"project" | "inbox">
+          label={t("Trådgruppering")}
+          value={app.settings.sidebarGroupBy ?? "project"}
+          options={[{ value: "project", label: t("Etter prosjekt") }, { value: "inbox", label: t("Innboks-liste") }]}
+          onChange={(sidebarGroupBy) => save({ sidebarGroupBy })}
+        />
+      </Row>
+      <Toggle label={t("Skjul tråder mens de jobber")} checked={app.settings.hideWorkingThreads === true}
+        text={t("Samle bakgrunnstråder i Jobber frem til de er ferdige eller trenger deg. Åpne og festede tråder beholdes synlige.")}
+        onChange={(hideWorkingThreads) => save({ hideWorkingThreads })} />
+      <Row label={t("Ferdigstill automatisk ved inaktivitet")} text={t("Arkiverer eldre tråder automatisk – ingenting slettes. Festede, kjørende, ventende og utsatte tråder røres ikke.")}>
+        <Choice<number | "off">
+          label={t("Ferdigstill automatisk ved inaktivitet")}
+          value={app.settings.autoSettleAfterHours ?? "off"}
+          options={inactivityOptions()}
+          onChange={(value) => void changeInactivity(value)}
+        />
+      </Row>
+      <Toggle label={t("Ferdigstill når PR-en lukkes")}
+        text={t("Arkiverer tråden automatisk når en tilknyttet GitHub-PR flettes eller lukkes. Krever tilkoblet GitHub; bruk trådmenyen eller /babysit pr for å knytte en PR.")}
+        checked={app.settings.autoSettleOnPrClose === true} onChange={(autoSettleOnPrClose) => save({ autoSettleOnPrClose })} />
+      <Toggle label={t("Vekk utsatte tråder ved ny aktivitet")} text={t("Hent tilbake tråder når de får en ny melding, blir ferdige eller trenger deg.")}
+        checked={app.settings.snoozeWakeOnActivity !== false}
+        onChange={(snoozeWakeOnActivity) => save({ snoozeWakeOnActivity })} />
+    </Group>
   );
 }
 

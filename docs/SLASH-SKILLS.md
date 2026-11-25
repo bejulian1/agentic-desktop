@@ -8,7 +8,7 @@ Skriv `/` først i meldingsfeltet for å finne kommandoer og skills for den akti
 
 | Oppgave | Kommandoer |
 |---|---|
-| Åpne og organisere tråder | `/new [navn]`, `/sessions [søk]` (også `/resume`), `/title [ny tittel]`, `/pin [on\|off]`, `/archive [on\|off]`, `/snooze <1h\|tomorrow\|week\|off>` |
+| Åpne og organisere tråder | `/new [navn]`, `/sessions [søk]` (også `/resume`), `/title [ny tittel]`, `/pin [on\|off]`, `/settle` (også `/ferdig` og `/arkiver`), `/archive [on\|off]`, `/snooze [1h\|3h\|tomorrow\|week\|off]` |
 | Lese eller dele samtalen | `/find` søker i denne tråden. `/copy markdown` kopierer hele samtalen, `/copy last` siste svar og `/copy id` tråd-ID-en. `/save` laster ned en Markdown-fil. |
 | Arbeide parallelt | `/side` åpner en sidesamtale. `/fork` (også `/branch`) kopierer tråden. `/fork-last` tar med siste melding og svaret. `/window` løsriver tråden. |
 | Bruke modellen | `/model [navn]`, `/reasoning [nivå]`, `/context`, `/compact`, `/status`, `/stop`, `/btw <spørsmål>`, `/bg <oppgave>` |
@@ -21,10 +21,13 @@ I **Kode** åpner `/files`, `/terminal`, `/browser`, `/session`, `/overview` og 
 
 Kommandoer som søker, åpner visninger eller endrer appinnstillinger håndteres i appen. `/retry`, `/btw`, `/bg`, `/compact` og meldingene du sender med `/queue` eller `/steer` bruker modellfunksjonene du allerede har valgt.
 
+`/snooze` uten tidsvalg og **Ctrl+Alt+Z** åpner tidspunktvelgeren. Den utsatte tråden ligger under **Utsatt**, der du kan hente den tilbake med ett klikk. `/settle` arkiverer tråden og viser **Angre**.
+
 ## Følg en kjøring eller pull request
 
 - `/babysit` eller `/babysit task` følger kjøringen som er aktiv i denne tråden. Appen varsler når den er ferdig, stoppet, avbrutt eller feiler.
 - `/babysit pr https://github.com/eier/repo/pull/14` følger PR-status, CI og kodegjennomgang. Bruk `/babysit pr #14` som snarvei i et Kode-prosjekt med en GitHub-remote. GitHub må være koblet til i Innstillinger med lesetilgang til PR-en og sjekkene.
+- Starter du PR-oppfølging fra en tråd, lagres tilknytningen i tråden. Under **Innstillinger → Utseende → Innboks og rydding** kan du slå på automatisk ferdigstilling når PR-en lukkes eller flettes.
 - `/babysit status` viser siste status. `/babysit stop` avslutter oppfølgingen. GitHub-sjekken går omtrent hvert minutt til PR-en flettes eller lukkes. Du kan følge ett mål per appvindu mens vinduet er åpent, også når du bytter tråd.
 
 Oppfølgingen bruker lokal kjørestatus eller GitHubs status-API. Den starter ingen modelltur og gjør ingen endringer på GitHub.
@@ -58,12 +61,13 @@ Mapper leses ved oppstart og kontrolleres for filendringer hvert halve sekund. O
 
 ## Innebygde skills
 
-Appen har 24 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 17 er laget for Kode. Beskrivelsen i menyen er på norsk, og instruksjonene til modellen er på engelsk.
+Appen har 25 innebygde skills. Åtte fungerer i både Chat og Kode. De øvrige 17 er laget for Kode. Beskrivelsen i menyen er på norsk, og instruksjonene til modellen er på engelsk.
 
 | Skill | Bruk |
 |---|---|
 | `/source-brief` | Sammenlign kilder og knytt hver konklusjon til en lenke eller passasje (Chat og Kode) |
 | `/action-items` | Hent beslutninger, avtalte oppgaver, ansvar og frister fra notater (Chat og Kode) |
+| `/grill-me` | Avklar en plan eller et design med ett spørsmål og en anbefaling om gangen (Chat og Kode) |
 | `/analyze-data` | Forklar tall i en tabell med kontrollerbare beregninger (Chat og Kode) |
 | `/benchmark` | Mål en operasjon flere ganger under like forhold og oppgi variasjonen |
 | `/ci-triage` | Spor en rød CI-jobb til riktig kjøring, forsøk og feilmelding |
@@ -89,7 +93,7 @@ Appen har 24 innebygde skills. Sju fungerer i både Chat og Kode. De øvrige 17 
 
 Skriv `$` i meldingsfeltet for å vise bare skills.
 
-![De sju innebygde skillene i Chat-menyen](bilder/skill-katalog-chat.png)
+![Eksempel på innebygde skills i Chat-menyen](bilder/skill-katalog-chat.png)
 
 Du kan for eksempel skrive `/action-items Hvem påtok seg hva i referatet over?` eller `/analyze-data Hva forklarer endringen fra september til oktober i vedlagte salg.csv?`. Nettverktøy og Python kan brukes når de er tilgjengelige i samtalen. Med nett slått av kan `/source-brief` sammenligne tekster du limer inn. I Kode kan `/ci-triage` også bruke et loggutdrag du har gitt den.
 

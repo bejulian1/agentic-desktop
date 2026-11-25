@@ -290,7 +290,8 @@ export interface Thread {
   personality: string | null; // id from PERSONALITIES in Kode, from CHAT_PERSONALITIES in Chat; null follows the default
   lastStatus: RunStatus | null; // how the last run ended, for the sidebar
   pinned?: boolean; // shown under Festet in the sidebar
-  snoozedUntil?: number | null; // Utsatt in the smart sidebar until this time
+  snoozedUntil?: number | null;
+  linkedPr?: LinkedPr | null;
   temporary?: boolean; // Chat: not in the history, deleted when closed or after a while idle
   chatProjectId?: string | null; // round 9: Chat only, the ChatProject it is gathered in
   sectionId?: string | null; // round 11: the SidebarSection it is put in, set only when it is in one
@@ -364,6 +365,8 @@ export function modelAllowsTools(model?: Pick<ModelConfig, "supportsTools">, loc
   return model?.supportsTools ?? !localKind;
 }
 
+export const AUTO_SETTLE_HOURS = [24, 72, 168, 336, 720] as const;
+
 export interface Settings {
   githubAuth?: "gh" | "token" | null;
   githubOpenLinks?: boolean;
@@ -390,6 +393,11 @@ export interface Settings {
   thinkingView?: "standard" | "premium"; // round 10 (SPEC 23.11): how thinking looks in Chat; default "standard"
   expandShell?: boolean; // shell tool output starts expanded in the thread; default false
   sidebarLayout?: "standard" | "smart"; // smart: thread cards for what needs you, default "standard"
+  autoSettleAfterHours?: number | null;
+  autoSettleOnPrClose?: boolean;
+  snoozeWakeOnActivity?: boolean;
+  hideWorkingThreads?: boolean;
+  sidebarGroupBy?: "project" | "inbox";
   sidebarCollapsed?: "rail" | "hidden"; // round 10 (SPEC 23.9): a hidden sidebar is a thin row of icons, or gone; default "rail"
   downloadDir?: string; // where the Browser panel saves downloads, an absolute path; unset is the default folder
   // Round 12 (SPEC 26.4): imported cookies. Left out means the default noted on each line.
@@ -1385,9 +1393,13 @@ export type ServerMessage =
   | { type: "error"; message: string };
 
 // Round 8 (agent G): GitHub, read only. The token stays on the server, like the provider keys.
-export interface PullWatchStatus {
+export interface LinkedPr {
   repo: string;
   number: number;
+  url?: string;
+}
+
+export interface PullWatchStatus extends LinkedPr {
   title: string;
   url: string;
   state: "OPEN" | "CLOSED" | "MERGED";

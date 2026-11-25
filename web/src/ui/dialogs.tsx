@@ -62,6 +62,9 @@ interface Prompt {
   title: string;
   value: string;
   confirm: string;
+  type?: "datetime-local";
+  min?: string;
+  validate?: (value: string) => string | undefined;
   resolve: (value: string | null) => void;
 }
 
@@ -83,13 +86,18 @@ function PromptHost() {
         };
         onMount(() => {
           dialog.showModal();
-          input.select();
+          if (p().type) input.focus();
+          else input.select();
         });
         return (
           <dialog ref={dialog} class="dialog" aria-label={p().title} onCancel={() => close(null)}>
-            <form onSubmit={(e) => { e.preventDefault(); close(input.value); }}>
+            <form noValidate onSubmit={(e) => {
+              e.preventDefault();
+              input.setCustomValidity(p().validate?.(input.value) ?? "");
+              if (input.reportValidity()) close(input.value);
+            }}>
               <h2>{p().title}</h2>
-              <input ref={input} class="input prompt-input" value={p().value} aria-label={p().title} />
+              <input ref={input} class="input prompt-input" type={p().type ?? "text"} min={p().min} value={p().value} aria-label={p().title} onInput={() => input.setCustomValidity("")} />
               <div class="dialog-actions">
                 <button type="button" class="btn" onClick={() => close(null)}>{t("Avbryt")}</button>
                 <button type="submit" class="btn btn-primary">{p().confirm}</button>
