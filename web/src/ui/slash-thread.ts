@@ -71,7 +71,7 @@ const operations: Record<string, ThreadAction> = {
     const choice = arg.toLowerCase();
     if (!choice) return chooseSnoozeTime(thread);
     if (choice === "off" || choice === "av") return setSnoozed(thread, null);
-    const aliases: Record<string, string> = { "om 1 time": "1h", "i morgen": "tomorrow", "neste uke": "week" };
+    const aliases: Record<string, string> = { "om 1 time": "1h", "om 3 timer": "3h", "i morgen": "tomorrow", "neste uke": "week" };
     const time = snoozeTimes().find((item) => item.id === (aliases[choice] ?? choice) || item.label.toLowerCase() === choice);
     if (!time) return toast(t("Velg /snooze 1h, /snooze 3h, /snooze tomorrow, /snooze week eller /snooze off."), "info");
     return setSnoozed(thread, time.at);

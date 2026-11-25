@@ -245,7 +245,7 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
   const workingGroup = () => hideWorking() ? "hiddenWorking" : "working";
   const legacyWorking = (t: Thread) => t.running && !waitingCount(t);
   const unread = createMemo(() => new Set(finished()));
-  const split = createMemo(() => splitInbox(all(), now(), hideWorking(), unread()));
+  const split = createMemo(() => splitInbox(all(), now(), hideWorking(), unread(), props.activeIds, true));
   const working = createMemo(() => hideWorking() || inbox() ? split().working : split().active.filter(legacyWorking));
   const needsYou = (t: Thread) => waitingCount(t) > 0 || unread().has(t.id) || t.pinned ||
     (hideWorking() && (t.running || t.lastStatus === "error")) || now() - t.updatedAt < RECENT_MS || props.activeIds.has(t.id);
@@ -255,6 +255,13 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
     return split().active
       .filter((t) => (hideWorking() || !legacyWorking(t)) && needsYou(t))
       .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+  });
+  const [allInboxCards, setAllInboxCards] = createSignal(false);
+  const INBOX_CARD_LIMIT = 20;
+  const shownInboxCards = createMemo(() => {
+    const list = cards();
+    if (allInboxCards() || list.length <= INBOX_CARD_LIMIT + 2) return list;
+    return list.filter((t, i) => i < INBOX_CARD_LIMIT || props.activeIds.has(t.id) || t.running || waitingCount(t) > 0);
   });
   const settled = createMemo(() => split().active.filter((t) => !t.running && !needsYou(t)));
   // «Trenger deg» on top: approvals that wait. They are not in Jobber, so the count there and
@@ -318,7 +325,10 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
           }
         >
           <Show when={!inbox()} fallback={<div data-testid="sidebar-inbox">
-            <For each={cards()} fallback={<div class="sidebar-empty">{t("Innboksen er tom")}</div>}>{renderCard}</For>
+            <For each={shownInboxCards()} fallback={<div class="sidebar-empty">{t("Innboksen er tom")}</div>}>{renderCard}</For>
+            <Show when={shownInboxCards().length < cards().length || allInboxCards()}>
+              <button type="button" class="show-more" onClick={() => setAllInboxCards(!allInboxCards())}>{allInboxCards() ? t("Vis færre") : t("Vis flere ({count})", { count: cards().length - shownInboxCards().length })}</button>
+            </Show>
           </div>}>
           <Show
             when={cards().length}

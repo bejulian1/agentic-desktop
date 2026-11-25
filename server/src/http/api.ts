@@ -872,8 +872,17 @@ export class Api {
       store.updateThread(params.id, changes);
       if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
-      if (changes.linkedPr && store.settings().autoSettleOnPrClose) void this.deps.threadInbox.checkPulls();
+      if (changes.linkedPr && store.settings().autoSettleOnPrClose) void this.deps.threadInbox.checkThreadPull(params.id);
       return this.thread(params.id);
+    });
+
+    this.route("GET", "/api/threads/inbox-preview", ({ query }) => {
+      const raw = Number(query.get("hours"));
+      if (!AUTO_SETTLE_HOURS.some((allowed) => allowed === raw)) {
+        throw new HttpError(400, "Ugyldig tidsrom for automatisk ferdigstilling");
+      }
+      const ids = this.deps.threadInbox.inactiveCandidates(raw).map((t) => t.id);
+      return { ids, count: ids.length };
     });
 
     this.route("POST", "/api/threads/:id/fork", ({ params, body }) => {
@@ -1558,7 +1567,7 @@ function inboxSettings(body: Record<string, unknown>): Partial<Settings> {
   for (const key of ["autoSettleOnPrClose", "snoozeWakeOnActivity", "hideWorkingThreads"] as const) {
     const value = body[key];
     if (value === undefined) continue;
-    if (typeof value !== "boolean") throw new HttpError(400, `Bruk true/false for ${key}.`);
+    if (typeof value !== "boolean") throw new HttpError(400, "Ugyldig verdi for innboksinnstilling.");
     patch[key] = value;
   }
   const grouping = body.sidebarGroupBy;

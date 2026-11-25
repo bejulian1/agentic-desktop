@@ -665,11 +665,13 @@
 .thread-inbox-project { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--text-3); font-size: var(--text-xs); }
 .thread-inbox-project svg { flex: none; }
 .thread-inbox-project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.thread-text:has(.thread-inbox-project) { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.thread-text:has(.thread-inbox-project) { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
 .inbox-fold { margin-top: var(--space-1); }
 /* Chat rows: the model's coloured mark sits on the right side of the row, keeping titles aligned. */
 .thread-text:has(.thread-provider-chat) { flex-direction: row; align-items: center; gap: var(--space-2); }
 .thread-text:has(.thread-provider-chat) .thread-title { flex: 1; min-width: 0; }
+.thread-text:has(.thread-inbox-project):has(.thread-provider-chat) { flex-direction: column; align-items: stretch; gap: 2px; }
+.thread-text:has(.thread-inbox-project):has(.thread-provider-chat) .thread-provider-chat { margin-left: 0; }
 .thread-provider-chat { display: inline-flex; flex: none; margin-left: auto; opacity: 0.9; }
 .thread-item:hover .thread-provider-chat, .thread-text[aria-current] .thread-provider-chat { opacity: 1; }
 .project-list { padding-top: 2px; }

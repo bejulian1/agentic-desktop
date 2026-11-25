@@ -7,13 +7,30 @@ export function nextWake(threads: readonly Thread[], now: number): number {
   return threads.reduce((next, thread) => snoozedAt(thread, now) ? Math.min(next, thread.snoozedUntil!) : next, Infinity);
 }
 
-export function splitInbox(threads: readonly Thread[], now: number, hideWorking: boolean, unread: ReadonlySet<string>) {
+const EMPTY_IDS: ReadonlySet<string> = new Set();
+
+export function splitInbox(
+  threads: readonly Thread[],
+  now: number,
+  hideWorking: boolean,
+  unread: ReadonlySet<string>,
+  activeIds: ReadonlySet<string> = EMPTY_IDS,
+  separateSnoozed = true,
+) {
   const active: Thread[] = [];
   const working: Thread[] = [];
   const snoozed: Thread[] = [];
   for (const thread of threads) {
-    if (snoozedAt(thread, now)) snoozed.push(thread);
-    else if (hideWorking && thread.running && !waitingCount(thread) && thread.lastStatus !== "error" && !unread.has(thread.id)) working.push(thread);
+    if (separateSnoozed && snoozedAt(thread, now)) snoozed.push(thread);
+    else if (
+      hideWorking &&
+      thread.running &&
+      !thread.pinned &&
+      !activeIds.has(thread.id) &&
+      !waitingCount(thread) &&
+      thread.lastStatus !== "error" &&
+      !unread.has(thread.id)
+    ) working.push(thread);
     else active.push(thread);
   }
   snoozed.sort((a, b) => a.snoozedUntil! - b.snoozedUntil!);

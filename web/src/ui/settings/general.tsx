@@ -9,6 +9,7 @@ import { AUTO_SETTLE_HOURS, threadNotificationsOf, type AccentColor, type BusyMe
 import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
 import { app, deleteThread, effectiveProjectOrder, report, setApp, setProjectSort, setSettingsOpen, toast } from "../../state/app";
+import { restoreMany } from "../../state/archive";
 import { allowNotifications, chime } from "../../state/look";
 import { openWelcome } from "../../state/welcome";
 import { confirmDialog } from "../dialogs";
@@ -329,9 +330,40 @@ function InboxSettings() {
     const labels = { 24: t("24 timer"), 72: t("3 dager"), 168: t("7 dager"), 336: t("14 dager"), 720: t("30 dager") };
     return [{ value: "off" as const, label: t("Av") }, ...AUTO_SETTLE_HOURS.map((value) => ({ value, label: labels[value] }))];
   };
+  const changeInactivity = async (value: number | "off") => {
+    if (value === "off") return save({ autoSettleAfterHours: null });
+    try {
+      const preview = await get<{ ids: string[]; count: number }>(`/api/threads/inbox-preview?hours=${value}`);
+      if (preview.count > 0) {
+        const ok = await confirmDialog({
+          title: plural(preview.count, "Ferdigstille {count} eldre tråd nå?", "Ferdigstille {count} eldre tråder nå?"),
+          text: t("Trådene arkiveres – ingenting slettes, og du kan angre eller hente dem tilbake fra Arkiverte."),
+          confirm: t("Ferdigstill"),
+        });
+        if (!ok) return;
+      }
+      save({ autoSettleAfterHours: value });
+      if (preview.ids.length > 0) {
+        toast(plural(preview.ids.length, "Arkiverte {count} eldre tråd.", "Arkiverte {count} eldre tråder."), "info", {
+          label: t("Angre"),
+          run: () => void restoreMany(preview.ids),
+        });
+      }
+    } catch (err) {
+      report(err);
+    }
+  };
+  const applyInboxPreset = () => save({ sidebarGroupBy: "inbox", hideWorkingThreads: true, snoozeWakeOnActivity: true });
+  const resetDefaults = () => save({ sidebarGroupBy: "project", hideWorkingThreads: false, autoSettleAfterHours: null, autoSettleOnPrClose: false, snoozeWakeOnActivity: true });
   return (
     <Group title={t("Innboks og rydding")}>
-      <Row label={t("Trådgruppering")}>
+      <Row label={t("Hurtigvalg")} text={t("Bytt til innboks-flyt med ett klikk, eller gå tilbake til standard prosjektvisning.")}>
+        <div class="row-actions">
+          <button type="button" class="btn btn-small" onClick={applyInboxPreset}>{t("Bruk innboks-oppsett")}</button>
+          <button type="button" class="btn btn-small" onClick={resetDefaults}>{t("Tilbakestill til standard")}</button>
+        </div>
+      </Row>
+      <Row label={t("Trådgruppering")} text={t("Velg prosjekter med egne lister, eller én prioritert innboks-liste på tvers av prosjekter.")}>
         <Segmented<"project" | "inbox">
           label={t("Trådgruppering")}
           value={app.settings.sidebarGroupBy ?? "project"}
@@ -340,18 +372,18 @@ function InboxSettings() {
         />
       </Row>
       <Toggle label={t("Skjul tråder mens de jobber")} checked={app.settings.hideWorkingThreads === true}
-        text={t("Samle tråder i Jobber frem til de er ferdige eller trenger deg.")}
+        text={t("Samle bakgrunnstråder i Jobber frem til de er ferdige eller trenger deg. Åpne og festede tråder beholdes synlige.")}
         onChange={(hideWorkingThreads) => save({ hideWorkingThreads })} />
-      <Row label={t("Ferdigstill automatisk ved inaktivitet")}>
+      <Row label={t("Ferdigstill automatisk ved inaktivitet")} text={t("Arkiverer eldre tråder automatisk – ingenting slettes. Festede, kjørende, ventende og utsatte tråder røres ikke.")}>
         <Choice<number | "off">
           label={t("Ferdigstill automatisk ved inaktivitet")}
           value={app.settings.autoSettleAfterHours ?? "off"}
           options={inactivityOptions()}
-          onChange={(value) => save({ autoSettleAfterHours: value === "off" ? null : value })}
+          onChange={(value) => void changeInactivity(value)}
         />
       </Row>
-      <Toggle label={t("Ferdigstill automatisk når tilknyttet GitHub-PR lukkes eller flettes")}
-        text={t("Bruk trådmenyen eller /babysit pr for å knytte en PR til tråden.")}
+      <Toggle label={t("Ferdigstill når PR-en lukkes")}
+        text={t("Arkiverer tråden automatisk når en tilknyttet GitHub-PR flettes eller lukkes. Krever tilkoblet GitHub; bruk trådmenyen eller /babysit pr for å knytte en PR.")}
         checked={app.settings.autoSettleOnPrClose === true} onChange={(autoSettleOnPrClose) => save({ autoSettleOnPrClose })} />
       <Toggle label={t("Vekk utsatte tråder ved ny aktivitet")} text={t("Hent tilbake tråder når de får en ny melding, blir ferdige eller trenger deg.")}
         checked={app.settings.snoozeWakeOnActivity !== false}

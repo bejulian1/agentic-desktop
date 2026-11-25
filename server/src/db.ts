@@ -22,6 +22,7 @@ import type {
   SummaryTurnChanges,
   SidebarSection,
   HomeStats,
+  LinkedPr,
   ModelConfig,
   Mode,
   ProfileStats,
@@ -44,6 +45,17 @@ import type {
 } from "../../shared/protocol.ts";
 import type { Message } from "./providers/types.ts";
 import { agentSettingsOf, cleanProjectActions, EFFORT_STEPS, modelContextOf, searchEngineOf, threadNotificationsOf } from "../../shared/protocol.ts";
+
+function parseLinkedPr(raw: unknown): LinkedPr | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<LinkedPr> | null;
+    if (parsed && typeof parsed.repo === "string" && typeof parsed.number === "number") return parsed as LinkedPr;
+  } catch {
+    // Ignore corrupt JSON in legacy or manually edited rows.
+  }
+  return null;
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -707,7 +719,7 @@ export class Store {
     lastStatus: this.lastRun(row.id)?.status ?? null,
     pinned: row.pinned === 1,
     snoozedUntil: row.snoozed_until ?? null,
-    linkedPr: row.linked_pr ? JSON.parse(row.linked_pr) : null,
+    linkedPr: parseLinkedPr(row.linked_pr),
     ...(row.temporary === 1 ? { temporary: true } : {}),
     ...(row.chat_project_id ? { chatProjectId: row.chat_project_id } : {}),
     ...(row.section_id ? { sectionId: row.section_id } : {}),
@@ -723,7 +735,7 @@ export class Store {
   inboxCandidates(now: number, criteria: { inactiveSince: number } | { linkedPr: true }): Thread[] {
     const eligible = "archived = 0 AND temporary = 0 AND pinned = 0 AND (snoozed_until IS NULL OR snoozed_until <= ?)";
     if ("inactiveSince" in criteria) {
-      return this.q(`SELECT * FROM threads WHERE ${eligible} AND updated_at <= ?`).all(now, criteria.inactiveSince).map(this.toThread);
+      return this.q(`SELECT * FROM threads WHERE ${eligible} AND MAX(updated_at, COALESCE(snoozed_until, 0)) <= ?`).all(now, criteria.inactiveSince).map(this.toThread);
     }
     return this.q(`SELECT * FROM threads WHERE ${eligible} AND linked_pr IS NOT NULL`).all(now).map(this.toThread);
   }
@@ -784,7 +796,10 @@ export class Store {
 
   updateThread(id: string, patch: ThreadPatch): void {
     if (patch.title !== undefined) this.q("UPDATE threads SET title = ? WHERE id = ?").run(patch.title, id);
-    if (patch.archived !== undefined) this.q("UPDATE threads SET archived = ? WHERE id = ?").run(patch.archived ? 1 : 0, id);
+    if (patch.archived !== undefined) {
+      if (patch.archived) this.q("UPDATE threads SET archived = 1 WHERE id = ?").run(id);
+      else this.q("UPDATE threads SET archived = 0, updated_at = CASE WHEN archived = 1 THEN ? ELSE updated_at END WHERE id = ?").run(Date.now(), id);
+    }
     if (patch.modelId !== undefined) this.q("UPDATE threads SET model_id = ? WHERE id = ?").run(patch.modelId, id);
     if (patch.goal !== undefined) this.setGoal(id, patch.goal);
     if (patch.goalPaused !== undefined) this.pauseGoal(id, patch.goalPaused);

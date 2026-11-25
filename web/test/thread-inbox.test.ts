@@ -28,7 +28,7 @@ flow("Innstillinger finner innboksen og en flat liste setter festede tråder fø
   const inactivity = page.getByRole("button", { name: "Ferdigstill automatisk ved inaktivitet" });
   await inactivity.click();
   await page.getByRole("menuitemradio", { name: "7 dager", exact: true }).click();
-  await page.getByRole("switch", { name: "Ferdigstill automatisk når tilknyttet GitHub-PR lukkes eller flettes" }).click();
+  await page.getByRole("switch", { name: "Ferdigstill når PR-en lukkes" }).click();
   const wake = page.getByRole("switch", { name: "Vekk utsatte tråder ved ny aktivitet" });
   assert.equal(await wake.isChecked(), true);
   await wake.click();
@@ -51,6 +51,7 @@ flow("Jobber i Standard og Smart gir plass til en tråd som trenger svar", async
   const model = await h.api("POST", "/api/models", { providerId: provider.id, name: "Local", model: "test", contextWindow: 64_000 });
   const project = await openProject(h, "Prosjekt");
   const thread = await h.createThread(project.id);
+  const pinnedRunning = await h.createThread(project.id);
   const url = `/api/threads/${thread.id}`;
   const questionGate = Promise.withResolvers<void>();
   t.after(() => questionGate.resolve());
@@ -59,7 +60,8 @@ flow("Jobber i Standard og Smart gir plass til en tråd som trenger svar", async
     await sse(openaiToolCall("ask_user", { questions: [{ id: "test", question: "Fortsette?" }] }, "question"))(req, res);
   });
   llm.reply(sse(openaiText("Ferdig")));
-  await h.api("PATCH", url, { modelId: model.id, pinned: true });
+  await h.api("PATCH", url, { modelId: model.id });
+  await h.api("PATCH", `/api/threads/${pinnedRunning.id}`, { modelId: model.id, pinned: true });
   await h.api("POST", `${url}/messages`, { text: "Avklar planen" });
   await threadItem(page, thread.id).waitFor();
   await page.keyboard.press("Control+,");
@@ -71,6 +73,7 @@ flow("Jobber i Standard og Smart gir plass til en tråd som trenger svar", async
   const standardButton = standardFold.getByRole("button", { name: /Jobber 1/ });
   await standardButton.waitFor();
   await threadItem(page, thread.id).waitFor({ state: "detached" });
+  await threadItem(page, pinnedRunning.id).waitFor();
   await standardButton.click();
   await standardFold.locator(`[data-thread-item="${thread.id}"]`).waitFor();
 
@@ -99,6 +102,7 @@ flow("Jobber i Standard og Smart gir plass til en tråd som trenger svar", async
 
 flow("Utsett fra hurtigtast og slash, og ferdigstill med Angre", async (h) => {
   const { page } = h;
+  await h.api("PATCH", "/api/settings", { sidebarGroupBy: "inbox" });
   const thread = await h.createThread(null);
   const row = threadItem(page, thread.id);
   await row.locator(".thread-text").click();

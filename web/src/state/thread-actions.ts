@@ -53,6 +53,7 @@ export async function chooseSnoozeTime(thread: Thread): Promise<void> {
   const value = await promptDialog({
     title: t("Velg tidspunkt for å vekke tråden"),
     value: localDateTime(new Date(Date.now() + 3_600_000)),
+    min: localDateTime(new Date(Date.now() + 60_000)),
     confirm: t("Utsett"),
     type: "datetime-local",
     validate: (value) => {

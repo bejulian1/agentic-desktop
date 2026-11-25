@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { pullWatchVersion } from "../../shared/linked-pr.ts";
 import type { PullWatchStatus, Thread } from "../../shared/protocol.ts";
 import { Store } from "../src/db.ts";
+import { GitHubError } from "../src/github.ts";
 import { ThreadInbox } from "../src/thread-inbox.ts";
 import { GOOD_TOKEN, startFakeGitHub } from "./fake-github.ts";
 import { openaiText, openaiToolCall, sse, startFakeLlm } from "./fake-llm.ts";
@@ -221,4 +222,85 @@ test("inbox settings and thread snooze/PR links validate and persist", async (t)
   assert.deepEqual([reset.snoozedUntil, reset.linkedPr], [null, null]);
   await h.api("PATCH", "/api/settings", { shortcuts: { "thread.snooze": "Mod+Alt+Z" } });
   await until(async () => (await read()).shortcuts["thread.snooze"] === "Mod+Alt+Z", "hurtigtasten er lagret");
+});
+
+test("restored threads, expired snoozes, parent wake chains, preview counts, dead PRs, rate limits and close() behave safely", async (t) => {
+  const dataDir = tempDir(t);
+  const h = await startHarness(t, { dataDir });
+  const store = h.app.store;
+
+  // 1. Restore after auto-settle touches updated_at so the next sweep does not re-archive it.
+  const old = await h.thread(null);
+  ageThreads(dataDir, [old]);
+  const preview = await h.api<{ ids: string[]; count: number }>("GET", "/api/threads/inbox-preview?hours=24");
+  assert.deepEqual(preview, { ids: [old.id], count: 1 });
+  await h.api("PATCH", "/api/settings", { autoSettleAfterHours: 24 });
+  assert.equal(store.thread(old.id)?.archived, true);
+  await h.api("POST", "/api/threads/archive", { ids: [old.id], archived: false });
+  await h.api("PATCH", "/api/settings", { autoSettleAfterHours: 24 });
+  assert.equal(store.thread(old.id)?.archived, false, "restored thread must stay unarchived on next sweep");
+
+  // 2. Expired snooze on an old thread does not immediately auto-settle.
+  const snoozedOld = await h.thread(null);
+  ageThreads(dataDir, [snoozedOld]);
+  {
+    using db = new DatabaseSync(path.join(dataDir, "agentic-desktop.db"));
+    db.prepare("UPDATE threads SET snoozed_until = ? WHERE id = ?").run(Date.now() - 1000, snoozedOld.id);
+  }
+  await h.api("PATCH", "/api/settings", { autoSettleAfterHours: 24 });
+  assert.equal(store.thread(snoozedOld.id)?.archived, false, "recently expired snooze must not settle right away");
+
+  // 3. Corrupt linked_pr JSON in SQLite does not break thread loading.
+  {
+    using db = new DatabaseSync(path.join(dataDir, "agentic-desktop.db"));
+    db.prepare("UPDATE threads SET linked_pr = ? WHERE id = ?").run("{bad-json", snoozedOld.id);
+  }
+  assert.equal(store.thread(snoozedOld.id)?.linkedPr, null);
+
+  // 4. Subagent approval/question events wake snoozed parent & grandparent chains.
+  const grandparent = store.createThread(null, "code", null, { title: "Besteforelder" });
+  const parent = store.createThread(null, "code", null, { title: "Forelder", parentThreadId: grandparent.id });
+  const child = store.createThread(null, "code", null, { title: "Underagent", parentThreadId: parent.id });
+  const eventInbox = new ThreadInbox(store, () => {}, async () => { throw new Error("unused"); });
+  store.updateThread(grandparent.id, { snoozedUntil: future() });
+  store.updateThread(parent.id, { snoozedUntil: future() });
+  eventInbox.onEvent({ threadId: child.id, seq: 1, at: Date.now(), event: { type: "approval.requested", approvalId: "a1", callId: "c1", title: "Kjør kommando", detail: "echo", canAllowAlways: false, runId: "r1" } });
+  assert.equal(store.thread(parent.id)?.snoozedUntil, null);
+  assert.equal(store.thread(grandparent.id)?.snoozedUntil, null);
+
+  store.updateThread(parent.id, { snoozedUntil: future() });
+  eventInbox.onEvent({ threadId: child.id, seq: 2, at: Date.now(), event: { type: "question.requested", threadId: child.id, callId: "c2", requestId: "q1", runId: "r1", questions: [] } });
+  assert.equal(store.thread(parent.id)?.snoozedUntil, null);
+
+  // 5. Dead (not-found) PR links are not polled repeatedly, rate-limit backs off, and close() stops sweeps.
+  const unitDir = tempDir(t);
+  const unitStore = new Store(unitDir);
+  t.after(() => unitStore.close());
+  unitStore.updateSettings({ autoSettleOnPrClose: true, autoSettleAfterHours: 24 });
+  const missing = unitStore.createThread(null, "chat", null);
+  const limited = unitStore.createThread(null, "chat", null);
+  unitStore.updateThread(missing.id, { linkedPr: { repo, number: 404 } });
+  unitStore.updateThread(limited.id, { linkedPr: { repo, number: 429 } });
+  const calls: number[] = [];
+  let mode: "not-found" | "rate-limit" = "not-found";
+  const inbox = new ThreadInbox(unitStore, () => {}, async (pull) => {
+    calls.push(pull.number);
+    if (pull.number === 404 && mode === "not-found") throw new GitHubError("not-found", "Fant ikke PR", 404);
+    if (pull.number === 429 && mode === "rate-limit") throw new GitHubError("rate-limit", "Grense nådd", 403, Date.now() + 60_000);
+    return { repo: pull.repo, number: pull.number, title: "PR", url: `https://github.com/${pull.repo}/pull/${pull.number}`, state: "OPEN", head: "h", draft: false, checks: null, review: null };
+  });
+  await inbox.checkPulls();
+  assert.deepEqual(calls, [404, 429]);
+  calls.length = 0;
+  mode = "rate-limit";
+  await inbox.checkPulls();
+  assert.deepEqual(calls, [429], "404 dead PR must not be polled again");
+  calls.length = 0;
+  await inbox.checkPulls();
+  assert.deepEqual(calls, [], "rate-limit must back off before retryPullsAt");
+  inbox.close();
+  const staleAfterClose = unitStore.createThread(null, "chat", null);
+  ageThreads(unitDir, [staleAfterClose]);
+  inbox.sweep();
+  assert.equal(unitStore.thread(staleAfterClose.id)?.archived, false, "close() stops sweeps");
 });

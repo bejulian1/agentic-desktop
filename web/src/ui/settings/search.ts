@@ -70,7 +70,7 @@ export const ENTRIES: Entry[] = [
   { page: "appearance", get label() { return t("Trådgruppering"); }, get words() { return t("innboks og rydding innboks-liste etter prosjekt sidefane"); } },
   { page: "appearance", get label() { return t("Skjul tråder mens de jobber"); }, get words() { return t("innboks sidefane jobber kjører skjul"); } },
   { page: "appearance", get label() { return t("Ferdigstill automatisk ved inaktivitet"); }, get words() { return t("innboks arkiver gamle tråder dager timer"); } },
-  { page: "appearance", get label() { return t("Ferdigstill automatisk når tilknyttet GitHub-PR lukkes eller flettes"); }, get words() { return t("innboks arkiver GitHub pull request PR lukket flettet"); } },
+  { page: "appearance", get label() { return t("Ferdigstill når PR-en lukkes"); }, get words() { return t("innboks arkiver GitHub pull request PR lukket flettet"); } },
   { page: "appearance", get label() { return t("Vekk utsatte tråder ved ny aktivitet"); }, get words() { return t("innboks våkne utsett snooze hent tilbake"); } },
   { page: "appearance", get label() { return t("Panelknapper"); }, get words() { return t("toppfelt knapper samlet hver for seg panel terminal endringer nettleser filer"); } },
   { page: "appearance", get label() { return t("Sidepanel"); }, get words() { return t("panel startside verktøy faner fliser høyre panel"); } },

@@ -10,7 +10,7 @@ import { newChatProject } from "./chat-projects";
 import { chooseSnoozeTime, copyThread, forkFromLast, forkWhole, openInPane, openInWindow, setPinned, setSnoozed, sideChat, snoozeTimes, toggleArchived } from "../state/thread-actions";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { newSection } from "./sidebar-sections";
-import { IconArchive, IconAt, IconDownload, IconEye, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
+import { IconArchive, IconAt, IconDownload, IconEye, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconGlobe, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
 import type { MenuEntry } from "./ContextMenu";
 import { IconPencil, IconSnooze, IconWindow } from "./nav-icons";
 
@@ -84,13 +84,12 @@ export function threadMenuEntries(thread: Thread, startRename: () => void): Menu
     ...(!thread.temporary ? [{
       label: t("Utsett"),
       icon: IconSnooze,
-      keys: "thread.snooze",
       children: [
         ...snoozeTimes().map(({ id, label }) => ({ label, run: () => {
           const time = snoozeTimes().find((item) => item.id === id)!;
           return setSnoozed(thread, time.at);
         } })),
-        { label: t("Velg tidspunkt…"), run: () => chooseSnoozeTime(thread) },
+        { label: t("Velg tidspunkt…"), keys: "thread.snooze", run: () => chooseSnoozeTime(thread) },
         ...(snoozed ? (["sep", { label: t("Hent tilbake"), run: () => setSnoozed(thread, null) }] as MenuEntry[]) : []),
       ],
     } satisfies MenuEntry, ...pullEntries(thread)] : []),
@@ -138,10 +137,15 @@ function pullEntries(thread: Thread): MenuEntry[] {
     },
   };
   if (!linked) return [link];
+  const openUrl = linked.url ?? pullUrl(linked);
   return [{
     label: t("Tilknyttet PR #{number}", { number: linked.number }),
     title: linked.repo,
     icon: IconBranch,
-    children: [link, { label: t("Fjern PR-tilknytning"), run: () => update(null) }],
+    children: [
+      { label: t("Åpne på GitHub"), icon: IconGlobe, run: () => { window.open(openUrl, "_blank", "noopener,noreferrer"); } },
+      link,
+      { label: t("Fjern PR-tilknytning"), run: () => update(null) },
+    ],
   }];
 }
