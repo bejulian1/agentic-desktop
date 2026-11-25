@@ -218,6 +218,71 @@ test("the same call three times in a row asks, also in full access", async (t) =
   assert.match(textOf(events), /bremsen/);
 });
 
+test("alternating tool calls ask before the third occurrence of a key", async (t) => {
+  const h = await startHarness(t);
+  const llm = await startFakeLlm(t);
+  const project = await h.project(undefined, { permissionMode: "full" });
+  const thread = await h.thread(project.id, "code", await addFakeModel(h, llm));
+  for (const file of ["a.txt", "b.txt"]) writeFileSync(path.join(project.path, file), file);
+  for (const [index, file] of ["a.txt", "b.txt", "a.txt", "b.txt", "a.txt"].entries()) {
+    llm.reply(sse(openaiToolCall("read_file", { path: file }, `read-${index}`)));
+  }
+  llm.reply(sse(openaiText("ferdig")));
+  await send(h, thread.id, "Les filene");
+  const approval = await nextApproval(h, thread.id);
+  assert.equal(approval.callId, "read-4");
+  assert.match(approval.title, /gjentatt tre ganger/);
+  assert.equal(approval.canAllowAlways, false);
+  await h.api("POST", `/api/approvals/${approval.approvalId}`, { decision: "allow" });
+  const events = await h.finished(thread.id);
+  assert.deepEqual(ofType(events, "tool.finished").map(event => event.status), Array(5).fill("done"));
+});
+
+test("Chat asks after four consecutive tool errors and a success breaks the streak", async (t) => {
+  const h = await startHarness(t);
+  const llm = await startFakeLlm(t);
+  const modelId = await addFakeModel(h, llm);
+  const thread = await h.api("POST", "/api/threads", { mode: "chat", projectId: null, modelId, chatTools: { fetch: true, documents: true } });
+  for (let index = 0; index < 8; index++) {
+    llm.reply(sse(index === 3
+      ? openaiToolCall("list_chat_files", {}, "success")
+      : openaiToolCall("web_fetch", { url: `bad-url-${index}` }, `fetch-${index}`)));
+  }
+  llm.reply(sse(openaiToolCall("list_chat_files", {}, "guarded")));
+  llm.reply(sse(openaiText("ferdig")));
+  await send(h, thread.id, "Prøv å lese sidene");
+  const approval = await nextApproval(h, thread.id);
+  assert.equal(approval.callId, "guarded");
+  assert.match(approval.title, /Fire verktøykall på rad har feilet/);
+  assert.equal(approval.canAllowAlways, false);
+  await h.api("POST", `/api/approvals/${approval.approvalId}`, { decision: "allow" });
+  const events = await h.finished(thread.id);
+  assert.deepEqual(ofType(events, "tool.finished").map(event => event.status), ["error", "error", "error", "done", "error", "error", "error", "error", "done"]);
+});
+
+test("six invalid tool calls stop the run and save results for the unexecuted calls", async (t) => {
+  const h = await startHarness(t);
+  const llm = await startFakeLlm(t);
+  const project = await h.project(undefined, { permissionMode: "full" });
+  const thread = await h.thread(project.id, "code", await addFakeModel(h, llm));
+  const tool_calls = Array.from({ length: 7 }, (_, index) => ({
+    index, id: `read-${index}`, function: { name: "read_file", arguments: index < 6 ? "{}" : '{"path":"already-valid.txt"}' },
+  }));
+  llm.reply(sse(openaiChunk({ tool_calls }, "tool_calls") + OPENAI_DONE));
+  llm.reply(sse(openaiText("skal ikke nås")));
+  await send(h, thread.id, "Les filen");
+  const events = await h.finished(thread.id);
+  const finished = ofType(events, "tool.finished");
+  assert.equal(finished.length, 6);
+  assert.match(finished[2].result!, /3\. ugyldige verktøykall på rad/);
+  assert.equal(llm.requests.length, 1);
+  const [run] = ofType(events, "run.finished");
+  assert.equal(run.status, "error");
+  assert.match(run.error!, /for mange ugyldige verktøykall på rad/);
+  const results = h.app.store.messages(thread.id).flatMap(message => message.content).filter(block => block.type === "tool_result");
+  assert.deepEqual(results.map(result => result.toolUseId), tool_calls.map(call => call.id));
+});
+
 test("stop ends a run at any time and takes the whole process group with it", async (t) => {
   const h = await startHarness(t);
   const project = await h.project(undefined, { permissionMode: "full" });
@@ -387,6 +452,43 @@ test("rate limits and server errors are retried, but not after output has starte
   assert.ok(!stored.includes("sk-test"), "the key is never in the event log");
 });
 
+test("a thinking-only or empty reply gets exactly one fresh attempt", async (t) => {
+  const h = await startHarness(t);
+  const llm = await startFakeLlm(t);
+  const thread = await h.thread(null, "chat", await addFakeModel(h, llm));
+  llm.reply(sse(openaiChunk({ reasoning_content: "Tenker" }, "stop") + OPENAI_DONE));
+  llm.reply(sse(openaiText("Her er svaret.")));
+  await send(h, thread.id, "Svar på nytt");
+  const recovered = await h.finished(thread.id);
+  assert.equal(ofType(recovered, "run.finished")[0].status, "done");
+  assert.equal(textOf(recovered), "Her er svaret.");
+  assert.deepEqual(llm.requests[1].body.messages, llm.requests[0].body.messages);
+
+  llm.always(sse(openaiChunk({ content: " \n" }, "stop") + OPENAI_DONE));
+  await send(h, thread.id, "Prøv igjen");
+  const events = await h.finished(thread.id, 2);
+  const finished = ofType(events, "run.finished").at(-1)!;
+  assert.equal(finished.status, "error");
+  assert.equal(finished.error, "Modellen returnerte et tomt svar.");
+  assert.equal(llm.requests.length, 4);
+  assert.equal(textOf(events), "Her er svaret.");
+  assert.equal(h.app.store.messages(thread.id).filter(message => message.role === "assistant").length, 1);
+});
+
+test("the output limit keeps a text-only answer and displays a notice", async (t) => {
+  const h = await startHarness(t);
+  const llm = await startFakeLlm(t);
+  const thread = await h.thread(null, "chat", await addFakeModel(h, llm));
+  const answer = "En del av svaret.";
+  llm.reply(sse(openaiChunk({ content: answer }, "length") + OPENAI_DONE));
+  await send(h, thread.id, "Skriv et langt svar");
+  const events = await h.finished(thread.id);
+  assert.equal(ofType(events, "run.finished")[0].status, "done");
+  assert.deepEqual(ofType(events, "text.delta").map(event => event.text), [answer, "Svaret ble kuttet ved utdatagrensen."]);
+  assert.deepEqual(h.app.store.messages(thread.id).at(-1)!.content, [{ type: "text", text: answer }]);
+  assert.equal(llm.requests.length, 1);
+});
+
 test("bad tool calls come back to the model as errors", async (t) => {
   const h = await startHarness(t);
   const llm = await startFakeLlm(t);
@@ -400,6 +502,9 @@ test("bad tool calls come back to the model as errors", async (t) => {
   llm.reply(sse(openaiToolCall("run_command", { command: "exit 3", timeoutSeconds: 5 }, "e")));
   llm.always(sse(openaiText("ok")));
   await send(h, thread.id, "prøv");
+  const approval = await nextApproval(h, thread.id);
+  assert.equal(approval.callId, "e");
+  await h.api("POST", `/api/approvals/${approval.approvalId}`, { decision: "allow" });
   const events = await h.finished(thread.id);
   const results = ofType(events, "tool.finished");
   assert.deepEqual(results.map((r) => r.status), ["error", "error", "error", "error", "error"]);
@@ -482,6 +587,30 @@ test("old tool results are compacted first, then older messages are summarized",
   const answered = last.filter((m) => m.role === "tool").map((m) => m.tool_call_id);
   assert.deepEqual([...called].sort(), [...answered].sort());
   assert.ok(sent.length < 4000 * 4 * 1.5, `${sent.length} chars after compaction`);
+});
+
+test("a small context window does not cause repeated compaction without substantial growth", async (t) => {
+  const h = await startHarness(t);
+  const llm = await startFakeLlm(t);
+  const project = await h.project(undefined, { permissionMode: "full" });
+  writeFileSync(path.join(project.path, "AGENTS.md"), "Prosjektinstruksjon.\n".repeat(700));
+  const thread = await h.thread(project.id, "code", await addFakeModel(h, llm, { contextWindow: 4000 }));
+  h.app.store.appendMessage(thread.id, { role: "user", content: [{ type: "text", text: "En tidligere melding. ".repeat(60) }] });
+  h.app.store.appendMessage(thread.id, { role: "assistant", content: [{ type: "text", text: "Et tidligere svar. ".repeat(60) }] });
+  let turns = 0;
+  llm.always((req, res) => {
+    if (!req.body.tools) return sse(openaiText("Kort sammendrag."))(req, res);
+    turns++;
+    if (turns <= 3) return sse(openaiToolCall("list_dir", { path: ".", depth: turns }, `list-${turns}`))(req, res);
+    return sse(openaiText("ferdig"))(req, res);
+  });
+  await send(h, thread.id, "Se på mappen");
+  const events = await h.finished(thread.id);
+  assert.equal(ofType(events, "run.finished")[0].status, "done");
+  assert.equal(turns, 4);
+  assert.equal(llm.requests.filter(request => !request.body.tools).length, 1);
+  assert.equal(ofType(events, "context.compacted").length, 1);
+  assert.equal(ofType(events, "text.delta").filter(event => /fortsatt stor etter komprimering/.test(event.text)).length, 1);
 });
 
 test("compaction on demand summarizes through the model and shows as a row", async (t) => {

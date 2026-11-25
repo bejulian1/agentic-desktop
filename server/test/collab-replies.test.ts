@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MAX_AGENT_THREADS } from "../src/agent/collab.ts";
-import { hang, httpError, openaiText, openaiToolCall, sse, startFakeLlm } from "./fake-llm.ts";
+import { hang, httpError, OPENAI_DONE, openaiChunk, openaiText, openaiToolCall, sse, startFakeLlm } from "./fake-llm.ts";
 import { ofType, startHarness, textOf, until, type Harness } from "./helpers.ts";
 
 async function fakeModel(h: Harness, url: string): Promise<string> {
@@ -9,7 +9,7 @@ async function fakeModel(h: Harness, url: string): Promise<string> {
   return (await h.api("POST", "/api/models", { providerId: provider.id, name: "Samarbeidstest", model: "fake", contextWindow: 100_000 })).id;
 }
 
-test("a child reply interrupts its ancestor's wait in the same run at full helper capacity", async (t) => {
+test("a child reply interrupts its ancestor's wait without skipping the rest of the batch", async (t) => {
   const h = await startHarness(t);
   const llm = await startFakeLlm(t);
   const modelId = await fakeModel(h, llm.url);
@@ -27,7 +27,13 @@ test("a child reply interrupts its ancestor's wait in the same run at full helpe
       rootSteps++;
       if (rootSteps <= MAX_AGENT_THREADS) return sse(openaiToolCall("thread_create", { title: `Hjelper ${rootSteps}`, task: `Del ${rootSteps}` }, `create-${rootSteps}`))(req, res);
       const child = h.app.store.projectThreads(project.id).find((thread) => thread.title === "Hjelper 1")!;
-      if (rootSteps === MAX_AGENT_THREADS + 1) return sse(openaiToolCall("thread_wait", { threadId: child.id, timeoutSeconds: 60 }, "wait-child"))(req, res);
+      if (rootSteps === MAX_AGENT_THREADS + 1) {
+        const tool_calls = [
+          { index: 0, id: "wait-child", function: { name: "thread_wait", arguments: JSON.stringify({ threadId: child.id, timeoutSeconds: 60 }) } },
+          { index: 1, id: "list-after-wait", function: { name: "list_dir", arguments: JSON.stringify({ path: "." }) } },
+        ];
+        return sse(openaiChunk({ tool_calls }, "tool_calls") + OPENAI_DONE)(req, res);
+      }
       if (rootSteps === MAX_AGENT_THREADS + 2) {
         const waitResult = req.body.messages.find((message: any) => message.role === "tool" && message.tool_call_id === "wait-child");
         assert.match(waitResult.content, /ny melding/);
@@ -59,11 +65,14 @@ test("a child reply interrupts its ancestor's wait in the same run at full helpe
   assert.equal(ofType(events, "run.started").length, 1);
   assert.equal(ofType(events, "run.finished").length, 1);
   assert.equal(ofType(events, "run.finished")[0].status, "done");
+  assert.equal(ofType(events, "tool.finished").find((event) => event.callId === "list-after-wait")?.status, "done");
   assert.match(textOf(events), /samme tur/);
   assert.equal(ofType(events, "user.queued").find((event) => !!event.from)?.steer, true);
   assert.equal(h.app.store.projectThreads(project.id).filter((thread) => thread.origin === "agent").length, MAX_AGENT_THREADS);
   assert.equal(h.app.store.hasQueued(root.id), false);
   await h.api("POST", `/api/projects/${project.id}/stop-all`);
+  const sent = h.app.runner.collab as unknown as { sent: Map<string, number> };
+  await until(() => sent.sent.size === 0, "the completed chain releases its message budget");
 });
 
 test("stopping a waiting parent cleans up wait listeners and leaves its child running", async (t) => {
