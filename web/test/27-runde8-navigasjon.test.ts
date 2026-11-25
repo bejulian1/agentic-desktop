@@ -151,7 +151,7 @@ flow("midlertidige chatter står ikke i sidefanen, den smarte sidefanen eller pa
   assert.equal(await smart.locator(`[data-smart-card="${temp.id}"]`).count(), 0, "ikke i den smarte sidefanen");
 });
 
-flow("Utsett virker i standard sidefane: dempet nederst med en klokke som henter tråden tilbake", async (h) => {
+flow("Utsett virker i standard sidefane: egen fold med en klokke som henter tråden tilbake", async (h) => {
   const { page } = h;
   const first = await h.createThread(null);
   const second = await h.createThread(null);
@@ -162,8 +162,12 @@ flow("Utsett virker i standard sidefane: dempet nederst med en klokke som henter
 
   await item.click({ button: "right" });
   await page.getByRole("menuitem", { name: /Utsett/ }).hover();
-  await page.locator('.context-menu[data-depth="1"]').getByRole("menuitem", { name: "Om 1 time" }).click();
-  await page.locator(`.thread-item.snoozed[data-thread-item="${second.id}"]`).waitFor();
+  await page.locator('.context-menu[data-depth="1"]').getByRole("menuitem", { name: "1 time", exact: true }).click();
+  const fold = page.locator('[data-inbox-fold="snoozed"]');
+  await fold.getByRole("button", { name: /Utsatt/ }).waitFor();
+  await item.waitFor({ state: "detached" });
+  await fold.getByRole("button", { name: /Utsatt/ }).click();
+  await fold.locator(`.thread-item.snoozed[data-thread-item="${second.id}"]`).waitFor();
   const order = await page.locator(".thread-item").evaluateAll((items) => items.map((el) => el.getAttribute("data-thread-item")));
   assert.ok(order.indexOf(second.id) > order.indexOf(first.id), "den utsatte står nederst");
 

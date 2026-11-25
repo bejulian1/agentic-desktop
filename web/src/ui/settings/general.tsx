@@ -5,7 +5,7 @@ import {setModsOpen,uiMods} from "../../state/ui-mods";
 // Generelt, Utseende and Personvern og data. Kode and Chat are in ./modes.tsx (round 9). Every control here is saved on the server and acts at
 // once. Native window behavior is shown only inside the Electron app.
 import { createMemo, createResource, createSignal, For, Show } from "solid-js";
-import { threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThreadNotifications } from "../../../../shared/protocol";
+import { AUTO_SETTLE_HOURS, threadNotificationsOf, type AccentColor, type BusyMessages, type Density, type EnterKey, type GlobalConfig, type PermissionMode, type ProjectOrder, type StartMode, type ThreadNotifications } from "../../../../shared/protocol";
 import { get, patch } from "../../lib/api";
 import { desktop, type CloseBehavior } from "../../lib/desktop";
 import { app, deleteThread, effectiveProjectOrder, report, setApp, setProjectSort, setSettingsOpen, toast } from "../../state/app";
@@ -273,6 +273,7 @@ export function Appearance() {
           />
         </Row>
       </Group>
+      <InboxSettings />
       {/* Round 11 (SPEC 24.2 and 24.3) */}
       <Group title={t("Panelknapper og sidepanel")}>
         <Row label={t("Panelknapper")} text={t("Knappene øverst til høyre. Samlet: ⋯, én knapp for sidepanelet og + for å legge til et panel. Hver for seg: én knapp per panel. I Chat står bare ⋯, fordi Chat ikke har sidepanel.")}>
@@ -320,6 +321,42 @@ export function Appearance() {
       </Group>
       <Group title={t("Kodevisning")}><Row label={t("Tilpass kodeutseendet")} text={t("Lyst og mørkt kodetema, skrift, linjebryting og standard samtalevisning finnes under Kode.")}><button type="button" class="btn btn-small" onClick={() => setSettingsOpen("code")}>{t("Åpne Kode-innstillinger")}</button></Row></Group>
     </Page>
+  );
+}
+
+function InboxSettings() {
+  const inactivityOptions = () => {
+    const labels = { 24: t("24 timer"), 72: t("3 dager"), 168: t("7 dager"), 336: t("14 dager"), 720: t("30 dager") };
+    return [{ value: "off" as const, label: t("Av") }, ...AUTO_SETTLE_HOURS.map((value) => ({ value, label: labels[value] }))];
+  };
+  return (
+    <Group title={t("Innboks og rydding")}>
+      <Row label={t("Trådgruppering")}>
+        <Segmented<"project" | "inbox">
+          label={t("Trådgruppering")}
+          value={app.settings.sidebarGroupBy ?? "project"}
+          options={[{ value: "project", label: t("Etter prosjekt") }, { value: "inbox", label: t("Innboks-liste") }]}
+          onChange={(sidebarGroupBy) => save({ sidebarGroupBy })}
+        />
+      </Row>
+      <Toggle label={t("Skjul tråder mens de jobber")} checked={app.settings.hideWorkingThreads === true}
+        text={t("Samle tråder i Jobber frem til de er ferdige eller trenger deg.")}
+        onChange={(hideWorkingThreads) => save({ hideWorkingThreads })} />
+      <Row label={t("Ferdigstill automatisk ved inaktivitet")}>
+        <Choice<number | "off">
+          label={t("Ferdigstill automatisk ved inaktivitet")}
+          value={app.settings.autoSettleAfterHours ?? "off"}
+          options={inactivityOptions()}
+          onChange={(value) => save({ autoSettleAfterHours: value === "off" ? null : value })}
+        />
+      </Row>
+      <Toggle label={t("Ferdigstill automatisk når tilknyttet GitHub-PR lukkes eller flettes")}
+        text={t("Bruk trådmenyen eller /babysit pr for å knytte en PR til tråden.")}
+        checked={app.settings.autoSettleOnPrClose === true} onChange={(autoSettleOnPrClose) => save({ autoSettleOnPrClose })} />
+      <Toggle label={t("Vekk utsatte tråder ved ny aktivitet")} text={t("Hent tilbake tråder når de får en ny melding, blir ferdige eller trenger deg.")}
+        checked={app.settings.snoozeWakeOnActivity !== false}
+        onChange={(snoozeWakeOnActivity) => save({ snoozeWakeOnActivity })} />
+    </Group>
   );
 }
 

@@ -14,7 +14,7 @@ import { matchShortcut } from "./shortcuts";
 import { promptDialog, setInfoDialog } from "../ui/dialogs";
 import { finished, markSeen, markUnread, setSearchOpen } from "./home";
 import { chatProjectPageId, openPalette } from "./nav";
-import { setPinned, sideChat, toggleArchived } from "./thread-actions";
+import { chooseSnoozeTime, setPinned, sideChat, toggleArchived } from "./thread-actions";
 import { toggleThreadDetails } from "./thread-details";
 import { openSkills, skillsOpen } from "./skills-workspace";
 
@@ -163,6 +163,10 @@ const HANDLERS: Record<string, () => unknown> = {
   "thread.archive": () => {
     const thread = focusedThread();
     if (thread) void toggleArchived(thread);
+  },
+  "thread.snooze": () => {
+    const thread = focusedThread();
+    if (thread) void chooseSnoozeTime(thread);
   },
   "panel.files": () => actions.showTab("files"),
   "panel.changes": () => actions.showTab("changes"),

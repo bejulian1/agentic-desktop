@@ -5,6 +5,7 @@ import http from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
+import type { PullWatchStatus } from "../../shared/protocol.ts";
 
 export const GOOD_TOKEN = "ghp_" + "test0123456789abcdefABCDEF0123456789";
 export const OTHER_TOKEN = "github_" + "pat_test_0000000000000000000000";
@@ -38,6 +39,7 @@ export interface FakeGitHub {
   url: string;
   requests: Array<{ path: string; auth: string | undefined; ifNoneMatch: string | undefined }>;
   setMode: (mode: FakeMode) => void;
+  setPullState: (number: number, state: PullWatchStatus["state"]) => void;
   close: () => Promise<void>;
 }
 
@@ -76,6 +78,7 @@ const CHECKS = { state: "PENDING", contexts: { nodes: [{ name: "Typecheck", stat
 
 export async function startFakeGitHub(): Promise<FakeGitHub> {
   let mode: FakeMode = "ok";
+  const pullStates = new Map<number, PullWatchStatus["state"]>([[42, "OPEN"]]);
   const requests: FakeGitHub["requests"] = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://fake");
@@ -123,8 +126,9 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
           return send(200, { errors: [{ type: "NOT_FOUND" }] });
         }
         if (variables.number === 44) return send(200, { errors: [{ type: "RATE_LIMITED" }] }, { "x-ratelimit-reset": "2000000000" });
-        const pullRequest = variables.number === 42 ? {
-          title: PULLS[0].title, state: "OPEN", isDraft: false, headRefOid: "a".repeat(40),
+        const state = pullStates.get(variables.number);
+        const pullRequest = state ? {
+          title: PULLS[0].title, state, isDraft: false, headRefOid: "a".repeat(40),
           reviewDecision: "REVIEW_REQUIRED", statusCheckRollup: { state: "PENDING" },
         } : null;
         send(200, { data: { repository: { pullRequest } } });
@@ -207,6 +211,7 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
     url: `http://127.0.0.1:${port}`,
     requests,
     setMode: (next) => (mode = next),
+    setPullState: (number, state) => { pullStates.set(number, state); },
     close: () => new Promise((resolve) => {
       server.closeAllConnections();
       server.close(() => resolve());

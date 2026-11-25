@@ -35,6 +35,7 @@ import { displayKeys, keysFor } from "../state/shortcuts";
 import { clearFinished, finished, gitInfo, loadGitInfo, markSeen, searchOpen, setSearchOpen } from "../state/home";
 import { modelProvider, ProviderGlyph } from "./ProviderGlyph";
 import { STATE_LABEL, threadState, waitingCount } from "../state/thread-status";
+import { inboxOrder, nextWake, snoozedAt, splitInbox } from "../state/thread-inbox";
 import { Popover } from "./Popover";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
@@ -79,7 +80,7 @@ const THREADS_SHOWN = 10;
 // The clock for snoozed threads. It moves only when a snooze runs out (one timer, see Sidebar), so
 // a snoozed row wakes up by itself and nothing ticks while nothing is snoozed.
 const [snoozeNow, setSnoozeNow] = createSignal(Date.now());
-export const isSnoozed = (t: Thread, now = snoozeNow()) => !!t.snoozedUntil && t.snoozedUntil > now;
+export const isSnoozed = (thread: Thread, now = snoozeNow()) => snoozedAt(thread, now);
 const snoozeLabel = (at: number) =>
   t("Utsatt til {time}", { time: new Date(at).toLocaleString(language(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) });
 
@@ -93,7 +94,7 @@ export function initials(name: string | undefined): string {
   return words.map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; showProject?: boolean }) {
+function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; showProject?: boolean; inbox?: boolean }) {
   const { thread } = props;
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
   const [renaming, setRenaming] = createSignal(false);
@@ -105,6 +106,8 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   const inProject = () => thread.mode === "code" && !!thread.projectId && !!app.projects[thread.projectId];
   createEffect(() => { if (inProject()) loadGitInfo(thread.projectId!); });
   const branch = () => (inProject() ? gitInfo(thread.projectId!)?.branch ?? null : null);
+  const project = () => thread.projectId ? app.projects[thread.projectId] : undefined;
+  const chatProject = () => thread.chatProjectId ? app.chatProjects[thread.chatProjectId] : undefined;
   const provider = createMemo(() => (thread.mode === "code" ? modelProvider(thread.modelId) : null));
   // Chat rows carry the same coloured mark, small and before the title, without a second line.
   const chatProvider = createMemo(() => (thread.mode === "code" ? null : modelProvider(thread.modelId)));
@@ -220,7 +223,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
             if (e.detail === 0) open();
           }}
         >
-          <Show when={props.showProject && thread.projectId ? app.projects[thread.projectId] : undefined}>
+          <Show when={props.showProject && project()}>
             {(p) => <span class="thread-project" title={p().name}><ProjectGlyph project={p()} size={12} /></span>}
           </Show>
           {/* Round 14 (SPEC 30.3): a fork has a small fork mark; the hover card links back. */}
@@ -228,6 +231,14 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
             <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
           </Show>
           <span class="thread-title">{thread.title}</span>
+          <Show when={props.inbox && (project() || chatProject())}>
+            <span class="thread-inbox-project" title={project()?.name ?? chatProject()?.name}>
+              <Show when={project()} fallback={<ChatProjectGlyph project={chatProject()!} size={12} />}>
+                {(p) => <ProjectGlyph project={p()} size={12} />}
+              </Show>
+              <span>{project()?.name ?? chatProject()?.name}</span>
+            </span>
+          </Show>
           <Show when={chatProvider()}>
             {(info) => <span class="thread-provider thread-provider-chat" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
           </Show>
@@ -726,13 +737,13 @@ const SORTS: Array<{ id: ProjectSort; label: string }> = [
 // Round 11 (SPEC 24.6): one ⋯ at the top of the sidebar for what used to be spread out: how the
 // sidebar is organised and folded, how the threads are sorted, what is shown, a new project and a
 // new section. It stays inside the sidebar like the profile menu; the submenus open to the side.
-function SidebarMenu(props: { foldIds: () => string[] }) {
+function SidebarMenu(props: { foldIds: () => string[]; inbox: boolean }) {
   const [anchor, setAnchor] = createSignal<MenuAnchor | null>(null);
   const inChat = () => mode() === "chat";
   const anyOpen = () => props.foldIds().some((id) => !collapsed().includes(id));
   const anyFolded = () => props.foldIds().some((id) => collapsed().includes(id));
   const entries = (): MenuEntry[] => [
-    {
+    ...(!props.inbox ? [{
       label: t("Organiser sidepanelet"),
       icon: IconSidebar,
       children: [
@@ -743,7 +754,7 @@ function SidebarMenu(props: { foldIds: () => string[] }) {
         { label: t("Fold sammen alle"), icon: IconFoldAll, disabled: !anyOpen(), run: () => setAllCollapsed(props.foldIds(), true) },
         { label: t("Fold ut alle"), icon: IconUnfoldAll, disabled: !anyFolded(), run: () => setAllCollapsed(props.foldIds(), false) },
       ],
-    },
+    } satisfies MenuEntry] : []),
     {
       label: t("Sorter samtaler etter"),
       icon: IconSort,
@@ -869,6 +880,26 @@ function DateList(props: { threads: Thread[]; activeIds: ReadonlySet<string>; sh
   );
 }
 
+function InboxFold(props: { kind: "working" | "snoozed"; threads: Thread[]; activeIds: ReadonlySet<string> }) {
+  const [open, setOpen] = createSignal(false);
+  return (
+    <Show when={props.threads.length}>
+      <div class="group inbox-fold" data-inbox-fold={props.kind}>
+        <button type="button" class="smart-group-head" aria-expanded={open()} onClick={() => setOpen(!open())}>
+          <Show when={props.kind === "working"}><span class="smart-state" data-state="running" aria-hidden="true" /></Show>
+          <span>{props.kind === "working" ? t("Jobber") : t("Utsatt")}</span>
+          <span class="sidebar-spacer" />
+          <span class="smart-count">{props.threads.length}</span>
+          <span class="fold-chevron" classList={{ open: open() }}><IconChevron size={12} /></span>
+        </button>
+        <Show when={open()}>
+          <For each={props.threads}>{(thread) => <ThreadItem thread={thread} active={props.activeIds.has(thread.id)} inbox />}</For>
+        </Show>
+      </div>
+    </Show>
+  );
+}
+
 export function Sidebar() {
   const [query, setQuery] = createSignal("");
   const [results, setResults] = createSignal<Thread[]>([]);
@@ -897,13 +928,17 @@ export function Sidebar() {
 
   const smart = () => app.settings.sidebarLayout === "smart";
   const inChat = () => mode() === "chat";
-  // Sorted as chosen in ⋯ → Sorter samtaler etter. Snoozed threads sink to the bottom of their list,
-  // dimmed with a clock, until the time is up.
+  const inbox = () => app.settings.sidebarGroupBy === "inbox";
+  // Sorted as chosen in ⋯ → Sorter samtaler etter.
   const order = (a: Thread, b: Thread) =>
-    Number(isSnoozed(a)) - Number(isSnoozed(b)) ||
     (effectiveProjectOrder() === "name" ? a.title.localeCompare(b.title, language(), { sensitivity: "base" }) : effectiveProjectOrder() === "created" ? b.createdAt - a.createdAt : b.updatedAt - a.updatedAt);
   const threads = createMemo(() => Object.values(app.threads).filter(listed));
-  const live = createMemo(() => threads().filter((t) => !t.archived).sort(order));
+  const unread = createMemo(() => new Set(finished()));
+  const groups = createMemo(() => splitInbox(threads().filter((t) => !t.archived).sort(order), snoozeNow(), app.settings.hideWorkingThreads === true, unread()));
+  const live = () => groups().active;
+  const inMode = (thread: Thread) => thread.mode === mode();
+  const inboxThreads = createMemo(() => live().filter(inMode).sort(inboxOrder(unread(), order)));
+  const visibleInFold = (thread: Thread) => inMode(thread) || (!inbox() && showPinned() && thread.pinned);
   // ⋯ → Vis → Festet. Pinned threads get their own place under Festet and are not shown twice; with
   // Festet off they stand where they otherwise belong.
   const festet = () => showPinned();
@@ -946,8 +981,7 @@ export function Sidebar() {
 
   // One timer, for the next snooze that runs out.
   createEffect(() => {
-    const now = snoozeNow();
-    const next = Math.min(...threads().map((t) => (t.snoozedUntil && t.snoozedUntil > now ? t.snoozedUntil : Infinity)));
+    const next = nextWake(threads(), snoozeNow());
     if (!Number.isFinite(next)) return;
     const timer = setTimeout(() => setSnoozeNow(Date.now()), Math.min(next - Date.now() + 50, 2 ** 31 - 1));
     onCleanup(() => clearTimeout(timer));
@@ -995,7 +1029,7 @@ export function Sidebar() {
           </button>
         </Show>
         <Notifications />
-        <Show when={!smart()}><SidebarMenu foldIds={foldIds} /></Show>
+        <Show when={!smart()}><SidebarMenu foldIds={foldIds} inbox={inbox()} /></Show>
       </div>
       <Show when={searchOpen() && !smart()}>
         <div class="sidebar-search">
@@ -1048,6 +1082,7 @@ export function Sidebar() {
               </div>
             }
           >
+            <Show when={inbox()} fallback={<>
             {/* Festet (SPEC 21.2): only when something is pinned, in both modes, and ⋯ → Vis → Festet is on. */}
             <Show when={anyPinned()}>
               <div class="section-head" data-section="pinned">
@@ -1124,6 +1159,15 @@ export function Sidebar() {
                 <LocalGroup threads={localThreads()} activeIds={activeIds()} />
               </Show>
             </Show>
+            </>}>
+              <div class="group" data-testid="sidebar-inbox">
+                <For each={inboxThreads()} fallback={<div class="sidebar-empty">{t("Innboksen er tom")}</div>}>
+                  {(thread) => <ThreadItem thread={thread} active={activeIds().has(thread.id)} inbox />}
+                </For>
+              </div>
+            </Show>
+            <InboxFold kind="working" threads={groups().working.filter(visibleInFold)} activeIds={activeIds()} />
+            <InboxFold kind="snoozed" threads={groups().snoozed.filter(visibleInFold)} activeIds={activeIds()} />
             <Show when={archivedCount()}>
               <button type="button" class="show-more archived-link" aria-label={t("Arkiverte ({count})", { count: archivedCount() })} title={t("Arkiverte tråder: ingenting er slettet, og de kan hentes tilbake")} onClick={() => openArchive()}><IconArchive size={14} /><span>{t("Arkiverte")}</span><span class="archived-count">{archivedCount()}</span></button>
             </Show>

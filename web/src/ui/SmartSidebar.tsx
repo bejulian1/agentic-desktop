@@ -15,6 +15,7 @@ import { applyDrop, beginDrag } from "../state/drag";
 import { gridFor } from "../state/grid";
 import { finished, gitInfo, loadGitInfo, markSeen } from "../state/home";
 import { STATE_LABEL, threadState, waitingCount } from "../state/thread-status";
+import { inboxOrder, nextWake, snoozedAt, splitInbox } from "../state/thread-inbox";
 import { newThreadIn, openThread, preloadThread } from "../state/navigate";
 import { diffStats, loadDiffStats, openProfile } from "../state/nav";
 import { setSnoozed } from "../state/thread-actions";
@@ -26,6 +27,7 @@ import { hideHoverCard, hoverIn, hoverOut, suppressHoverCards } from "./HoverCar
 import { IconArchive, IconArtifact, IconBranch, IconChat, IconCheck, IconChevron, IconCompose, IconDiff, IconDots, IconSearch, IconSliders, IconPin, IconWarn } from "./icons";
 import { IconChart, IconFilter, IconFolderPlus } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
+import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { afterPick } from "./Sidebar";
 import { threadMenuEntries } from "./ThreadMenu";
 
@@ -61,13 +63,14 @@ function state(thread: Thread): "waiting" | "running" | "error" | "new" | "idle"
   return s === "stopped" ? "idle" : s;
 }
 
-function ThreadCard(props: { thread: Thread; active: boolean; compact?: boolean; now: number }) {
+function ThreadCard(props: { thread: Thread; active: boolean; compact?: boolean; now: number; showProject?: boolean }) {
   const thread = () => props.thread;
   const project = createMemo(() => (thread().projectId ? app.projects[thread().projectId!] : undefined));
+  const chatProject = () => props.showProject && thread().chatProjectId ? app.chatProjects[thread().chatProjectId!] : undefined;
   const [menu, setMenu] = createSignal<MenuAnchor | null>(null);
   const stat = () => diffStats()[thread().id];
   const branch = () => (project() ? gitInfo(project()!.id)?.branch : null);
-  const snoozed = () => !!thread().snoozedUntil && thread().snoozedUntil! > props.now;
+  const snoozed = () => snoozedAt(thread(), props.now);
   let el!: HTMLDivElement;
   createEffect(() => {
     const p = project();
@@ -128,11 +131,13 @@ function ThreadCard(props: { thread: Thread; active: boolean; compact?: boolean;
         showMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      <Show when={!props.compact}>
+      <Show when={!props.compact || props.showProject}>
         <div class="smart-card-top">
-          <Show when={project()} fallback={<IconChat size={13} />}>{(p) => <ProjectGlyph project={p()} size={13} />}</Show>
+          <Show when={project()} fallback={<Show when={chatProject()} fallback={<IconChat size={13} />}>{(p) => <ChatProjectGlyph project={p()} size={13} />}</Show>}>
+            {(p) => <ProjectGlyph project={p()} size={13} />}
+          </Show>
           <Show when={thread().pinned}><span class="smart-pin" title={t("Festet")}><IconPin size={12} /></span></Show>
-          <span class="smart-project">{project()?.name ?? t("Chat")}</span>
+          <span class="smart-project">{project()?.name ?? chatProject()?.name ?? (props.showProject && thread().mode === "code" ? t("Denne datamaskinen") : t("Chat"))}</span>
           <span class="smart-age">{relativeTime(thread().updatedAt, props.now)}</span>
         </div>
       </Show>
@@ -166,10 +171,11 @@ function ThreadCard(props: { thread: Thread; active: boolean; compact?: boolean;
   );
 }
 
-function Group(props: { id: string; label: string; threads: Thread[]; open: boolean; onToggle: () => void; activeIds: ReadonlySet<string>; now: number; empty: string }) {
+function Group(props: { id: string; label: string; threads: Thread[]; open: boolean; onToggle: () => void; activeIds: ReadonlySet<string>; now: number; empty: string; showProject?: boolean; workingIndicator?: boolean }) {
   return (
     <div class="smart-group" data-group={props.id}>
       <button type="button" class="smart-group-head" aria-expanded={props.open} onClick={props.onToggle}>
+        <Show when={props.workingIndicator && props.threads.length}><span class="smart-state" data-state="running" aria-hidden="true" /></Show>
         <span>{props.label}</span>
         <span class="sidebar-spacer" />
         <span class="smart-count">{props.threads.length}</span>
@@ -178,7 +184,7 @@ function Group(props: { id: string; label: string; threads: Thread[]; open: bool
       <Show when={props.open}>
         <div class="smart-group-body">
           <For each={props.threads} fallback={<div class="sidebar-empty">{props.empty}</div>}>
-            {(thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} compact now={props.now} />}
+            {(thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} compact now={props.now} showProject={props.showProject} />}
           </For>
         </div>
       </Show>
@@ -234,25 +240,32 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
       .filter((t): t is Thread => listed(t) && !t.archived && (f === "all" || (f === "code" ? t.mode === "code" : t.mode !== "code")))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   });
-  const isSnoozed = (t: Thread) => !!t.snoozedUntil && t.snoozedUntil > now();
-  const working = createMemo(() => all().filter((t) => t.running && !waitingCount(t) && !isSnoozed(t)));
-  const snoozed = createMemo(() => all().filter(isSnoozed).sort((a, b) => a.snoozedUntil! - b.snoozedUntil!));
-  const needsYou = (t: Thread) => waitingCount(t) > 0 || finished().includes(t.id) || t.pinned || now() - t.updatedAt < RECENT_MS || props.activeIds.has(t.id);
+  const inbox = () => app.settings.sidebarGroupBy === "inbox";
+  const hideWorking = () => app.settings.hideWorkingThreads === true;
+  const workingGroup = () => hideWorking() ? "hiddenWorking" : "working";
+  const legacyWorking = (t: Thread) => t.running && !waitingCount(t);
+  const unread = createMemo(() => new Set(finished()));
+  const split = createMemo(() => splitInbox(all(), now(), hideWorking(), unread()));
+  const working = createMemo(() => hideWorking() || inbox() ? split().working : split().active.filter(legacyWorking));
+  const needsYou = (t: Thread) => waitingCount(t) > 0 || unread().has(t.id) || t.pinned ||
+    (hideWorking() && (t.running || t.lastStatus === "error")) || now() - t.updatedAt < RECENT_MS || props.activeIds.has(t.id);
   const cards = createMemo(() => {
-    const rank = (t: Thread) => (waitingCount(t) > 0 ? 0 : finished().includes(t.id) ? 1 : t.pinned ? 2 : 3);
-    return all()
-      .filter((t) => !isSnoozed(t) && !(t.running && !waitingCount(t)) && needsYou(t))
+    if (inbox()) return [...split().active].sort(inboxOrder(unread()));
+    const rank = (t: Thread) => (waitingCount(t) > 0 ? 0 : unread().has(t.id) ? 1 : t.pinned ? 2 : 3);
+    return split().active
+      .filter((t) => (hideWorking() || !legacyWorking(t)) && needsYou(t))
       .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   });
-  const settled = createMemo(() => all().filter((t) => !isSnoozed(t) && !t.running && !needsYou(t)));
+  const settled = createMemo(() => split().active.filter((t) => !t.running && !needsYou(t)));
   // «Trenger deg» on top: approvals that wait. They are not in Jobber, so the count there and
   // Stopp alt in the top bar no longer seem to disagree.
   const waiting = createMemo(() => cards().filter((t) => waitingCount(t) > 0));
   const recent = createMemo(() => cards().filter((t) => !waitingCount(t)));
+  const renderCard = (thread: Thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} now={now()} showProject={inbox()} />;
 
   // One timer, for the next snooze that runs out, so the thread comes back by itself.
   createEffect(() => {
-    const next = Math.min(...Object.values(app.threads).map((t) => (t?.snoozedUntil && t.snoozedUntil > now() ? t.snoozedUntil : Infinity)));
+    const next = nextWake(all(), now());
     if (!Number.isFinite(next)) return;
     const timer = setTimeout(() => setNow(Date.now()), Math.min(next - Date.now() + 50, 2 ** 31 - 1));
     onCleanup(() => clearTimeout(timer));
@@ -304,6 +317,9 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
             </For>
           }
         >
+          <Show when={!inbox()} fallback={<div data-testid="sidebar-inbox">
+            <For each={cards()} fallback={<div class="sidebar-empty">{t("Innboksen er tom")}</div>}>{renderCard}</For>
+          </div>}>
           <Show
             when={cards().length}
             fallback={
@@ -315,17 +331,27 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
           >
             <Show when={waiting().length}>
               <div class="smart-heading" data-heading="waiting"><span>{t("Trenger deg")}</span><span class="smart-count">{waiting().length}</span></div>
-              <For each={waiting()}>{(thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} now={now()} />}</For>
+              <For each={waiting()}>{renderCard}</For>
               <Show when={recent().length}><div class="smart-heading"><span>{t("Nylig")}</span></div></Show>
             </Show>
-            <For each={recent()}>{(thread) => <ThreadCard thread={thread} active={props.activeIds.has(thread.id)} now={now()} />}</For>
+            <For each={recent()}>{renderCard}</For>
+          </Show>
           </Show>
         </Show>
       </div>
       <div class="smart-groups">
-        <Group id="working" label={t("Jobber")} threads={working()} open={!!groups().working} onToggle={() => toggle("working")} activeIds={props.activeIds} now={now()} empty={t("Ingen tråder jobber nå")} />
-        <Group id="snoozed" label={t("Utsatt")} threads={snoozed()} open={!!groups().snoozed} onToggle={() => toggle("snoozed")} activeIds={props.activeIds} now={now()} empty={t("Ingenting er utsatt")} />
-        <Group id="settled" label={t("Avsluttet")} threads={settled()} open={!!groups().settled} onToggle={() => toggle("settled")} activeIds={props.activeIds} now={now()} empty={t("Ingen eldre tråder")} />
+        <Show when={!inbox() || working().length}>
+          <Group id="working" label={t("Jobber")} threads={working()} open={!!groups()[workingGroup()]} onToggle={() => toggle(workingGroup())}
+            activeIds={props.activeIds} now={now()} empty={t("Ingen tråder jobber nå")} showProject={inbox()} workingIndicator={hideWorking()} />
+        </Show>
+        <Show when={!inbox() || split().snoozed.length}>
+          <Group id="snoozed" label={t("Utsatt")} threads={split().snoozed} open={!!groups().snoozed} onToggle={() => toggle("snoozed")}
+            activeIds={props.activeIds} now={now()} empty={t("Ingenting er utsatt")} showProject={inbox()} />
+        </Show>
+        <Show when={!inbox()}>
+          <Group id="settled" label={t("Avsluttet")} threads={settled()} open={!!groups().settled} onToggle={() => toggle("settled")}
+            activeIds={props.activeIds} now={now()} empty={t("Ingen eldre tråder")} />
+        </Show>
       </div>
       {/* With text, not bare icons: what they do should not need a tooltip. */}
       <div class="smart-tools">
@@ -335,7 +361,7 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
         <span class="sidebar-spacer" />
         {/* Round 14 (SPEC 30.4): the archive, also from the smart sidebar. */}
         <button type="button" class="icon-button smart-archive" title={archivedCount() ? t("Arkiverte tråder ({count})", { count: archivedCount() }) : t("Arkiverte tråder")} aria-label={t("Arkiverte ({count})", { count: archivedCount() })} onClick={() => { openArchive(); afterPick(); }}><IconArchive size={16} /></button>
-        <button type="button" class="icon-button" title={t("Velg sidefane i Innstillinger → Generelt")} aria-label={t("Velg sidefane")} onClick={() => setSettingsOpen("general")}><IconSliders size={16} /></button>
+        <button type="button" class="icon-button" title={t("Velg sidefane i Innstillinger → Utseende")} aria-label={t("Velg sidefane")} onClick={() => setSettingsOpen("appearance")}><IconSliders size={16} /></button>
       </div>
     </div>
   );

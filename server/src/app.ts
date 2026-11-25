@@ -39,6 +39,7 @@ import { fetchModelList } from "./providers/presets.ts";
 import { Secrets } from "./secrets.ts";
 import { defaultKeyring, type Keyring } from "./keyring.ts";
 import { GitHub, GITHUB_SECRET } from "./github.ts";
+import { ThreadInbox } from "./thread-inbox.ts";
 import { ConfigDirs, defaultGlobalConfigDir } from "./config-dirs.ts";
 import { seedGlobalAgents, upgradeGlobalAgents } from "./agent/harness.ts";
 import { Terminals } from "./terminal.ts";
@@ -146,6 +147,15 @@ async function startAppWithClaim(
     const thread = store.thread(threadId);
     if (thread) publish({ type: "thread.changed", thread });
   };
+  const github = new GitHub(secrets, {
+    get: () => store.settings().githubAuth,
+    set: (githubAuth) => {
+      store.updateSettings({ githubAuth });
+      api.settingsChangedFromKeyring();
+    },
+  });
+  const threadInbox = new ThreadInbox(store, threadChanged, ({ repo, number }) => github.pullWatch(repo, number));
+  onFail(() => threadInbox.close());
   // Servers the app's own commands, terminals and Playtest start, for the right panel (servers.ts).
   const servers = new Servers({
     publish: (message) => publish(message),
@@ -157,6 +167,7 @@ async function startAppWithClaim(
   const log = new EventLog(store, (envelope) => {
     hub.publishEvent(envelope);
     servers.onThreadEvent(envelope);
+    threadInbox.onEvent(envelope);
   });
   const terminals = new Terminals(env);
   onFail(() => terminals.closeAll());
@@ -314,13 +325,8 @@ async function startAppWithClaim(
   hub = new Hub({ store, security, terminals, browser, projectWatches, flushThread: (id) => log.flush(id), localFolder: () => localFolder(config.dataDir, options.homeDir) });
   onFail(() => hub.close());
   api = new Api({
-    github: new GitHub(secrets, {
-      get: () => store.settings().githubAuth,
-      set: (githubAuth) => {
-        store.updateSettings({ githubAuth });
-        api.settingsChangedFromKeyring();
-      },
-    }),
+    github,
+    threadInbox,
     uiMods,
     hooks,
     mcp,
@@ -408,6 +414,7 @@ async function startAppWithClaim(
 
   // After listen, so a second server on a busy port cannot touch the first one's runs.
   runner.recover();
+  threadInbox.start();
   api.schedules.tick();
   // In the background: a slow or broken MCP server never holds up the start.
   mcp.start();
@@ -433,6 +440,7 @@ async function startAppWithClaim(
         }
       };
       clearTimeout(sweepAgain);
+      threadInbox.close();
       await cleanup(() => api.close());
       await cleanup(() => security.removeTokenFile());
       await cleanup(() => servers.close());

@@ -1,5 +1,7 @@
 import { languages } from "../../../shared/i18n.ts";
 import { BUILTIN_COMMANDS } from "../../../shared/slash-commands.ts";
+import { parsePullUrl, pullKey, validPullReference } from "../../../shared/linked-pr.ts";
+import type { ThreadInbox } from "../thread-inbox.ts";
 import { transcribe } from '../dictation.ts';
 import { Schedules } from '../schedules.ts';
 import type {UiMods} from "../ui-mods.ts";
@@ -21,6 +23,7 @@ import type {
   BrowserAnnotationSnapshot,
   CommandInfo,
   LocalModelHardware,
+  LinkedPr,
   MentionItem,
   ModelConfig,
   PermissionMode,
@@ -34,7 +37,7 @@ import type {
   ThemeSetting,
   Thread,
 } from "../../../shared/protocol.ts";
-import { cleanProjectActions, CODE_FONTS, UI_FONTS, WORKSPACE_MODES, type ProjectAction } from "../../../shared/protocol.ts";
+import { AUTO_SETTLE_HOURS, cleanProjectActions, CODE_FONTS, UI_FONTS, WORKSPACE_MODES, type ProjectAction } from "../../../shared/protocol.ts";
 import { CHAT_WIDTHS, UI_CONTRASTS, BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
 import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS, type AllowRule } from "../../../shared/protocol.ts";
 import { parseLocalRule, readLocalRules, ruleLabel, writeLocalRules } from "../agent/permissions.ts";
@@ -120,6 +123,7 @@ export const HANDLED = Symbol("handled");
 
 export interface ApiDeps {
   github: GitHub;
+  threadInbox: ThreadInbox;
   uiMods?:UiMods;
   hooks?: Hooks; // Innstillinger → Hooks (hooks-routes.ts)
   mcp?: McpServers; // Innstillinger → MCP-servere (mcp-routes.ts)
@@ -835,6 +839,8 @@ export class Api {
 
     this.route("PATCH", "/api/threads/:id", ({ params, body }) => {
       const current = this.thread(params.id);
+      const changes = threadPatch(body, current.mode);
+      if (changes.linkedPr && current.temporary) throw new HttpError(400, "Midlertidige chatter kan ikke knyttes til en PR");
       if (body.chatProjectId !== undefined) {
         // Only chats move between Chat projects. A Kode thread has a folder, or is Denne datamaskinen.
         if (current.mode !== "chat" || current.projectId) throw new HttpError(400, "Bare chatter kan ligge i et Chat-prosjekt");
@@ -862,11 +868,11 @@ export class Api {
         if (current.mode !== "chat" || current.projectId) throw new HttpError(400, "Bare chatter har verktøyvalg");
         store.updateThread(params.id, { chatTools: body.chatTools === null ? null : chatToolsFromBody(body.chatTools, chatToolsOf(current, store.settings())) });
       }
-      const changes = threadPatch(body, current.mode);
       if (changes.archived === true && (!current.running || current.pendingQuestions)) runner.stop(current.id);
       store.updateThread(params.id, changes);
       if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
+      if (changes.linkedPr && store.settings().autoSettleOnPrClose) void this.deps.threadInbox.checkPulls();
       return this.thread(params.id);
     });
 
@@ -1072,7 +1078,7 @@ export class Api {
     // Settings, providers and models
 
     this.route("PATCH", "/api/settings", ({ body }) => {
-      const patch: Partial<Settings> = {};
+      const patch = inboxSettings(body);
       if (body.githubOpenLinks !== undefined) {
         if (typeof body.githubOpenLinks !== "boolean") throw new HttpError(400, "Velg om GitHub-lenker skal åpnes i appen.");
         patch.githubOpenLinks = body.githubOpenLinks;
@@ -1219,6 +1225,7 @@ export class Api {
       if (body.browserAppearance !== undefined) void this.deps.browser?.setAppearance?.(settings.browserAppearance ?? "system");
       if (patch.promptAutocomplete === false || body.promptAutocompleteModelId !== undefined) this.deps.promptCompletion?.clear();
       this.settingsChanged();
+      if (patch.autoSettleAfterHours != null || patch.autoSettleOnPrClose === true) this.deps.threadInbox.sweep();
       return settings;
     });
 
@@ -1496,7 +1503,7 @@ export class Api {
 
 const EFFORTS: ReasoningEffort[] = ["none", "low", "medium", "high", "xhigh", "max"];
 const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "thread.search", "pane.new", "folder.open", "settings.open", "view.sidebar", "view.panel", "view.summary", "view.details", "view.mode", "help.shortcuts",
-  "palette.open", "thread.rename", "thread.pin", "thread.unread", "thread.side", "thread.archive",
+  "palette.open", "thread.rename", "thread.pin", "thread.unread", "thread.side", "thread.archive", "thread.snooze",
   "panel.files", "panel.changes", "panel.terminal", "panel.browser", "panel.team", "panel.overview",
   "browser.annotate", // round 11b
   "browser.newTab", "browser.newTabFull", // round 10, missing until round 12
@@ -1538,6 +1545,29 @@ const ROUND5_NUMBERS: Record<string, readonly number[]> = {
   browserDefaultZoom: BROWSER_ZOOMS,
 };
 const ROUND5_FLAGS = ["soundOnDone", "confirmQuit", "reduceMotion", "wrapCode", "diffIgnoreWhitespace", "agentBrowserAccess", "inAppNotifications"];
+
+function inboxSettings(body: Record<string, unknown>): Partial<Settings> {
+  const patch: Partial<Settings> = {};
+  const hours = body.autoSettleAfterHours;
+  if (hours !== undefined) {
+    if (hours !== null && (typeof hours !== "number" || !AUTO_SETTLE_HOURS.some((allowed) => allowed === hours))) {
+      throw new HttpError(400, "Ugyldig tidsrom for automatisk ferdigstilling");
+    }
+    patch.autoSettleAfterHours = hours;
+  }
+  for (const key of ["autoSettleOnPrClose", "snoozeWakeOnActivity", "hideWorkingThreads"] as const) {
+    const value = body[key];
+    if (value === undefined) continue;
+    if (typeof value !== "boolean") throw new HttpError(400, `Bruk true/false for ${key}.`);
+    patch[key] = value;
+  }
+  const grouping = body.sidebarGroupBy;
+  if (grouping !== undefined) {
+    if (grouping !== "project" && grouping !== "inbox") throw new HttpError(400, "Ugyldig trådgruppering");
+    patch.sidebarGroupBy = grouping;
+  }
+  return patch;
+}
 
 function round5Settings(body: any): Partial<Settings> {
   const out: Record<string, unknown> = {};
@@ -1600,10 +1630,24 @@ function threadPatch(body: any, mode: Thread["mode"]): ThreadPatch {
   }
   if (body.pinned !== undefined) patch.pinned = body.pinned === true;
   if (body.snoozedUntil !== undefined) {
-    if (body.snoozedUntil !== null && (typeof body.snoozedUntil !== "number" || !Number.isFinite(body.snoozedUntil))) throw new HttpError(400, "Ugyldig tidspunkt");
+    if (body.snoozedUntil !== null && (typeof body.snoozedUntil !== "number" || !Number.isSafeInteger(body.snoozedUntil) ||
+        body.snoozedUntil <= Date.now() || body.snoozedUntil > 8.64e15)) throw new HttpError(400, "Velg et gyldig tidspunkt i fremtiden");
     patch.snoozedUntil = body.snoozedUntil;
   }
+  if (body.linkedPr !== undefined) patch.linkedPr = linkedPrPatch(body.linkedPr);
   return patch;
+}
+
+function linkedPrPatch(value: unknown): LinkedPr | null {
+  if (value === null) return null;
+  if (!value || typeof value !== "object") throw new HttpError(400, "Bruk et gyldig GitHub-repo og PR-nummer.");
+  const { repo, number, url } = value as LinkedPr;
+  if (!validPullReference(repo, number)) throw new HttpError(400, "Bruk et gyldig GitHub-repo og PR-nummer.");
+  const pull = { repo, number };
+  if (url === undefined) return pull;
+  const parsed = typeof url === "string" && parsePullUrl(url);
+  if (!parsed || pullKey(parsed) !== pullKey(pull)) throw new HttpError(400, "GitHub-lenken må peke til den tilknyttede PR-en.");
+  return { ...pull, url: parsed.url };
 }
 
 export function agentsTemplate(name: string): string {

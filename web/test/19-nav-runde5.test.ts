@@ -309,10 +309,10 @@ flow("smart sidefane: kort for det som trenger deg, Utsett og hent tilbake, og f
   await card.getByText("Demo").waitFor();
   await smart.locator('[data-group="snoozed"] .smart-count', { hasText: "0" }).waitFor();
 
-  // Utsett › Om 1 time: out of the list, into Utsatt, and back again from there.
+  // Utsett › 1 time: out of the list, into Utsatt, and back again from there.
   await card.click({ button: "right" });
   await page.locator(".context-menu").first().getByRole("menuitem", { name: /Utsett/ }).hover();
-  await page.locator('.context-menu[data-depth="1"]').getByRole("menuitem", { name: "Om 1 time" }).click();
+  await page.locator('.context-menu[data-depth="1"]').getByRole("menuitem", { name: "1 time", exact: true }).click();
   await smart.locator('[data-group="snoozed"] .smart-count', { hasText: "1" }).waitFor();
   const snoozedUntil = (await h.api("GET", "/api/bootstrap")).threads.find((t: any) => t.id === thread.id).snoozedUntil;
   assert.ok(snoozedUntil > Date.now() + 50 * 60_000, "om en time");

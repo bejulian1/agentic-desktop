@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { promisify } from "node:util";
 import { sourceText } from "../../shared/i18n.ts";
+import { validPullReference } from "../../shared/linked-pr.ts";
 import type { GitHubCliStatus, GitHubErrorCode, GitHubItem, GitHubProject, GitHubRemote, GitHubStatus, PullWatchStatus, Settings } from "../../shared/protocol.ts";
 import { childEnv } from "./env.ts";
 import type { Secrets } from "./secrets.ts";
@@ -409,12 +410,10 @@ export class GitHub {
   }
 
   async pullWatch(repo: string, number: number): Promise<PullWatchStatus> {
-    const [owner, name, extra] = repo.split("/");
-    if (extra !== undefined || !/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/.test(owner) ||
-        !NAME.test(name ?? "") || name === "." || name === ".." ||
-        !Number.isSafeInteger(number) || number < 1 || number > 2_147_483_647) {
+    if (!validPullReference(repo, number)) {
       throw new GitHubError("other", "Bruk et gyldig GitHub-repo og PR-nummer.", 400);
     }
+    const [owner, name] = repo.split("/");
     const token = await this.token();
     if (!token) throw new GitHubError("not-connected", "Koble til GitHub i Innstillinger for å følge en pull request.", 409);
     const query = `query PullWatch($owner: String!, $name: String!, $number: Int!) {

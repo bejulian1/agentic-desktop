@@ -3,6 +3,23 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { flow, openProject, threadItem, waitFor } from "./harness.ts";
 
+flow("Grill-me tilbys med både / og $ i Chat og Kode", async (h) => {
+  const { page } = h;
+  const field = page.getByLabel("Melding", { exact: true });
+  const menu = page.getByTestId("composer-menu");
+  const check = async () => {
+    for (const prefix of ["/", "$"]) {
+      await field.fill(`${prefix}grill-me`);
+      await menu.getByText(`${prefix}grill-me`, { exact: true }).waitFor();
+      await field.press("Escape");
+    }
+    await field.fill("");
+  };
+  await check();
+  await openProject(h, "Intervju");
+  await check();
+});
+
 flow("Slash-skills: fuzzy tastaturvalg, innebygd skill, rå argumenter og skrivebeskyttet innsyn", async (h) => {
   const { page } = h;
   // The shipped skills are written for Kode with a project, so they are not offered in Chat.

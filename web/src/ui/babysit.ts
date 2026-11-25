@@ -1,11 +1,12 @@
 import { t } from "../lib/i18n";
+import { parsePullUrl, pullWatchVersion } from "../../../shared/linked-pr";
 import type { PullWatchStatus, RunStatus, RunWatchStatus, Thread } from "../../../shared/protocol";
-import { ApiError, get } from "../lib/api";
+import { ApiError, get, post } from "../lib/api";
 import { toast } from "../state/app";
 
 type Target =
   | { kind: "task"; threadId: string; title: string; run?: RunWatchStatus }
-  | { kind: "pr"; number: number; repo?: string; projectId?: string; pull?: PullWatchStatus };
+  | { kind: "pr"; number: number; repo?: string; projectId?: string; threadId?: string; pull?: PullWatchStatus };
 type Watch = { target: Target; timer?: ReturnType<typeof setTimeout>; problem?: string; stopped?: boolean };
 
 let active: Watch | null = null;
@@ -68,13 +69,17 @@ async function poll(watch: Watch, first = false): Promise<void> {
       const query = new URLSearchParams({ number: String(target.number) });
       if (target.repo) query.set("repo", target.repo);
       else if (target.projectId) query.set("project", target.projectId);
-      const pull = await get<PullWatchStatus>(`/api/github/pull-watch?${query}`);
+      const pull = target.threadId
+        ? await post<PullWatchStatus>("/api/github/pull-watch", {
+          threadId: target.threadId, number: String(target.number), repo: target.repo, projectId: target.projectId,
+          link: first, previous: target.pull && pullWatchVersion(target.pull),
+        })
+        : await get<PullWatchStatus>(`/api/github/pull-watch?${query}`);
       if (active !== watch) return;
       const previous = target.pull;
       target.pull = pull;
       target.repo = pull.repo;
-      if (previous && (previous.head !== pull.head || previous.state !== pull.state ||
-          previous.checks !== pull.checks || previous.review !== pull.review || previous.draft !== pull.draft)) {
+      if (previous && pullWatchVersion(previous) !== pullWatchVersion(pull)) {
         toast(t("{target} · {state} · CI: {checks} · Gjennomgang: {review}", { target: label(target), state: pullState(pull), checks: checks(pull).toLowerCase(), review: review(pull).toLowerCase() }), "info");
       }
       if (pull.state !== "OPEN") {
@@ -118,11 +123,11 @@ function status(): { title: string; text?: string; rows?: Array<[string, string]
   return { title, rows, link };
 }
 
-function pullTarget(arg: string, projectId: string | null): Target | null {
+function pullTarget(arg: string, projectId: string | null, threadId: string | undefined): Target | null {
   const number = /^#?([1-9]\d{0,9})$/.exec(arg);
-  if (number && projectId) return { kind: "pr", number: Number(number[1]), projectId };
-  const url = /^https:\/\/github\.com\/([a-z0-9][a-z0-9-]{0,38}\/[a-z0-9_.-]{1,100})\/pull\/([1-9]\d{0,9})\/?(?:[?#][^\s]*)?$/i.exec(arg);
-  return url ? { kind: "pr", repo: url[1], number: Number(url[2]) } : null;
+  if (number && projectId) return { kind: "pr", number: Number(number[1]), projectId, threadId };
+  const pull = parsePullUrl(arg);
+  return pull ? { kind: "pr", repo: pull.repo, number: pull.number, threadId } : null;
 }
 
 export async function babysit(arg: string, thread: Thread | undefined, projectId: string | null) {
@@ -145,7 +150,7 @@ export async function babysit(arg: string, thread: Thread | undefined, projectId
       if (command.toLowerCase() !== "pr" && rest.length) break;
       let target: Target | null;
       if (command.toLowerCase() === "pr") {
-        target = pullTarget(rest.join(" "), projectId);
+        target = pullTarget(rest.join(" "), projectId, thread?.temporary ? undefined : thread?.id);
         if (!target) return { title: t("Babysit"), text: t("Oppgi en GitHub-PR-lenke, eller bruk /babysit pr #14 i et Kode-prosjekt.") };
       } else {
         if (!thread) return { title: t("Babysit"), text: t("Start en kjøring i denne tråden først.") };

@@ -171,14 +171,38 @@ test("required frontmatter strings and optional args are validated without crash
 test("every shipped skill parses, has the intended modes and one args placeholder", (t) => {
   const root = path.resolve(import.meta.dirname, "../../skills");
   const shipped = discoverSkills(null, tempDir(t), [], root);
-  assert.equal(shipped.length, 24);
-  assert.equal(sharedSkills.length, 7);
+  assert.equal(shipped.length, 25);
+  assert.equal(sharedSkills.length, 8);
   assert.deepEqual(shipped.map((item) => item.name), documentedSkills);
   for (const item of shipped) {
     assert.equal(item.mode, sharedSkills.includes(item.name) ? undefined : "code", `${item.name}: intended mode`);
     assert.ok(item.description.length <= 200, `${item.name}: the description is always in the prompt, keep it short`);
     const body = loadSkillBody(item);
     assert.equal(body.split("{{args}}").length - 1, 1, `${item.name}: exactly one args placeholder`);
+  }
+});
+
+test("grill-me ships in the Chat and Code command catalogs and loads the interview instructions", async (t) => {
+  const h = await startHarness(t, { appSkillsDir: path.resolve(import.meta.dirname, "../../skills") });
+  const llm = await startFakeLlm(t);
+  const provider = await h.api("POST", "/api/providers", { kind: "openai-compatible", name: "Local", baseUrl: llm.url });
+  const model = await h.api("POST", "/api/models", { providerId: provider.id, name: "Local", model: "test", contextWindow: 64_000 });
+  for (const mode of ["chat", "code"] as const) {
+    const commands = await h.api("GET", `/api/commands?mode=${mode}`);
+    const grill = commands.find((item: any) => item.name === "grill-me");
+    assert.equal(grill.kind, "skill");
+    assert.equal(grill.source, "app");
+    assert.equal(grill.mode, undefined);
+    assert.equal(commands.find((item: any) => item.name === "plan").scope, "code");
+    assert.equal(commands.find((item: any) => item.name === "plan-change")?.mode, mode === "code" ? "code" : undefined);
+    const thread = await h.thread(mode === "code" ? (await h.project()).id : null, mode, model.id);
+    llm.reply(sse(openaiText("Hvilke valg bør vi avklare først?")));
+    await h.api("POST", `/api/threads/${thread.id}/messages`, { text: "Innboksflyt", skill: "grill-me" });
+    await h.finished(thread.id);
+    const system = llm.requests.at(-1)!.body.messages[0].content;
+    assert.match(system, /Innboksflyt/);
+    assert.match(system, /Ask one focused question at a time/);
+    assert.match(system, /recommended answer and a brief reason/);
   }
 });
 

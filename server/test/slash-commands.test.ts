@@ -19,9 +19,12 @@ test("the command catalog has unique names and aliases, with reserved skills sti
   assert.equal(new Set(names).size, names.length);
   for (const name of ["approve", "ide-context", "local"]) assert.ok(!names.includes(name));
   const scope = { code: false, project: false, chatProject: false };
-  assert.equal(visibleCommands(builtins, scope).length, 45);
-  assert.equal(visibleCommands(builtins, { ...scope, code: true }).length, 50);
-  assert.equal(visibleCommands(builtins, { ...scope, code: true, project: true }).length, 62);
+  assert.equal(names.includes("settle"), true);
+  assert.equal(names.includes("ferdig"), true);
+  assert.equal(names.includes("arkiver"), true);
+  assert.equal(visibleCommands(builtins, scope).length, 46);
+  assert.equal(visibleCommands(builtins, { ...scope, code: true }).length, 51);
+  assert.equal(visibleCommands(builtins, { ...scope, code: true, project: true }).length, 63);
   assert.deepEqual(commands.filter((command) => command.name === "help").map((command) => [command.kind, command.slashReserved]), [
     ["builtin", undefined], ["skill", true],
   ]);
