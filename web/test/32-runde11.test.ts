@@ -299,7 +299,9 @@ flow("sidefanens ⋯-meny: organiser, sorter, vis, og Ny seksjon som tar imot tr
   await waitFor(async () => (await titles()).join() === "Bravo,Alfa", "sist oppdatert først");
 
   // One ⋯ by the icons at the top, the same size and spacing as them, and no old filter button.
-  const head = page.locator(".sidebar-head");
+  // v1.4.0: in a wide window those icons stand in the top bar, above the sidebar.
+  const head = page.locator(".topbar-sidebar-tools");
+  assert.equal(await page.locator(".sidebar-head").count(), 0, "ingen egen rad med appnavnet i et bredt vindu");
   const sizes = await head.locator(".icon-button").evaluateAll((els) => els.map((el) => `${el.getBoundingClientRect().width}x${el.getBoundingClientRect().height}`));
   assert.equal(new Set(sizes).size, 1, `lik størrelse: ${sizes.join(" ")}`);
   assert.equal(await page.getByTestId("projects-view").count(), 0, "ikke to menyer for det samme");

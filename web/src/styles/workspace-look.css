@@ -1,0 +1,75 @@
+/* v1.4.0: a calmer, T3-like workspace. The sidebar's search, notifications and ⋯ in the top bar,
+   Prosjekt / Tråd before the title, two-line Kode rows in the sidebar, and the parts of
+   Innstillinger → Utseende → Arbeidsflate (the minimal top bar, the simple sidebar and message
+   field). Loaded last; tokens only. */
+
+/* 1. The sidebar's buttons above it, at the right of the top bar's left column. */
+.topbar-sidebar-tools { display: none; }
+.app.sidebar-open .topbar-sidebar-tools:not(:empty) { display: flex; align-items: center; gap: 2px; flex: none; margin-left: auto; }
+.topbar-sidebar-tools > div { display: contents; }
+.topbar-sidebar-tools .icon-button { width: 28px; height: 28px; flex: none; color: var(--text-2); }
+.topbar-sidebar-tools .icon-button:hover:not(:disabled) { color: var(--text); }
+.topbar-sidebar-tools .icon-button[aria-expanded="true"], .topbar-sidebar-tools .icon-button[aria-pressed="true"] { background: var(--active); color: var(--text); }
+/* With no head row, the sidebar's first row gets a little air at the top instead. */
+.sidebar > .sidebar-mode:first-child, .sidebar > .sidebar-quick:first-child, .sidebar > .sidebar-search:first-child { margin-top: var(--space-2); }
+
+/* 2. Prosjekt / Tråd: the project quiet, the slash quieter, the title bright. */
+.topbar-thread-crumb {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; max-width: 40%;
+  transform: translateY(-4px); color: var(--text-3); font-size: var(--text-md); white-space: nowrap;
+}
+.topbar-thread-crumb .crumb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.topbar-thread-crumb .project-glyph, .topbar-thread-crumb > .icon { flex: none; }
+.topbar-thread-crumb .crumb-slash { flex: none; margin-left: 4px; color: var(--text-4, var(--text-3)); }
+.topbar-mid > .topbar-thread-crumb + .topbar-title { margin-left: calc(var(--space-2) * -1 + 2px); }
+
+/* 3. Enkel topplinje: the crumb at the left of the main area, and a few quiet icons at the right. */
+.topbar[data-layout="minimal"] .topbar-mid { justify-content: flex-start; }
+.app:not(.sidebar-open) > .topbar[data-layout="minimal"] { grid-template-columns: max-content minmax(0, 1fr) max-content; }
+.topbar[data-layout="minimal"] .topbar-title-more { opacity: 0; transition: opacity var(--dur-1) var(--ease-out); }
+.topbar[data-layout="minimal"] .topbar-title:hover .topbar-title-more,
+.topbar[data-layout="minimal"] .topbar-title-more:focus-visible,
+.topbar[data-layout="minimal"] .topbar-title-more[aria-expanded="true"] { opacity: 1; }
+.topbar-right-minimal { gap: 2px; }
+.topbar-right-minimal .icon-button { width: 28px; height: 28px; color: var(--text-3); }
+.topbar-right-minimal .icon-button:hover:not(:disabled) { color: var(--text); }
+.topbar-right-minimal .icon-button[aria-pressed="true"], .topbar-right-minimal .icon-button[aria-expanded="true"] { background: var(--active); color: var(--text); }
+
+/* 4. Kode rows: two lines. Title and age on top, where it runs and the model's mark below, with the
+   mark right under the age. The row's buttons stand over the age, so nothing moves on hover. */
+.thread-item.code-row { align-items: flex-start; padding-top: 5px; padding-bottom: 5px; }
+.thread-item.code-row .thread-dot { margin-top: 6px; }
+.thread-item.code-row .thread-text,
+.thread-item.code-row .thread-text:has(.thread-fork) { flex-direction: column; align-items: stretch; gap: 2px; }
+.thread-line { display: flex; align-items: center; gap: var(--space-2); min-width: 0; line-height: 18px; }
+.thread-line .thread-title { flex: 1; min-width: 0; }
+.thread-line .thread-fork { display: inline-flex; flex: none; }
+.thread-line .badge, .thread-line .thread-time { flex: none; }
+.thread-line .thread-time { margin-left: auto; line-height: 18px; }
+.thread-item.code-row .thread-meta { gap: 8px; height: 16px; }
+.thread-where { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; }
+.thread-where .project-glyph, .thread-where > .icon { flex: none; }
+.thread-where-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-item.code-row .thread-branch { flex: 0 1 auto; }
+.thread-pr { display: inline-flex; align-items: center; gap: 3px; flex: none; color: var(--ok); font-variant-numeric: tabular-nums; }
+.thread-item.code-row .thread-meta .thread-provider { margin-left: auto; padding-left: var(--space-1); }
+.thread-item:not(.code-row) .thread-actions { display: contents; }
+.thread-item.code-row .thread-actions { position: absolute; top: 2px; right: var(--space-1); display: flex; align-items: center; }
+.thread-item.code-row:is(:hover, :focus-within, .menu-open) .thread-line { padding-right: 48px; }
+.thread-item.code-row.pinned .thread-line, .thread-item.code-row.snoozed .thread-line { padding-right: 24px; }
+.thread-item.code-row.pinned:is(:hover, :focus-within, .menu-open) .thread-line { padding-right: 48px; }
+.thread-item.code-row.snoozed:is(:hover, :focus-within, .menu-open) .thread-line { padding-right: 72px; }
+.thread-item.code-row .thread-snooze { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
+
+/* 5. Enkel sidefane: a quiet search row with a new project and a new thread, and a foot of icons. */
+.sidebar-quick { margin-top: var(--space-1); padding-right: 2px; background: transparent; border-color: transparent; }
+.sidebar-quick:hover { background: var(--hover); }
+.sidebar-quick .icon-button { width: 26px; height: 26px; flex: none; color: var(--text-3); }
+.sidebar-quick .icon-button:hover { color: var(--text); }
+.sidebar-simple .sidebar-scroll { padding-top: var(--space-1); }
+.sidebar-simple .sidebar-foot { gap: 4px; }
+.sidebar-simple .profile-button { flex: none; width: 36px; padding: 0; justify-content: center; }
+.sidebar-simple .profile-text { display: none; }
+
+/* 6. Enkelt meldingsfelt: only the goal is left over the field. */
+.composer-context.composer-context-quiet { padding-top: 0; }

@@ -34,6 +34,7 @@ import "./styles/runde13.css"; // round 13: the steps of a Kode turn, the now-li
 import "./styles/design.css"; // the design round (SPEC 28): polish after rounds 11 to 13, see docs/review/design-runde.md
 import "./styles/runde14.css"; // round 14 (SPEC 30): key fields, app icons, forks, the archive and the missing folder bar
 import "./styles/runde15.css"; // round 15 (SPEC 31): the artifact box and panel, and the «Tekst» mark
+import "./styles/workspace-look.css"; // v1.4.0: T3-like workspace, two-line Kode rows, Arbeidsflate
 
 // The token is in the fragment so it never reaches a log. It leaves the address bar at once.
 function takeToken(): string | null {

@@ -47,6 +47,9 @@ import { ProjectGlyph } from "./ProjectGlyph";
 import { paneTools } from "./Pane";
 import { PANEL_TOOLS, needsProjectTip, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
 import { inStack, placement, setPlacement, stacking, stackTools } from "../state/stack";
+import { setSidebarToolsSlot, topbarMinimal, topbarPanes } from "../state/workspace-look";
+import { ChatProjectGlyph } from "./ChatProjectGlyph";
+import { IconMonitor } from "./icons";
 
 const EFFORT_LABELS = (): Record<ReasoningEffort, string> => ({ none: t("Ingen"), low: t("Lav"), medium: t("Middels"), high: t("Høy"), xhigh: t("Ekstra høy"), max: t("Maks") });
 const PERMISSION_LABELS = (): Record<string, string> => ({ ask: t("Spør"), "accept-edits": t("Godta redigeringer"), full: t("Full tilgang") });
@@ -357,6 +360,24 @@ const SEPARATE = (): Array<{ id: "session" | "terminal" | "changes" | "browser" 
   { id: "files", on: t("Skjul Filer"), off: t("Filer") },
 ];
 
+// The side panel on and off. In Samlet, and on its own at the right of the minimal top bar.
+function PanelToggle() {
+  return (
+    <button
+      type="button"
+      class="icon-button panel-toggle"
+      classList={{ "is-disabled": away() }}
+      title={t("Vis eller skjul panelet ({keys})", { keys: displayKeys(keysFor("view.panel")) })}
+      aria-label={t("Vis eller skjul panelet")}
+      aria-pressed={panelOpen() && !away() && !artifactPanel()}
+      aria-disabled={away() ? "true" : undefined}
+      onClick={() => !away() && togglePanel()}
+    >
+      <IconPanel />
+    </button>
+  );
+}
+
 // Round 11 (SPEC 24.2): Samlet is ⋯, the panel on and off, a thin line and +. Hver for seg is ⋯ and one
 // button per panel, then the line and +. Chat has no panels (SPEC 24.5), so only ⋯ is left there. In
 // a narrow window Hver for seg takes too much room, so it is Samlet there.
@@ -369,20 +390,7 @@ function PanelButtons() {
       <Show when={code()}>
         <Show
           when={separate()}
-          fallback={
-            <button
-              type="button"
-              class="icon-button panel-toggle"
-              classList={{ "is-disabled": away() }}
-              title={t("Vis eller skjul panelet ({keys})", { keys: displayKeys(keysFor("view.panel")) })}
-              aria-label={t("Vis eller skjul panelet")}
-              aria-pressed={panelOpen() && !away() && !artifactPanel()}
-              aria-disabled={away() ? "true" : undefined}
-              onClick={() => !away() && togglePanel()}
-            >
-              <IconPanel />
-            </button>
-          }
+          fallback={<PanelToggle />}
         >
           <For each={SEPARATE()}>
             {(item) => {
@@ -430,7 +438,7 @@ export function TopBar() {
   const railShown = () => !sidebarOpen() && railEnabled() && !narrow();
 
   return (
-    <header class="topbar">
+    <header class="topbar" data-layout={topbarMinimal() ? "minimal" : "full"}>
       <div class="topbar-left">
         <div class="topbar-nav">
           <MainMenu />
@@ -440,17 +448,22 @@ export function TopBar() {
           <button type="button" class="icon-button" title={t("Tilbake ({keys})", { keys: displayKeys(keysFor("thread.back")) })} aria-label={t("Forrige tråd")} disabled={!actions.canGoBack()} onClick={actions.back}><IconBack /></button>
           <button type="button" class="icon-button" title={t("Frem ({keys})", { keys: displayKeys(keysFor("thread.forward")) })} data-action="thread-forward" aria-label={t("Neste tråd")} disabled={!actions.canGoForward()} onClick={actions.forward}><IconForward /></button>
         </div>
+        {/* v1.4.0: while the sidebar is open in a wide window, its search, notifications and ⋯ stand
+            here, at the right of this column, above the sidebar (Sidebar.tsx renders them in). */}
+        <div class="topbar-sidebar-tools" ref={setSidebarToolsSlot} />
         <Show when={!sidebarOpen()}><StartCrumb /></Show>
       </div>
       <div class="topbar-mid">
         {/* With the sidebar open the left column is only as wide as the sidebar, so the crumb stands
             where the main area starts instead, with room for the project's whole name. */}
         <Show when={sidebarOpen()}><StartCrumb /></Show>
-        <ModeSwitch class="topbar-mode" />
+        <Show when={!topbarMinimal()}><ModeSwitch class="topbar-mode" /></Show>
         <Show when={skillsOpen()}><span class="topbar-title-button" data-testid="topbar-workspace-title">{t("Skills")}</span></Show>
+        <ThreadCrumb />
         <ThreadTitle />
-        <OriginTag />
+        <Show when={!topbarMinimal()}><OriginTag /></Show>
       </div>
+      <Show when={!topbarMinimal()} fallback={<MinimalRight />}>
       <div class="topbar-right">
         <button type="button" class="icon-button" title={t("Tema og mods")} aria-label={t("Tema og mods")} data-testid="ui-mods-button" onClick={()=>setModsOpen(true)}><IconPalette size={16}/></button>
         <Show when={mode() === "code" && project()}>
@@ -490,7 +503,51 @@ export function TopBar() {
             buttons. Empty and without width in a browser (WindowControls.tsx). */}
         <WindowControls />
       </div>
+      </Show>
     </header>
+  );
+}
+
+// v1.4.0, Enkel topplinje (T3-stil): only what you use all the time. The split-pane buttons if
+// chosen, Tråddetaljer, the bottom terminal drawer, the side panel, and the window controls.
+function MinimalRight() {
+  const code = () => mode() === "code" && !studioOpen();
+  return (
+    <div class="topbar-right topbar-right-minimal" data-testid="topbar-minimal">
+      <Show when={topbarPanes()}>
+        <PaneButtons />
+        <span class="topbar-divider" aria-hidden="true" />
+      </Show>
+      <ThreadDetailsButton />
+      {/* Bottom terminal drawer toggle */}
+      <Show when={code()}><PanelToggle /></Show>
+      <WindowControls />
+    </div>
+  );
+}
+
+// v1.4.0: before a named thread's title, where it is: the project's icon and name, Denne
+// datamaskinen, or Chat (with its Chat project), then a slash. As in T3 Code: Prosjekt / Tråd.
+function ThreadCrumb() {
+  const thread = createMemo(() => (away() ? undefined : focusedThread()));
+  const named = () => !!thread() && !untitled(thread());
+  const project = () => (thread()?.projectId ? app.projects[thread()!.projectId!] : undefined);
+  const chatProject = () => (thread()?.chatProjectId ? app.chatProjects[thread()!.chatProjectId!] : undefined);
+  const code = () => thread()?.mode === "code";
+  return (
+    <Show when={named()}>
+      <span class="topbar-thread-crumb" data-testid="topbar-thread-crumb" title={project()?.path}>
+        <Show
+          when={code()}
+          fallback={<Show when={chatProject()} fallback={<><IconChat size={14} /><span class="crumb-name">{t("Chat")}</span></>}>{(p) => <><ChatProjectGlyph project={p()} size={14} /><span class="crumb-name">{p().name}</span></>}</Show>}
+        >
+          <Show when={project()} fallback={<><IconMonitor size={14} /><span class="crumb-name">{t("Denne datamaskinen")}</span></>}>
+            {(p) => <><ProjectGlyph project={p()} size={14} /><span class="crumb-name">{p().name}</span></>}
+          </Show>
+        </Show>
+        <span class="crumb-slash" aria-hidden="true">/</span>
+      </span>
+    </Show>
   );
 }
 

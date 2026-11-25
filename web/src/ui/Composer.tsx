@@ -8,6 +8,8 @@ import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
 import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, ProviderConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
+import { composerSimple } from "../state/workspace-look";
+import { untitled } from "../state/app";
 import { app, effectiveProjectOrder, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
 import { gridFor } from "../state/grid";
@@ -851,6 +853,7 @@ export function Composer(props: {
   });
   const running = createMemo(() => thread()?.running ?? false);
   const kode = () => !!(props.projectId || props.code);
+  const chipsHidden = () => composerSimple() && !!thread() && !untitled(thread());
   // Kode threads choose a working style; a chat chooses among Chat's own personalities.
   const personalities = (): Array<{ id: string; label: string; prompt: string; text?: string }> => (kode() ? PERSONALITIES : CHAT_PERSONALITIES);
   const chatProject = createMemo(() => {
@@ -2126,8 +2129,12 @@ export function Composer(props: {
         </div>
       </Show>
       <Show when={!settingsOpen() && queueMenu()}>{(menu) => <ContextMenu anchor={menu().anchor} label={t("Kømelding")} entries={queueEntries()} onClose={() => setQueueMenu(null)} />}</Show>
-      <Show when={kode()}>
-      <div class="composer-context">
+      {/* v1.4.0, Enkelt meldingsfelt (Innstillinger → Utseende → Arbeidsflate): once the thread has
+          started, the project, environment and branch chips are left out, so the field is one calm
+          box. The start page keeps them, since that is where the project is chosen; a goal stays. */}
+      <Show when={kode() && (!chipsHidden() || thread()?.goal)}>
+      <div class="composer-context" classList={{ "composer-context-quiet": chipsHidden() }}>
+        <Show when={!chipsHidden()}>
         <Popover
           class="context-anchor"
           fixed portal returnFocus
@@ -2150,6 +2157,7 @@ export function Composer(props: {
           <span class="context-chip static" data-testid="branch" title={branchInfo()?.detached ? t("Ingen gren, HEAD peker på en commit. Lest fra .git/HEAD.") : t("Gjeldende gren. Bruk prosjektets tannhjul for grener og arbeidstrær.")}>
             <IconBranch size={15} /><span>{branch()}</span>
           </span>
+        </Show>
         </Show>
         <Show when={thread()?.goal}>
           <GoalLine thread={thread()!} variant="composer" />
