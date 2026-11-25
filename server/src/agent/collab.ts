@@ -68,6 +68,10 @@ export class Collab implements CollabTools {
     this.sent.set(chainId, 0);
   }
 
+  release(chainId: string): void {
+    this.sent.delete(chainId);
+  }
+
   private count(chainId: string): void {
     this.sent.set(chainId, (this.sent.get(chainId) ?? 0) + 1);
   }

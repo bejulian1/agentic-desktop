@@ -80,8 +80,12 @@ const MAX_RETRIES = 3;
 // ends with an error instead of working quietly for minutes.
 export const MAX_RETRY_WAIT_MS = 60_000;
 const MAX_OUTPUT_EVENT_CHARS = 1024 * 1024;
-const DOOM_LIMIT = 3;
+const TOOL_CALL_WINDOW = 8;
+const REPEATED_CALL_LIMIT = 3;
+const TOOL_ERROR_LIMIT = 4;
 const MISTAKE_HINT_AT = 3; // invalid calls in a row before the error says to step back
+const MISTAKE_LIMIT = 6;
+const INVALID_CALLS_ERROR = "Modellen sendte for mange ugyldige verktøykall på rad og ble stoppet.";
 const MAX_CUT_CALLS = 2; // tool calls cut off by the output limit before the run stops
 const EDIT_TOOLS = new Set(["write_file", "edit_file", "delete_file"]);
 // Files where a change is not worth a test run.
@@ -149,8 +153,11 @@ interface ActiveRun {
   modDeclined?:boolean;
   heldPrompt?: Block[]; // the first message, kept out of history until UserPromptSubmit hooks have run
   promptBlocked?: boolean; // a UserPromptSubmit hook stopped it: no turn, and no Stop hooks
-  lastCall: { key: string; count: number };
+  recentCalls: Array<string | null>;
+  toolErrors: number;
   mistakes: number; // invalid tool calls in a row
+  compaction?: { step: number; tokens: number };
+  compactionWarned?: boolean;
 }
 
 interface PendingApproval {
@@ -164,6 +171,11 @@ interface ToolCall {
   input: any;
   parseError?: string;
   fromUser?: boolean; // a !command the user typed: hooks are for the agent's calls, not these
+}
+
+interface ToolLoop {
+  title: string;
+  repeatedKey?: string;
 }
 
 export interface RunnerDeps {
@@ -962,7 +974,8 @@ export class Runner {
       contextKey: this.contextKey(thread),
       abort: new AbortController(),
       shuttingDown: false,
-      lastCall: { key: "", count: 0 },
+      recentCalls: [],
+      toolErrors: 0,
       mistakes: 0,
       ...(heldPrompt ? { heldPrompt } : {}),
     };
@@ -1064,6 +1077,8 @@ export class Runner {
       }
     }
     this.active.delete(threadId);
+    // Helpers still working after their root finishes share the same message budget.
+    if (![...this.active.values()].some((run) => run.job.chainId === active.job.chainId)) this.collab.release(active.job.chainId);
     try {this.deps.uiMods?.finish(threadId,status==="done");}catch(error){console.warn("Kunne ikke laste mod etter tur:",(error as Error).message);}
     if (!thread) {
       this.agentQueueSlots.delete(threadId);
@@ -1320,7 +1335,7 @@ export class Runner {
       abort.signal.throwIfAborted();
       this.assertRunContext(active);
       if (step > 0) await this.takeSteered(active);
-      if (autoCompact) await this.maybeCompact(active, model, provider, system, false);
+      if (autoCompact) await this.maybeCompact(active, model, provider, [system, ...active.skillInstructions].join("\n\n"), step);
       const stepThread = this.store.thread(threadId)!;
       const stepProject = this.projectOf(stepThread);
       const stepSystem = stepThread.planMode !== thread.planMode || (stepProject && effectiveMode(stepProject, stepThread)) !== permissionMode
@@ -1335,14 +1350,16 @@ export class Runner {
 
       if (stop === "refusal") throw new Error(`Modellen avslo forespørselen${detail ? `: ${detail}` : ""}`);
       const calls = blocks.filter((b) => b.type === "tool_use");
+      const text = blocksText(blocks).trim();
       if (thread.mode === "code" && stepThread.planMode && this.store.thread(threadId)?.planMode && !calls.length) {
-        const plan = blocksText(blocks).trim();
-        if (plan) {
-          this.store.updateThread(threadId, { plan: plan.slice(0, 8000) });
+        if (text) {
+          this.store.updateThread(threadId, { plan: text.slice(0, 8000) });
           this.deps.threadChanged(threadId);
         }
       }
-      if (stop === "max_tokens") {
+      if (stop === "max_tokens" && !calls.length && text) {
+        this.appendNotice(active, "Svaret ble kuttet ved utdatagrensen.");
+      } else if (stop === "max_tokens") {
         // A cut-off tool call must not run. Its result still has to be in the history. The model
         // gets one more go with smaller pieces, since that is usually a write that was too big.
         const message = "Svaret ble kuttet fordi det nådde grensen for utdata, så verktøyet ble ikke kjørt. Del arbeidet i mindre biter: flere edit_file-kall i stedet for én stor write_file.";
@@ -1376,7 +1393,7 @@ export class Runner {
 
       // Read-only calls next to each other run at the same time; everything else one by one.
       for (let i = 0; i < calls.length; ) {
-        if (abort.signal.aborted || this.hasIncomingMessage(threadId)) {
+        if (abort.signal.aborted || this.hasUserSteering(threadId)) {
           const reason = abort.signal.aborted ? "Avbrutt av brukeren." : "Ikke kjørt: ny styring kom inn mens modellen eller forrige verktøy jobbet. Vurder behovet på nytt før et eventuelt nytt kall.";
           for (const call of calls.slice(i)) this.addToolResult(threadId, call.id, reason, true);
           abort.signal.throwIfAborted();
@@ -1384,18 +1401,23 @@ export class Runner {
         }
         let j = i + 1;
         if (PARALLEL_TOOLS.has(this.toolName(calls[i].name) ?? "")) {
-          while (j < calls.length && PARALLEL_TOOLS.has(this.toolName(calls[j].name) ?? "")) j++;
+          // Stop dispatching before another call could pass the consecutive-error limit.
+          const end = Math.min(calls.length, i + Math.max(1, TOOL_ERROR_LIMIT - active.toolErrors));
+          while (j < end && PARALLEL_TOOLS.has(this.toolName(calls[j].name) ?? "")) j++;
         }
         const group = calls.slice(i, j);
         const currentThread = this.store.thread(threadId)!;
         const currentProject = this.projectOf(currentThread);
         const results = await Promise.all(group.map(async (call) => {
           if (abort.signal.aborted) return { result: { text: "Avbrutt av brukeren.", isError: true }, status: "cancelled" as ToolStatus };
+          if (active.mistakes >= MISTAKE_LIMIT) return { result: { text: INVALID_CALLS_ERROR, isError: true }, status: "cancelled" as ToolStatus };
           return chat || call.name === "ui_mod" || this.toolName(call.name) === "request_user_input" ? this.runChatTool(active, currentThread, call, offered) : this.runTool(active, currentThread, currentProject!, skills, call, offered);
         }));
         this.assertRunContext(active);
         group.forEach((call, k) => {
           const { result, status } = results[k];
+          if (status === "error") active.toolErrors++;
+          if (status === "done") active.toolErrors = 0;
           this.store.appendMessage(threadId, {
             role: "user",
             content: [{ type: "tool_result", toolUseId: call.id, content: result.text, isError: result.isError, image: result.image }],
@@ -1422,6 +1444,10 @@ export class Runner {
             }
           }
         });
+        if (active.mistakes >= MISTAKE_LIMIT) {
+          for (const call of calls.slice(j)) this.addToolResult(threadId, call.id, INVALID_CALLS_ERROR, true);
+          throw new Error(INVALID_CALLS_ERROR);
+        }
         if (group.some((call) => this.toolName(call.name) === "request_user_input") && this.hasUserSteering(threadId)) {
           for (const call of calls.slice(j)) this.addToolResult(threadId, call.id, "Ikke kjørt: brukeren styrte turen. Vurder meldingen før du prøver igjen.", true);
           break;
@@ -1440,6 +1466,10 @@ export class Runner {
     this.store.appendMessage(threadId, { role: "user", content: [{ type: "tool_result", toolUseId, content, isError }] });
   }
 
+  private appendNotice({ threadId, runId }: ActiveRun, text: string): void {
+    this.log.append(threadId, { type: "text.delta", runId, messageId: randomUUID(), text });
+  }
+
   private async streamStep(
     active: ActiveRun,
     model: ModelConfig,
@@ -1450,13 +1480,17 @@ export class Runner {
   ): Promise<{ blocks: Block[]; stop: StopReason; detail?: string }> {
     const { threadId, runId, abort } = active;
     let strippedThinking = false;
+    let retriedEmpty = false;
+    let retries = 0;
     let waited = 0;
-    for (let attempt = 0; ; attempt++) {
+    for (;;) {
       const blocks: Block[] = [];
       const messageId = randomUUID();
       let stop: StopReason = "end";
       let detail: string | undefined;
       let emitted = false;
+      let leadingWhitespace = "";
+      let textStarted = false;
       let thinking: { blockId: string; startedAt: number } | undefined;
       let usage: { inputTokens: number; outputTokens: number; cachedInputTokens: number } | undefined;
       const searches = new Map<string, number>(); // the provider's own web searches in this step, by id
@@ -1510,7 +1544,13 @@ export class Runner {
               let block = blocks.at(-1);
               if (block?.type !== "text") blocks.push((block = { type: "text", text: "" }));
               block.text += part.text;
-              this.log.delta(threadId, { type: "text.delta", runId, messageId, text: part.text });
+              if (!textStarted && !part.text.trim()) {
+                leadingWhitespace += part.text;
+                break;
+              }
+              this.log.delta(threadId, { type: "text.delta", runId, messageId, text: leadingWhitespace + part.text });
+              textStarted = true;
+              leadingWhitespace = "";
               break;
             }
             case "tool_call":
@@ -1556,6 +1596,12 @@ export class Runner {
         }
         endThinking();
         if (usage) this.recordUsage(active, model, usage);
+        abort.signal.throwIfAborted();
+        if (stop !== "pause" && stop !== "refusal" && stop !== "max_tokens" && !blocks.some((block) => block.type === "tool_use") && !blocksText(blocks).trim()) {
+          if (retriedEmpty) throw new Error("Modellen returnerte et tomt svar.");
+          retriedEmpty = true;
+          continue;
+        }
         return { blocks, stop, detail };
       } catch (err) {
         this.assertRunContext(active); // never persist a partial answer from an obsolete scope
@@ -1574,8 +1620,8 @@ export class Runner {
             this.store.replaceMessages(threadId, stripThinking(this.store.messages(threadId)));
             continue;
           }
-          if (err.retryable && !emitted && attempt < MAX_RETRIES) {
-            const waitMs = Math.max(0, err.retryAfterMs ?? this.deps.retryBaseMs * 2 ** attempt);
+          if (err.retryable && !emitted && retries < MAX_RETRIES) {
+            const waitMs = Math.max(0, err.retryAfterMs ?? this.deps.retryBaseMs * 2 ** retries);
             if (waited + waitMs > MAX_RETRY_WAIT_MS) {
               throw new ProviderError(
                 `${err.message}. Leverandøren ber om ${Math.ceil(waitMs / 1000)} s venting før neste forsøk, og appen venter høyst ${MAX_RETRY_WAIT_MS / 1000} s. Prøv igjen senere.`,
@@ -1584,14 +1630,14 @@ export class Runner {
             }
             waited += waitMs;
             // The thread says what it waits for, so a long wait is not silent.
-            this.log.append(threadId, { type: "run.retrying", runId, attempt: attempt + 1, maxAttempts: MAX_RETRIES, waitMs, reason: err.message });
+            this.log.append(threadId, { type: "run.retrying", runId, attempt: ++retries, maxAttempts: MAX_RETRIES, waitMs, reason: err.message });
             await abortable(waitMs, abort.signal);
             continue;
           }
         }
         // Keep partial text here too, so a later message has the context.
         const partial = blocks.filter((b) => b.type === "text" && b.text);
-        if (partial.length) this.store.appendMessage(threadId, { role: "assistant", content: partial });
+        if (blocksText(partial).trim()) this.store.appendMessage(threadId, { role: "assistant", content: partial });
         throw err;
       }
     }
@@ -1606,6 +1652,31 @@ export class Runner {
   }
 
   // Tools
+
+  private invalidToolResult(active: ActiveRun, problem: string): ToolResult {
+    active.mistakes++;
+    const hint = active.mistakes >= MISTAKE_HINT_AT
+      ? `\n\nDette er ${active.mistakes}. ugyldige verktøykall på rad. Stopp og tenk: bruk bare verktøyene over, send argumentene som ett gyldig JSON-objekt, eller svar brukeren med tekst.`
+      : "";
+    return { text: problem + hint, isError: true };
+  }
+
+  private trackToolCall(active: ActiveRun, name: string, input: unknown): ToolLoop | undefined {
+    const key = `${name}:${JSON.stringify(input)}`;
+    active.recentCalls.push(key);
+    if (active.recentCalls.length > TOOL_CALL_WINDOW) active.recentCalls.shift();
+    if (active.recentCalls.filter((recent) => recent === key).length >= REPEATED_CALL_LIMIT) {
+      return { repeatedKey: key, title: "Samme verktøykall er gjentatt tre ganger. Fortsette?" };
+    }
+    if (active.toolErrors >= TOOL_ERROR_LIMIT) {
+      return { title: "Fire verktøykall på rad har feilet. Fortsette?" };
+    }
+  }
+
+  private allowToolLoop(active: ActiveRun, loop: ToolLoop): void {
+    if (loop.repeatedKey) active.recentCalls = active.recentCalls.map((recent) => recent === loop.repeatedKey ? null : recent);
+    if (active.toolErrors >= TOOL_ERROR_LIMIT) active.toolErrors = 0;
+  }
 
   private async runTool(
     active: ActiveRun,
@@ -1641,6 +1712,11 @@ export class Runner {
       });
       return { result, status };
     };
+    const rejectInvalid = (problem: string) => {
+      this.trackToolCall(active, call.name, call.input);
+      this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
+      return finish("error", this.invalidToolResult(active, problem));
+    };
 
     const available = offered ?? new Set(TOOLS_BY_NAME.keys());
     const missing = tool ? (tool.def.parameters.required as string[]).filter((field) => call.input?.[field] === undefined || call.input?.[field] === null) : [];
@@ -1656,22 +1732,11 @@ export class Runner {
       : missing.length
       ? `Mangler påkrevde felt: ${missing.join(", ")}. Forventet for ${call.name}: ${describeParams(tool.def.parameters)}`
       : undefined;
-    if (!tool || problem) {
-      active.mistakes++;
-      const hint = active.mistakes >= MISTAKE_HINT_AT
-        ? `\n\nDette er ${active.mistakes}. ugyldige verktøykall på rad. Stopp og tenk: bruk bare verktøyene over, send argumentene som ett gyldig JSON-objekt, eller svar brukeren med tekst.`
-        : "";
-      this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
-      return finish("error", { text: problem! + hint, isError: true });
-    }
-    active.mistakes = 0;
+    if (!tool || problem) return rejectInvalid(problem!);
 
     const requestedModel = call.name === "thread_create" ? call.input?.model : undefined;
     const selected = call.name === "thread_create" ? this.collab.modelChoice(requestedModel, active.model.id) : undefined;
-    if (selected && "text" in selected) {
-      this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
-      return finish("error", selected);
-    }
+    if (selected && "text" in selected) return rejectInvalid(selected.text);
     const destination = (model: ModelConfig | undefined) => {
       const provider = model && this.store.provider(model.providerId);
       return provider && model ? JSON.stringify([model.id, model.model, model.name, provider.id, provider.name, provider.kind, provider.baseUrl]) : undefined;
@@ -1681,10 +1746,11 @@ export class Runner {
     const target = destination(selected);
     const crossProvider = selected && selected.providerId !== active.model.providerId ? this.store.provider(selected.providerId) : undefined;
     if (selected && requestedModel === undefined && (selected.model !== active.model.model || crossProvider)) {
-      this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: "", input: call.input, status: "running" });
-      return finish("error", { text: "Modellen i den aktive kjøringen er endret. Velg hvilken modell hjelperen skal bruke.", isError: true });
+      return rejectInvalid("Modellen i den aktive kjøringen er endret. Velg hvilken modell hjelperen skal bruke.");
     }
+    active.mistakes = 0;
     if (selected) call.input = { ...call.input, model: draft ? draft.model : selected.id };
+    const loop = this.trackToolCall(active, call.name, call.input);
 
     const ctx: ToolContext = {
       thread,
@@ -1722,11 +1788,8 @@ export class Runner {
     // A tool that must always ask (a new skill from the agent), in every mode and never "always".
     const confirm = tool.confirm?.(call.input, ctx);
     if (confirm) Object.assign(decision, { ask: true, canAllowAlways: false, rule: undefined, reason: confirm.detail });
-    const key = `${call.name}:${JSON.stringify(call.input)}`;
-    active.lastCall = active.lastCall.key === key ? { key, count: active.lastCall.count + 1 } : { key, count: 1 };
-    const looping = active.lastCall.count >= DOOM_LIMIT;
     const overBudget = (call.name === "thread_create" || call.name === "thread_send") && this.collab.overBudget(active.job.chainId);
-    const asks = decision.ask || looping || overBudget || !!crossProvider;
+    const asks = decision.ask || !!loop || overBudget || !!crossProvider;
 
     this.log.append(threadId, {
       type: "tool.started",
@@ -1743,15 +1806,11 @@ export class Runner {
         ? `Deleger til ${clip(crossProvider.name, 160)}?`
         : overBudget
         ? "Trådene har sendt 20 meldinger til hverandre. Fortsette?"
-        : looping
-          ? "Samme verktøykall er gjentatt tre ganger. Fortsette?"
-          : confirm
-            ? confirm.title
-            : `${call.name}: ${summary}`;
+        : loop?.title ?? confirm?.title ?? `${call.name}: ${summary}`;
       const detail = crossProvider
         ? `Modellen ${clip(selected!.name, 160)} hos ${clip(crossProvider.name, 160)} får oppgaven og prosjektkonteksten. Den følger de samme tilgangsgrensene som hovedtråden.${overBudget ? " Dette fortsetter også samarbeidet etter grensen på 20 meldinger." : ""}\n\nOppgave: ${String(call.input.task)}`
         : decision.reason ?? (call.name === "run_command" ? String(call.input.command) : JSON.stringify(call.input, null, 2));
-      const canAllowAlways = decision.canAllowAlways && !looping && !overBudget && !crossProvider;
+      const canAllowAlways = decision.canAllowAlways && !loop && !overBudget && !crossProvider;
       const answer = await this.askApproval(active, call.id, title, clip(detail, 4000), canAllowAlways, canAllowAlways && decision.rule ? clip(ruleLabel(decision.rule), 300) : undefined);
       if (answer === "cancelled") return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
       if (answer === "deny") return finish("denied", { text: "Brukeren avslo dette verktøykallet.", isError: true });
@@ -1759,7 +1818,7 @@ export class Runner {
         if (local) writeLocalRules(this.store, local.add(`${decision.rule.kind}:${decision.rule.value}`));
         else this.store.allow(project.id, decision.rule.kind, decision.rule.value);
       }
-      if (looping) active.lastCall.count = 0;
+      if (loop) this.allowToolLoop(active, loop);
       if (overBudget) this.collab.grant(active.job.chainId);
     }
 
@@ -1816,6 +1875,7 @@ export class Runner {
     if (this.toolName(call.name) === "request_user_input") call = { ...call, name: "request_user_input" };
     const tool = (thread.mode === "chat" ? this.chatToolDefs(thread) : [requestUserInputTool,...this.modTools(thread)]).find((t) => t.def.name === call.name && offered.has(t.def.name));
     const input = tool && call.input && typeof call.input === "object" && !Array.isArray(call.input) ? coerceArgs(call.input, tool.def.parameters) : call.input;
+    const loop = this.trackToolCall(active, call.name, input);
     const web = call.name === "web_search" ? this.webAccess(this.webRoute(thread)) : this.deps.web ? browserWeb(this.deps.web, undefined) : undefined;
     const suggestMemory = (raw: unknown, evidence: unknown, previous: unknown) => {
       const text = cleanMemory(raw);
@@ -1853,9 +1913,12 @@ export class Runner {
       ? `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`
       : !tool
       ? `Ukjent verktøy: ${call.name}. Verktøyene du har: ${[...offered].join(", ") || "ingen"}.`
-      : call.parseError ?? (!input || typeof input !== "object" ? `Forventet for ${call.name}: ${describeParams(tool.def.parameters)}` : undefined);
-    this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary: tool && !problem ? tool.summary(input, ctx) : "", input, status: "running" });
-    if (!tool || problem) return finish("error", { text: problem!, isError: true });
+      : call.parseError ?? (!input || typeof input !== "object" || Array.isArray(input) ? `Forventet for ${call.name}: ${describeParams(tool.def.parameters)}` : undefined);
+    const mcpApproval = !problem && call.name.startsWith("mcp__") && this.deps.mcp?.chatNeedsApproval(thread.id, call.name);
+    const summary = tool && !problem ? tool.summary(input, ctx) : "";
+    this.log.append(threadId, { type: "tool.started", runId, callId: call.id, tool: call.name, summary, input, status: !problem && (loop || mcpApproval) ? "awaiting-approval" : "running" });
+    if (!tool || problem) return finish("error", this.invalidToolResult(active, problem!));
+    active.mistakes = 0;
     try {
       this.assertRunContext(active);
       if(call.name==="ui_mod" && ["save","apply"].includes(input.action) && this.deps.uiMods && !this.deps.uiMods.consented(thread.id)){
@@ -1869,11 +1932,12 @@ export class Runner {
       }
       // Chat has no permission mode: an MCP tool asks each time, unless its server is set to
       // automatic or the user allowed it for the rest of this conversation.
-      if (call.name.startsWith("mcp__") && this.deps.mcp?.chatNeedsApproval(thread.id, call.name)) {
-        const answer = await this.askApproval(active, call.id, `${call.name}: ${tool.summary(input, ctx)}`, clip(JSON.stringify(input, null, 2), 4000), true);
+      if (loop || mcpApproval) {
+        const answer = await this.askApproval(active, call.id, loop?.title ?? `${call.name}: ${summary}`, clip(JSON.stringify(input, null, 2), 4000), !loop);
         if (answer === "cancelled") return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
         if (answer === "deny") return finish("denied", { text: "Brukeren avslo dette verktøykallet.", isError: true });
-        if (answer === "allow-always") this.deps.mcp.allowInChat(thread.id, call.name);
+        if (loop) this.allowToolLoop(active, loop);
+        else if (answer === "allow-always") this.deps.mcp?.allowInChat(thread.id, call.name);
       }
       const blocked = await this.preToolHooks(active, thread, { ...call, input });
       if (abort.signal.aborted) return finish("cancelled", { text: "Avbrutt av brukeren.", isError: true });
@@ -2052,18 +2116,23 @@ export class Runner {
     const project = this.projectOf(thread);
     this.assertRunContext(active);
     const system = this.systemPrompt(thread, project, thread.mode === "code" ? this.skillsFor(project, "code") : [], true, model);
-    await this.maybeCompact(active, model, this.deps.provider(model), system, true);
+    await this.maybeCompact(active, model, this.deps.provider(model), system);
   }
 
-  private async maybeCompact(active: ActiveRun, model: ModelConfig, provider: Provider, system: string, force: boolean): Promise<void> {
+  private async maybeCompact(active: ActiveRun, model: ModelConfig, provider: Provider, system: string, step?: number): Promise<void> {
     const { threadId, runId, abort } = active;
-    let messages = this.store.messages(threadId);
-    const usage = this.store.usage(threadId);
-    const before = Math.max(estimateTokens(system, messages), usage.contextTokens);
-    if (!force && before <= model.contextWindow * COMPACT_AT) return;
+    const force = step === undefined;
+    const messages = this.store.messages(threadId);
+    const startTokens = estimateTokens(system, messages);
+    const before = Math.max(startTokens, this.store.usage(threadId).contextTokens);
+    const threshold = model.contextWindow * COMPACT_AT;
+    if (!force && before <= threshold) return;
+    // Provider usage can include fixed overhead or describe an earlier prompt. Compare growth
+    // using the same local estimate before and after compaction.
+    const last = active.compaction;
+    if (last && (last.step === step || startTokens <= last.tokens * 1.1)) return;
 
     // First the cheap step: old tool results go. Then a summary, if that was not enough.
-    const startTokens = estimateTokens(system, messages);
     let next = compactToolResults(messages, model.contextWindow);
     if (force || overTarget(system, next, model.contextWindow)) {
       const cut = force ? next.length : summaryCut(next, model.contextWindow);
@@ -2075,14 +2144,24 @@ export class Runner {
       }
     }
     // Nothing gained means nothing rewritten: a rewrite costs the signed thinking and the cache.
-    const after = estimateTokens(system, next);
-    if (!force && after >= startTokens) return;
+    const gained = estimateTokens(system, next) < startTokens;
     this.assertRunContext(active);
-    messages = stripThinking(next);
-    this.store.replaceMessages(threadId, messages);
-    this.store.setUsage(threadId, { ...this.store.usage(threadId), contextTokens: after });
-    this.log.append(threadId, { type: "context.compacted", runId, beforeTokens: before, afterTokens: after });
     abort.signal.throwIfAborted();
+    let after = startTokens;
+    if (force || gained) {
+      next = stripThinking(next);
+      after = estimateTokens(system, next);
+      this.store.replaceMessages(threadId, next);
+      this.store.setUsage(threadId, { ...this.store.usage(threadId), contextTokens: after });
+      this.log.append(threadId, { type: "context.compacted", runId, beforeTokens: before, afterTokens: after });
+    }
+    if (step !== undefined) {
+      active.compaction = { step, tokens: after };
+      if ((after > threshold || !gained) && !active.compactionWarned) {
+        active.compactionWarned = true;
+        this.appendNotice(active, "Konteksten er fortsatt stor etter komprimering. Modellen kan få mindre plass til å svare.");
+      }
+    }
   }
 
   private async summarize(active: ActiveRun, model: ModelConfig, provider: Provider, messages: Message[]): Promise<string | null> {
