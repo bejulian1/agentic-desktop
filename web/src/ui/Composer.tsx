@@ -3,12 +3,12 @@
 import { lookupMessage, language, t } from "../lib/i18n";
 import { Dictation } from './Dictation';
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack } from "solid-js";
-import type { Accessor } from "solid-js";
+import type { Accessor, JSX } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
 import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, ProviderConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
 import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
-import { composerSimple } from "../state/workspace-look";
+import { composerLarge, composerSimple } from "../state/workspace-look";
 import { untitled } from "../state/app";
 import { app, effectiveProjectOrder, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
@@ -23,16 +23,17 @@ import {
   IconFile, IconFolder, IconBranch, IconSend, IconStop, IconCode, IconSpark, IconClose, IconTerminal, IconChevronDown, IconCheck, IconList, IconPlus,
   IconLaptop, IconBolt, IconSearch, IconImage, IconReset, IconBack, IconSliders,
   IconNewThread, IconBrain, IconInfo, IconTarget, IconBook, IconArchive, IconHelp, IconChat, IconPlay, IconUndo, IconEye, IconUsers, IconSplitRight,
-  IconMonitor, IconChevron, IconWarn, IconDots, IconPencil, IconTrash,
+  IconMonitor, IconChevron, IconWarn, IconDots, IconPencil, IconTrash, IconPaperclip,
 } from "./icons";
 import { GoalLine } from "./Goal";
 import { ChatToolButton, useChatTools } from "./ChatToolMenu";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
 import "../styles/queue.css";
 import { Popover } from "./Popover";
-import { PermissionPicker } from "./PermissionPicker";
+import { PermissionChoices, PermissionPicker } from "./PermissionPicker";
 import { ProviderIcon, providerBrand, type ProviderBrand } from "./ProviderIcon";
 import "../styles/permissions.css";
+import "../styles/composer-t3.css";
 import "../styles/handoff-agents.css";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { AttachmentChip, imageUrl, showImage } from "./rows";
@@ -502,7 +503,9 @@ function FolderPicker(props: { projectId: string; onPick: (item: MentionItem) =>
 // the search field: ↑ and ↓ move the marked row (aria-activedescendant), Enter picks it, Esc closes.
 // The list scrolls on its own between the field and the bottom row.
 let modelMenuSeq = 0;
-function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void; onManage: () => void }) {
+// v1.4.1: the menu is also where effort and permissions are set (Tenkeinnsats, Tillatelsesmodus):
+// the sections come in as children, under the list, and a choice there keeps the menu open.
+function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void; onManage: () => void; children?: JSX.Element }) {
   const listId = `model-list-${++modelMenuSeq}`;
   const [query, setQuery] = createSignal("");
   const [active, setActive] = createSignal<string | null>(props.chosen);
@@ -555,7 +558,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   createEffect(on(query, reveal, { defer: true }));
   return (
     <div class="model-menu" data-testid="model-menu">
-      <div class="model-heading">{t("Velg modell")}</div>
+      <div class="model-heading">{t("Modell")}</div>
       <label class="model-search">
         <IconSearch size={14} />
         <input
@@ -623,6 +626,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
           )}
         </For>
       </div>
+      <Show when={props.children}><div class="model-extra">{props.children}</div></Show>
       <div class="model-foot">
         <button type="button" class="menu-item model-manage" onMouseDown={(e) => e.preventDefault()} onClick={props.onManage}><IconSliders size={15} /><span class="menu-name">{t("Administrer modeller")}</span></button>
       </div>
@@ -2181,7 +2185,7 @@ export function Composer(props: {
       )}</Show>
       <form
         class="composer"
-        classList={{ busy: running(), locked: locked() }}
+        classList={{ busy: running(), locked: locked(), "composer-large": composerLarge() }}
         data-locked={locked() ? "true" : undefined}
         hidden={locked()}
         onSubmit={(e) => { e.preventDefault(); void submit(); }}
@@ -2359,16 +2363,13 @@ export function Composer(props: {
             <div ref={completionOverlay} class="composer-completion" aria-hidden="true" data-testid="prompt-completion"><span class="composer-completion-prefix">{completionPrefix()}</span><span data-testid="prompt-completion-suffix">{completion()}</span></div>
             <span id={`${menuId}-completion-status`} class="sr-only" role="status">{t("Forslag: {suggestion}. Trykk Tab for å sette inn, eller Escape for å avvise.", { suggestion: completion() ?? "" })}</span>
           </Show>
-          {/* The three helpers and what they do (SPEC 21.1). In a narrow pane the words go first,
-              then the keys, so the line never wraps. */}
+          {/* The three helpers and what they do (SPEC 21.1). v1.4.1: one calm line in plain words, with
+              no boxes around the keys; in a narrow pane it ends in an ellipsis instead of wrapping. */}
           <Show when={kode() && !hasText() && !locked()}>
             <div class="composer-hint" aria-hidden="true" data-testid="composer-hint">
-              <span class="hint-main">{t("Spør om hva som helst")}</span>
-              <span class="hint-key"><kbd>/</kbd><span class="hint-word">{t("kommandoer")}</span></span>
-              <span class="hint-key"><kbd>@</kbd><span class="hint-word">{t("filer")}</span></span>
-              <span class="hint-key"><kbd>$</kbd><span class="hint-word">{t("skills")}</span></span>
+              <span class="hint-main">{t("Spør om hva som helst. @ filer, $ skills, / kommandoer")}</span>
               <Show when={enterNewline()}>
-                <span class="hint-key hint-send"><kbd>{displayKeys("Mod+Enter")}</kbd><span class="hint-word">{t("sender")}</span></span>
+                <span class="hint-send">{t("{shortcut} sender", { shortcut: displayKeys("Mod+Enter") })}</span>
               </Show>
             </div>
           </Show>
@@ -2403,6 +2404,21 @@ export function Composer(props: {
           }}
         />
         <div class="composer-foot">
+          {/* v1.4.1, Romslig (T3-stil): a paperclip that opens the file picker at once. Images and
+              text files go the same way as a drop; folders and commands are still @ and /. */}
+          <Show when={composerLarge()}>
+            <button
+              type="button"
+              class="foot-icon attach-clip"
+              data-testid="attach-files"
+              aria-label={t("Legg ved filer eller bilder")}
+              disabled={locked()}
+              onClick={() => (atLimit() ? toast(limitText(), "info") : textInput.click())}
+            >
+              <IconPaperclip size={17} />
+            </button>
+          </Show>
+          <Show when={!composerLarge()}>
           <Popover
             open={attachOpen()}
             onClose={closeAttach}
@@ -2458,7 +2474,8 @@ export function Composer(props: {
               </div>
             </Show>
           </Popover>
-          <Show when={kode()}>
+          </Show>
+          <Show when={kode() && !composerLarge()}>
             <PermissionPicker project={project()} cap={thread()?.permissionCap} />
           </Show>
           <Show when={!kode()}>
@@ -2468,7 +2485,7 @@ export function Composer(props: {
             <button type="button" class="pill pill-accent" title={t("Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av.")} onClick={() => void setPlan(false).catch(report)}><IconList size={12} />{t("Plan")}</button>
           </Show>
           <span class="composer-spacer" />
-          <Show when={steps().length}>
+          <Show when={steps().length && !composerLarge()}>
             <Popover
               class="effort-anchor"
               stable
@@ -2525,7 +2542,9 @@ export function Composer(props: {
                 setModelOpen(true);
               }}>
                 <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={14} decorative />}</Show>
-                <span class="model-label">{modelName(modelId())}</span><IconChevronDown size={12} />
+                <span class="model-label">{modelName(modelId())}</span>
+                <Show when={composerLarge() && steps().length}><span class="model-effort" data-testid="model-button-effort">{effortLabel(chosenEffort()) || t("Standard")}</span></Show>
+                <IconChevronDown size={12} />
               </button>
             }
           >
@@ -2533,8 +2552,26 @@ export function Composer(props: {
               chosen={modelId() ?? app.settings.defaultModelId}
               onPick={setModel}
               onManage={() => { setModelOpen(false); setSettingsOpen("models"); }}
-            />
+            >
+              <Show when={steps().length}>
+                <div class="model-section" data-testid="model-effort">
+                  <div class="model-section-head" id={`${menuId}-effort-head`}>{t("Tenkeinnsats")}</div>
+                  <div class="effort-pills" role="radiogroup" aria-labelledby={`${menuId}-effort-head`}>
+                    <button type="button" role="radio" class="effort-pill" aria-checked={chosenEffort() === null} onClick={() => setEffort(null, false)}>{t("Standard")}</button>
+                    <For each={steps()}>{(step) => (
+                      <button type="button" role="radio" class="effort-pill" aria-checked={chosenEffort() === step} onClick={() => setEffort(step, false)}>{effortLabel(step)}</button>
+                    )}</For>
+                  </div>
+                </div>
+              </Show>
+              <Show when={kode()}>
+                <PermissionChoices project={project()} cap={thread()?.permissionCap} />
+              </Show>
+            </ModelMenu>
           </Popover>
+          <Show when={kode() && composerLarge()}>
+            <PermissionPicker project={project()} cap={thread()?.permissionCap} />
+          </Show>
           <ContextRing threadId={props.threadId} modelId={modelId} projectId={props.projectId} />
           <Dictation draft={draftKey()} disabled={locked()} error={text => setInfo({ title: t("Diktering"), text })} insert={text => { textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end'); onInput(); textarea.focus(); }} />
           <Show when={running()}>

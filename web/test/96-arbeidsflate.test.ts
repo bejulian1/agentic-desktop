@@ -77,9 +77,12 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   const crumbBox = (await crumb.boundingBox())!;
   const titleBox = (await page.getByTestId("topbar-title").boundingBox())!;
   assert.ok(crumbBox.x + crumbBox.width <= titleBox.x + 2, "prosjektet står før tittelen");
-  // Full keeps the old buttons.
+  // Full keeps the old buttons. v1.4.1: the project is named once, in the crumb, not again at the right.
   await page.getByTestId("ui-mods-button").waitFor();
-  await page.locator(".project-label").waitFor();
+  assert.equal(await page.locator(".topbar-right").getByText("Demo", { exact: true }).count(), 0, "prosjektet står ikke to ganger");
+  // The standard field: the + menu, and the effort and permission chips in its row.
+  await page.getByRole("button", { name: "Legg ved", exact: true }).waitFor();
+  assert.equal(await page.getByTestId("attach-files").count(), 0);
 
   // 5. Innstillinger → Utseende → Arbeidsflate → Enkel (Kode-fokus).
   await page.getByRole("button", { name: "Innstillinger" }).first().click();
@@ -89,10 +92,11 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   await preset.getByRole("button", { name: "Enkel (Kode-fokus)" }).click();
   await waitFor(async () => {
     const s = (await h.api("GET", "/api/bootstrap")).settings;
-    return s.topbarLayout === "minimal" && s.sidebarSimple === true && s.composerSimple === true && s.topbarShowPanes === false;
+    return s.topbarLayout === "minimal" && s.sidebarSimple === true && s.composerSimple === true && s.topbarShowPanes === false && s.composerStyle === "large";
   }, "Enkel er lagret");
   assert.equal(await page.getByRole("switch", { name: "Enkel sidefane", exact: true }).isChecked(), true);
   assert.equal(await page.getByRole("switch", { name: "Enkelt meldingsfelt", exact: true }).isChecked(), true);
+  await page.getByRole("group", { name: "Meldingsfelt-stil" }).getByRole("button", { name: "Romslig (T3-stil)" }).and(page.locator('[aria-pressed="true"]')).waitFor();
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
 
   const minimal = page.getByTestId("topbar-minimal");
@@ -100,7 +104,6 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   await minimal.getByTestId("thread-details-button").waitFor();
   await minimal.getByRole("button", { name: "Vis eller skjul panelet" }).waitFor();
   for (const gone of ["ui-mods-button", "new-pane", "more-options", "add-panel"]) assert.equal(await page.getByTestId(gone).count(), 0, gone);
-  assert.equal(await page.locator(".project-label").count(), 0, "prosjektet står bare i brødsmulen");
   await page.getByTestId("topbar-thread-crumb").getByText("Demo").waitFor();
   // The sidebar: no mode switch or navigation rows; one row with search, new project and new thread.
   assert.equal(await page.locator(".sidebar .mode-switch").count(), 0);
@@ -113,6 +116,24 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   await page.locator(".topbar-sidebar-tools").getByTestId("sidebar-menu").waitFor();
   // The message field: one calm box once the thread has started.
   assert.equal(await page.locator(".composer-context").count(), 0, "ingen prosjektlinje over feltet");
+  // v1.4.1, Romslig (T3-stil): a taller field, a paperclip that opens the file picker at once, and
+  // one menu for model, effort and permissions.
+  const composer = page.locator(".pane-inner.focused form.composer");
+  assert.equal(await composer.evaluate((el) => el.classList.contains("composer-large")), true);
+  assert.ok((await composer.boundingBox())!.height >= 104, "høyere felt");
+  const chooser = page.waitForEvent("filechooser");
+  await composer.getByTestId("attach-files").click();
+  assert.equal((await chooser).isMultiple(), true, "filvelgeren åpnes direkte");
+  for (const gone of ["effort-button"]) assert.equal(await composer.getByTestId(gone).count(), 0, gone);
+  await composer.getByTestId("model-button").click();
+  const menu = page.getByTestId("model-menu");
+  const permissions = menu.getByTestId("model-permissions");
+  await permissions.getByRole("radio", { name: "Godkjenn for meg" }).click();
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id)?.permissionMode === "accept-edits", "tillatelsen er lagret fra modellmenyen");
+  await permissions.getByRole("radio", { name: "Godkjenn for meg", checked: true }).waitFor();
+  assert.equal(await menu.isVisible(), true, "menyen er fortsatt åpen");
+  await page.keyboard.press("Escape");
+  await composer.getByTestId("permission-button").getByText("Godkjenn for meg").waitFor();
   // Search from the field still finds the thread.
   await quick.getByRole("searchbox", { name: "Søk i tråder" }).fill("demo");
   await page.locator(".sidebar .section-label", { hasText: "Treff" }).waitFor();

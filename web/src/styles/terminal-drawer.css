@@ -57,16 +57,19 @@
 
 .terminal-drawer-tab {
   flex: 0 0 auto;
+  position: relative;
   max-width: min(205px, 100%);
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  color: var(--text-2);
+  color: var(--text-3);
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
 }
 
-.terminal-drawer-tab.active {
-  background: var(--active);
-  border-color: var(--border);
-  color: var(--text);
+.terminal-drawer-tab:hover { color: var(--text); background: var(--hover); }
+
+/* v1.4.1: the active tab is crisp text and a 2px line under it, not a box. */
+.terminal-drawer-tab.active { color: var(--text); background: transparent; }
+.terminal-drawer-tab.active::after {
+  content: ""; position: absolute; inset: auto 6px 0; height: 2px; border-radius: 2px; background: var(--accent);
 }
 
 .terminal-drawer-tab.exited .terminal-drawer-tab-name { opacity: .65; }

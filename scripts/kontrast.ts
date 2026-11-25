@@ -113,7 +113,8 @@ export function ratio(fg: Rgba, bg: Rgba): number {
 }
 
 // Text and the surfaces it stands on in the app. A transparent background is laid over --bg.
-const SURFACES = ["--bg", "--bg-sidebar", "--bg-panel", "--surface", "--surface-2"];
+// v1.4.1: --composer-bg is the message field's own neutral grey, the same in every theme.
+const SURFACES = ["--bg", "--bg-sidebar", "--bg-panel", "--surface", "--surface-2", "--composer-bg"];
 const PAIRS: Array<[fg: string, bgs: string[], min: number]> = [
   ["--text", [...SURFACES, "--surface-3", "--selection", "--hover", "--active", "--selected"], 4.5],
   ["--text-2", [...SURFACES, "--surface-3", "--hover", "--active", "--selected"], 4.5],
@@ -123,7 +124,8 @@ const PAIRS: Array<[fg: string, bgs: string[], min: number]> = [
   ["--on-primary", ["--primary", "--primary-hover"], 4.5],
   ["--danger", ["--bg", "--surface", "--bg-panel", "--danger-soft"], 4.5],
   ["--warn", ["--bg", "--surface", "--warn-soft"], 4.5],
-  ["--ok", ["--bg", "--surface", "--bg-panel"], 4.5],
+  ["--ok", ["--bg", "--surface", "--bg-panel", "--bg-sidebar"], 4.5], // v1.4.1: the green check in the sidebar
+  ["--warn", ["--composer-bg"], 4.5], // Full tilgang in the field
   ["--add-text", ["--add-bg"], 4.5],
   ["--del-text", ["--del-bg"], 4.5],
   // Search hits: the text keeps its colour on a hit, and turns --on-highlight on the current one.

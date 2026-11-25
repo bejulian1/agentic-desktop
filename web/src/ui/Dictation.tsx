@@ -70,7 +70,7 @@ export function Dictation(props: { draft: string; disabled: boolean; insert: (te
     }
   };
   return <Show when={phase() !== 'idle'} fallback={<button type="button" class="foot-icon" aria-label={t("Diktering")} title={t("Dikter meldingen")} disabled={props.disabled} onClick={() => { if (!target()) return props.error(setup()); cancel = () => setPhase('idle'); setPhase('confirm'); }}><IconMic size={16}/></button>}>
-    <Show when={phase() === 'confirm'} fallback={<button type="button" class="btn btn-small" onClick={() => phase() === 'recording' ? recorder?.stop() : cancel()}>{phase() === 'recording' ? <><IconStop size={13}/> {t("Tar opp · stopp")}</> : phase() === 'sending' ? t("Transkriberer · avbryt") : t("Åpner mikrofon · avbryt")}</button>}>
-      <button type="button" class="btn btn-small" title={target()?.baseUrl} onClick={record}>{t("Ta opp til {provider}", { provider: target()?.name ?? "" })}</button><button type="button" class="btn btn-small" onClick={() => cancel()}>{t("Avbryt")}</button>
+    <Show when={phase() === 'confirm'} fallback={<button type="button" class="foot-chip dictation-chip" classList={{ recording: phase() === 'recording' }} onClick={() => phase() === 'recording' ? recorder?.stop() : cancel()}>{phase() === 'recording' ? <><IconStop size={13}/> {t("Tar opp · stopp")}</> : phase() === 'sending' ? t("Transkriberer · avbryt") : t("Åpner mikrofon · avbryt")}</button>}>
+      <button type="button" class="foot-chip dictation-chip" title={target()?.baseUrl} onClick={record}><IconMic size={14}/>{t("Ta opp til {provider}", { provider: target()?.name ?? "" })}</button><button type="button" class="foot-chip dictation-chip" onClick={() => cancel()}>{t("Avbryt")}</button>
     </Show></Show>;
 }

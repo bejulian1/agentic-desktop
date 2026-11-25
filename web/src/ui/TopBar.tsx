@@ -467,10 +467,8 @@ export function TopBar() {
       <Show when={!topbarMinimal()} fallback={<MinimalRight />}>
       <div class="topbar-right">
         <button type="button" class="icon-button" title={t("Tema og mods")} aria-label={t("Tema og mods")} data-testid="ui-mods-button" onClick={()=>setModsOpen(true)}><IconPalette size={16}/></button>
+        {/* v1.4.1: the project is named once, at the left (StartCrumb or ThreadCrumb), not here too. */}
         <Show when={mode() === "code" && project()}>
-          <div class="project-label" title={project()!.path}>
-            <ProjectGlyph project={project()!} size={14} /><span class="project-name">{project()!.name}</span>
-          </div>
           <Show when={running() > 0}>
             <button type="button" class="top-chip danger" data-testid="stop-all" title={t("Stopper alle tråder i prosjektet")} aria-label={t("Stopp alt ({count})", { count: running() })} onClick={() => stopAll(project()!.id).catch(report)}>
               <IconStop size={12} /><span class="hide-small">{t("Stopp alt")}</span><span class="count">{running()}</span>

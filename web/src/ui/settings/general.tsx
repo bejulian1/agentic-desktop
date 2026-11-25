@@ -372,6 +372,14 @@ function WorkspaceLook() {
         checked={app.settings.composerSimple === true}
         onChange={(v) => save({ composerSimple: v })}
       />
+      <Row label={t("Meldingsfelt-stil")} text={t("Romslig (T3-stil) gir et høyere og roligere meldingsfelt, en binders som åpner filvelgeren direkte, og én meny for modell, tenkeinnsats og tillatelser.")}>
+        <Segmented<"standard" | "large">
+          label={t("Meldingsfelt-stil")}
+          value={app.settings.composerStyle ?? "standard"}
+          options={[{ value: "standard", label: t("Standard") }, { value: "large", label: t("Romslig (T3-stil)") }]}
+          onChange={(v) => save({ composerStyle: v })}
+        />
+      </Row>
     </Group>
   );
 }

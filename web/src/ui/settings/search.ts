@@ -77,6 +77,7 @@ export const ENTRIES: Entry[] = [
   { page: "appearance", get label() { return t("Knapper for flere ruter"); }, get words() { return t("ruter del til høyre del nedover instanser topplinje"); } },
   { page: "appearance", get label() { return t("Enkel sidefane"); }, get words() { return t("sidefane søk ny tråd artifacts skills chat kode bryter enkel"); } },
   { page: "appearance", get label() { return t("Enkelt meldingsfelt"); }, get words() { return t("meldingsfelt prosjekt miljø gren linje enkel composer"); } },
+  { page: "appearance", get label() { return t("Meldingsfelt-stil"); }, get words() { return t("meldingsfelt romslig stor høy t3-stil binders vedlegg filvelger modellmeny composer"); } },
   { page: "appearance", get label() { return t("Panelknapper"); }, get words() { return t("toppfelt knapper samlet hver for seg panel terminal endringer nettleser filer"); } },
   { page: "appearance", get label() { return t("Sidepanel"); }, get words() { return t("panel startside verktøy faner fliser høyre panel"); } },
   { page: "appearance", get label() { return t("Tekststørrelse"); }, get words() { return t("skrift skriftstørrelse font størrelse zoom"); } },

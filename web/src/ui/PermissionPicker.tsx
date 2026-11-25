@@ -26,20 +26,82 @@ const LOCAL_DESCRIPTIONS: Record<PermissionMode, string> = {
 };
 const ICONS = { ask: IconHand, "accept-edits": IconShieldCheck, full: IconAlert };
 
+// The saved mode, its cap and the save, shared by the footer chip and the model menu's section.
+function usePermissionChoice(props: { project?: Project; cap?: PermissionMode | null }, after: (saved: boolean) => void) {
+  const [saving, setSaving] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const selected = () => props.project?.permissionMode ?? app.settings.defaultPermissionMode;
+  const aboveCap = (value: PermissionMode) => !!props.cap && MODES.indexOf(value) > MODES.indexOf(props.cap);
+  const effective = () => aboveCap(selected()) ? props.cap! : selected();
+  const choose = async (value: PermissionMode) => {
+    const project = props.project;
+    if (saving() || aboveCap(value)) return;
+    if (value === selected()) return after(false);
+    setSaving(true);
+    setError("");
+    try {
+      if (!project) {
+        await patch("/api/settings", { defaultPermissionMode: value });
+        setApp("settings", "defaultPermissionMode", value);
+        if (!props.project) after(true);
+        return;
+      }
+      const saved = await patch<Project>(`/api/projects/${project.id}`, { permissionMode: value });
+      // The socket also delivers this update. Reconcile the response so the chip stays accurate
+      // when the HTTP response arrives first or the connection is temporarily unavailable.
+      if (saved?.id === project.id && app.projects[project.id]) setApp("projects", saved.id, reconcile(saved));
+      if (props.project?.id === project.id) after(true);
+    } catch (err) {
+      setError(t("Kunne ikke lagre tillatelsene. Prøv igjen."));
+      report(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return { saving, error, setError, selected, aboveCap, effective, choose };
+}
+
+// v1.4.1: the same three modes as a compact section in the model menu (Tillatelsesmodus). A choice
+// is saved at once and the menu stays open, so model, effort and permissions are set in one place.
+export function PermissionChoices(props: { project?: Project; cap?: PermissionMode | null }) {
+  const choice = usePermissionChoice(props, () => {});
+  return <div class="model-section permission-choices" data-testid="model-permissions">
+    <div class="model-section-head" id="model-permissions-head">{t("Tillatelsesmodus")}</div>
+    <div class="permission-rows" role="radiogroup" aria-labelledby="model-permissions-head" aria-busy={choice.saving()}>
+      <For each={MODES}>{(value) => {
+        const Icon = ICONS[value];
+        return <button
+          type="button"
+          role="radio"
+          class="permission-row"
+          data-mode={value}
+          aria-checked={choice.effective() === value}
+          disabled={choice.saving() || choice.aboveCap(value)}
+          aria-description={aboveCapText(choice.aboveCap(value)) ?? (props.project ? DESCRIPTIONS : LOCAL_DESCRIPTIONS)[value]}
+          onClick={() => void choice.choose(value)}
+        >
+          <Icon size={14} /><span class="permission-row-name">{LABELS[value]}</span>
+          <span class="permission-row-check"><Show when={choice.effective() === value}><IconCheck size={13} /></Show></span>
+        </button>;
+      }}</For>
+    </div>
+    <Show when={choice.error()}><p class="permission-error" role="alert">{choice.error()}</p></Show>
+  </div>;
+}
+
+const aboveCapText = (above: boolean) => above ? t("Høyere enn denne trådens tillatelsesgrense") : undefined;
+
 // Without a project, choose the shared mode for local Code threads and the default for new projects.
 export function PermissionPicker(props: { project?: Project; cap?: PermissionMode | null }) {
   const [open, setOpen] = createSignal(false);
-  const [saving, setSaving] = createSignal(false);
   const [expanded, setExpanded] = createSignal(false);
-  const [error, setError] = createSignal("");
   const [position, setPosition] = createSignal({ left: "8px", bottom: "8px", "max-height": "calc(100dvh - 16px)" });
   const id = `permissions-${createUniqueId()}`;
   let trigger!: HTMLButtonElement;
   let popup: HTMLDivElement | undefined;
   let initialFocus: "selected" | "last" = "selected";
-  const selected = () => props.project?.permissionMode ?? app.settings.defaultPermissionMode;
-  const aboveCap = (value: PermissionMode) => !!props.cap && MODES.indexOf(value) > MODES.indexOf(props.cap);
-  const effective = () => aboveCap(selected()) ? props.cap! : selected();
+  const choice = usePermissionChoice(props, () => { if (open()) close(true); });
+  const { saving, error, setError, selected, aboveCap, effective } = choice;
   const label = () => LABELS[effective()];
   const capDescription = () => props.cap ? t("Denne tråden er begrenset til {label}.", { label: LABELS[props.cap] }) : "";
   const close = (restoreFocus = false) => {
@@ -83,30 +145,8 @@ export function PermissionPicker(props: { project?: Project; cap?: PermissionMod
     choices[next]?.focus();
   };
   const choose = async (value: PermissionMode) => {
-    const project = props.project;
-    if (saving() || aboveCap(value)) return;
-    if (value === selected()) return close(true);
-    setSaving(true);
-    setError("");
-    try {
-      if (!project) {
-        await patch("/api/settings", { defaultPermissionMode: value });
-        setApp("settings", "defaultPermissionMode", value);
-        if (!props.project && open()) close(true);
-        return;
-      }
-      const saved = await patch<Project>(`/api/projects/${project.id}`, { permissionMode: value });
-      // The socket also delivers this update. Reconcile the response so the chip stays accurate
-      // when the HTTP response arrives first or the connection is temporarily unavailable.
-      if (saved?.id === project.id && app.projects[project.id]) setApp("projects", saved.id, reconcile(saved));
-      if (props.project?.id === project.id && open()) close(true);
-    } catch (err) {
-      setError(t("Kunne ikke lagre tillatelsene. Prøv igjen."));
-      report(err);
-    } finally {
-      setSaving(false);
-      if (open()) queueMicrotask(focusInitial);
-    }
+    await choice.choose(value);
+    if (open()) queueMicrotask(focusInitial);
   };
   createEffect(() => {
     // Moving to another project must close the old menu and clear its error.

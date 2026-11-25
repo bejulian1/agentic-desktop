@@ -19,18 +19,14 @@
 .goal-pinned { padding: 2px 0; }
 .goal-pinned .goal-text { white-space: normal; overflow-wrap: anywhere; }
 
-/* The placeholder in Kode, with the three triggers spelled out. */
+/* The placeholder in Kode: one plain line with the three triggers in words (v1.4.1: no key boxes). */
 .composer-input { position: relative; min-width: 0; }
 .composer-hint {
   position: absolute; inset: 2px 2px auto; display: flex; align-items: baseline; gap: 14px; min-width: 0; overflow: hidden; white-space: nowrap;
   pointer-events: none; font-size: var(--text-lg); line-height: var(--leading); color: var(--text-3);
 }
-.hint-main { flex: none; }
-.hint-key { display: inline-flex; align-items: baseline; gap: 5px; flex: none; font-size: var(--text-sm); color: var(--text-3); }
-.hint-key kbd {
-  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--radius-xs);
-  background: var(--active); color: var(--text-3); font: var(--weight-medium) var(--text-xs) var(--font-mono);
-}
+.hint-main { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hint-send { flex: none; font-size: var(--text-sm); color: var(--text-3); }
 .composer-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
 
 /* Attached images: small thumbnails with a remove button. */
@@ -92,7 +88,7 @@
 .model-foot { flex: none; padding: var(--space-1); border-top: 1px solid var(--border); }
 .model-manage > .icon { color: var(--text-2); }
 .model-button > .icon:first-child { color: var(--accent-text); }
-.composer-foot .model-button { border-radius: var(--radius-full); background: var(--active); padding-inline: 10px; }
+.composer-foot .model-button { border-radius: var(--radius-full); background: transparent; border-color: transparent; padding-inline: 10px; }
 .composer-foot .model-button:hover, .composer-foot .model-button[aria-expanded="true"] { background: var(--hover); color: var(--text); }
 .model-button > .icon:last-child { flex: none; color: var(--text-3); transition: transform var(--dur-2) var(--ease-out); }
 .model-button[aria-expanded="true"] > .icon:last-child { transform: rotate(180deg); }
@@ -103,7 +99,10 @@
 .effort-chip > .icon { color: var(--text-3); transition: transform var(--dur-2) var(--ease-out); }
 .effort-chip[aria-expanded="true"] > .icon { transform: rotate(180deg); }
 .effort-chip[data-chosen] .effort-chip-label { font-weight: var(--weight-medium); }
-.effort-chip-label { white-space: nowrap; color: var(--effort-blue-text); }
+.effort-chip-label { white-space: nowrap; color: var(--text-2); }
+.composer-foot .effort-chip { border-radius: var(--radius-full); background: transparent; }
+.composer-foot .effort-chip:hover, .composer-foot .effort-chip[aria-expanded="true"] { background: var(--hover); }
+.composer-foot .effort-chip:hover .effort-chip-label, .composer-foot .effort-chip[aria-expanded="true"] .effort-chip-label { color: var(--text); }
 .popover:has(.effort-pop) { width: 272px; min-width: 0; max-width: calc(100vw - 16px); max-height: var(--popover-room, 70vh); padding: 10px 12px 8px; }
 .popover.stable-geometry { animation: ad-fade var(--dur-1) var(--ease-out); transform: none; translate: none; scale: none; }
 /* Round 10 (SPEC 23.4): no bolt and no grey box. The level and the model stand on the popover, centred
@@ -426,10 +425,8 @@ button.pinned-item:hover { background: var(--hover); color: var(--text); }
 
 /* The placeholder (SPEC 21.1): / kommandoer, @ filer and $ skills. As the pane narrows the words go
    first and the keys stay, then the keys go too, so the line never wraps or cuts a word. */
-.hint-key { gap: 4px; }
 .composer-hint { gap: 12px; }
-@container (max-width: 640px) { .hint-word { display: none; } .composer-hint { gap: 8px; } }
-@container (max-width: 400px) { .hint-key { display: none; } }
+@container (max-width: 400px) { .hint-send { display: none; } }
 
 /* Small panes and several panes: the project row keeps the project and drops the rest. */
 @container (max-width: 520px) {

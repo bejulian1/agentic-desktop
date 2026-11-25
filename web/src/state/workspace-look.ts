@@ -12,13 +12,15 @@ export const topbarMinimal = () => app.settings.topbarLayout === "minimal";
 export const topbarPanes = () => !topbarMinimal() || app.settings.topbarShowPanes !== false;
 export const sidebarSimple = () => app.settings.sidebarSimple === true;
 export const composerSimple = () => app.settings.composerSimple === true;
+// v1.4.1: Meldingsfelt-stil Romslig (T3-stil): a taller field with a paperclip and one model menu.
+export const composerLarge = () => app.settings.composerStyle === "large";
 
 export type WorkspacePreset = "full" | "simple" | "custom";
 export function workspacePreset(): WorkspacePreset {
   return isSimpleWorkspace(app.settings) ? "simple" : isFullWorkspace(app.settings) ? "full" : "custom";
 }
 
-const RESET: Record<keyof typeof SIMPLE_WORKSPACE, null> = { topbarLayout: null, topbarShowPanes: null, sidebarSimple: null, composerSimple: null };
+const RESET: Record<keyof typeof SIMPLE_WORKSPACE, null> = { topbarLayout: null, topbarShowPanes: null, sidebarSimple: null, composerSimple: null, composerStyle: null };
 
 // Enkel turns every part on and goes to Kode, which is what the look is made for; Full clears them.
 export async function applyWorkspacePreset(preset: "full" | "simple"): Promise<void> {

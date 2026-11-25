@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Locator, Page, Route } from "playwright-core";
-import { flow, type Harness, useFolderPickerFallback, waitFor } from "./harness.ts";
+import { flow, PROJECT_CRUMB, type Harness, useFolderPickerFallback, waitFor } from "./harness.ts";
 
 const creationDialog = (page: Page) => page.getByRole("dialog", { name: "Opprett prosjekt", exact: true });
 const trustDialog = (page: Page) => page.getByRole("dialog", { name: "Stoler du på denne mappen?", exact: true });
@@ -81,7 +81,7 @@ flow("opprett prosjekt: navn og kildemappe, avbrutt mappevalg og tillit før lag
   assert.equal(projects[0].name, "Min kalkulator");
   assert.equal(projects[0].path, h.projectDir);
   await page.locator('.group[data-project="Min kalkulator"]').waitFor();
-  await page.locator(".project-label", { hasText: "Min kalkulator" }).waitFor();
+  await page.locator(PROJECT_CRUMB, { hasText: "Min kalkulator" }).first().waitFor();
 });
 
 flow("opprett prosjekt: avbrutt og fjernet kildemappe, Escape beholder tillitsutkast og lukker oppretting", async (h) => {

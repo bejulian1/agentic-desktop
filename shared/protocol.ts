@@ -497,19 +497,25 @@ export interface Settings {
   topbarShowPanes?: boolean; // the split-pane buttons in the minimal top bar, default true (always shown in full)
   sidebarSimple?: boolean; // no mode switch or Ny tråd/Artifacts/Skills rows; a search row and a compact foot; default false
   composerSimple?: boolean; // Kode: no project/environment bar above the message field in a running thread; default false
+  // v1.4.1: Meldingsfelt-stil. standard: the compact field; large: a taller, calmer T3-style field with
+  // a paperclip that opens the file picker directly. Unset is standard.
+  composerStyle?: ComposerStyle;
 }
 
 export type TopbarLayout = "full" | "minimal";
 export const TOPBAR_LAYOUTS: TopbarLayout[] = ["full", "minimal"];
+export type ComposerStyle = "standard" | "large";
+export const COMPOSER_STYLES: ComposerStyle[] = ["standard", "large"];
+type WorkspaceKeys = "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple" | "composerStyle";
 // The settings the Arbeidsflate presets set together.
-export const SIMPLE_WORKSPACE: Pick<Settings, "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple"> = {
-  topbarLayout: "minimal", topbarShowPanes: false, sidebarSimple: true, composerSimple: true,
+export const SIMPLE_WORKSPACE: Pick<Settings, WorkspaceKeys> = {
+  topbarLayout: "minimal", topbarShowPanes: false, sidebarSimple: true, composerSimple: true, composerStyle: "large",
 };
-export function isSimpleWorkspace(settings: Pick<Settings, "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple">): boolean {
-  return settings.topbarLayout === "minimal" && settings.sidebarSimple === true && settings.composerSimple === true && settings.topbarShowPanes === false;
+export function isSimpleWorkspace(settings: Pick<Settings, WorkspaceKeys>): boolean {
+  return settings.topbarLayout === "minimal" && settings.sidebarSimple === true && settings.composerSimple === true && settings.topbarShowPanes === false && settings.composerStyle === "large";
 }
-export function isFullWorkspace(settings: Pick<Settings, "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple">): boolean {
-  return (settings.topbarLayout ?? "full") === "full" && !settings.sidebarSimple && !settings.composerSimple && settings.topbarShowPanes !== false;
+export function isFullWorkspace(settings: Pick<Settings, WorkspaceKeys>): boolean {
+  return (settings.topbarLayout ?? "full") === "full" && !settings.sidebarSimple && !settings.composerSimple && settings.topbarShowPanes !== false && (settings.composerStyle ?? "standard") === "standard";
 }
 
 export interface ModelContextModeSettings {
