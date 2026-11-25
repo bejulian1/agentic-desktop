@@ -82,7 +82,7 @@ export function IconPicker(props: { icon: string | null; color: string | null; o
         </label>
       </Show>
       <div class="icon-picker-colors" role="radiogroup" aria-label={t("Farge")}>
-        <button type="button" role="radio" class="swatch swatch-none" aria-checked={!props.color} aria-label={t("Ingen farge")} title={t("Ingen farge")} onClick={() => props.onColor(null)} />
+        <button type="button" role="radio" class="swatch swatch-none" aria-checked={!props.color} aria-label={t("Automatisk farge")} title={t("Automatisk farge: valgt ut fra prosjektet")} onClick={() => props.onColor(null)} />
         <For each={PROJECT_COLORS}>
           {(c) => <button type="button" role="radio" class="swatch" aria-checked={props.color === c.id} aria-label={lookupMessage(c.label)} title={lookupMessage(c.label)} style={`--swatch:${c.value}`} onClick={() => props.onColor(c.id)} />}
         </For>

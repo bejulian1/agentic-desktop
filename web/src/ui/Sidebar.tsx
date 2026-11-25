@@ -65,6 +65,9 @@ import { forkSourceTitle } from "../state/fork";
 import { archiveMany, openArchive } from "../state/archive";
 import { IconArchive, IconCopy, IconFolder } from "./icons";
 import { showPanel } from "../state/panel";
+import { IconPullRequest } from "./GitHubShared";
+import { Portal } from "solid-js/web";
+import { sidebarSimple, sidebarToolsSlot } from "../state/workspace-look";
 
 // Round 14 (SPEC 30.4): a project's threads, live and archived, for its menu.
 const liveIn = (key: { projectId?: string; chatProjectId?: string }) =>
@@ -113,6 +116,11 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   const chatProvider = createMemo(() => (thread.mode === "code" ? null : modelProvider(thread.modelId)));
   // Done and not looked at yet: «Ferdig» in green, where the age would be.
   const done = () => threadState(thread, false) === "new";
+  // v1.4.0: Kode rows have two lines. In a list across projects (by date, the inbox, Festet, search
+  // hits) the second line names the project; under a project's own head it names the branch.
+  const code = () => thread.mode === "code";
+  const listContext = () => !!(props.showProject || props.inbox);
+  const whereTitle = () => (project() ? `${project()!.name} · ${project()!.path}` : t("Denne datamaskinen"));
 
   const open = () => {
     markSeen(thread.id);
@@ -182,7 +190,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
     <div
       ref={row}
       class="thread-item"
-      classList={{ active: props.active, archived: thread.archived, pinned: thread.pinned, child: (props.depth ?? 0) > 0, "menu-open": !!menu(), snoozed: isSnoozed(thread) }}
+      classList={{ "code-row": code(), active: props.active, archived: thread.archived, pinned: thread.pinned, child: (props.depth ?? 0) > 0, "menu-open": !!menu(), snoozed: isSnoozed(thread) }}
       style={props.depth ? `--depth:${props.depth}` : undefined}
       data-thread-item={thread.id}
       onPointerDown={startDrag}
@@ -223,44 +231,78 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
             if (e.detail === 0) open();
           }}
         >
-          <Show when={props.showProject && project()}>
-            {(p) => <span class="thread-project" title={p().name}><ProjectGlyph project={p()} size={12} /></span>}
-          </Show>
-          {/* Round 14 (SPEC 30.3): a fork has a small fork mark; the hover card links back. */}
-          <Show when={thread.forkedFrom}>
-            <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
-          </Show>
-          <span class="thread-title">{thread.title}</span>
-          <Show when={props.inbox && (project() || chatProject())}>
-            <span class="thread-inbox-project" title={project()?.name ?? chatProject()?.name}>
-              <Show when={project()} fallback={<ChatProjectGlyph project={chatProject()!} size={12} />}>
-                {(p) => <ProjectGlyph project={p()} size={12} />}
+          <Show
+            when={code()}
+            fallback={<>
+              <Show when={props.showProject && project()}>
+                {(p) => <span class="thread-project" title={p().name}><ProjectGlyph project={p()} size={12} /></span>}
               </Show>
-              <span>{project()?.name ?? chatProject()?.name}</span>
+              {/* Round 14 (SPEC 30.3): a fork has a small fork mark; the hover card links back. */}
+              <Show when={thread.forkedFrom}>
+                <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
+              </Show>
+              <span class="thread-title">{thread.title}</span>
+              <Show when={props.inbox && (project() || chatProject())}>
+                <span class="thread-inbox-project" title={project()?.name ?? chatProject()?.name}>
+                  <Show when={project()} fallback={<ChatProjectGlyph project={chatProject()!} size={12} />}>
+                    {(p) => <ProjectGlyph project={p()} size={12} />}
+                  </Show>
+                  <span>{project()?.name ?? chatProject()?.name}</span>
+                </span>
+              </Show>
+              <Show when={chatProvider()}>
+                {(info) => <span class="thread-provider thread-provider-chat" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
+              </Show>
+              <Show when={thread.origin === "agent"}>
+                <span class="thread-origin"><IconBranch size={11} />{parent() ? t("Laget av {title}", { title: parent()!.title }) : t("Laget av en agent")}</span>
+              </Show>
+            </>}
+          >
+            {/* v1.4.0: a Kode row is two lines. Top: the title, and the age (or Ferdig) at the right.
+                Below: where it runs (the project's icon and name, or its branch), a linked pull
+                request, and the model's coloured mark at the right, under the age. */}
+            <span class="thread-line">
+              <Show when={thread.forkedFrom}>
+                <span class="thread-fork" title={t("Gaffel av {title}", { title: forkSourceTitle(thread) })} aria-label={t("Gaffel av {title}.", { title: forkSourceTitle(thread) })}><IconBranch size={12} /></span>
+              </Show>
+              <span class="thread-title">{thread.title}</span>
+              <Show when={waitingCount(thread) > 0}>
+                <span class="badge" title={STATE_LABEL.waiting}><IconWarn size={11} />{waitingCount(thread)}</span>
+              </Show>
+              <Show when={!isSnoozed(thread)}>
+                <Show when={done()} fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}><span class="thread-time thread-done" title={t("Ferdig, og du har ikke sett svaret")}>{t("Ferdig")}</span></Show>
+              </Show>
             </span>
-          </Show>
-          <Show when={chatProvider()}>
-            {(info) => <span class="thread-provider thread-provider-chat" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
-          </Show>
-          <Show when={thread.origin === "agent"}>
-            <span class="thread-origin"><IconBranch size={11} />{parent() ? t("Laget av {title}", { title: parent()!.title }) : t("Laget av en agent")}</span>
-          </Show>
-          <Show when={provider()}>
-            {(info) => (
-              <span class="thread-meta" data-testid="thread-meta">
-                <span class="thread-provider" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={13} /></span>
-                <Show when={branch()}>{(name) => <span class="thread-branch" title={t("Gren: {name}", { name: name() })}><IconBranch size={10} /><span>{name()}</span></span>}</Show>
+            <span class="thread-meta" data-testid="thread-meta">
+              <span class="thread-where" title={whereTitle()}>
+                <Show when={project()} fallback={<IconMonitor size={12} />}>{(p) => <ProjectGlyph project={p()} size={12} />}</Show>
+                <Show when={listContext()}><span class="thread-where-name">{project()?.name ?? t("Denne datamaskinen")}</span></Show>
               </span>
-            )}
+              <Show when={branch()} fallback={<Show when={!listContext()}><span class="thread-where-name">{t("Lokal")}</span></Show>}>
+                {(name) => <span class="thread-branch" title={t("Gren: {name}", { name: name() })}><IconBranch size={10} /><span>{name()}</span></span>}
+              </Show>
+              <Show when={thread.linkedPr}>
+                {(pr) => <span class="thread-pr" data-testid="thread-pr" title={t("Pull request {repo}#{number}", { repo: pr().repo, number: pr().number })}><IconPullRequest size={11} /><span>#{pr().number}</span></span>}
+              </Show>
+              <Show when={provider()}>
+                {(info) => <span class="thread-provider" title={`${info().label} · ${modelName(thread.modelId)}`}><ProviderGlyph family={info().family} size={12} /></span>}
+              </Show>
+            </span>
+            <Show when={thread.origin === "agent"}>
+              <span class="thread-origin"><IconBranch size={11} />{parent() ? t("Laget av {title}", { title: parent()!.title }) : t("Laget av en agent")}</span>
+            </Show>
           </Show>
         </button>
       </Show>
-      <Show when={waitingCount(thread) > 0}>
+      <Show when={!code() && waitingCount(thread) > 0}>
         <span class="badge" title={STATE_LABEL.waiting}><IconWarn size={11} />{waitingCount(thread)}</span>
       </Show>
+      {/* The row's buttons. In a Kode row they stand over the top right corner, where the age is, so
+          nothing moves when they show; in a Chat row the wrapper takes no box of its own. */}
+      <span class="thread-actions">
       <Show
         when={isSnoozed(thread)}
-        fallback={<Show when={done()} fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}><span class="thread-time thread-done" title={t("Ferdig, og du har ikke sett svaret")}>{t("Ferdig")}</span></Show>}
+        fallback={<Show when={!code()}><Show when={done()} fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}><span class="thread-time thread-done" title={t("Ferdig, og du har ikke sett svaret")}>{t("Ferdig")}</span></Show></Show>}
       >
         <button type="button" class="thread-snooze" title={t("{snooze}. Trykk for å hente den tilbake.", { snooze: snoozeLabel(thread.snoozedUntil!) })} aria-label={t("{snooze}. Hent tilbake", { snooze: snoozeLabel(thread.snoozedUntil!) })} onClick={() => setSnoozed(thread, null)}>
           <IconSnooze size={13} />
@@ -280,6 +322,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
       >
         <IconDots size={14} />
       </button>
+      </span>
       <Show when={menu()}>
         {(anchor) => <ContextMenu anchor={anchor()} label={t("Valg for {title}", { title: thread.title })} entries={threadMenuEntries(thread, () => setRenaming(true))} onClose={closeMenu} class="thread-context-menu" />}
       </Show>
@@ -799,7 +842,8 @@ function SidebarMenu(props: { foldIds: () => string[]; inbox: boolean; onFoldAll
           if (anchor()) return setAnchor(null);
           // Inside the sidebar, as wide as it less a margin, like the profile menu (SPEC 23.6).
           const button = e.currentTarget.getBoundingClientRect();
-          const side = e.currentTarget.closest(".sidebar")?.getBoundingClientRect();
+          // v1.4.0: the button may stand in the top bar above the sidebar; the menu still fits the sidebar.
+          const side = (e.currentTarget.closest(".sidebar") ?? document.querySelector("aside.sidebar"))?.getBoundingClientRect();
           const margin = 8;
           const rect = side ? new DOMRect(side.left + margin, button.top, side.width - margin * 2, button.height) : button;
           setAnchor({ x: 0, y: 0, rect, alignLeft: true, width: side ? Math.min(side.width - margin * 2, 280) : undefined });
@@ -1049,6 +1093,34 @@ export function Sidebar() {
   });
   const anyPinned = () => pinnedThreads().length > 0 || pinnedProjects().length > 0 || (inChat() && pinnedChatProjects().length > 0);
 
+  // v1.4.0: Enkel sidefane (Innstillinger → Utseende → Arbeidsflate), and where the head's buttons go.
+  const simple = sidebarSimple;
+  const [wide, setWide] = createSignal(!narrowSidebar.matches);
+  const onWidth = () => setWide(!narrowSidebar.matches);
+  narrowSidebar.addEventListener("change", onWidth);
+  onCleanup(() => narrowSidebar.removeEventListener("change", onWidth));
+  const inTopbar = () => wide() && !!sidebarToolsSlot();
+  // Search, notifications and ⋯. With the Enkel sidebar the search field is always there, so the
+  // search button is not.
+  const tools = () => (
+    <>
+      <Show when={!smart() && !simple()}>
+        <button
+          type="button"
+          class="icon-button"
+          aria-label={t("Søk")}
+          title={t("Søk i tråder ({keys})", { keys: displayKeys(keysFor("thread.search")) })}
+          aria-pressed={searchOpen()}
+          onClick={() => (searchOpen() ? closeSearch() : actions.searchThreads())}
+        >
+          <IconSearch size={16} />
+        </button>
+      </Show>
+      <Notifications />
+      <Show when={!smart()}><SidebarMenu foldIds={foldIds} inbox={inbox()} onFoldAll={foldAllInbox} anyInboxOpen={anyInboxOpen} anyInboxFolded={anyInboxFolded} /></Show>
+    </>
+  );
+
   let resizeTarget = 0;
   const applyWidth = () => setSidebarWidth(resizeTarget);
   const startResize = (event: PointerEvent) => {
@@ -1067,26 +1139,33 @@ export function Sidebar() {
   };
 
   return (
-    <aside class="sidebar" classList={{ "sidebar-smart": smart() }} aria-label={t("Prosjekter og tråder")}>
-      <div class="sidebar-head">
-        <span class="app-name">Agentic Desktop</span>
-        <span class="sidebar-spacer" />
-        <Show when={!smart()}>
-          <button
-            type="button"
-            class="icon-button"
-            aria-label={t("Søk")}
-            title={t("Søk i tråder ({keys})", { keys: displayKeys(keysFor("thread.search")) })}
-            aria-pressed={searchOpen()}
-            onClick={() => (searchOpen() ? closeSearch() : actions.searchThreads())}
-          >
-            <IconSearch size={16} />
-          </button>
-        </Show>
-        <Notifications />
-        <Show when={!smart()}><SidebarMenu foldIds={foldIds} inbox={inbox()} onFoldAll={foldAllInbox} anyInboxOpen={anyInboxOpen} anyInboxFolded={anyInboxFolded} /></Show>
-      </div>
-      <Show when={searchOpen() && !smart()}>
+    <aside class="sidebar" classList={{ "sidebar-smart": smart(), "sidebar-simple": simple() }} aria-label={t("Prosjekter og tråder")}>
+      {/* v1.4.0: in a wide window search, notifications and ⋯ stand in the top bar above the sidebar,
+          so the sidebar starts with its content. In a narrow window, where the sidebar lies over the
+          rest, they stay in this row with the app's name. */}
+      <Show when={inTopbar() ? sidebarToolsSlot() : null} keyed fallback={<div class="sidebar-head"><span class="app-name">Agentic Desktop</span><span class="sidebar-spacer" />{tools()}</div>}>
+        {(slot) => <Portal mount={slot}>{tools()}</Portal>}
+      </Show>
+      <Show when={simple() && !smart()}>
+        {/* Enkel sidefane: one calm row with the search field, a new project and a new thread. */}
+        <div class="sidebar-search sidebar-quick" data-testid="sidebar-quick">
+          <IconSearch size={14} />
+          <input
+            class="search-input"
+            type="search"
+            placeholder={t("Søk")}
+            aria-label={t("Søk i tråder")}
+            value={query()}
+            onInput={(e) => onSearch(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") closeSearch();
+            }}
+          />
+          <button type="button" class="icon-button" title={t("Ny tråd i et nytt prosjekt")} aria-label={t("Ny tråd i et nytt prosjekt")} onClick={() => setFolderPickerOpen(true)}><IconFolderPlus size={15} /></button>
+          <button type="button" class="icon-button" aria-label={t("Ny tråd")} title={t("Ny tråd ({keys})", { keys: displayKeys(keysFor("thread.new")) })} onClick={() => { actions.newThread(); afterPick(); }}><IconCompose size={15} /></button>
+        </div>
+      </Show>
+      <Show when={searchOpen() && !smart() && !simple()}>
         <div class="sidebar-search">
           <IconSearch size={14} />
           <input
@@ -1103,8 +1182,9 @@ export function Sidebar() {
           <button type="button" class="icon-button" aria-label={t("Lukk søket")} onClick={closeSearch}><IconClose size={13} /></button>
         </div>
       </Show>
-      <ModeSwitch class="sidebar-mode" />
+      <Show when={!simple()}><ModeSwitch class="sidebar-mode" /></Show>
       <Show when={!smart()} fallback={<SmartSidebar activeIds={activeIds()} />}>
+        <Show when={!simple()}>
         <nav class="sidebar-nav" aria-label={t("Navigasjon")}>
           <div class="nav-row">
             <button type="button" class="nav-item" aria-label={t("Ny tråd")} title={t("Ny tråd ({keys})", { keys: displayKeys(keysFor("thread.new")) })} onClick={() => { actions.newThread(); afterPick(); }}>
@@ -1125,6 +1205,7 @@ export function Sidebar() {
             <IconSpark size={16} /><span>{t("Skills")}</span>
           </button>
         </nav>
+        </Show>
         <div class="sidebar-scroll" onScroll={hideHoverCard}>
           <Show
             when={!query().trim()}
@@ -1132,7 +1213,7 @@ export function Sidebar() {
               <div class="group">
                 <div class="section-head"><span class="section-label">{t("Treff")}</span></div>
                 <For each={results()} fallback={<div class="sidebar-empty">{t("Ingen tråder funnet")}</div>}>
-                  {(thread) => <ThreadItem thread={app.threads[thread.id] ?? thread} active={activeIds().has(thread.id)} />}
+                  {(thread) => <ThreadItem thread={app.threads[thread.id] ?? thread} active={activeIds().has(thread.id)} showProject />}
                 </For>
               </div>
             }
@@ -1145,7 +1226,7 @@ export function Sidebar() {
               </div>
               <div class="pinned-projects">
                 <For each={pinnedThreads()}>
-                  {(thread) => <ThreadItem thread={thread} active={activeIds().has(thread.id)} />}
+                  {(thread) => <ThreadItem thread={thread} active={activeIds().has(thread.id)} showProject />}
                 </For>
                 <For each={pinnedProjects()}>
                   {(project) => <ProjectGroup project={project} threads={forProject(project.id)} activeIds={activeIds()} headOnly={inChat()} />}

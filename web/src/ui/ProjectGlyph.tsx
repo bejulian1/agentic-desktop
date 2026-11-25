@@ -1,9 +1,10 @@
 // A project's icon in its colour, for the sidebar and the settings. The icon is one the user picked
-// (an icon, an emoji, a monogram badge or an uploaded image), else the project's own favicon when it
-// has one, else a folder.
+// (an icon, an emoji, a monogram badge or an uploaded image), else the project's own favicon or app
+// icon when it has one, else a folder. v1.4.0: the colour is the one the user picked (grey too),
+// else one picked from the project's id, so every project has its own colour from the start.
 import { createSignal, Show } from "solid-js";
 import type { Project } from "../../../shared/protocol";
-import { isProjectIcon, isProjectIconFile, PROJECT_COLORS } from "../../../shared/protocol";
+import { isProjectIcon, isProjectIconFile, PROJECT_COLORS, projectColorId } from "../../../shared/protocol";
 import { favicons } from "../state/nav";
 import { IconBranch, IconCode, IconFolder, IconFolderOpen, IconGamepad, IconGlobe, IconSpark, IconTerminal, IconUsers } from "./icons";
 import { PICKER_ICONS } from "./nav-icons";
@@ -24,7 +25,9 @@ export function iconFor(id: string): ((p: { size?: number }) => any) | undefined
   return ICONS[id];
 }
 
-export function ProjectGlyph(props: { project: Pick<Project, "icon" | "color"> & { id?: string }; size?: number; open?: boolean }) {
+// seed: what the automatic colour is picked from when it is not the project's id (Chat projects,
+// which have no favicon or icon routes of their own).
+export function ProjectGlyph(props: { project: Pick<Project, "icon" | "color"> & { id?: string }; size?: number; open?: boolean; seed?: string }) {
   const size = () => props.size ?? 14;
   const icon = () => props.project.icon ?? null;
   const emoji = () => (icon()?.startsWith("emoji:") ? icon()!.slice(6) : null);
@@ -37,10 +40,10 @@ export function ProjectGlyph(props: { project: Pick<Project, "icon" | "color"> &
   const fileSrc = () => (file() && broken() !== file() ? file() : null);
   const favicon = () => (!icon() && props.project.id ? favicons()[props.project.id] : undefined);
   const Icon = () => (props.open && (icon() ?? "folder") === "folder" ? IconFolderOpen : ICONS[icon() ?? "folder"] ?? IconFolder);
-  const color = () => PROJECT_COLORS.find((c) => c.id === props.project.color)?.value;
+  const color = () => PROJECT_COLORS.find((c) => c.id === projectColorId({ color: props.project.color, id: props.seed ?? props.project.id }))?.value;
   const image = () => !!favicon() || !!fileSrc();
   return (
-    <span class="project-glyph" classList={{ "has-image": image(), "has-emoji": !!emoji(), "has-mono": !!mono() }} data-icon-kind={mono() ? "mono" : emoji() ? "emoji" : fileSrc() ? "file" : favicon() ? "favicon" : "icon"} style={color() ? `color:${color()};--glyph-color:${color()}` : undefined}>
+    <span class="project-glyph" classList={{ "has-image": image(), "has-emoji": !!emoji(), "has-mono": !!mono() }} data-icon-kind={mono() ? "mono" : emoji() ? "emoji" : fileSrc() ? "file" : favicon() ? "favicon" : "icon"} data-color={props.project.color ? "chosen" : color() ? "auto" : undefined} style={color() ? `color:${color()};--glyph-color:${color()}` : undefined}>
       <Show when={mono()}>
         {(text) => <span class="project-mono" data-length={Array.from(text()).length} style={`width:${size()}px;height:${size()}px;font-size:${Math.max(6, Math.round(size() * (Array.from(text()).length > 2 ? 0.4 : Array.from(text()).length > 1 ? 0.5 : 0.62)))}px`} aria-hidden="true">{text()}</span>}
       </Show>

@@ -211,6 +211,26 @@ export const PROJECT_COLORS: Array<{ id: string; label: string; value: string }>
   { id: "rose", label: "Rosenrød", value: "#d64a64" },
 ];
 
+// v1.4.0: a project without a colour of its own still gets one, picked from its id so it stays the
+// same everywhere and across restarts. Grey is left out; a user can still pick it on purpose.
+export const AUTO_PROJECT_COLORS = PROJECT_COLORS.filter((c) => c.id !== "gray").map((c) => c.id);
+
+export function defaultProjectColor(seed: string): string {
+  // FNV-1a, 32 bit: small, stable and spreads short ids well.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return AUTO_PROJECT_COLORS[hash % AUTO_PROJECT_COLORS.length];
+}
+
+// The colour a project is shown in: the one the user picked, else the automatic one for its id.
+export function projectColorId(project: { color?: string | null; id?: string | null }): string | null {
+  if (project.color && PROJECT_COLORS.some((c) => c.id === project.color)) return project.color;
+  return project.id ? defaultProjectColor(project.id) : null;
+}
+
 export const PROJECT_ICONS = ["folder", "code", "globe", "terminal", "spark", "game", "branch", "team",
   // v0.5: the icon picker in Rediger prosjekt.
   "dollar", "book", "school", "pencil", "pen", "braces", "music", "cup", "brush", "palette", "health", "flower", "bag", "chart",
@@ -464,6 +484,25 @@ export interface Settings {
   defaultReasoningEffort?: ReasoningEffort; // effort for new Kode threads without a project setting; unset is the model's own
   localActions?: ProjectAction[]; // actions for Denne datamaskinen (Kode without a project), run in the home folder
   uiFont?: UiFont; // the interface font, default "system"
+  // v1.4.0, Innstillinger → Utseende → Arbeidsflate: a calmer, T3-like look. Each part is its own
+  // switch; the preset Enkel (Kode-fokus) turns them all on and Full clears them. Unset is Full.
+  topbarLayout?: TopbarLayout; // full: every button as before; minimal: project / thread, details, panel; default "full"
+  topbarShowPanes?: boolean; // the split-pane buttons in the minimal top bar, default true (always shown in full)
+  sidebarSimple?: boolean; // no mode switch or Ny tråd/Artifacts/Skills rows; a search row and a compact foot; default false
+  composerSimple?: boolean; // Kode: no project/environment bar above the message field in a running thread; default false
+}
+
+export type TopbarLayout = "full" | "minimal";
+export const TOPBAR_LAYOUTS: TopbarLayout[] = ["full", "minimal"];
+// The settings the Arbeidsflate presets set together.
+export const SIMPLE_WORKSPACE: Pick<Settings, "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple"> = {
+  topbarLayout: "minimal", topbarShowPanes: false, sidebarSimple: true, composerSimple: true,
+};
+export function isSimpleWorkspace(settings: Pick<Settings, "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple">): boolean {
+  return settings.topbarLayout === "minimal" && settings.sidebarSimple === true && settings.composerSimple === true && settings.topbarShowPanes === false;
+}
+export function isFullWorkspace(settings: Pick<Settings, "topbarLayout" | "topbarShowPanes" | "sidebarSimple" | "composerSimple">): boolean {
+  return (settings.topbarLayout ?? "full") === "full" && !settings.sidebarSimple && !settings.composerSimple && settings.topbarShowPanes !== false;
 }
 
 export interface ModelContextModeSettings {

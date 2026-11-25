@@ -20,6 +20,7 @@ import { AppIconPicker } from "../AppIconPicker";
 import { permissionScope, permissionTitle } from "../permission-copy";
 import { ApplyPermissionToProjects } from "./permission-rules";
 import { Choice, Group, Page, Rich, Row, save, Segmented, Toggle } from "./parts";
+import { applyWorkspacePreset, workspacePreset } from "../../state/workspace-look";
 
 const ACCENTS = (): Array<{ value: AccentColor; label: string }> => [
   { value: "blue", label: t("Blå") },
@@ -275,6 +276,7 @@ export function Appearance() {
         </Row>
       </Group>
       <InboxSettings />
+      <WorkspaceLook />
       {/* Round 11 (SPEC 24.2 and 24.3) */}
       <Group title={t("Panelknapper og sidepanel")}>
         <Row label={t("Panelknapper")} text={t("Knappene øverst til høyre. Samlet: ⋯, én knapp for sidepanelet og + for å legge til et panel. Hver for seg: én knapp per panel. I Chat står bare ⋯, fordi Chat ikke har sidepanel.")}>
@@ -322,6 +324,55 @@ export function Appearance() {
       </Group>
       <Group title={t("Kodevisning")}><Row label={t("Tilpass kodeutseendet")} text={t("Lyst og mørkt kodetema, skrift, linjebryting og standard samtalevisning finnes under Kode.")}><button type="button" class="btn btn-small" onClick={() => setSettingsOpen("code")}>{t("Åpne Kode-innstillinger")}</button></Row></Group>
     </Page>
+  );
+}
+
+// v1.4.0: Arbeidsflate. Full keeps every button; Enkel (Kode-fokus) is a calm, T3-like look. The
+// preset sets the switches below together, and each switch can still be changed on its own.
+function WorkspaceLook() {
+  const preset = workspacePreset;
+  const presetText = () => preset() === "custom"
+    ? t("Egendefinert: du har valgt delene under selv. Velg Full eller Enkel for å sette alle på en gang.")
+    : t("Full viser alle knapper og moduser som før. Enkel (Kode-fokus) gir en rolig topplinje, sidefane og meldingsfelt, og bytter til Kode.");
+  return (
+    <Group title={t("Arbeidsflate")}>
+      <Row label={t("Arbeidsflate")} text={presetText()}>
+        <Segmented<"full" | "simple" | "custom">
+          label={t("Arbeidsflate")}
+          value={preset()}
+          options={[{ value: "full", label: t("Full") }, { value: "simple", label: t("Enkel (Kode-fokus)") }]}
+          onChange={(v) => { if (v !== "custom") applyWorkspacePreset(v).catch(report); }}
+        />
+      </Row>
+      <Row label={t("Topplinje")} text={t("Full: alle knappene øverst. Enkel (T3-stil): bare Prosjekt / Tråd til venstre, og Tråddetaljer, terminalen og sidepanelet til høyre.")}>
+        <Segmented<"full" | "minimal">
+          label={t("Topplinje")}
+          value={app.settings.topbarLayout ?? "full"}
+          options={[{ value: "full", label: t("Full") }, { value: "minimal", label: t("Enkel (T3-stil)") }]}
+          onChange={(v) => save({ topbarLayout: v })}
+        />
+      </Row>
+      <Show when={app.settings.topbarLayout === "minimal"}>
+        <Toggle
+          label={t("Knapper for flere ruter")}
+          text={t("Del til høyre og Del nedover i den enkle topplinjen, for flere ruter og instanser i samme vindu.")}
+          checked={app.settings.topbarShowPanes !== false}
+          onChange={(v) => save({ topbarShowPanes: v })}
+        />
+      </Show>
+      <Toggle
+        label={t("Enkel sidefane")}
+        text={t("Uten Chat/Kode-bryteren og radene Ny tråd, Artifacts og Skills. Et søkefelt med knapper for nytt prosjekt og ny tråd står øverst, og bunnen er bare ikoner. Alt finnes fortsatt i menyen.")}
+        checked={app.settings.sidebarSimple === true}
+        onChange={(v) => save({ sidebarSimple: v })}
+      />
+      <Toggle
+        label={t("Enkelt meldingsfelt")}
+        text={t("I Kode skjules linjen med prosjekt, miljø og gren over meldingsfeltet når tråden er i gang. Startsiden viser den fortsatt.")}
+        checked={app.settings.composerSimple === true}
+        onChange={(v) => save({ composerSimple: v })}
+      />
+    </Group>
   );
 }
 

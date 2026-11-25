@@ -191,7 +191,7 @@ export function Home(props: { projectId: string | null; code?: boolean; paneKey:
             <Show when={chatProject()} fallback={<h2 class="home-greeting">{name() ? t("Hva skjer nå, {name}?", { name: name()! }) : t("Hva skjer nå?")}</h2>}>
               {(cp) => (
                 <>
-                  <span class="home-chat-project" data-testid="home-chat-project"><ProjectGlyph project={cp()} size={14} />{cp().name}</span>
+                  <span class="home-chat-project" data-testid="home-chat-project"><ProjectGlyph project={{ icon: cp().icon, color: cp().color }} seed={`chat:${cp().id}`} size={14} />{cp().name}</span>
                   <h2 class="home-greeting">{t("Ny chat i {name}", { name: cp().name })}</h2>
                 </>
               )}

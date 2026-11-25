@@ -38,7 +38,7 @@ import type {
   Thread,
 } from "../../../shared/protocol.ts";
 import { AUTO_SETTLE_HOURS, cleanProjectActions, CODE_FONTS, UI_FONTS, WORKSPACE_MODES, type ProjectAction } from "../../../shared/protocol.ts";
-import { CHAT_WIDTHS, UI_CONTRASTS, BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
+import { CHAT_WIDTHS, UI_CONTRASTS, BROWSER_ZOOMS, modelContextOf, chatToolsOf, DEFAULT_CHAT_TOOLS, ARTIFACT_LANGS, MAX_ARTIFACT_HTML, chatPersonalityId, PERSONALITIES, PROJECT_COLORS, THEME_PRESETS, TOPBAR_LAYOUTS, isAppIcon, isProjectIcon, isMaxStepsPerTurn, MIN_STEPS_PER_TURN, MAX_STEPS_PER_TURN, threadNotificationsOf, type ProjectConfig } from "../../../shared/protocol.ts";
 import { DEFAULT_LOCAL_CONTEXT_WINDOW, LOCAL_MODEL_CONTEXT_OPTIONS, type AllowRule } from "../../../shared/protocol.ts";
 import { parseLocalRule, readLocalRules, ruleLabel, writeLocalRules } from "../agent/permissions.ts";
 import { navRoutes } from "./nav-routes.ts";
@@ -1545,6 +1545,7 @@ const ROUND5_CHOICES: Record<string, readonly string[]> = {
   threadNotifications: ["off", "notify", "sound"],
   chatWidth: CHAT_WIDTHS, // v1.2.0
   projectOrder: ["recent", "created", "name"],
+  topbarLayout: TOPBAR_LAYOUTS, // v1.4.0
 };
 const ROUND5_NUMBERS: Record<string, readonly number[]> = {
   uiFontSize: [13, 14, 15, 16],
@@ -1591,6 +1592,12 @@ function round5Settings(body: any): Partial<Settings> {
     out[key] = body[key] ?? undefined;
   }
   for (const key of ROUND5_FLAGS) if (body[key] !== undefined) out[key] = body[key] === true;
+  // v1.4.0: Arbeidsflate. Booleans; null resets to the default (left out).
+  for (const key of ["topbarShowPanes", "sidebarSimple", "composerSimple"] as const) {
+    if (body[key] === undefined) continue;
+    if (body[key] !== null && typeof body[key] !== "boolean") throw new HttpError(400, `Ugyldig verdi for ${key}`);
+    out[key] = body[key] ?? undefined;
+  }
   // v1.2.0: on by default, so null (reset) leaves it out and false is kept.
   if (body.renderMath !== undefined) {
     if (body.renderMath !== null && typeof body.renderMath !== "boolean") throw new HttpError(400, "Ugyldig verdi for renderMath");

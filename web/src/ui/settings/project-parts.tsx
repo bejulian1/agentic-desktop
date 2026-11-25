@@ -148,7 +148,7 @@ export function ChatIconDialog(props: { icon: string | null; color: string | nul
   return (
     <IconDialog title={t("Velg prosjektikon")} intro={t("Velg et av ikonene for Chat-prosjekter og en farge.")} testid="chat-icon-dialog" preview={<ChatProjectGlyph project={{ icon: icon(), color: color() }} size={20} />} onClose={props.onClose} onSave={() => void save()} saving={saving()}>
       <div class="icon-picker-colors" role="radiogroup" aria-label={t("Farge")}>
-        <button type="button" role="radio" class="swatch swatch-none" aria-checked={!color()} aria-label={t("Ingen farge")} title={t("Ingen farge")} onClick={() => setColor(null)} />
+        <button type="button" role="radio" class="swatch swatch-none" aria-checked={!color()} aria-label={t("Automatisk farge")} title={t("Automatisk farge: valgt ut fra prosjektet")} onClick={() => setColor(null)} />
         <For each={PROJECT_COLORS}>
           {(c) => <button type="button" role="radio" class="swatch" aria-checked={color() === c.id} aria-label={lookupMessage(c.label)} title={lookupMessage(c.label)} style={`--swatch:${c.value}`} onClick={() => setColor(c.id)} />}
         </For>

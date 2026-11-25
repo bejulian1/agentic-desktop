@@ -150,7 +150,7 @@ flow("trådmenyen, hover-kort, festing, sidechat, kopier og Rediger prosjekt med
     const p = (await h.api("GET", "/api/bootstrap")).projects[0];
     return p.name === "Nettbutikk" && p.icon === "emoji:🚀" && p.color === "purple";
   }, "lagret");
-  await page.locator('.group[data-project="Nettbutikk"] .project-emoji', { hasText: "🚀" }).waitFor();
+  await page.locator('.group[data-project="Nettbutikk"] .group-head .project-emoji', { hasText: "🚀" }).waitFor();
 
   // Fjern prosjektet asks first, and never touches the folder.
   await page.locator('.group[data-project="Nettbutikk"] .group-head').hover();
@@ -296,7 +296,7 @@ flow("smart sidefane: kort for det som trenger deg, Utsett og hent tilbake, og f
   const { page } = h;
   writeFileSync(path.join(h.projectDir, "favicon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#e4572e"/></svg>');
   const project = await openProject(h);
-  await page.locator('.group[data-project="Demo"] img.project-favicon').waitFor();
+  await page.locator('.group[data-project="Demo"] .group-head img.project-favicon').waitFor();
   await send(page, "hjelp");
   await page.getByText("Dette er demo-modellen").first().waitFor();
   await idle(page);
