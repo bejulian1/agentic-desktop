@@ -396,6 +396,7 @@ export const AUTO_SETTLE_HOURS = [24, 72, 168, 336, 720] as const;
 
 export interface Settings {
   githubAuth?: "gh" | "token" | null;
+  agentGitHubAccess?: "off" | "read" | "read-write";
   githubOpenLinks?: boolean;
   githubViews?: GitHubView[];
   language?: import("./i18n.ts").LanguageSetting;
@@ -1450,7 +1451,7 @@ export type ServerMessage =
   | { type: "keyring.changed"; keyring: KeyringStatus } // round 14 (SPEC 30.1)
   | { type: "error"; message: string };
 
-// Round 8 (agent G): GitHub, read only. The token stays on the server, like the provider keys.
+// GitHub integration. The token stays on the server, like the provider keys.
 export interface LinkedPr {
   repo: string;
   number: number;

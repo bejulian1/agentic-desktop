@@ -1099,6 +1099,12 @@ export class Api {
 
     this.route("PATCH", "/api/settings", ({ body }) => {
       const patch = inboxSettings(body);
+      if (body.agentGitHubAccess !== undefined) {
+        if (body.agentGitHubAccess !== "off" && body.agentGitHubAccess !== "read" && body.agentGitHubAccess !== "read-write") {
+          throw new HttpError(400, "Velg et gyldig nivå for agenttilgang til GitHub.");
+        }
+        patch.agentGitHubAccess = body.agentGitHubAccess;
+      }
       if (body.githubOpenLinks !== undefined) {
         if (typeof body.githubOpenLinks !== "boolean") throw new HttpError(400, "Velg om GitHub-lenker skal åpnes i appen.");
         patch.githubOpenLinks = body.githubOpenLinks;

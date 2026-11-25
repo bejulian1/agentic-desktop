@@ -32,9 +32,13 @@ export function killGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-export function runCommand(options: CommandOptions): Promise<CommandResult> {
+export function runCommand({ command, ...options }: CommandOptions): Promise<CommandResult> {
+  return runProgram("bash", ["-c", command], options);
+}
+
+export function runProgram(program: string, args: string[], options: Omit<CommandOptions, "command">): Promise<CommandResult> {
   return new Promise((resolve) => {
-    const child = spawn("bash", ["-c", options.command], {
+    const child = spawn(program, args, {
       cwd: options.cwd,
       env: options.env,
       detached: true, // A new process group, led by the child.

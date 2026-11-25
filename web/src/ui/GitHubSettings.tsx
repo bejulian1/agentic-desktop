@@ -1,12 +1,12 @@
 import { createResource, createSignal, Show } from "solid-js";
-import type { GitHubCliStatus, GitHubScope, GitHubStatus } from "../../../shared/protocol";
+import type { GitHubCliStatus, GitHubScope, GitHubStatus, Settings } from "../../../shared/protocol";
 import { ApiError, del, get, put } from "../lib/api";
 import { t } from "../lib/i18n";
 import { app, currentProject, report, saveSettings, toast } from "../state/app";
 import { confirmDialog } from "./dialogs";
 import { resetText } from "./GitHubShared";
 import { IconGitHub } from "./icons";
-import { Group, Page, Rich, Row, Toggle } from "./settings/parts";
+import { Choice, Group, Page, Rich, Row, Toggle } from "./settings/parts";
 import { SecretInput } from "./SecretInput";
 
 export function GitHubSettings() {
@@ -86,7 +86,7 @@ export function GitHubSettings() {
   };
 
   return (
-    <Page title="GitHub" intro={t("Se pull requests og issues fra prosjektene dine.")}>
+    <Page title="GitHub" intro={t("Koble til GitHub for å se pull requests og issues og bruke GitHub-verktøy i Kode.")}>
       <Group title={t("Konto")}>
         <Show when={status()?.connected}>
           <Row label={<Rich text={t("Tilkoblet som {login}")} parts={{ login: <span class="github-login">{status()!.login ?? t("ukjent konto")}</span> }} />} icon={IconGitHub} text={status()?.method === "gh" ? t("GitHub CLI") : status()!.name ? `${status()!.name}. ${scopeText(status()!)}` : scopeText(status()!)}>
@@ -111,7 +111,7 @@ export function GitHubSettings() {
           <form class="setting setting-block github-connect" onSubmit={connect}>
             <div class="setting-text">
               <strong>{t("Personlig tilgangstoken")}</strong>
-              <span class="muted">{t("Lag et token på GitHub under Settings → Developer settings → Personal access tokens. Et finkornet token med lesetilgang til Contents, Issues og Pull requests holder. For private repoer må tokenet ha tilgang til dem.")}</span>
+              <span class="muted">{t("Lag et token på GitHub under Settings → Developer settings → Personal access tokens. Gi tokenet tilgang til repoene og handlingene du vil bruke. Sjekker og logger krever lesetilgang til Checks og Actions.")}</span>
             </div>
             <div class="github-token-row">
               <SecretInput
@@ -130,6 +130,20 @@ export function GitHubSettings() {
           </form>
         </Show>
         <Row label={t("Lagring")} text={app.keyring?.store === "session" ? t("Tokenet gjelder til appen lukkes, fordi nøkkelringen ikke kan brukes nå. Det sendes bare til GitHub, aldri tilbake til nettleseren, og aldri til kommandoer agenten kjører.") : t("Tokenet lagres kryptert i systemets nøkkelring, sammen med API-nøklene. Det sendes bare til GitHub, aldri tilbake til nettleseren, og aldri til kommandoer agenten kjører.")} />
+      </Group>
+      <Group>
+        <Row label={t("Agenttilgang til GitHub")} text={t("Lesetilgang lar Kode-agenten undersøke repoer, pull requests, issues og CI. Å opprette, kommentere, slå sammen eller klone krever skrivetilgang og din godkjenning når trådens tillatelsesmodus ber om det.")}>
+          <Choice<NonNullable<Settings["agentGitHubAccess"]>>
+            label={t("Agenttilgang til GitHub")}
+            value={app.settings.agentGitHubAccess ?? "read-write"}
+            options={[
+              { value: "off", label: t("Av") },
+              { value: "read", label: t("Bare lesing") },
+              { value: "read-write", label: t("Lesing og skriving") },
+            ]}
+            onChange={agentGitHubAccess => void saveSettings({ agentGitHubAccess }).catch(report)}
+          />
+        </Row>
       </Group>
       <Group title={t("Lenker")}>
         <Toggle

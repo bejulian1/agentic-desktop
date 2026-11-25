@@ -258,6 +258,11 @@ async function startAppWithClaim(
   const hooks: Hooks = new Hooks({ dataDir: config.dataDir, env, homeDir: options.homeDir, changed: () => publish({ type: "hooks.changed", state: hooks.state() }) });
   onFail(() => hooks.close());
   const runner = new Runner({
+    github,
+    pullLinked: (threadId) => {
+      threadChanged(threadId);
+      if (store.settings().autoSettleOnPrClose) void threadInbox.checkThreadPull(threadId);
+    },
     uiMods,
     hooks,
     mcp,

@@ -76,7 +76,7 @@ const involves = (item: any) => item.user?.login === "testbruker" || item.assign
 
 const CHECKS = { state: "PENDING", contexts: { nodes: [{ name: "Typecheck", status: "COMPLETED", conclusion: "SUCCESS" }, { context: "UI", state: "PENDING" }] } };
 
-export async function startFakeGitHub(): Promise<FakeGitHub> {
+export async function startFakeGitHub(handle?: (req: http.IncomingMessage, res: http.ServerResponse, url: URL) => boolean): Promise<FakeGitHub> {
   let mode: FakeMode = "ok";
   const pullStates = new Map<number, PullWatchStatus["state"]>([[42, "OPEN"]]);
   const requests: FakeGitHub["requests"] = [];
@@ -85,6 +85,7 @@ export async function startFakeGitHub(): Promise<FakeGitHub> {
     const auth = req.headers.authorization;
     const ifNoneMatch = req.headers["if-none-match"] as string | undefined;
     requests.push({ path: url.pathname + url.search, auth, ifNoneMatch });
+    if (handle?.(req, res, url)) return;
     const send = (status: number, body: unknown, headers: Record<string, string> = {}) => {
       res.writeHead(status, { "content-type": "application/json", ...headers });
       res.end(body === undefined ? "" : JSON.stringify(body));

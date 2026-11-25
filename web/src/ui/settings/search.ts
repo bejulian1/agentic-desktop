@@ -100,6 +100,7 @@ export const ENTRIES: Entry[] = [
   { page: "git", get label() { return t("Grener og arbeidstrær"); }, get words() { return t("git branch main gren bytt opprett arbeidstre worktree lokalt repo"); } },
   { page: "github", get label() { return t("Åpne pull request-lenker i Agentic Desktop"); } },
   { page: "github", get label() { return t("Konto"); }, get words() { return t("github token tilgangstoken personlig pull request issues koble til gh cli"); } },
+  { page: "github", get label() { return t("Agenttilgang til GitHub"); }, get words() { return t("github agent kode lese skrive klone ci godkjenning"); } },
   { page: "usage", get label() { return t("Bruk"); }, get words() { return t("tokens profil navn"); } },
   { page: "usage", get label() { return t("Statistikk"); }, get words() { return t("statistikk tokens økter meldinger rekke aktivitet aktivitetskart startside"); } },
   { page: "usage", get label() { return t("Kostnad"); }, get words() { return t("kostnad pris dollar"); } },
