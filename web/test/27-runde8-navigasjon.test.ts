@@ -12,7 +12,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { Downloads, MAX_ACTIVE, MAX_STARTS_PER_MINUTE } from "../../server/src/downloads.ts";
 import { startTime } from "../../server/src/servers.ts";
-import { flow, openPanel, openProject, send, threadItem, waitFor, openTool, toolShown } from "./harness.ts";
+import { flow, openPanel, openProject, PROJECT_CRUMB, send, threadItem, waitFor, openTool, toolShown } from "./harness.ts";
 
 type Page = import("playwright-core").Page;
 
@@ -191,7 +191,7 @@ flow("Chat og Kode har hver sin liste i sidefanen, og toppfeltet er kort", async
   // Kode (round 11, SPEC 24.4): Chatter, with the projects under it. The chats are in Chat.
   await page.locator(".sidebar .mode-button", { hasText: "Kode" }).click();
   await page.locator('.group[data-project="Demo"] .group-title').click();
-  await page.waitForSelector(".project-label");
+  await page.locator(PROJECT_CRUMB, { hasText: "Demo" }).first().waitFor();
   await waitFor(async () => (await sections()).join() === "chats", "bare Chatter i Kode");
   assert.equal(await threadItem(page, chat.id).count(), 0, "chattene står i Chat");
   // The path is in the tip, not in the bar. VS Code is behind ⋯, and the panels behind +.

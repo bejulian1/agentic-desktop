@@ -78,7 +78,7 @@
 }
 
 /* The queue over the field, with the switch between queueing and sending at once. */
-.queue-item.steer { background: var(--accent-soft); color: var(--accent-text); }
+.queue-item.steer { color: var(--accent-text); }
 .queue-spacer { flex: 1; }
 .queue-switch { display: inline-flex; flex: none; padding: 2px; border-radius: var(--radius-md); background: var(--surface-2); }
 .queue-switch button { height: 22px; padding: 0 8px; border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; }

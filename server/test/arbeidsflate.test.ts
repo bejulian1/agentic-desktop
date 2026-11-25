@@ -11,22 +11,25 @@ const JSON_HEADERS = { "content-type": "application/json" };
 test("Arbeidsflate: the settings are saved, checked and reset with null", async (t) => {
   const h = await startHarness(t);
   const before = (await h.api("GET", "/api/bootstrap")).settings;
-  for (const key of ["topbarLayout", "topbarShowPanes", "sidebarSimple", "composerSimple"]) assert.equal(key in before, false, `${key} is unset by default`);
+  for (const key of ["topbarLayout", "topbarShowPanes", "sidebarSimple", "composerSimple", "composerStyle"]) assert.equal(key in before, false, `${key} is unset by default`);
   assert.equal(isFullWorkspace(before), true);
 
   const saved = await h.api("PATCH", "/api/settings", { ...SIMPLE_WORKSPACE });
-  assert.deepEqual([saved.topbarLayout, saved.topbarShowPanes, saved.sidebarSimple, saved.composerSimple], ["minimal", false, true, true]);
+  assert.deepEqual([saved.topbarLayout, saved.topbarShowPanes, saved.sidebarSimple, saved.composerSimple, saved.composerStyle], ["minimal", false, true, true, "large"]);
   assert.equal(isSimpleWorkspace((await h.api("GET", "/api/bootstrap")).settings), true);
 
-  for (const body of [{ topbarLayout: "kompakt" }, { topbarLayout: 1 }, { sidebarSimple: "ja" }, { composerSimple: 1 }, { topbarShowPanes: "nei" }]) {
+  for (const body of [{ topbarLayout: "kompakt" }, { topbarLayout: 1 }, { sidebarSimple: "ja" }, { composerSimple: 1 }, { topbarShowPanes: "nei" }, { composerStyle: "stor" }, { composerStyle: true }]) {
     const res = await h.raw("PATCH", "/api/settings", { headers: JSON_HEADERS, body: JSON.stringify(body) });
     assert.equal(res.status, 400, JSON.stringify(body));
   }
   assert.equal((await h.api("GET", "/api/bootstrap")).settings.topbarLayout, "minimal", "a bad value changes nothing");
 
-  await h.api("PATCH", "/api/settings", { topbarLayout: null, topbarShowPanes: null, sidebarSimple: null, composerSimple: null });
+  // Meldingsfelt-stil on its own: the preset no longer matches, and Standard is a value of its own.
+  await h.api("PATCH", "/api/settings", { composerStyle: "standard" });
+  assert.equal(isSimpleWorkspace((await h.api("GET", "/api/bootstrap")).settings), false);
+  await h.api("PATCH", "/api/settings", { topbarLayout: null, topbarShowPanes: null, sidebarSimple: null, composerSimple: null, composerStyle: null });
   const after = (await h.api("GET", "/api/bootstrap")).settings;
-  for (const key of ["topbarLayout", "topbarShowPanes", "sidebarSimple", "composerSimple"]) assert.equal(key in after, false, `${key} is reset`);
+  for (const key of ["topbarLayout", "topbarShowPanes", "sidebarSimple", "composerSimple", "composerStyle"]) assert.equal(key in after, false, `${key} is reset`);
 });
 
 test("project colours: automatic from the id, stable, never grey, and the user's choice wins", () => {

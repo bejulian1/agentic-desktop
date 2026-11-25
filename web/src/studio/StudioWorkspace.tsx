@@ -157,7 +157,7 @@ export default function StudioWorkspace(props: { active: Accessor<boolean>; proj
           aria-valuemin={300}
           aria-valuemax={maxWidth()}
           aria-valuenow={Math.round(agentWidth())}
-          title={t("Dra for å endre bredden. Dobbeltklikk for standard.")}
+          aria-description={t("Dra for å endre bredden. Dobbeltklikk for standard.")}
           tabindex="0"
           onPointerDown={(event) => {
             drag = { x: event.clientX, width: agentWidth() };

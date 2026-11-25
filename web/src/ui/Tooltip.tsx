@@ -15,6 +15,10 @@ const DELAY_MS = 400;
 // moving along a row of icons reads each one without waiting.
 const WARM_MS = 300;
 const SELECTOR = "[title], [data-tip]";
+// v1.4.1: no tips in a thread row (the hover card already describes the thread) or in a context
+// menu (its entries say what they do). The title is taken off there while the pointer is on it,
+// so the browser's own tip stays away too.
+const QUIET = ".thread-item, .context-menu";
 const KEYS_IN_TITLE = /\s*\(((?:Ctrl|Alt|Shift|⌘|⌥|⇧|Mod)[^()]*)\)\s*$/;
 
 interface Shown {
@@ -53,6 +57,26 @@ export function TooltipHost() {
   // A clicked element gets no tip until the pointer has left it.
   let pressed: HTMLElement | null = null;
   let warmUntil = 0;
+  let muted: Shown | null = null;
+
+  const unmute = () => {
+    if (!muted) return;
+    const { el, title, addedLabel } = muted;
+    if (title !== null && !el.hasAttribute("title")) el.setAttribute("title", title);
+    if (addedLabel) el.removeAttribute("aria-label");
+    muted = null;
+  };
+  const mute = (el: HTMLElement) => {
+    if (muted?.el === el) return;
+    unmute();
+    const title = el.getAttribute("title");
+    if (title === null) return;
+    // The title may be the element's only name: keep the name while the title is off.
+    const addedLabel = !el.hasAttribute("aria-label") && !el.hasAttribute("aria-labelledby") && !(el.textContent ?? "").trim();
+    if (addedLabel) el.setAttribute("aria-label", title);
+    el.removeAttribute("title");
+    muted = { el, title, addedLabel };
+  };
 
   const restore = () => {
     if (!shown) return;
@@ -135,10 +159,16 @@ export function TooltipHost() {
   const onOver = (event: PointerEvent) => {
     if (event.pointerType === "touch") return;
     const el = target(event.target);
+    if (el?.closest(QUIET)) {
+      if (pending || shown) hide();
+      return mute(el);
+    }
+    unmute();
     if (el) schedule(el);
     else if (pending || shown) hide();
   };
   const onOut = (event: PointerEvent) => {
+    if (muted && !muted.el.contains(event.relatedTarget as Node | null)) unmute();
     const current = shown?.el ?? pending;
     if (!current) return;
     const to = event.relatedTarget as Node | null;
@@ -147,7 +177,7 @@ export function TooltipHost() {
   };
   const onFocus = (event: FocusEvent) => {
     const el = target(event.target);
-    if (el && el === event.target && el.matches(":focus-visible")) schedule(el);
+    if (el && el === event.target && el.matches(":focus-visible") && !el.closest(QUIET)) schedule(el);
   };
   const onDown = (event: PointerEvent) => {
     pressed = target(event.target);
@@ -169,6 +199,7 @@ export function TooltipHost() {
   addEventListener("blur", hide);
   onCleanup(() => {
     hide();
+    unmute();
     document.removeEventListener("pointerover", onOver, true);
     document.removeEventListener("pointerout", onOut, true);
     document.removeEventListener("pointerdown", onDown, true);

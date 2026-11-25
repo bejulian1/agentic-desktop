@@ -183,7 +183,7 @@ async function englishGallery() {
     await harness.createProject("Weather station");
     await page.locator(".sidebar .mode-button").getByText("Code", { exact: true }).click();
     await page.locator('.group[data-project="Weather station"] .group-title').first().click();
-    await page.waitForSelector(".project-label");
+    await page.locator('[data-testid="topbar-crumb"], [data-testid="topbar-thread-crumb"]', { hasText: "Weather station" }).first().waitFor();
     await send(page, "/files");
     await page.locator('.tree-item[data-path="temperature.ts"]').click();
     await page.getByTestId("editor").getByText(/celsiusToFahrenheit/).first().waitFor();

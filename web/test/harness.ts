@@ -278,13 +278,17 @@ export async function useFolderPickerFallback(h: Harness): Promise<void> {
   }));
 }
 
+// v1.4.1: the project is named once, at the left of the top bar: StartCrumb on a start page,
+// ThreadCrumb before a named thread's title.
+export const PROJECT_CRUMB = '[data-testid="topbar-crumb"], [data-testid="topbar-thread-crumb"]';
+
 export async function openProject(h: Harness, name = "Demo"): Promise<Project> {
   const project = await h.createProject(name);
   // Round 9: Kode projects are listed in Kode; Chat lists its own projects.
   const kode = h.page.locator(".sidebar .mode-button", { hasText: "Kode" });
   if (await kode.count() && (await kode.getAttribute("aria-pressed")) !== "true") await kode.click();
   await h.page.locator(`.group[data-project="${name}"] .group-title`).first().click();
-  await h.page.waitForSelector(".project-label");
+  await h.page.locator(PROJECT_CRUMB, { hasText: name }).first().waitFor();
   return project;
 }
 

@@ -91,7 +91,7 @@ export function RightPanel(props: { projectId: string | null; threadId: () => st
 
   return (
     <aside class="right-panel panel-with-tabs panel-workspace" classList={{ "panel-stacked": stacking() }} aria-label={t("Panel")}>
-      <div class="panel-resize" title={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setPanelWidth(stacking() && stackLayout().columns.length > 1 ? Math.min(maxPanelWidth(), 420 * stackLayout().columns.length) : 420)} />
+      <div class="panel-resize" aria-label={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setPanelWidth(stacking() && stackLayout().columns.length > 1 ? Math.min(maxPanelWidth(), 420 * stackLayout().columns.length) : 420)} />
       <div class="panel-tabs-bar panel-workspace-bar">
         <div class="panel-tabs" ref={tabs} role="tablist" aria-label={t("Åpne verktøy")}>
           <Show when={!openTools().length && !panelStartPages().length}><span class="panel-workspace-label"><IconPanel size={14} />{t("Verktøy")}</span></Show>

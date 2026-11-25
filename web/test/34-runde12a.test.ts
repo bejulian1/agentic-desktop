@@ -10,7 +10,7 @@ import { after } from "node:test";
 import type { Page } from "playwright-core";
 import type { SessionInfo } from "../../shared/protocol.ts";
 import { makeChromeProfile, makeFirefoxProfile, makeSecretTool } from "../../server/test/runde12-fakes.ts";
-import { flow, ROOT, threadItem, waitFor, type Harness } from "./harness.ts";
+import { flow, PROJECT_CRUMB, ROOT, threadItem, waitFor, type Harness } from "./harness.ts";
 
 const SHOTS = path.join(ROOT, "docs/screenshots/runde12");
 mkdirSync(SHOTS, { recursive: true });
@@ -170,7 +170,7 @@ flow("Økt: miljø, kontekst med fordeling, tilkoblinger og oppgaver i bakgrunne
   await threadItem(page, threadId).locator(".thread-text").click();
   // The panel belongs to the thread's project: wait until the thread (and so its project) is open.
   await page.locator(`.pane-inner.focused[data-thread-id="${threadId}"]`).waitFor();
-  await page.locator(".project-label", { hasText: "Økt-demo" }).first().waitFor();
+  await page.locator(PROJECT_CRUMB, { hasText: "Økt-demo" }).first().waitFor();
   // Round 12, part B: Økt is a tool in the side panel, Ctrl+Alt+7.
   await page.keyboard.press("Control+Alt+7");
   const panel = page.locator(".right-panel").getByTestId("session-panel");

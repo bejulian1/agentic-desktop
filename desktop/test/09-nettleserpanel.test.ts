@@ -340,7 +340,7 @@ test("UI-et: panelet følger rammen, viker for menyer og annotering med et still
     const kode = page.locator(".sidebar .mode-button", { hasText: "Kode" });
     if ((await kode.count()) && (await kode.getAttribute("aria-pressed")) !== "true") await kode.click();
     await page.locator('.group[data-project="Demo"] .group-title').first().click();
-    await page.waitForSelector(".project-label");
+    await page.locator('[data-testid="topbar-crumb"], [data-testid="topbar-thread-crumb"]', { hasText: "Demo" }).first().waitFor();
     await page.keyboard.press("Control+Alt+4");
     const browser = page.getByTestId("browser-panel");
     await browser.waitFor();

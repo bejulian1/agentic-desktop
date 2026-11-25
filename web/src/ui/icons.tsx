@@ -81,6 +81,7 @@ export const IconClock = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="5.75" />
 export const IconLaptop = (p: P) => <Svg {...p}><rect x="3" y="3.5" width="10" height="7" rx="1.25" /><path d="M1.75 12.75h12.5" /></Svg>;
 export const IconMic = (p: P) => <Svg {...p}><rect x="6" y="2" width="4" height="7.5" rx="2" /><path d="M3.75 7.75a4.25 4.25 0 0 0 8.5 0M8 12v2" /></Svg>;
 export const IconCompose = (p: P) => <Svg {...p}><path d="M13.5 8.75V12A1.5 1.5 0 0 1 12 13.5H4A1.5 1.5 0 0 1 2.5 12V4A1.5 1.5 0 0 1 4 2.5h3.25" /><path d="m11.4 2.6 2 2L8.25 9.75 6 10.25l.5-2.25z" /></Svg>;
+export const IconPaperclip = (p: P) => <Svg {...p}><path d="m12.6 7.4-4.95 4.95a2.75 2.75 0 0 1-3.9-3.9l5.3-5.3a1.85 1.85 0 0 1 2.6 2.6L6.4 10.9a.9.9 0 0 1-1.3-1.3l4.6-4.6" /></Svg>;
 export const IconPlusCircle = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="5.75" /><path d="M8 5.5v5M5.5 8h5" /></Svg>;
 export const IconMoon = (p: P) => <Svg {...p}><path d="M13 9.6A5.5 5.5 0 0 1 6.4 3 5.5 5.5 0 1 0 13 9.6Z" /></Svg>;
 export const IconSun = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="2.75" /><path d="M8 1.75v1.25M8 13v1.25M1.75 8H3M13 8h1.25M3.6 3.6l.9.9M11.5 11.5l.9.9M3.6 12.4l.9-.9M11.5 4.5l.9-.9" /></Svg>;

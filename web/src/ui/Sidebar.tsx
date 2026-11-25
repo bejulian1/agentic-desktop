@@ -114,8 +114,20 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
   const provider = createMemo(() => (thread.mode === "code" ? modelProvider(thread.modelId) : null));
   // Chat rows carry the same coloured mark, small and before the title, without a second line.
   const chatProvider = createMemo(() => (thread.mode === "code" ? null : modelProvider(thread.modelId)));
-  // Done and not looked at yet: «Ferdig» in green, where the age would be.
+  // Done and not looked at yet.
   const done = () => threadState(thread, false) === "new";
+  // v1.4.1: a finished thread (unseen, or its last run ended well and nothing waits) has a green
+  // check next to its age, instead of the word «Ferdig» in its place.
+  const finished = () => {
+    const state = threadState(thread, false);
+    return state === "new" || (state === "idle" && thread.lastStatus === "done");
+  };
+  const when = () => <>
+    <Show when={finished()}>
+      <span class="thread-done" role="img" data-unseen={done() ? "" : undefined} aria-label={done() ? t("Ferdig, og du har ikke sett svaret") : t("Ferdig")}><IconCheck size={13} /></span>
+    </Show>
+    <span class="thread-time">{relativeTime(thread.updatedAt)}</span>
+  </>;
   // v1.4.0: Kode rows have two lines. In a list across projects (by date, the inbox, Festet, search
   // hits) the second line names the project; under a project's own head it names the branch.
   const code = () => thread.mode === "code";
@@ -258,7 +270,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
               </Show>
             </>}
           >
-            {/* v1.4.0: a Kode row is two lines. Top: the title, and the age (or Ferdig) at the right.
+            {/* v1.4.0: a Kode row is two lines. Top: the title, and the age (with a green check when finished) at the right.
                 Below: where it runs (the project's icon and name, or its branch), a linked pull
                 request, and the model's coloured mark at the right, under the age. */}
             <span class="thread-line">
@@ -269,9 +281,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
               <Show when={waitingCount(thread) > 0}>
                 <span class="badge" title={STATE_LABEL.waiting}><IconWarn size={11} />{waitingCount(thread)}</span>
               </Show>
-              <Show when={!isSnoozed(thread)}>
-                <Show when={done()} fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}><span class="thread-time thread-done" title={t("Ferdig, og du har ikke sett svaret")}>{t("Ferdig")}</span></Show>
-              </Show>
+              <Show when={!isSnoozed(thread)}>{when()}</Show>
             </span>
             <span class="thread-meta" data-testid="thread-meta">
               <span class="thread-where" title={whereTitle()}>
@@ -302,7 +312,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
       <span class="thread-actions">
       <Show
         when={isSnoozed(thread)}
-        fallback={<Show when={!code()}><Show when={done()} fallback={<span class="thread-time">{relativeTime(thread.updatedAt)}</span>}><span class="thread-time thread-done" title={t("Ferdig, og du har ikke sett svaret")}>{t("Ferdig")}</span></Show></Show>}
+        fallback={<Show when={!code()}>{when()}</Show>}
       >
         <button type="button" class="thread-snooze" title={t("{snooze}. Trykk for å hente den tilbake.", { snooze: snoozeLabel(thread.snoozedUntil!) })} aria-label={t("{snooze}. Hent tilbake", { snooze: snoozeLabel(thread.snoozedUntil!) })} onClick={() => setSnoozed(thread, null)}>
           <IconSnooze size={13} />
@@ -1126,6 +1136,8 @@ export function Sidebar() {
   const startResize = (event: PointerEvent) => {
     const handle = event.currentTarget as HTMLElement;
     handle.setPointerCapture(event.pointerId);
+    // v1.4.1: no thread card pops up while the edge is dragged over the rows.
+    suppressHoverCards(true);
     const move = (e: PointerEvent) => {
       resizeTarget = Math.min(Math.max(e.clientX, 220), 460);
       onNextFrame(applyWidth);
@@ -1133,9 +1145,12 @@ export function Sidebar() {
     const end = () => {
       handle.removeEventListener("pointermove", move);
       handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      suppressHoverCards(false);
     };
     handle.addEventListener("pointermove", move, { passive: true });
     handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
   };
 
   return (
@@ -1323,7 +1338,7 @@ export function Sidebar() {
         </button>
         <GitHubNavigation afterPick={afterPick} />
       </div>
-      <div class="sidebar-resize" title={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)} />
+      <div class="sidebar-resize" aria-label={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)} />
     </aside>
   );
 }

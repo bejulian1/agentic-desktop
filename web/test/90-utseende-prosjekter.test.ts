@@ -525,16 +525,22 @@ flow("sidefanen og tråddetaljer: gren og modell under tittelen, Ferdig, og kort
   await meta.locator('svg[data-provider="demo"]').waitFor();
   await meta.locator(".thread-branch").getByText("trunk").waitFor();
   assert.match((await meta.locator(".thread-provider").getAttribute("title")) ?? "", /Demo/);
-  assert.equal(await row.locator(".thread-done").count(), 0);
-  // Ferdig i grønt der tiden stod, når svaret ikke er sett ennå.
-  await page.keyboard.press("Control+Shift+U");
-  const done = row.locator(".thread-done");
-  await done.waitFor();
-  assert.equal(await done.textContent(), "Ferdig");
-  assert.equal(await row.locator(".thread-time:not(.thread-done)").count(), 0);
-  await page.keyboard.press("Control+Shift+U");
-  await done.waitFor({ state: "detached" });
+  // v1.4.1: a finished thread has a green check before its age, and the age stays.
+  const check = row.locator(".thread-done");
+  await check.waitFor();
+  assert.equal(await check.getAttribute("aria-label"), "Ferdig");
+  const ok = await check.evaluate((el) => { const probe = document.createElement("span"); probe.style.color = "var(--ok)"; el.parentElement!.append(probe); const color = getComputedStyle(probe).color; probe.remove(); return color; });
+  assert.equal(await check.evaluate((el) => getComputedStyle(el).color), ok, "grønn hake");
   await row.locator(".thread-time").waitFor();
+  // Not seen yet: the same check, named for it.
+  await page.keyboard.press("Control+Shift+U");
+  const unseen = row.locator(".thread-done[data-unseen]");
+  await unseen.waitFor();
+  assert.equal(await unseen.getAttribute("aria-label"), "Ferdig, og du har ikke sett svaret");
+  assert.equal(await row.locator(".thread-time").count(), 1);
+  await page.keyboard.press("Control+Shift+U");
+  await unseen.waitFor({ state: "detached" });
+  await check.waitFor();
   // Hover-kortet: gren og modell.
   await row.hover();
   const card = page.getByTestId("hover-card-thread");

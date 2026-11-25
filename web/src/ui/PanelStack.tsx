@@ -287,7 +287,7 @@ export function PanelStack(props: { projectId: string | null; threadId: () => st
                 tabindex="0"
                 aria-orientation={divider().kind === "col" ? "vertical" : "horizontal"}
                 aria-label={divider().kind === "col" ? t("Skille mellom kolonner") : t("Skille mellom paneler")}
-                title={t("Dra for å endre størrelsen. Dobbeltklikk deler plassen likt.")}
+                aria-description={t("Dra for å endre størrelsen. Dobbeltklikk deler plassen likt.")}
                 data-testid={`stack-divider-${divider().key}`}
                 style={divider().kind === "col"
                   ? { left: pct(divider().x), top: "0", height: "100%" }

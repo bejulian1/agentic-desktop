@@ -223,7 +223,7 @@ export default function ArtifactPanel() {
 
   return (
     <aside class="artifact-panel" ref={root} aria-label={t("Artifact: {title}", { title: artifactDisplayTitle(doc()) })} data-testid="artifact-panel" data-lang={doc().lang} data-tab={tab()}>
-      <div class="panel-resize" title={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setArtifactWidth(Math.round(Math.min(Math.max(innerWidth * 0.44, 420), 760)), true)} />
+      <div class="panel-resize" aria-label={t("Dra for å endre bredden. Dobbeltklikk for standard.")} onPointerDown={startResize} onDblClick={() => setArtifactWidth(Math.round(Math.min(Math.max(innerWidth * 0.44, 420), 760)), true)} />
       <header class="artifact-panel-head">
         <span class="artifact-panel-icon" aria-hidden="true">{kindIcon(doc().lang)}</span>
         <div class="artifact-panel-heading">

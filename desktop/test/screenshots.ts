@@ -46,7 +46,7 @@ for (const dark of [false, true]) {
     const kode = page.locator(".sidebar .mode-button", { hasText: "Kode" });
     if ((await kode.count()) && (await kode.getAttribute("aria-pressed")) !== "true") await kode.click();
     await page.locator('.group[data-project="nettside"] .group-title').first().click();
-    await page.waitForSelector(".project-label");
+    await page.locator('[data-testid="topbar-crumb"], [data-testid="topbar-thread-crumb"]', { hasText: "nettside" }).first().waitFor();
     await page.mouse.move(700, 500);
     const theme = dark ? "mork" : "lys";
     await shoot(running, `vindu-${theme}.png`);

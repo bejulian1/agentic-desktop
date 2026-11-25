@@ -1,7 +1,7 @@
 /* Round 12, part A (SPEC 26.1): a project whose folder is gone. The message field is locked and
    the project picker shows the project dimmed. Only opacity changes. */
 
-.composer.locked { background: var(--surface-2); border-color: var(--border); box-shadow: none; }
+.composer.locked { background: var(--composer-bg); border-color: var(--composer-border); box-shadow: none; }
 .composer.locked textarea { cursor: not-allowed; }
 .composer.locked textarea::placeholder { color: var(--text-3); opacity: 1; }
 .composer.locked .composer-foot > *:not(.send-button) { opacity: 0.55; }

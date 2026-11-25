@@ -227,13 +227,17 @@ code.md-file-chip[data-file-path]:hover { background: color-mix(in srgb, var(--e
 @media (max-width: 720px) { .projects-name .input { width: 100%; } .projects-scope { flex-wrap: wrap; } }
 
 /* 8. Rows of Kode threads in the sidebar: under the title, the kind of model and the branch, and
-   «Ferdig» in green where the age would be when the answer has not been seen. */
+   (v1.4.1) a green check before the age when the thread is finished. */
 .thread-meta { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: var(--text-2xs); line-height: var(--leading-tight); color: var(--text-3); white-space: nowrap; }
 .thread-provider { display: inline-flex; flex: none; align-items: center; }
 .thread-branch { display: inline-flex; align-items: center; gap: 3px; min-width: 0; font-family: var(--font-mono); }
 .thread-branch .icon { flex: none; }
 .thread-branch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.thread-time.thread-done { color: var(--ok); font-weight: var(--weight-medium); }
+/* v1.4.1: a finished thread has a green check just before its age; it gives way with the age. */
+.thread-done { display: inline-flex; align-items: center; flex: none; margin-right: -4px; color: var(--ok); }
+.thread-line .thread-done { margin-left: auto; }
+.thread-line .thread-done + .thread-time { margin-left: 0; }
+.thread-item:hover .thread-done, .thread-item.menu-open .thread-done, .thread-item:focus-within .thread-done, .thread-item.pinned .thread-done { display: none; }
 .provider-glyph { flex: none; display: inline-block; }
 
 /* The hover card of a thread: branch, kind of model and a dot for the state. */

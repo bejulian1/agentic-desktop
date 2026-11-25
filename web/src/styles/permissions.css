@@ -1,13 +1,14 @@
 /* The project permission control belongs to the Kode prompt footer. The popup is portalled
    above its trigger to stay within the window in narrow or scrolling panes. */
 .composer-foot .permission-anchor { flex: none; min-width: 0; }
+/* v1.4.1: a flat ghost at rest; only hover and the open menu tint it. */
 .composer-foot .foot-chip.permission-chip {
   width: auto; height: 27px; gap: 5px; padding-inline: 9px; border-radius: var(--radius-full);
-  background: var(--surface-3); color: var(--text-2); font-size: var(--text-sm);
+  background: transparent; border-color: transparent; color: var(--text-2); font-size: var(--text-sm);
 }
 .composer-foot .permission-chip span { display: inline; overflow: visible; text-overflow: clip; }
 .composer-foot .permission-chip .icon { flex: none; }
-.composer-foot .permission-chip:hover, .composer-foot .permission-chip[aria-expanded="true"] { background: var(--active); color: var(--text); }
+.composer-foot .permission-chip:hover, .composer-foot .permission-chip[aria-expanded="true"] { background: var(--hover); color: var(--text); }
 .composer-foot .permission-chip:disabled { opacity: .55; cursor: not-allowed; }
 .composer-foot .permission-chip[data-mode="full"], .composer-foot .permission-chip[data-mode="full"] .icon { color: var(--warn); }
 .permission-popover {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { approveUntil, flow, send, waitFor, openTool } from "./harness.ts";
+import { approveUntil, flow, PROJECT_CRUMB, send, waitFor, openTool } from "./harness.ts";
 
 flow("lag prosjekt, godkjenn, se filen og diffen, og angre turen", async (h) => {
   const { page } = h;
@@ -16,8 +16,7 @@ flow("lag prosjekt, godkjenn, se filen og diffen, og angre turen", async (h) => 
   await creation.getByText(h.projectDir, { exact: true }).waitFor();
   await creation.getByRole("button", { name: "Opprett prosjekt", exact: true }).click();
   await page.getByRole("dialog", { name: "Stoler du på denne mappen?", exact: true }).getByRole("button", { name: "Stol på mappen", exact: true }).click();
-  await page.waitForSelector(".project-label");
-  assert.match(await page.locator(".project-label").textContent() ?? "", new RegExp(path.basename(h.projectDir)));
+  await page.locator(PROJECT_CRUMB, { hasText: path.basename(h.projectDir) }).first().waitFor();
 
   await send(page, "lag en side");
   await page.getByRole("button", { name: "Tillat", exact: true }).first().waitFor();

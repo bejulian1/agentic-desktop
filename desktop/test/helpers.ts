@@ -226,7 +226,7 @@ export async function terminalWithChild(running: Running, seconds = 4242): Promi
   const kode = page.locator(".sidebar .mode-button", { hasText: "Kode" });
   if ((await kode.count()) && (await kode.getAttribute("aria-pressed")) !== "true") await kode.click();
   await page.locator('.group[data-project="Demo"] .group-title').first().click();
-  await page.waitForSelector(".project-label");
+  await page.locator('[data-testid="topbar-crumb"], [data-testid="topbar-thread-crumb"]', { hasText: "Demo" }).first().waitFor();
   const panel = page.locator(".right-panel");
   if (!(await panel.count())) await page.keyboard.press("Control+Shift+B");
   await panel.waitFor();

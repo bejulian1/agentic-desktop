@@ -3,7 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {writeFileSync,mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {flow,openProject,send,waitFor} from './harness.ts';
+import {flow,openProject,PROJECT_CRUMB,send,waitFor} from './harness.ts';
 flow('Grener og arbeidstrær fra prosjektmiljø: ekte grenbytte og nytt isolert prosjekt',async h=>{
  const {page}=h;assert.ok(h.projectDir.startsWith(tmpdir()+path.sep));
  const git=(...args:string[])=>execFileSync('git',['-c','core.hooksPath=/dev/null','-C',h.projectDir,...args],{env:{...process.env,HOME:h.home,XDG_CONFIG_HOME:h.home,GIT_CONFIG_NOSYSTEM:'1'},encoding:'utf8',stdio:['ignore','pipe','pipe']});
@@ -25,7 +25,7 @@ flow('Grener og arbeidstrær fra prosjektmiljø: ekte grenbytte og nytt isolert 
   await waitFor(async()=>Object.values((await h.api('GET','/api/bootstrap')).projects).length===2,'nytt prosjekt');
   const projects=(await h.api('GET','/api/bootstrap')).projects;assert.equal(projects.find((p:any)=>p.id===source.id).path,h.projectDir);
   assert.equal(readFileSync(path.join(parent,'med mellomrom','demo.txt'),'utf8'),'original\n');assert.equal(git('branch','--show-current').trim(),'main');
-  await waitFor(async()=>/feature\/arbeidstre/.test(await page.locator('.project-label').first().innerText()),'arbeidstre valgt i meldingsfeltet');
+  await waitFor(async()=>/feature\/arbeidstre/.test(await page.locator(PROJECT_CRUMB).first().innerText()),'arbeidstre valgt i meldingsfeltet');
  }finally{rmSync(parent,{recursive:true,force:true});}
 });
 flow('Profilmeny: søkbar full versjonslogg, lesbare detaljer og retur til bevart utkast',async h=>{
