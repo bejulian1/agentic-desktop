@@ -4,7 +4,7 @@ En agentisk kodeapp for Linux som bruker språkmodeller med **dine egne API-nøk
 
 Samtaler, prosjekter og innstillinger lagres lokalt. Modellkall går til API-leverandøren du velger, eller til en lokal modell. Du trenger ingen Agentic Desktop-konto, og appen har ingen telemetri. En demo-modell følger med for å prøve grensesnitt og verktøy uten API-nøkkel.
 
-Agentic Desktop er åpen kildekode under [MIT-lisensen](LICENSE). Gjeldende utgave er **v1.3.1 (bygg 85)**.
+Agentic Desktop er åpen kildekode under [MIT-lisensen](LICENSE). Gjeldende utgave er **v1.4.0 (bygg 86)**.
 
 [English README](README.md) · [Last ned siste utgave](https://github.com/bejulian1/agentic-desktop/releases/latest) · [Versjonslogg](docs/PATCHLOG.md) · [Bidragsytere](CREDITS.md)
 
@@ -18,7 +18,12 @@ Agentic Desktop er åpen kildekode under [MIT-lisensen](LICENSE). Gjeldende utga
 
 *Hovedbildene viser v0.21.0; detaljbildene viser v0.21.1/v0.22.0/v0.23.0/v0.24.0/v0.24.2/v0.26.0/v0.28.0. Alle bruker demo og midlertidige data.*
 
-## Nytt i v1.2.0 – v1.3.1
+## Nytt i v1.2.0 – v1.4.0
+
+- **Enkel (Kode-fokus) og tilpassbar arbeidsflate (v1.4.0).** Under **Innstillinger → Utseende → Arbeidsflate** kan du bytte mellom **Full** og **Enkel (Kode-fokus)** med ett klikk — eller skru av og på **Enkel topplinje**, **Knapper for flere ruter**, **Enkel sidefane** og **Enkelt meldingsfelt** hver for seg. Søk, varsler og `⋯` ligger i topplinjen over sidefanen i brede vinduer, og brødsmulestien viser `[ikon] Prosjekt / Tråd`.
+- **Justerbar terminalskuff nederst (v1.4.0).** Trykk **Ctrl+J** (**⌘J** på Mac) eller bruk knappen i topplinjen for en terminalskuff rett under meldingsfeltet med flere faner, dragbar høyde og økter som lever videre når skuffen skjules.
+- **Fargede og auto-hentede prosjektikoner + tolinjers Kode-rader (v1.4.0).** Prosjekter uten valgt farge får automatisk en fast palettfarge, og appen henter automatisk prosjektets eget ikon fra `index.html`, web-manifest, `package.json` (`build.icon`) og vanlige ikonmapper. Kode-rader i sidefanen viser tittel og alder øverst, og prosjektikon, gren/Lokal, tilknyttet `#N` PR-merke og farget modellikon rett under alderen nederst.
+- **Handlingsrettet tråd-innboks og `/grill-me`-skill (v1.4.0).** Under **Innstillinger → Utseende → Innboks og rydding** kan du velge mellom prosjektlister og prioritert **Innboks-liste**, skjule kjørende bakgrunnstråder i **Jobber**, slå på valgfri auto-arkivering ved inaktivitet eller når tilknyttet GitHub-PR lukkes/flettes, utsette med forhåndsvalg eller eget tidspunkt (`Ctrl+Alt+Z`, `/snooze`, `/settle`) og vekke utsatte tråder ved ny aktivitet. Inkluderer også den innebygde `/grill-me`-skillen i både Chat og Kode.
 
 - **Tillatelser som huskes.** «Tillat alltid» på enkle kommandoer (`git status`, `npm test`, `npx tsc` …) lagrer en prefiksregel. Kjeder, pipes, omdirigeringer og risikable programmer krever fortsatt nøyaktig treff, og beskyttede stier spør alltid. Én regel dekker alle `browser_*`-verktøy. **Innstillinger → Tillatelser** viser lagrede regler og har **Bruk på alle prosjekter** for standardmodusen.
 - **Utseende og Typografi.** 11 fargetemaer med lys og mørk variant, kontrollert mot WCAG AA: Standard, Ocean, Rosa, Skog, Glød, Iris, Høy kontrast, Varm, Kald, Fjord og Solbleket. **Innstillinger → Utseende** har System/Lys/Mørk-kort, kontrastglidebryter, samtalebredde, matte-bryter og **Typografi** med skriftvalg for grensesnitt og kode og live forhåndsvisning.
@@ -282,7 +287,8 @@ Velg så modellen i meldingsfeltet.
 - **Grener og arbeidstrær:** velg et Kode-prosjekt og åpne tannhjulet ved meldingsfeltet. `/worktree` åpner samme dialog. Repoet må ha en første commit. Appen gjør ingen automatisk stash, commit eller push.
 - **Oppstart og historikk:** appen starter med en tom samtale i valgt/sist brukte modus. Velg gjenopptaking under Generelt om du vil fortsette der du slapp. Profilmenyen har **Versjonslogg** med hele historikken.
 - **Oppsett:** `~/.config/agentic-desktop/` gjelder alle prosjekter, og `.agentic/` gjelder bare prosjektet. Begge kan ha `AGENTS.md`, `settings.json` og `skills/`.
-- **Snarveier** står i **Hjelp → Hurtigtaster** og kan endres. For eksempel gir Ctrl+J ny tråd, Ctrl+B skjuler sidefanen, og Alt+← og Alt+→ går tilbake og frem.
+- **Terminalfelt:** Ctrl+J (⌘J på Mac) viser eller skjuler terminalfeltet under meldingsfeltet i Kode. Dra i overkanten for å justere høyden. Fanene starter i prosjektmappen, arbeidstreet eller hjemmemappen på Denne datamaskinen. Skallene fortsetter å kjøre når du skjuler feltet.
+- **Snarveier** står i **Hjelp → Hurtigtaster** og kan endres. Ctrl+Alt+N åpner en ny tråd, Ctrl+B skjuler sidefanen, og Alt+← og Alt+→ går tilbake og frem.
 - **Lukker du vinduet**, legger appen seg i statusfeltet. Ctrl+Q avslutter.
 
 ## Versjoner og publisering
@@ -331,7 +337,7 @@ Prosjekteieren krediterer følgende modeller for AI-assistanse:
 
 - **Anthropic Claude Opus 5.5**, brukt med Claude Code til den opprinnelige implementeringen. Koordinerte 1.0.0 og 1.1.0, bygde PR #4 i v1.2.0 (prefiksregler, underagenter på samme API-leverandør, Base URL og Modell-ID, kontekstoverføring, innlimte bilder og automatisk `gh`), PR #7 og #8 i v1.3.0 (komplett Prosjekter-side, Handlinger, Typografi, fargede modellmerker og Mine på GitHub) og PR #9 i v1.3.1 (klikkbare fil- og trådlenker, merker på web-lenker og `$skill`-brikker), og en egen skrivebeskyttet `$review`- og `$frontend-design`-gjennomgang av v1.3.0 som ga rettelsene i v1.3.1. Oppdaterte også README-ene og CREDITS.md for v1.3.1.
 - **OpenAI GPT 6.1 Sol**, brukt med Codex og underagenter til videreutvikling, gjennomgang og feilretting, blant annet agentkommunikasjon og foreldrekjeder i v0.29.0.
-- **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til kommandoveiledningen, skills og kommandoer for samtaler og prosjektpaneler. Codex har også bidratt med diagrammer og gjennomgang av datamappelåsen, gjenkobling etter omskriving og åpning i standardnettleseren.
+- **OpenAI GPT 6.2 Sol og GPT 6.2 Astra**, brukt med Codex til kommandoveiledningen, skills og kommandoer for samtaler og prosjektpaneler. Codex har også bidratt med diagrammer og gjennomgang av datamappelåsen, gjenkobling etter omskriving og åpning i standardnettleseren. GPT 6.2 Sol bygde terminalfeltet i Kode.
 - **Anthropic Claude Fable 5.2**, brukt med Claude Code fra v0.24.1: glassbakgrunnen og valget mellom glass-stiler, MCP-servere og hooks (v0.25.0), ny harness, innebygde skills og Chat-personligheter (v0.26.0), bygget og kontrollert sammen med Claude Opus 5.5-underagenter, samt bygg og publisering.
 - **Anthropic Claude Sonnet 5.5** bygde PR #6 i v1.2.0: temaene Ocean, Rosa, Skog, Glød og Iris, kontrast-/breddeinnstillinger, egen Prosjekter-side i Innstillinger, monogram- og bildeikoner, utvidet favicon-søk, smarte lenke-/filbrikker, innebygd GitHub-detaljvisning i sidepanelet og flytende Tråddetaljer-meny.
 - **Google Gemini** bidro med første versjon av datamappelåsen, gjenkoblingsrettelsen og menyvalget for standardnettleseren; **Gemini 4 Neon** fullførte Kode Studio, bygde innstillingene for differ, nettleser, varsler og sidefane i v1.1.0, gjorde Ocean-temaet lysere og la inn fargede favicons i v1.2.1, og koordinerte v1.2.0–v1.3.1 i Google Antigravity med fletting av PR-ene, oversettelse til alle elleve språk, rettelser og designpolering etter gjennomgangen av v1.3.1, kontroll, bygg og utgivelse.

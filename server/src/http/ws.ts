@@ -11,7 +11,7 @@ const requestIdOf = (message: { requestId?: unknown }): string | undefined => ty
 import type { Store } from "../db.ts";
 import type { Terminals } from "../terminal.ts";
 import type { ClientMessage, Project, ServerMessage, ThreadEventEnvelope } from "../../../shared/protocol.ts";
-import { LOCAL_PANEL } from "../paths.ts";
+import { LOCAL_PANEL, localPanelProject } from "../paths.ts";
 import { ProjectWatches } from "../project-watch.ts";
 import type { Security } from "./security.ts";
 
@@ -206,6 +206,10 @@ export class Hub {
         return;
       case "terminal.open":
         return terminals.open(client, local ? this.localProject() : store.project(message.projectId)!, message);
+      case "terminal.attach":
+        return terminals.attachDrawer(client, message);
+      case "terminal.detach":
+        return terminals.detach(client, message.terminalId);
       case "terminal.input":
         return terminals.input(message.terminalId, String(message.data));
       case "terminal.resize":
@@ -264,10 +268,4 @@ export class Hub {
     for (const client of this.clients) client.ws.terminate();
     this.wss.close();
   }
-}
-
-// Denne datamaskinen for the terminal and the Browser panel. The same mode as the agent there
-// (Runner.localProject): the shared default, never a fixed "ask".
-export function localPanelProject(folder: string, store: Pick<Store, "settings">): Project {
-  return { id: LOCAL_PANEL, name: "Denne datamaskinen", path: folder, permissionMode: store.settings().defaultPermissionMode ?? "ask", createdAt: 0, lastUsedAt: 0, color: null, icon: null, defaultModelId: null, pinned: false };
 }

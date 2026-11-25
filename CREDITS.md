@@ -58,6 +58,8 @@ Codex implementerte minneforslag, oppfølging av prosjektkontroller og målrette
 
 Codex med GPT 6.2 Sol implementerte trådinnboksen, automatisk ferdigstilling, utsettelsesvalgene og `/grill-me` for Chat og Kode, med isolerte server- og grensesnittester.
 
+Codex med GPT 6.2 Sol implementerte det justerbare terminalfeltet under meldingsfeltet i Kode, med flere faner, snarvei og isolerte grensesnittester.
+
 ## Gemini – Google
 
 Gemini bidro med den første implementeringen av reservasjon av datamappen, gjenkobling etter omskriving og åpning i standardnettleseren. Codex med GPT 6.2 Sol gjennomgikk og integrerte endringene, rettet oppstarts- og gjenkoblingskappløp og la til regresjonstester.
@@ -78,6 +80,12 @@ Katalogene for de elleve språkene ble oversatt av underagenter, hvert språk le
 To Gemini 4 Neon-underagenter ble satt på tysk, nederlandsk, fransk og italiensk, men stoppet på kvotegrensen før de hadde levert noe, så det arbeidet ble gjort på nytt av Fable 5.2. GPT 6.2 Astra flettet de fire konverteringsgruppene og oversettelsene, ryddet tekst ingen gruppe eide og la inn den strenge oversettelsessjekken i CI.
 
 **Claude Opus 5.5** koordinerte 1.0.0 i Claude Code: fordelte arbeidet på issues, pull requests og oversettelser mellom underagentene, gjennomgikk og flettet resultatene, rettet en testfeil etter flettingen, og sto for versjonsloggen, bygg, utgivelse, overgangen til åpen kildekode og installasjonen.
+
+## 1.4.0
+
+- **GPT 6.2 Sol (Codex):** Implementerte grunnlaget for handlingsrettet tråd-innboks og `/grill-me`-skillen (PR #11) samt den sammenleggbare, justerbare terminalskuffen nederst under meldingsfeltet (`feat/bottom-terminal-drawer`, med `Ctrl+J`, flere faner, arbeidsmappe/arbeidstre-oppslag og oversettelser på alle 11 språk).
+- **Claude Opus 5.5 (Claude Code):** Gjennomførte en grundig skrivebeskyttet kode- og designgjennomgang av PR #11 (avdekket bl.a. manglende `updated_at`-oppdatering ved gjenoppretting, utløpt utsettelse mot auto-arkivering, standard sidefane-oppførsel, beskyttelse av åpne/festede tråder og CSS-avkutting), og bygde PR #12: automatisk fargede og auto-hentede prosjektikoner (`index.html`, manifest, `package.json`, `.webp`), tolinjers Kode-trådrader med leverandørikon under alder, flytting av søk/varsler/`⋯` opp i topplinjen, brødsmulesti (`Prosjekt / Tråd`) og **Arbeidsflate: Full / Enkel (Kode-fokus)** med individuelle brytere og alle 11 språk.
+- **Gemini 4 Neon (Google, koordinator i Antigravity):** Koordinerte utgivelsen, rettet alle funnene fra Opus 5.5 sin gjennomgang av PR #11 med regresjonstester og oversettelser på alle 11 språk, hentet og ferdigkontrollerte terminalskuffen og koblet den inn i både Full og Enkel topplinje, og sto for sluttkontroll, versjonslogg, bygg, GitHub Release og lokal installasjon.
 
 ## Dokumentasjon etter 1.3.1
 

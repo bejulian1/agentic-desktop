@@ -65,8 +65,7 @@ import { MOCK_MODEL_ID, MOCK_PROVIDER_ID, type Store, type ThreadPatch } from ".
 import { HttpError } from "../errors.ts";
 import { fuzzyScore, listAllFiles, listDir, readFileContent } from "../files.ts";
 import { listLocalDir, readLocalFile } from "../local-files.ts";
-import { localFolder } from "../paths.ts";
-import { assertOutsideDataDir, guardPath, guardProjectRoot, LOCAL_PANEL, PathError, realDeepest } from "../paths.ts";
+import { assertOutsideDataDir, guardPath, guardProjectRoot, LOCAL_PANEL, localFolder, localPanelProject, PathError, realDeepest } from "../paths.ts";
 import type { Playtest } from "../playtest.ts";
 import { apiKeyFor, createProvider } from "../providers/index.ts";
 import { testProviderModel } from "../providers/local.ts";
@@ -752,14 +751,26 @@ export class Api {
     });
 
     // Round 9: "local" is the terminal on Denne datamaskinen, opened from a start page (SPEC 21.9).
-    this.route("GET", "/api/projects/:id/terminals", ({ params }) => terminals.list(params.id === LOCAL_PANEL ? LOCAL_PANEL : this.project(params.id).id));
+    const terminalProject = (id: string) => id === LOCAL_PANEL
+      ? localPanelProject(localFolder(dataDir, this.deps.homeDir), store)
+      : this.project(id);
+    this.route("GET", "/api/projects/:id/terminals", ({ params, query }) =>
+      terminals.list(params.id === LOCAL_PANEL ? LOCAL_PANEL : this.project(params.id).id, query.get("surface") === "panel" ? "panel" : undefined));
+    this.route("GET", "/api/projects/:id/terminal-drawer", ({ params }) =>
+      terminals.listDrawer(params.id === LOCAL_PANEL ? LOCAL_PANEL : this.project(params.id).id));
+    this.route("POST", "/api/projects/:id/terminal-drawer", ({ params, query }) => {
+      const existing = query.get("ensure") === "1" ? terminals.listDrawer(params.id).at(-1) : undefined;
+      return existing ?? terminals.openDrawer(terminalProject(params.id));
+    });
+    this.route("DELETE", "/api/projects/:id/terminal-drawer/:terminalId", async ({ params }) => {
+      await terminals.closeDrawer(params.id, params.terminalId);
+      return { ok: true };
+    });
     // v1.3.0: run one of the project's actions (or Denne datamaskinen's) in a new terminal tab.
     // Only a stored action runs: the request names it, never the command.
     this.route("POST", "/api/projects/:id/actions/:actionId/run", ({ params }) => {
       const local = params.id === LOCAL_PANEL;
-      const target: Project = local
-        ? { id: LOCAL_PANEL, name: "Denne datamaskinen", path: localFolder(dataDir, this.deps.homeDir), permissionMode: store.settings().defaultPermissionMode ?? "ask", createdAt: 0, lastUsedAt: 0, color: null, icon: null, defaultModelId: null, pinned: false }
-        : this.project(params.id);
+      const target = terminalProject(params.id);
       const action = (local ? store.settings().localActions ?? [] : target.actions ?? []).find((a) => a.id === params.actionId);
       if (!action) throw new HttpError(404, "Fant ikke handlingen");
       if (target.folderMissing) throw new HttpError(409, `Fant ikke mappen ${target.path}`);
@@ -1511,7 +1522,7 @@ export class Api {
 }
 
 const EFFORTS: ReasoningEffort[] = ["none", "low", "medium", "high", "xhigh", "max"];
-const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "thread.search", "pane.new", "folder.open", "settings.open", "view.sidebar", "view.panel", "view.summary", "view.details", "view.mode", "help.shortcuts",
+const SHORTCUT_IDS = new Set(["thread.new", "thread.back", "thread.forward", "thread.search", "pane.new", "folder.open", "settings.open", "view.sidebar", "view.panel", "view.terminalDrawer", "view.summary", "view.details", "view.mode", "help.shortcuts",
   "palette.open", "thread.rename", "thread.pin", "thread.unread", "thread.side", "thread.archive", "thread.snooze",
   "panel.files", "panel.changes", "panel.terminal", "panel.browser", "panel.team", "panel.overview",
   "browser.annotate", // round 11b

@@ -11,6 +11,7 @@ import { get } from "../lib/api";
 import { isDark } from "../lib/theme";
 import { terminalColors } from "../state/themes";
 import { observeResize } from "../lib/resize";
+import { terminalFont } from "../lib/terminal-font";
 import { on, onOpen, send } from "../lib/socket";
 import { app, LOCAL_SCOPE, mode, report, scope, scopeOf, toast, untitled } from "../state/app";
 import { gridFor } from "../state/grid";
@@ -20,6 +21,8 @@ import { openLink } from "../lib/links";
 import { IconClose } from "../ui/icons";
 import { closePanelTool, showPanel } from "../state/panel";
 import { publishPanelSessions, releasePanelSessions, takeTerminalRequest, terminalRequest } from "../state/panel-sessions";
+import { matchShortcut } from "../state/shortcuts";
+import { terminalDrawerAvailable } from "../state/terminal-drawer";
 
 interface Tab {
   terminalId: string;
@@ -30,13 +33,6 @@ interface Tab {
 // Colours from the theme's tokens, the program colours too (state/themes.ts, round 8).
 function terminalTheme() {
   return terminalColors(isDark());
-}
-
-// The code font and size from Innstillinger (state/look.ts puts them on <html>).
-function terminalFont(): { fontFamily: string; fontSize: number } {
-  const css = getComputedStyle(document.documentElement);
-  const size = parseFloat(css.getPropertyValue("--code-font-size"));
-  return { fontFamily: css.getPropertyValue("--font-mono").trim() || "monospace", fontSize: size > 0 ? size : 13 };
 }
 
 const tabMemory = new Map<string, string>();
@@ -56,6 +52,7 @@ function View(props: { projectId: string; tab: Tab }) {
   });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
+  terminal.attachCustomKeyEventHandler((event) => !terminalDrawerAvailable() || matchShortcut(event) !== "view.terminalDrawer");
   const { terminalId } = props.tab;
 
   const attach = () => {
@@ -230,7 +227,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
 
   const load = async () => {
     try {
-      const list = await get<Tab[]>(`/api/projects/${props.projectId}/terminals`);
+      const list = await get<Tab[]>(`/api/projects/${props.projectId}/terminals?surface=panel`);
       if (!alive) return;
       setTabs(list);
       const remembered = tabMemory.get(props.projectId);
@@ -246,7 +243,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
   onMount(() => {
     const stops = [
       on("terminal.opened", (message) => {
-        if (message.projectId !== props.projectId) return;
+        if (message.projectId !== props.projectId || message.surface === "drawer") return;
         if (!tabs().some((t) => t.terminalId === message.terminalId)) {
           setTabs([...tabs(), { terminalId: message.terminalId, title: message.title, exited: false }]);
           select(message.terminalId);
@@ -256,7 +253,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
       // v1.3.0: a project action runs in its own tab, started on the server.
       on("terminal.started", (message) => {
         if (message.projectId !== props.projectId) return;
-        get<Tab[]>(`/api/projects/${props.projectId}/terminals`).then((list) => {
+        get<Tab[]>(`/api/projects/${props.projectId}/terminals?surface=panel`).then((list) => {
           if (!alive) return;
           setTabs(list);
           if (list.some((t) => t.terminalId === message.terminalId)) select(message.terminalId);
@@ -266,7 +263,7 @@ export default function TerminalPanel(props: { projectId: string; place?: string
       on("playtest.state", ({ state }) => {
         if (state.projectId !== props.projectId || !state.terminalId) return;
         const id = state.terminalId;
-        get<Tab[]>(`/api/projects/${props.projectId}/terminals`).then((list) => {
+        get<Tab[]>(`/api/projects/${props.projectId}/terminals?surface=panel`).then((list) => {
           if (!alive) return;
           setTabs(list);
           if (list.some((t) => t.terminalId === id)) select(id);

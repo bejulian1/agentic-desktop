@@ -43,6 +43,7 @@ import { skillsOpen } from "../state/skills-workspace";
 import { ModeSwitch } from "./ModeSwitch";
 import { PinnedSummary } from "./PinnedSummary";
 import { ThreadDetailsButton } from "./ThreadDetails";
+import { TerminalDrawerButton } from "./TerminalDrawer";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { paneTools } from "./Pane";
 import { PANEL_TOOLS, needsProjectTip, shownTool, toggleTool, toolBlocked, toolById, toolOpen, toolTitle } from "./panel-tools";
@@ -498,6 +499,7 @@ export function TopBar() {
         <span class="topbar-divider" aria-hidden="true" />
         {/* v1.2.0: Tråddetaljer, a small card under its button (Kode). It does not open the panel. */}
         <ThreadDetailsButton />
+        <TerminalDrawerButton />
         <PanelButtons />
         {/* The window controls of the Electron version (minimise, maximise, close), right of the panel
             buttons. Empty and without width in a browser (WindowControls.tsx). */}
@@ -519,7 +521,7 @@ function MinimalRight() {
         <span class="topbar-divider" aria-hidden="true" />
       </Show>
       <ThreadDetailsButton />
-      {/* Bottom terminal drawer toggle */}
+      <TerminalDrawerButton />
       <Show when={code()}><PanelToggle /></Show>
       <WindowControls />
     </div>

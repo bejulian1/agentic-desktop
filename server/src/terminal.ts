@@ -1,8 +1,9 @@
 // Real PTYs that outlive the panel and the page: output is kept for replay, and any number of
 // windows can attach to the same terminal.
 import { randomUUID } from "node:crypto";
+import { basename } from "node:path";
 import pty, { type IPty } from "node-pty";
-import type { Project, ServerMessage } from "../../shared/protocol.ts";
+import type { DrawerTerminal, Project, ServerMessage } from "../../shared/protocol.ts";
 
 const REPLAY_CHARS = 256 * 1024;
 const FLUSH_MS = 4;
@@ -18,6 +19,7 @@ interface Terminal {
   id: string;
   projectId: string;
   title: string;
+  drawer?: { shell: string; cwd: string };
   pty: IPty;
   replay: string;
   pending: string;
@@ -30,6 +32,7 @@ interface Terminal {
   outputListeners: Set<(text: string) => void>;
   startedAt: number;
   exitedAt: number | null;
+  closing?: Promise<void>;
 }
 
 export class Terminals {
@@ -42,10 +45,38 @@ export class Terminals {
     this.env = env;
   }
 
-  list(projectId: string): Array<{ terminalId: string; title: string; exited: boolean }> {
+  list(projectId: string, surface?: "panel"): Array<{ terminalId: string; title: string; exited: boolean }> {
     return [...this.terminals.values()]
-      .filter((t) => t.projectId === projectId)
+      .filter((t) => t.projectId === projectId && (surface !== "panel" || !t.drawer))
       .map((t) => ({ terminalId: t.id, title: t.title, exited: t.exited }));
+  }
+
+  listDrawer(projectId: string): DrawerTerminal[] {
+    return [...this.terminals.values()].flatMap((t) =>
+      t.projectId === projectId && t.drawer && !t.closing
+        ? [{ terminalId: t.id, ...t.drawer, exited: t.exited }]
+        : []);
+  }
+
+  openDrawer(project: Project): DrawerTerminal {
+    const file = process.env.SHELL || "/bin/bash";
+    const drawer = { shell: basename(file), cwd: project.path };
+    const terminal = this.spawn(project, { title: drawer.shell, file, args: [], cols: 80, rows: 24, drawer });
+    return { terminalId: terminal.id, ...drawer, exited: terminal.exited };
+  }
+
+  attachDrawer(client: TerminalClient, options: { projectId: string; terminalId: string; cols: number; rows: number }): void {
+    const terminal = this.terminals.get(options.terminalId);
+    if (!terminal?.drawer || terminal.projectId !== options.projectId || terminal.closing) {
+      client.send({ type: "terminal.closed", terminalId: options.terminalId });
+      return;
+    }
+    this.attach(client, terminal, options.cols, options.rows);
+  }
+
+  closeDrawer(projectId: string, terminalId: string): Promise<void> | undefined {
+    const terminal = this.terminals.get(terminalId);
+    if (terminal?.drawer && terminal.projectId === projectId) return this.close(terminalId);
   }
 
   // Round 12 (SPEC 26.2): the same, with when each started and ended, for Økt.
@@ -58,7 +89,7 @@ export class Terminals {
   // Attaches to an existing terminal, or starts a new shell in the project folder.
   open(client: TerminalClient, project: Project, options: { terminalId?: string; cols: number; rows: number }): void {
     const existing = options.terminalId ? this.terminals.get(options.terminalId) : undefined;
-    const terminal = existing?.projectId === project.id
+    const terminal = existing?.projectId === project.id && !existing.drawer
       ? existing
       : this.spawn(project, { title: "Terminal", file: process.env.SHELL || "/bin/bash", args: [], cols: options.cols, rows: options.rows });
     this.attach(client, terminal, options.cols, options.rows);
@@ -68,7 +99,7 @@ export class Terminals {
     this.flush(terminal);
     terminal.clients.add(client);
     if (!terminal.exited) terminal.pty.resize(clamp(cols, 2, 500), clamp(rows, 1, 300));
-    client.send({ type: "terminal.opened", terminalId: terminal.id, projectId: terminal.projectId, title: terminal.title, replay: terminal.replay });
+    client.send({ type: "terminal.opened", terminalId: terminal.id, projectId: terminal.projectId, title: terminal.title, replay: terminal.replay, ...(terminal.drawer ? { surface: "drawer" as const } : {}) });
     if (terminal.exited) client.send({ type: "terminal.exit", terminalId: terminal.id, code: terminal.exitCode });
   }
 
@@ -100,7 +131,7 @@ export class Terminals {
     return this.terminals.get(terminalId)?.exited ?? true;
   }
 
-  private spawn(project: Project, options: { title: string; file: string; args: string[]; cols: number; rows: number; extraEnv?: Record<string, string> }): Terminal {
+  private spawn(project: Project, options: { title: string; file: string; args: string[]; cols: number; rows: number; extraEnv?: Record<string, string>; drawer?: Terminal["drawer"] }): Terminal {
     if (this.terminals.size >= MAX_TERMINALS) throw new Error("For mange åpne terminaler");
     const child = pty.spawn(options.file, options.args, {
       name: "xterm-256color",
@@ -113,6 +144,7 @@ export class Terminals {
       id: randomUUID(),
       projectId: project.id,
       title: options.title,
+      drawer: options.drawer,
       pty: child,
       replay: "",
       pending: "",
@@ -183,9 +215,17 @@ export class Terminals {
   async close(terminalId: string): Promise<void> {
     const terminal = this.terminals.get(terminalId);
     if (!terminal) return;
+    return terminal.closing ??= this.finishClose(terminal);
+  }
+
+  private async finishClose(terminal: Terminal): Promise<void> {
     await stopProcess(terminal);
     this.flush(terminal);
-    this.terminals.delete(terminalId);
+    this.terminals.delete(terminal.id);
+    if (terminal.drawer) {
+      for (const client of terminal.clients) client.send({ type: "terminal.closed", terminalId: terminal.id });
+    }
+    terminal.clients.clear();
   }
 
   // Round 12 (SPEC 26.2): Stopp in Økt ends the process; the tab stays, with its output, as ended.
@@ -194,7 +234,11 @@ export class Terminals {
     if (terminal) await stopProcess(terminal);
   }
 
-  detach(client: TerminalClient): void {
+  detach(client: TerminalClient, terminalId?: string): void {
+    if (terminalId !== undefined) {
+      this.terminals.get(terminalId)?.clients.delete(client);
+      return;
+    }
     for (const terminal of this.terminals.values()) terminal.clients.delete(client);
   }
 

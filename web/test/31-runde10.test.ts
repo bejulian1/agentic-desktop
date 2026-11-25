@@ -409,7 +409,7 @@ flow("skjult sidefane som en tynn ikonrad: rekkefølge, markering, tips, valget 
   await rail.getByRole("button", { name: "Ny tråd" }).hover();
   const tip = page.locator(".app-tooltip.visible");
   await tip.getByText("Ny tråd").waitFor();
-  await tip.locator("kbd", { hasText: "Ctrl+J" }).waitFor();
+  await tip.locator("kbd", { hasText: "Ctrl+Alt+N" }).waitFor();
   // Chat: no projects in the row.
   await rail.getByRole("button", { name: "Chat" }).click();
   await rail.getByRole("button", { name: "Chat", pressed: true }).waitFor();

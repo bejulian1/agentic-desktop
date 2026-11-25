@@ -4,6 +4,36 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.4.0: Enkel Kode-fokus, justerbar terminalskuff nederst, fargede prosjektikoner, tolinjers Kode-rader, tråd-innboks og `/grill-me` (25. november 2026, bygg 86)
+
+En stor arbeidsflate- og ergonomi-oppdatering som gjør det mulig å kjøre appen enten like innholdsrik som før (**Full**) eller i en stram, rolig **Enkel (Kode-fokus)**-stil, uten å forke komponenter — alt styres med brytere i Innstillinger:
+
+**Arbeidsflate, topplinje og meldingsfelt (PR #12)**
+
+- **Innstillinger → Utseende → Arbeidsflate:** Velg med ett klikk mellom **Full** (standard, alt som før) og **Enkel (Kode-fokus)**, eller tilpass hver del enkeltvis (**Enkel topplinje**, **Knapper for flere ruter**, **Enkel sidefane**, **Enkelt meldingsfelt**).
+- **Renere sidefane-topp:** Søk, varsler og `⋯` er flyttet opp i topplinjen over sidefanen i brede vinduer (ingen ekstra «Agentic Desktop»-rad), mens smale vinduer beholder raden i overlegget. I **Enkel sidefane** skjules modusvelgeren (`Chat | Kode | Studio`) og `Ny tråd`/`Artifacts`/`Skills`-radene til fordel for én kompakt søke- og opprettelsesrad over prosjektlisten.
+- **Brødsmulesti og Enkel topplinje:** Topplinjen viser nå `[prosjektikon] Prosjektnavn / Trådnavn` før tittelen. I **Enkel topplinje** viser høyresiden bare **Tråddetaljer**, **Terminalskuff nederst**, **Sidepanel** og vindusknappene (pluss valgfritt knapper for flere ruter).
+- **Enkelt meldingsfelt:** Skjuler den ekstra prosjekt-/miljølinjen over meldingsfeltet så snart tråden har startet, for en renere inndataflate.
+
+**Fargede prosjektikoner og tolinjers Kode-rader (PR #12)**
+
+- **Fargede prosjektikoner som standard:** Prosjekter uten manuelt valgt farge får automatisk en fast farge fra paletten (aldri grå) basert på prosjekt-ID, mens brukervalgt farge (også grå) alltid vinner.
+- **Automatisk henting av app-/prosjektikon:** `findFavicon()` leser nå også `<link rel="icon">` fra `index.html`/`web/index.html`/`public/index.html`, web-manifester og `build.icon` i `package.json`, samt flere mappenavn (`desktop/icons`, `src-tauri/icons`, `icons`, `assets/icons`, `web/dist` m.fl.) og `.webp`/app-ikon-filnavn — fortsatt trygt avgrenset til prosjektmappen (maks 256 KB, ingen symlenker ut).
+- **Tolinjers Kode-tråder i sidefanen:** Rad 1 viser statusprikk, tittel og alder/grønn «Ferdig» til høyre; rad 2 viser prosjektikon, gren/Lokal (eller prosjektnavn i lister på tvers), eventuelt tilknyttet `#N` PR-merke, og det fargede leverandør-/modellikonet rett under alderen til høyre — uten hopp ved hover.
+
+**Justerbar terminalskuff nederst (`Ctrl+J`)**
+
+- **Egen terminalskuff under meldingsfeltet:** Åpnes og skjules med knappen i topplinjen (både i Full og Enkel topplinje), kommandopaletten eller `Ctrl+J` (`⌘J` på Mac).
+- **Flere faner, størrelsesjustering og levende økter:** Dra overkanten for å endre høyde (dobbeltklikk for standard), utvid/gjenopprett høyden, åpne flere terminalfaner med `+`, og skjul skuffen uten å drepe kjørende økter. Starter automatisk i aktivt prosjekt, aktivt arbeidstre eller hjemmemappen på Denne datamaskinen.
+
+**Handlingsrettet tråd-innboks og `/grill-me`-skill (PR #11)**
+
+- **Innstillinger → Utseende → Innboks og rydding:** Beholder dagens standardoppsett til du slår på ønskede funksjoner (eller velger hurtigvalget **Bruk innboks-oppsett** / **Tilbakestill til standard**):
+  - **Ferdigstilling (arkivering):** Manuell ferdigstilling (`/settle` med Angre, meny, `Ctrl+Shift+A`), valgfri **auto-ferdigstilling ved inaktivitet** (`Av`, 24 t, 3 d, 7 d, 14 d, 30 d — med bekreftelse, antall og samlet Angre-varsel) og valgfri **Ferdigstill når PR-en lukkes** (via tilknyttet GitHub-PR fra trådmenyen eller `/babysit pr`). Rører aldri festede, kjørende, ventende eller utsatte tråder, og gjenoppretting eller utløpt utsettelse forhindrer umiddelbar re-arkivering.
+  - **Utsettelse (Snoozing):** Hurtigvalg (`1 time`, `3 timer`, `I morgen kl. 09:00`, `Neste uke`), **Velg tidspunkt…** (`Ctrl+Alt+Z`), `/snooze`, **tidlig vekking ved ny aktivitet** (inkl. underagenter som trenger godkjenning/svar opp hele foreldrekjeden), og sammenleggbar **Utsatt**-seksjon i innboksmodus.
+  - **Skjuling og gruppering:** Valg mellom **Etter prosjekt** og flat **Innboks-liste**, og **Skjul tråder mens de jobber** (samler bakgrunnstråder i en sammenleggbar **Jobber**-seksjon mens åpne og festede tråder forblir synlige).
+- **Innebygd `/grill-me`-skill:** Fungerer i både Chat og Kode med `/` og `$` — stiller ett fokusert spørsmål om gangen (med anbefalt svar og kodebasesjekk først) for å avklare design- og planbeslutninger før bygging.
+
 ## 1.3.1: Klikkbare fil-, MD-, tråd- og web-lenker med fargede favicons, `$skill`-brikker og design-/kodegjennomgang (22. november 2026, bygg 85)
 
 Rike, klikkbare lenker med fargede favicons i både Chat og Kode (PR #9), fulgt opp med feilrettinger og designpolering etter uavhengig kode- og smakskritikk (`$review` + `$frontend-design`):
