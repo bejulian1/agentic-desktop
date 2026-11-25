@@ -1,5 +1,5 @@
-// Credentials from gh or the keyring are sent only to the GitHub API.
-// The repo comes from .git/config, read as a file: no git command is ever run.
+// Credentials from gh or the keyring stay on the server. Local GitHub discovery only reads
+// .git/config. Approved clones pass credentials to Git through a temporary askpass helper.
 //
 // AD_GITHUB_API points the client at another API address, for the tests and their local fake
 // server. Only a loopback address is accepted, so the variable can never send the token elsewhere.
@@ -12,6 +12,7 @@ import { sourceText } from "../../shared/i18n.ts";
 import { validPullReference } from "../../shared/linked-pr.ts";
 import type { GitHubCliStatus, GitHubErrorCode, GitHubItem, GitHubProject, GitHubRemote, GitHubStatus, PullWatchStatus, Settings } from "../../shared/protocol.ts";
 import { childEnv } from "./env.ts";
+import { cloneGitHub } from "./github-git.ts";
 import type { Secrets } from "./secrets.ts";
 
 export const GITHUB_SECRET = "integration:github";
@@ -22,6 +23,8 @@ const CACHE_MS = 60_000;
 const MAX_ITEMS = 30;
 const MAX_CONFIG = 64 * 1024;
 const MAX_RESPONSE = 4 * 1024 * 1024;
+const MAX_DIFF = 12_000;
+const MAX_LOG = 256 * 1024;
 const exec = promisify(execFile);
 
 async function gh(command: "status" | "token") {
@@ -195,6 +198,21 @@ interface Cached {
   at: number;
 }
 
+interface RequestOptions {
+  method?: "POST" | "PUT";
+  json?: string;
+  accept?: string;
+  redirect?: RequestRedirect;
+  signal?: AbortSignal;
+}
+
+export function redactGitHubText(text: string, token?: string): string {
+  const safe = token ? text.replaceAll(token, "[redacted]") : text;
+  return safe
+    .replace(/(?:github_pat_|gh[pousr]_)[A-Za-z0-9_]{16,}/g, "[redacted]")
+    .replace(/(https?:\/\/)[^/\s"'<>@]+@(?=(?:www\.)?github\.com(?:[/:\s"'<>]|$))/gi, "$1");
+}
+
 export class GitHub {
   private secrets: Secrets;
   private base: string;
@@ -291,6 +309,20 @@ export class GitHub {
     return this.status();
   }
 
+  agentStatus(): GitHubStatus {
+    const status = this.status();
+    const login = status.login && this.redactForAgent(status.login);
+    return { connected: status.connected, ...(login && /^[\w-]{1,39}(?:\[bot\])?$/.test(login) ? { login } : {}) };
+  }
+
+  redactForAgent(text: string): string {
+    return redactGitHubText(text, this.secrets.get(GITHUB_SECRET));
+  }
+
+  get agentCredentialRevision(): number {
+    return this.revision;
+  }
+
   connect(token: unknown): Promise<GitHubStatus> {
     return this.change(() => this.connectToken(token));
   }
@@ -354,6 +386,86 @@ export class GitHub {
       get: (route: string) => this.cached(route, token, refresh),
       query: (query: string) => this.cached("/graphql", token, refresh, JSON.stringify({ query })),
     };
+  }
+
+  async agentClient(signal: AbortSignal, allowed: () => boolean) {
+    const revision = this.revision;
+    const ready = () => {
+      signal.throwIfAborted();
+      if (revision !== this.revision || !allowed()) throw new GitHubError("not-connected", "The GitHub connection changed. Retry the tool call.", 409);
+    };
+    ready();
+    const token = await this.token();
+    if (!token) throw new GitHubError("not-connected", NOT_CONNECTED, 409);
+    ready();
+    const redact = (text: string) => redactGitHubText(text, token);
+    const json = async (route: string, method?: "POST" | "PUT", payload?: unknown) => {
+      ready();
+      const { body, headers } = await this.request(route, token, true, undefined, undefined, { method, json: JSON.stringify(payload), signal });
+      if (method && route !== "/graphql") this.cache.clear();
+      else ready();
+      return {
+        body: body === null ? null : JSON.parse(redact(JSON.stringify(body))),
+        more: /;\s*rel="next"/.test(headers.get("link") ?? ""),
+      };
+    };
+    return {
+      login: this.agentStatus().login,
+      redact,
+      get: async (route: string) => (await json(route)).body,
+      page: (route: string) => json(route),
+      post: async (route: string, data: unknown) => (await json(route, "POST", data)).body,
+      put: async (route: string, data: unknown) => (await json(route, "PUT", data)).body,
+      query: async (query: string, variables: Record<string, unknown>) => (await json("/graphql", "POST", { query, variables })).body,
+      diff: async (route: string) => {
+        ready();
+        const response = await this.response(route, token, { accept: "application/vnd.github.diff", signal });
+        if (!response.ok) {
+          await response.body?.cancel();
+          return { diff: null, diffNote: "GitHub did not return a diff for this pull request." };
+        }
+        const { text, truncated } = await readSample(response, MAX_DIFF + token.length);
+        ready();
+        const diff = redact(text);
+        return { diff: diff.slice(0, MAX_DIFF), diffTruncated: truncated || diff.length > MAX_DIFF };
+      },
+      logs: async (repo: string, job: number) => {
+        ready();
+        const result = await this.actionLog(repo, job, token, signal, redact);
+        ready();
+        return result;
+      },
+      clone: (repo: string, root: string, directory: string, dataDir: string) => {
+        ready();
+        return cloneGitHub(repo, root, directory, dataDir, token, this.web, signal);
+      },
+    };
+  }
+
+  private async actionLog(repo: string, job: number, token: string, signal: AbortSignal, redact: (text: string) => string) {
+    try {
+      let response = await this.response(`/repos/${repo}/actions/jobs/${job}/logs`, token, {
+        accept: "text/plain", redirect: "manual", signal,
+      });
+      if (response.status === 302) {
+        await response.body?.cancel();
+        const target = new URL(response.headers.get("location") ?? "", this.base);
+        const testOrigin = this.base !== DEFAULT_API && target.origin === new URL(this.base).origin;
+        const githubStorage = target.protocol === "https:" && !target.port &&
+          /\.(?:actions\.githubusercontent\.com|blob\.core\.windows\.net)$/i.test(target.hostname);
+        if ((!testOrigin && !githubStorage) || target.username || target.password) return null;
+        response = await fetch(target, { redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) });
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        return null;
+      }
+      const { text, truncated } = await readSample(response, MAX_LOG, true);
+      return { text: redact(text), truncated };
+    } catch {
+      signal.throwIfAborted();
+      return null;
+    }
   }
 
   private useCredential(token: string): string {
@@ -483,26 +595,31 @@ export class GitHub {
     return value;
   }
 
-  private async request(pathAndQuery: string, token: string, stored: boolean, etag?: string, query?: string): Promise<{ body: unknown; headers: Headers; notModified: boolean }> {
-    let res: Response;
+  private async response(pathAndQuery: string, token: string, options: RequestOptions = {}, etag?: string): Promise<Response> {
+    const timeout = AbortSignal.timeout(TIMEOUT_MS);
     try {
-      res = await fetch(this.base + pathAndQuery, {
-        ...(query === undefined ? {} : { method: "POST", body: query }),
+      return await fetch(this.base + pathAndQuery, {
+        method: options.method ?? "GET",
+        body: options.json,
         headers: {
-          accept: "application/vnd.github+json",
+          accept: options.accept ?? "application/vnd.github+json",
           authorization: `Bearer ${token}`,
           "user-agent": "Agentic-Desktop",
           "x-github-api-version": "2022-11-28",
           ...(etag ? { "if-none-match": etag } : {}),
-          ...(query === undefined ? {} : { "content-type": "application/json" }),
+          ...(options.json === undefined ? {} : { "content-type": "application/json" }),
         },
-        redirect: "error",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        redirect: options.redirect ?? "error",
+        signal: options.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
       });
-    } catch (err) {
-      const timeout = (err as Error).name === "TimeoutError";
-      throw new GitHubError("offline", timeout ? "GitHub svarte ikke innen 10 sekunder. Prøv igjen om litt." : "Fikk ikke kontakt med GitHub. Sjekk nettverket.", 502);
+    } catch {
+      options.signal?.throwIfAborted();
+      throw new GitHubError("offline", timeout.aborted ? "GitHub svarte ikke innen 10 sekunder. Prøv igjen om litt." : "Fikk ikke kontakt med GitHub. Sjekk nettverket.", 502);
     }
+  }
+
+  private async request(pathAndQuery: string, token: string, stored: boolean, etag?: string, query?: string, options?: RequestOptions): Promise<{ body: unknown; headers: Headers; notModified: boolean }> {
+    const res = await this.response(pathAndQuery, token, query === undefined ? options : { method: "POST", json: query }, etag);
     if (res.status === 304) return { body: null, headers: res.headers, notModified: true };
     const text = await readLimited(res);
     let body: unknown = null;
@@ -512,7 +629,7 @@ export class GitHub {
       body = null;
     }
     if (res.ok) {
-      if (query !== undefined && Array.isArray((body as any)?.errors) && (body as any).errors.some((error: any) => error?.type === "RATE_LIMITED")) {
+      if (pathAndQuery === "/graphql" && Array.isArray((body as any)?.errors) && (body as any).errors.some((error: any) => error?.type === "RATE_LIMITED")) {
         const reset = Number(res.headers.get("x-ratelimit-reset"));
         throw new GitHubError("rate-limit", "GitHub har nådd grensen for antall forespørsler.", 429, reset > 0 ? reset * 1000 : undefined);
       }
@@ -532,9 +649,38 @@ export class GitHub {
     if (res.status === 404 || res.status === 403) {
       throw new GitHubError("not-found", "Fant ikke repoet på GitHub, eller tokenet har ikke tilgang til det.", 404);
     }
+    if (options?.method && pathAndQuery.endsWith("/merge")) {
+      if (res.status === 409) throw new GitHubError("other", "The pull request head no longer matches the expected SHA. Read the PR again before merging.", 409);
+      if (res.status === 405) throw new GitHubError("other", "GitHub cannot merge this PR. Check conflicts, branch protection, and the requested merge method.", 405);
+    }
+    if (res.status === 422 && options?.method) throw new GitHubError("other", "GitHub rejected the request. Check the repository, fields, and account permissions.", 422);
     if (res.status === 422) throw new GitHubError("other", sourceText("GitHub kunne ikke utføre søket. Sjekk at du har tilgang til de valgte repoene."), 422);
     throw new GitHubError("other", `GitHub svarte med en feil (${res.status}).`, 502);
   }
+}
+
+async function readSample(response: Response, limit: number, tail = false) {
+  let sample = Buffer.alloc(0);
+  let truncated = false;
+  const reader = response.body?.getReader();
+  if (!reader) return { text: "", truncated };
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sample = Buffer.concat([sample, value]);
+      if (sample.length > limit) {
+        truncated = true;
+        sample = tail ? sample.subarray(-limit) : sample.subarray(0, limit);
+        if (!tail) break;
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  let text = sample.toString("utf8");
+  if (tail && truncated) text = text.slice(text.indexOf("\n") + 1);
+  return { text, truncated };
 }
 
 function credentialIdentity(token: string): string {

@@ -16,6 +16,9 @@ import { cleanMemory, type Memories } from "../memory.ts";
 import { guardPath, PathError, SENSITIVE_HOME_PATHS } from "../paths.ts";
 import type { ImageData, ToolDef } from "../providers/types.ts";
 import type { Skill, SkillStore } from "../skills.ts";
+import type { GitHub } from "../github.ts";
+import type { LinkedPr } from "../../../shared/protocol.ts";
+import { GITHUB_TOOLS } from "./github-tools.ts";
 import { checkSkillInput, renderSkill, renderSkillFile } from "../skills.ts";
 import { runCommand } from "./command.ts";
 import { findEdit } from "./edit.ts";
@@ -99,6 +102,9 @@ export interface ToolContext {
   setPlan?: (text: string) => void;
   maxResultChars?: number; // smaller than MAX_RESULT_CHARS for models with a small context window
   web?: WebAccess; // round 13: web search and pages, when the thread has a way to search
+  github?: GitHub;
+  githubAllowed?: () => boolean;
+  linkPull?: (pull: LinkedPr) => boolean;
 }
 
 export interface Tool {
@@ -109,6 +115,7 @@ export interface Tool {
   can: string;
   kind: ToolKind;
   path?: (input: any) => string | undefined; // for the protected-path check
+  prepare?: (input: Record<string, unknown>, ctx: ToolContext) => Record<string, unknown>; // validate and resolve defaults before approval
   summary: (input: any, ctx: ToolContext) => string;
   run: (input: any, ctx: ToolContext) => Promise<ToolResult>;
   // Asks the user whatever the permission mode, without "allow always". For things that are not
@@ -1018,7 +1025,7 @@ export const CODE_TOOLS: Tool[] = [
   editSkillTool,
 ];
 
-export const TOOLS_BY_NAME = new Map(CODE_TOOLS.map((tool) => [tool.def.name, tool]));
+export const TOOLS_BY_NAME = new Map([...CODE_TOOLS, ...GITHUB_TOOLS].map((tool) => [tool.def.name, tool]));
 
 // The plain-words abilities of a set of tools, in their order, each phrase once.
 export function abilities(tools: Tool[]): string[] {

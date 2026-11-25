@@ -10,8 +10,8 @@ Task: {{args}}
 
 Commit, push and open pull requests only when the user asks for it. Looking at status, log and diff is always fine.
 
-## Always first
-`git status` and `git branch --show-current`. Know what is modified, staged and untracked, and which branch you are on, before any other command.
+## Local work
+Before changing a checkout, run `git status` and `git branch --show-current`. Check what is modified, staged and untracked. Tasks on GitHub can use the built-in GitHub tools directly, even when the folder has no remote.
 
 ## Commit
 1. `git diff` to read what will go in. Leave out files that do not belong: secrets, `.env`, build output, editor files, unrelated edits by others.
@@ -25,9 +25,9 @@ Commit, push and open pull requests only when the user asks for it. Looking at s
 
 ## Push and pull requests
 - `git push -u origin <branch>` on first push.
-- With the GitHub CLI: `gh auth status`, then `gh pr create --title "..." --body "..."`. The body says what changed, why, and how it was tested.
-- Never say CI is green or a PR is merged without checking: `gh pr checks`, `gh pr view --json state,mergedAt`.
-- Read the whole thread before answering an issue or review: `gh issue view N --comments`, `gh pr view N --comments`.
+- Use `github_pr_create` when offered. Use `gh pr create` when the CLI is the available option and the user's GitHub access settings allow it. The body says what changed, why, and how it was tested.
+- Verify CI and merge state before reporting them. Use `github_pr_read` for PR state and checks and `github_ci_logs` for available job logs.
+- Review the discussion before replying. Use `github_issue_read` for issues and `github_pr_read` with `includeComments` for pull requests. Use `github_pr_comment` or `github_issue_comment` when the user asks you to post a reply.
 
 ## Ask before these
 Force push, `git reset --hard`, `git clean`, deleting branches, rebasing or amending commits that are already pushed, changing remotes, and anything in `.git/hooks`. Explain what will be lost and wait for a yes.

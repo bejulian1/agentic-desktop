@@ -13,6 +13,7 @@ import { readTextUpload } from "../uploads.ts";
 import type { Skill } from "../skills.ts";
 import { basePrompt, CHART_PROMPT, environmentPrompt, memoryPrompt, USER_TASK_PROMPT, type PromptExtras } from "./prompt.ts";
 import { HARNESS_VERSION, type ChatPersonal } from "./harness.ts";
+import { GITHUB_TOOLS } from "./github-tools.ts";
 
 const MAX_INSTRUCTIONS_CHARS = 32_000;
 const MAX_ATTACHMENT_BYTES = 64 * 1024;
@@ -56,7 +57,8 @@ export function threadChoices(thread: Thread, canInspect = true): string[] {
   return parts;
 }
 
-export const READ_ONLY_TOOLS = new Set(["request_user_input", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);
+export const READ_ONLY_TOOLS = new Set(["request_user_input", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list",
+  ...GITHUB_TOOLS.filter(tool => tool.kind === "read").map(tool => tool.def.name)]);
 
 // Tools that only look, so several in one step can run at the same time.
 export const PARALLEL_TOOLS = new Set(["thread_models", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);
