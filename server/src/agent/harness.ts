@@ -17,7 +17,7 @@ import { writeAtomic } from "../write-atomic.ts";
 import { MAX_OVERRIDE_CHARS } from "./prompt-overrides.ts";
 
 // Bumped when the built-in harness text changes, so the preview can say which one is in use.
-export const HARNESS_VERSION = "16.2";
+export const HARNESS_VERSION = "17.0";
 export const HARNESS_FILE = "harness.json";
 export const BACKUP_DIR = "backups";
 const MAX_BACKUPS = 20;
@@ -80,10 +80,14 @@ if (DEFAULT_CHAT_SYSTEM_INSTRUCTIONS.length > MAX_CHAT_FIELD) throw new Error(`C
 // Shipped defaults from earlier versions, by SHA-256. A saved text that is still exactly one of
 // these was never edited by the user, so it follows the default to the current text instead of
 // staying on an old one for ever. Anything the user has changed, even by one character, is kept.
-const SUPERSEDED_AGENTS_MD = new Set(["e26b35ac7d4ff7f900a7c61827cc82b54fbcacfae97a3815aac9a5aed83ba836"]); // v0.20–v0.25
+const SUPERSEDED_AGENTS_MD = new Set([
+  "e26b35ac7d4ff7f900a7c61827cc82b54fbcacfae97a3815aac9a5aed83ba836", // v0.20–v0.25
+  "93b7ce5fa59188bad4e17cc717e497ce8afe06af6c0373a81de173aee052053e", // v0.26–v1.4 (previous shipped code.md)
+]);
 const SUPERSEDED_CHAT_INSTRUCTIONS = new Set([
   "bcc102e74b6054d185f2fc72700614a53d02e39961d320ad6f35747d170b8c48", // v0.20–v0.21
   "7fb862f90608d4236ea8f93b2a03d7ad5225539d2258987e424c0366485b2567", // v0.22–v0.25
+  "1653738a0dae5f67c9e126ab61b4653a67e632c17d0d45fd96272f240c4e8381", // v0.26–v1.4 (previous shipped chat.md, trimmed)
 ]);
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
@@ -151,9 +155,13 @@ export class HarnessStore {
       const parts = { ...base.parts };
       for (const part of HARNESS_PARTS) if (!part.locked && typeof raw.parts?.[part.id] === "boolean") parts[part.id] = raw.parts[part.id];
       const chat = { ...DEFAULT_CHAT };
+      let upgradedSupersededChat = false;
       if (raw.chat && typeof raw.chat === "object") {
         if (typeof raw.chat.instructions === "string" && (raw.chat.instructions.trim() || raw.chatInstructionsCustomized === true)) chat.instructions = truncateChatField(raw.chat.instructions);
-        if (SUPERSEDED_CHAT_INSTRUCTIONS.has(sha256(chat.instructions.replace(/\r\n/g, "\n").trim()))) chat.instructions = DEFAULT_CHAT_SYSTEM_INSTRUCTIONS;
+        if (SUPERSEDED_CHAT_INSTRUCTIONS.has(sha256(chat.instructions.replace(/\r\n/g, "\n").trim()))) {
+          chat.instructions = DEFAULT_CHAT_SYSTEM_INSTRUCTIONS;
+          upgradedSupersededChat = true;
+        }
         if (typeof raw.chat.about === "string") chat.about = truncateChatField(raw.chat.about);
         // A tone saved before version 16 becomes the personality closest to it.
         if (typeof raw.chat.tone === "string") chat.tone = chatPersonality(raw.chat.tone).id;
@@ -176,7 +184,7 @@ export class HarnessStore {
         lastUpgradeAt: typeof raw.lastUpgradeAt === "number" ? raw.lastUpgradeAt : null,
         pending: Array.isArray(raw.pending) ? raw.pending.filter((p: any) => p && Array.isArray(p.ops)).slice(0, 20) : [],
         chat,
-        chatInstructionsCustomized: raw.chatInstructionsCustomized === true || (typeof raw.chat?.instructions === "string" && !!raw.chat.instructions.trim() && raw.chat.instructions !== DEFAULT_CHAT_SYSTEM_INSTRUCTIONS),
+        chatInstructionsCustomized: !upgradedSupersededChat && (raw.chatInstructionsCustomized === true || (typeof raw.chat?.instructions === "string" && !!raw.chat.instructions.trim() && raw.chat.instructions !== DEFAULT_CHAT_SYSTEM_INSTRUCTIONS)),
       };
     } catch {
       this.cache = base; // missing or broken: the defaults, and the next write repairs the file

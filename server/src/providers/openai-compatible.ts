@@ -245,22 +245,35 @@ export function createOpenAiProvider(options: OpenAiOptions): Provider {
   };
 }
 
+const OPTIONAL_REQUEST_FIELDS = ["stream_options", "web_search_options", "reasoning_effort", "reasoning"] as const;
+const REJECTED_OPTION_RE = /unknown|unrecognized|unexpected|unsupported|not supported|not allowed|not permitted|not available|does not support|extra|invalid|forbidden|unaccepted|disallowed|cannot be used/i;
+
+function rejectedOptionalFields(body: Record<string, unknown>, message: string): string[] {
+  if (!REJECTED_OPTION_RE.test(message)) return [];
+  const lower = message.toLowerCase();
+  return OPTIONAL_REQUEST_FIELDS.filter((field) => {
+    if (!(field in body)) return false;
+    return new RegExp(`\\b${field}\\b`, "i").test(message) || lower.includes(field.replaceAll("_", " "));
+  });
+}
+
 async function* postChatStream(url: string, body: Record<string, unknown>, options: Omit<PostOptions, "body">, includeUsage: boolean): AsyncGenerator<SseMessage> {
-  if (!includeUsage) {
-    yield* postSse(url, { ...options, body });
-    return;
+  let current: Record<string, unknown> = includeUsage ? { ...body, stream_options: { include_usage: true } } : { ...body };
+  for (let attempt = 0; attempt <= OPTIONAL_REQUEST_FIELDS.length; attempt++) {
+    try {
+      yield* postSse(url, { ...options, body: current });
+      return;
+    } catch (err) {
+      // Some OpenAI-compatible endpoints reject optional fields (stream_options, web_search_options,
+      // reasoning_effort, reasoning) during request validation. Only HTTP 400/422 errors from postSse
+      // qualify, before any model output has streamed.
+      if (!(err instanceof ProviderError) || (err.status !== 400 && err.status !== 422)) throw err;
+      const toDrop = rejectedOptionalFields(current, err.message);
+      if (!toDrop.length) throw err;
+      current = { ...current };
+      for (const field of toDrop) delete current[field];
+    }
   }
-  try {
-    yield* postSse(url, { ...options, body: { ...body, stream_options: { include_usage: true } } });
-    return;
-  } catch (err) {
-    // Some compatible endpoints reject optional usage reporting during request validation.
-    // Only HTTP validation errors from postSse qualify, before any model output has streamed.
-    if (!(err instanceof ProviderError) || (err.status !== 400 && err.status !== 422) ||
-        !/stream_options/i.test(err.message) ||
-        !/unknown|unrecognized|unexpected|unsupported|not supported|not allowed|extra|invalid|forbidden/i.test(err.message)) throw err;
-  }
-  yield* postSse(url, { ...options, body });
 }
 
 export function reasoningOptions(baseUrl: string, effort: ProviderRequest["model"]["effort"]): object {

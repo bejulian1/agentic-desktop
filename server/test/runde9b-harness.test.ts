@@ -314,7 +314,7 @@ test("the demo model answers «hei», «hvem er du» and «hva kan du» from the
   const hello = textOf(await h.finished(thread.id));
   assert.match(hello, /^Hei! Jeg er kodeagenten i Agentic Desktop, og jobber i \*\*/);
   assert.match(hello, new RegExp(`${path.basename(project.path)}\\*\\* \\(\`${project.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\`\\) på grenen \`main\``));
-  assert.match(hello, /Verktøy som er på \(30\):\*\*\n {2}- Filer og søk: `read_file`/);
+  assert.match(hello, /Verktøy som er på \(31\):\*\*\n {2}- Filer og søk: `read_file`/);
   assert.match(hello, /Minner:\*\* ingen ennå/, "the global AGENTS.md lines are not counted as memories");
   assert.match(hello, /`edit_file`/);
   assert.match(hello, /din globale `AGENTS.md`/);

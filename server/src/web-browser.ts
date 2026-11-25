@@ -21,10 +21,42 @@ const loadPlaywright = () => (playwright ??= import("playwright-core"));
 
 const NAV_TIMEOUT_MS = 30_000;
 const ACTION_TIMEOUT_MS = 5_000;
+const SEARCH_RENDER_WAIT_MS = 2_500;
 const DEFAULT_SIZE = { width: 1280, height: 800 };
 const MAX_RESULTS = 8;
 const MAX_FAVICON_BYTES = 64 * 1024;
 const FAVICON_TYPES = /^image\/(png|x-icon|vnd\.microsoft\.icon|svg\+xml|gif|webp|jpeg)$/;
+
+function chromeUserAgent(browser: Browser): string {
+  const match = /(\d+)\.\d+\.\d+\.\d+/.exec(browser.version?.() ?? "");
+  const major = match?.[1] ?? "131";
+  return `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
+}
+
+// Lightweight static HTML fallback when a JS-rendered search engine yields 0 results.
+// Never triggers for localhost/loopback/IP test URLs or if we are already on html.duckduckgo.com.
+function duckDuckGoHtmlFallback(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "html.duckduckgo.com" ||
+      host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host === "127.0.0.1" ||
+      host === "[::1]" ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) ||
+      host.includes(":")
+    ) {
+      return null;
+    }
+    const query = parsed.searchParams.get("q") || parsed.searchParams.get("query") || parsed.searchParams.get("p");
+    if (!query || !query.trim()) return null;
+    return `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query.trim())}`;
+  } catch {
+    return null;
+  }
+}
 
 export interface WebBrowserOptions {
   idleMs: number;
@@ -177,6 +209,7 @@ export class WebBrowser implements WebReader {
         serviceWorkers: "block",
         viewport: DEFAULT_SIZE,
         locale: "nb-NO",
+        userAgent: chromeUserAgent(browser),
       });
       signal?.addEventListener("abort", onAbort, { once: true });
       await context.route("**/*", (route) => this.guardRoute(route, op));
@@ -237,9 +270,19 @@ export class WebBrowser implements WebReader {
     return found;
   }
 
-  async searchPage(url: string, signal?: AbortSignal): Promise<WebSource[]> {
+  private async extractSearchPage(url: string, signal?: AbortSignal): Promise<WebSource[]> {
     return this.withPage(url, signal, async (page, context) => {
-      const found = await page.evaluate(readResults, MAX_RESULTS);
+      let found = await page.evaluate(readResults, MAX_RESULTS);
+      // JS-rendered search engines may paint results slightly after domcontentloaded/load.
+      if (!found.length) {
+        const deadline = Date.now() + SEARCH_RENDER_WAIT_MS;
+        while (!found.length && Date.now() < deadline) {
+          signal?.throwIfAborted();
+          await page.waitForTimeout(Math.min(250, Math.max(50, deadline - Date.now()))).catch(() => undefined);
+          found = await page.evaluate(readResults, MAX_RESULTS).catch(() => []);
+        }
+      }
+      if (!found.length) return [];
       // Icons for the first sites, within a short time.
       const icons = new Map<string, string | null>();
       const origins = [...new Set(found.map((s) => originOf(s.url)).filter(Boolean))].slice(0, 6);
@@ -252,6 +295,19 @@ export class WebBrowser implements WebReader {
         return favicon ? { ...s, favicon } : s;
       });
     });
+  }
+
+  async searchPage(url: string, signal?: AbortSignal): Promise<WebSource[]> {
+    const primary = await this.extractSearchPage(url, signal);
+    if (primary.length) return primary;
+    const fallbackUrl = duckDuckGoHtmlFallback(url);
+    if (!fallbackUrl) return primary;
+    try {
+      return await this.extractSearchPage(fallbackUrl, signal);
+    } catch {
+      signal?.throwIfAborted();
+      return primary;
+    }
   }
 
   async readPage(url: string, signal?: AbortSignal): Promise<WebPage> {
@@ -276,15 +332,19 @@ export class WebBrowser implements WebReader {
   }
 }
 
-// Runs in the page: the results of a search page, from the links in headings, which is how most
-// search pages mark them. Redirect links (…/l/?uddg=…) are followed to where they point. Without
-// headings, links to other sites are taken instead.
+// Runs in the page: extracts results from DuckDuckGo static HTML (.result__a / .result__snippet)
+// or from heading links on standard search pages. Redirect links (…/l/?uddg=…) on the same site
+// family are unwrapped to their destination. Without headings, external links are taken instead.
 function readResults(max: number): WebSource[] {
-  const here = location.hostname;
+  const here = location.hostname.toLowerCase();
+  const sameSiteFamily = (host: string) => {
+    const h = host.toLowerCase();
+    return h === here || h.endsWith(`.${here}`) || here.endsWith(`.${h}`);
+  };
   const target = (href: string): string => {
     try {
       const url = new URL(href, location.href);
-      if (url.hostname === here) {
+      if (sameSiteFamily(url.hostname)) {
         for (const key of ["uddg", "url", "u", "q", "target"]) {
           const value = url.searchParams.get(key);
           if (value && /^https?:\/\//.test(value)) return value;
@@ -295,15 +355,31 @@ function readResults(max: number): WebSource[] {
       return "";
     }
   };
+  const out: WebSource[] = [];
+  const seen = new Set<string>();
+  const ddgLinks = [...document.querySelectorAll<HTMLAnchorElement>("a.result__a[href]")];
+  if (ddgLinks.length) {
+    for (const a of ddgLinks) {
+      const url = target(a.getAttribute("href") ?? "");
+      if (!/^https?:/.test(url) || seen.has(url)) continue;
+      const title = a.textContent?.replace(/\s+/g, " ").trim() ?? "";
+      if (!title) continue;
+      const container = a.closest(".result, .web-result, .results_links") ?? a.parentElement;
+      const snippetEl = container?.querySelector(".result__snippet");
+      const snippet = snippetEl?.textContent?.replace(/\s+/g, " ").trim().slice(0, 220) ?? "";
+      seen.add(url);
+      out.push({ title: title.slice(0, 160), url, ...(snippet ? { snippet } : {}) });
+      if (out.length >= max) break;
+    }
+    if (out.length) return out;
+  }
   const anchors = [...document.querySelectorAll<HTMLAnchorElement>("a[href]")];
   const headed = anchors.map((a) => ({ a, heading: a.closest("h1, h2, h3, h4") ?? a.querySelector("h1, h2, h3, h4") })).filter((x) => x.heading);
   const list = headed.length ? headed : anchors.map((a) => ({ a, heading: null as Element | null }));
-  const out: WebSource[] = [];
-  const seen = new Set<string>();
   for (const { a, heading } of list) {
     const url = target(a.getAttribute("href") ?? "");
     if (!/^https?:/.test(url) || seen.has(url)) continue;
-    if (!heading && new URL(url).hostname === here) continue;
+    if (!heading && new URL(url).hostname.toLowerCase() === here) continue;
     const title = (heading ?? a).textContent?.replace(/\s+/g, " ").trim() ?? "";
     if (!title) continue;
     // The snippet: the text of the nearest box around the result that has more than the title.

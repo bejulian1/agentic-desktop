@@ -96,6 +96,29 @@ test("Azure uses the resource key and deployment token field and retries only a 
   assert.equal(llm.requests[1].body.stream_options, undefined);
 });
 
+test("openai: retries cleanly on HTTP 400/422 when reasoning_effort or web_search_options is rejected, and parses url_citation", async (t) => {
+  const llm = await startFakeLlm(t);
+  llm.reply(httpError(400, { error: { message: "Invalid parameter: 'reasoning_effort' is not supported for this model" } }));
+  llm.reply(httpError(422, { error: { message: "Extra inputs are not permitted: web_search_options" } }));
+  const cite = (url: string, title: string) => ({ type: "url_citation", url_citation: { url, title, start_index: 0, end_index: 4 } });
+  llm.reply(sse(
+    openaiChunk({ role: "assistant", content: "Fungerte." }) +
+    openaiChunk({ annotations: [cite("https://kilde.example/1", "Kilde 1"), cite("https://kilde.example/1", "Kilde 1"), cite("https://kilde.example/2", "Kilde 2")] }) +
+    openaiChunk({}, "stop") + openaiUsage(10, 5) + OPENAI_DONE,
+  ));
+  const parts = await collect(openai(llm), request({ model: { ...MODEL, effort: "high" }, webSearch: true }));
+  assert.equal(textParts(parts, "text"), "Fungerte.");
+  assert.equal(llm.requests.length, 3);
+  assert.equal(llm.requests[0].body.reasoning_effort, "high");
+  assert.deepEqual(llm.requests[0].body.web_search_options, {});
+  assert.equal(llm.requests[1].body.reasoning_effort, undefined);
+  assert.deepEqual(llm.requests[1].body.web_search_options, {});
+  assert.equal(llm.requests[2].body.reasoning_effort, undefined);
+  assert.equal(llm.requests[2].body.web_search_options, undefined);
+  const results = parts.find((p) => p.type === "web_results");
+  assert.deepEqual(results && results.type === "web_results" ? results.sources.map((s) => s.title) : [], ["Kilde 1", "Kilde 2"]);
+});
+
 test("Gemini tool-call history includes its opaque signature without changing other OpenAI requests", () => {
   const history: Message[] = [{ role: "assistant", content: [{ type: "tool_use", id: "tool-1", name: "read_file", input: {}, geminiThoughtSignature: "opaque" }] }];
   assert.match(JSON.stringify(toOpenAiMessages("", history, false, true)), /"thought_signature":"opaque"/);
