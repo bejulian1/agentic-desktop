@@ -3,7 +3,7 @@
 // is the back-pressure: a slow panel simply gets fewer frames.
 //
 // v0.5: a new-tab page while no address is open, and a ⋯ menu with find on the page (run by the
-// browser itself in an isolated world), zoom (a smaller or larger viewport, scaled to the panel),
+// browser itself in an isolated world), zoom (a smaller or larger viewport, drawn at the zoom's scale),
 // a screenshot of the frame on screen, the panel's history and clearing browsing data.
 //
 // Round 10 (SPEC 23.1), a small Chrome: tabs with favicon and close, a + that makes a tab on click
@@ -12,13 +12,14 @@
 // The tabs live on the server (one page each), so two windows, a reload and the agent all see the
 // same tabs; each model thread works in its own tab, independently of panel selection.
 import { t } from "../lib/i18n";
-import { batch, createEffect, createMemo, createSignal, For, on as watch, onCleanup, onMount, Show, untrack, type JSX } from "solid-js";
+import { batch, createEffect, createMemo, createResource, createSignal, For, on as watch, onCleanup, onMount, Show, untrack, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { onNextFrame } from "../lib/frame";
 import { observeResize } from "../lib/resize";
 import { on, onOpen, send } from "../lib/socket";
 import { BROWSER_ZOOMS, browserSearchUrl, type BrowserInput, type BrowserState, type BrowserTabInfo, type ClientMessage } from "../../../shared/protocol";
-import { app, LOCAL_SCOPE, mode, settingsOpen, toast } from "../state/app";
+import { app, LOCAL_SCOPE, mode, setSettingsOpen, settingsOpen, toast } from "../state/app";
+import { desktop } from "../lib/desktop";
 import { focusedThread, actions } from "../state/actions";
 import { browserTabRequest, browserUrlRequest, closePanelTool, onPanelHome, panelFull, setPanelFull, showPanel, takeBrowserTabRequest, takeBrowserUrlRequest } from "../state/panel";
 import { publishPanelSessions, releasePanelSessions } from "../state/panel-sessions";
@@ -38,7 +39,7 @@ import { imported, loadImported, openChromeImport } from "../ui/ChromeImport";
 import { AnnotateButton } from "./Annotate"; // round 11b (SPEC 25.1)
 import { browserDestination } from "./browser-address";
 import "../styles/browser-polish.css";
-import { nativeBridge, placeNative } from "./browser-native"; // SPEC 29.3: the page as a view in the Electron window
+import { nativeBridge, placeNative, type Still } from "./browser-native"; // SPEC 29.3: the page as a view in the Electron window
 
 // The panel's own history, per project, kept in this browser.
 interface Visit {
@@ -76,7 +77,9 @@ function savedProjectZoom(projectId: string): number | null {
     return null;
   }
 }
+const RESIZE_MS = 50; // the page's viewport follows the panel this often while its size changes
 const TIP_KEY = "ad-browser-import-tip";
+const FALLBACK_KEY = "ad-browser-fallback-note";
 const MAX_TABS = 12;
 
 // The tab each project showed last in this window, so the panel opens where you left it.
@@ -353,22 +356,24 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
   createEffect(watch(defaultZoom, (def) => {
     if (savedProjectZoom(props.projectId) === null && untrack(zoom) !== def) {
       setZoomSignal(def);
-      if (size.width && size.height) sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() });
+      resized();
     }
   }, { defer: true }));
   const size = { width: 0, height: 0 };
   // The page is laid out in a viewport the size of the panel divided by the zoom, and the frame is
-  // scaled back up to fill the panel: 125 % shows less of the page, larger.
+  // drawn at the zoom's scale: 125 % shows less of the page, larger.
   const viewport = () => ({ width: Math.round(size.width / zoom()), height: Math.round(size.height / zoom()) });
   let frameWidth = 0;
   let frameHeight = 0;
+  let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+  let resizeSentAt = 0;
   let alive = true;
   let latest: { sessionId: number; jpegBase64: string; width: number; height: number; tabId: string } | null = null;
   let drawing = false;
   // SPEC 29.3: in the Electron app the page is a real view over the stage, not frames on the canvas.
   // still: a picture of it while a menu or dialog lies over the panel.
   const native = () => !!nativeBridge && state()?.native === true;
-  const [still, setStill] = createSignal<string | null>(null);
+  const [still, setStill] = createSignal<Still | null>(null);
   const hasPage = () => !navigationError() && (native() ? !closed() && !!state() : hasFrame());
 
   const tabOf = (message: { tabId?: string }) => message.tabId ?? "";
@@ -435,6 +440,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           canvas.width = bitmap.width;
           canvas.height = bitmap.height;
         }
+        layoutCanvas();
         canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
         setHasFrame(true);
       }
@@ -447,12 +453,37 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
     if (latest) void draw();
   };
 
-  // The frame covers the stage from the top left (object-fit: cover), so a frame from before the
-  // panel changed height is cropped for a moment, never shown with grey bands. One scale for both
-  // axes, the same as the picture.
+  // The frame is drawn from the top left at the zoom's scale, whatever size the stage has now. A
+  // frame from before the panel changed size is cropped, or leaves the stage's own background beside
+  // it, until the page has the new viewport (resized, below); it is never stretched to fit, which
+  // made the page grow and shrink while the panel was dragged wider. A frame within a pixel and a
+  // half of the stage fills it, so rounding the viewport leaves no seam. Pages of the Electron
+  // window seen from another browser have the size of their view there: they fit the width.
+  function layoutCanvas(): void {
+    if (!frameWidth || !frameHeight) return;
+    const scale = state()?.native && size.width ? size.width / frameWidth : zoom();
+    const fit = (length: number, stage: number) => (Math.abs(length - stage) < 1.5 ? stage : length);
+    canvas.style.width = `${fit(frameWidth * scale, size.width)}px`;
+    canvas.style.height = `${fit(frameHeight * scale, size.height)}px`;
+  }
+  createEffect(watch([zoom, () => state()?.native], layoutCanvas, { defer: true }));
+
+  // The page gets the panel's size at once, and then at most every RESIZE_MS while it keeps
+  // changing, so the page reflows while a divider is dragged and not only when the drag rests. In
+  // the Electron window the page is as large as its view, and there is nothing to send.
+  function resized(): void {
+    layoutCanvas();
+    if (!size.width || !size.height || native() || resizeTimer !== undefined) return;
+    resizeTimer = setTimeout(() => {
+      resizeTimer = undefined;
+      resizeSentAt = performance.now();
+      if (!native()) sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() });
+    }, Math.max(0, RESIZE_MS - (performance.now() - resizeSentAt)));
+  }
+
   const toPage = (event: MouseEvent) => {
     const rect = canvas.getBoundingClientRect();
-    const scale = frameWidth && frameHeight ? Math.max(rect.width / frameWidth, rect.height / frameHeight) : 1;
+    const scale = frameWidth && rect.width ? rect.width / frameWidth : 1;
     return { x: (event.clientX - rect.left) / scale, y: (event.clientY - rect.top) / scale };
   };
 
@@ -600,7 +631,6 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       }),
       onOpen(open),
     ];
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const placement = nativeBridge
       ? placeNative({ stage, projectId: props.projectId, tab: active, wanted: () => surfaceActive() && native() && !showNewtab() && !closed() && !navigationError() && !!state(), zoom, still: setStill })
       : undefined;
@@ -613,12 +643,11 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       size.width = width;
       size.height = height;
       if (first) return open();
-      clearTimeout(timer);
-      timer = setTimeout(() => sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() }), 120);
+      resized();
     });
     onCleanup(() => {
       alive = false;
-      clearTimeout(timer);
+      clearTimeout(resizeTimer);
       placement?.stop();
       stopResize();
       stops.forEach((stop) => stop());
@@ -701,7 +730,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       // Kept until the panel closes.
     }
     setZoomSignal(value);
-    if (size.width && size.height) sendTab({ type: "browser.resize", projectId: props.projectId, ...viewport() });
+    resized();
   };
   const zoomStep = (dir: 1 | -1) => {
     const at = ZOOMS.indexOf(zoom());
@@ -899,6 +928,26 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
       return false;
     }
   })());
+  // SPEC 29.2: without Chromium's sandbox the Electron app keeps web pages out of its window, and
+  // this panel shows the server's headless Chrome instead. Sites can tell, and some turn it away (a
+  // check that the visitor is a person, for one). One line says so here, where it is met, with the
+  // way to Innstillinger → Om and its command, until it is dismissed.
+  const [sandbox] = createResource(() => desktop?.sandbox?.() ?? Promise.resolve(null));
+  const [fallbackHidden, setFallbackHidden] = createSignal((() => {
+    try {
+      return localStorage.getItem(FALLBACK_KEY) === "hidden";
+    } catch {
+      return false;
+    }
+  })());
+  const hideFallback = () => {
+    setFallbackHidden(true);
+    try {
+      localStorage.setItem(FALLBACK_KEY, "hidden");
+    } catch {
+      // Hidden for now.
+    }
+  };
   const hideTip = () => {
     setTipHidden(true);
     try {
@@ -1082,6 +1131,14 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           <button type="button" class="icon-button" aria-label={t("Lukk søket på siden")} onClick={() => setFinding(false)}><IconClose size={13} /></button>
         </form>
       </Show>
+      <Show when={sandbox()?.on === false && !fallbackHidden()}>
+        <div class="newtab-tip browser-fallback-note" role="note" data-testid="browser-fallback-note">
+          <IconGlobe size={15} />
+          <span>{t("Uten Chromium-sandkassen vises sidene her fra en hodeløs Chrome, som noen nettsteder avviser, for eksempel når de sjekker at du er et menneske. Innstillinger → Om viser hvordan sandkassen slås på.")}</span>
+          <button type="button" class="btn btn-small" onClick={() => setSettingsOpen("about")}>{t("Innstillinger")}</button>
+          <button type="button" class="icon-button" aria-label={t("Skjul tipset")} title={t("Skjul tipset")} onClick={hideFallback}><IconClose size={13} /></button>
+        </div>
+      </Show>
       <div class="browser-stage" ref={stage}>
         <Show when={showDownloads()}><DownloadsList onClose={() => setShowDownloads(false)} /></Show>
         <canvas
@@ -1091,6 +1148,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           aria-label={t("Nettsiden")}
           data-testid="browser-canvas"
           classList={{ hidden: !hasFrame() || native() || !!navigationError() }}
+          onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId) /* a drag that ends outside the page still ends */}
           onMouseDown={(e) => mouse("down", e)}
           onMouseUp={(e) => mouse("up", e)}
           onMouseMove={(e) => {
@@ -1189,7 +1247,7 @@ export default function BrowserPanel(props: { projectId: string; head?: () => HT
           </div>
         </Show>
         <Show when={native() && !showNewtab() ? still() : null}>
-          {(src) => <img class="browser-still" src={src()} alt="" aria-hidden="true" draggable={false} style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;user-select:none" />}
+          {(picture) => <img class="browser-still" src={picture().url} alt="" aria-hidden="true" draggable={false} style={`position:absolute;left:0;top:0;width:${picture().width}px;height:${picture().height}px;max-width:none;pointer-events:none;user-select:none`} />}
         </Show>
         <Show when={navigationError()}>
           <div class="browser-navigation-error" role="alert">

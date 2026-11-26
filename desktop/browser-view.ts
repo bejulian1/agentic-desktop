@@ -54,6 +54,8 @@ interface Target {
   children: Set<string>; // the debugger's own sessions under this page (iframes, workers)
   shown: boolean;
   size: { width: number; height: number }; // as it was last on screen, for the parked page
+  zoom: number; // what the UI last asked for; Chromium keeps zoom per site, not per page
+  hadFocus: boolean; // it had the keyboard when it was parked, and may get it back when it returns
   downloadTo?: string; // the folder from Page.setDownloadBehavior; without it, downloads are refused
 }
 
@@ -104,6 +106,15 @@ export function allowedUrl(raw: unknown, blockedOrigins: string[] = []): boolean
   } catch {
     return false;
   }
+}
+
+// Electron's User-Agent names the app and Electron ("… AgenticDesktop/1.4.0 Chrome/146.0.7680.65
+// Electron/45.0.0 Safari/537.36"). Sites that read it serve the panel a blocked or lesser page, so the
+// panel says what it is to the web: the bundled Chromium, in the reduced form Chromium itself sends
+// (major version only), which is also what its Sec-CH-UA headers say. Nothing else is changed.
+export function browserUserAgent(raw: string): string {
+  const match = /^(Mozilla\/5\.0 \([^)]*\) AppleWebKit\/[\d.]+ \(KHTML, like Gecko\)) .*?\bChrome\/(\d+)[\d.]*.*?\b(Safari\/[\d.]+)$/.exec(raw);
+  return match ? `${match[1]} Chrome/${match[2]}.0.0.0 ${match[3]}` : raw;
 }
 
 // null when the command may go to the page; otherwise why not.
@@ -193,9 +204,10 @@ export class BrowserPanel {
     created: 0,
     destroyed: 0,
     refused: [] as string[],
-    pages: () => [...this.targets.values()].map((t) => ({ targetId: t.targetId, label: t.label ?? "", url: t.contents.isDestroyed() ? "" : t.contents.getURL(), title: t.contents.isDestroyed() ? "" : t.contents.getTitle(), shown: t.shown, pid: t.contents.isDestroyed() ? 0 : t.contents.getOSProcessId(), bounds: t.view.getBounds() })),
+    pages: () => [...this.targets.values()].map((t) => ({ targetId: t.targetId, label: t.label ?? "", url: t.contents.isDestroyed() ? "" : t.contents.getURL(), title: t.contents.isDestroyed() ? "" : t.contents.getTitle(), shown: t.shown, pid: t.contents.isDestroyed() ? 0 : t.contents.getOSProcessId(), bounds: t.view.getBounds(), zoom: t.contents.isDestroyed() ? 0 : t.contents.getZoomFactor(), focused: !t.contents.isDestroyed() && t.contents.isFocused() })),
     send: (message: CdpMessage) => this.receive(message), // as if from the server, for the test of the allowlist
     open: (port: MessagePortMain) => this.open(port), // a test's own Playwright in place of the server's
+    focus: (targetId: string) => this.targets.get(targetId)?.contents.focus(), // as a click in the page gives it the keyboard
     sent: [] as CdpMessage[],
     record: false,
   };
@@ -207,6 +219,7 @@ export class BrowserPanel {
   private session(): Session {
     if (this.ses) return this.ses;
     const ses = electronSession.fromPartition(PANEL_PARTITION);
+    ses.setUserAgent(browserUserAgent(ses.getUserAgent()));
     ses.setPermissionRequestHandler((_contents, permission, callback) => callback(PERMISSIONS.has(permission)));
     ses.setPermissionCheckHandler((_contents, permission) => PERMISSIONS.has(permission));
     ses.setDevicePermissionHandler(() => false);
@@ -479,7 +492,7 @@ export class BrowserPanel {
       contents.close();
       throw new Error(t("Fikk ikke åpnet siden"));
     }
-    const target: Target = { targetId, view, contents, children: new Set(), shown: false, size: { ...DEFAULT_SIZE } };
+    const target: Target = { targetId, view, contents, children: new Set(), shown: false, size: { ...DEFAULT_SIZE }, zoom: 1, hadFocus: false };
     this.targets.set(target.targetId, target);
     this.probe.created += 1;
     this.guard(target);
@@ -496,7 +509,7 @@ export class BrowserPanel {
     if (this.autoAttach) this.attachSession(target, "");
     if (allowedUrl(rawUrl, this.options.appOrigins()) && rawUrl !== "about:blank") void contents.loadURL(String(rawUrl)).catch(() => undefined);
     const pending = target.label ? this.placements.get(target.label) : undefined;
-    if (pending) this.apply(target, pending.rect, pending.zoom);
+    if (pending) this.apply(target, pending.rect, pending.zoom, false);
     return target;
   }
 
@@ -596,6 +609,13 @@ export class BrowserPanel {
       if (isMainFrame) check(event, url);
     });
     contents.on("will-attach-webview", (event) => event.preventDefault());
+    // Chromium keeps zoom per site: a page on another site starts at that site's zoom (100 % when it
+    // has none), and would only get the panel's zoom at the next change of size, as a jump. Only the
+    // page on screen says what the zoom is; one that is not shown (the agent's tab on the same site,
+    // say) follows, and gets its own when it is placed.
+    contents.on("did-navigate", () => {
+      if (target.shown) this.rezoom(target);
+    });
     // A link that opens a window opens in the same tab, as in the server's own Chrome.
     contents.setWindowOpenHandler(({ url }) => {
       if (allowedUrl(url, this.options.appOrigins()) && url !== "about:blank") setImmediate(() => !contents.isDestroyed() && void contents.loadURL(url).catch(() => undefined));
@@ -672,10 +692,14 @@ export class BrowserPanel {
   private label(target: Target, label: string): void {
     target.label = label;
     const placement = this.placements.get(label);
-    if (placement) this.apply(target, placement.rect, placement.zoom);
+    if (placement) this.apply(target, placement.rect, placement.zoom, false);
   }
 
-  private apply(target: Target, rect: Rect | null, zoom: number): void {
+  private rezoom(target: Target): void {
+    if (!target.contents.isDestroyed() && Math.abs(target.contents.getZoomFactor() - target.zoom) > 0.001) target.contents.setZoomFactor(target.zoom);
+  }
+
+  private apply(target: Target, rect: Rect | null, zoom: number, refocus: boolean): void {
     if (target.contents.isDestroyed()) return;
     const win = this.window();
     if (!win || !rect || rect.width < 1 || rect.height < 1) return this.park(target);
@@ -686,7 +710,8 @@ export class BrowserPanel {
     const y = Math.max(0, Math.round(rect.y * factor));
     const bounds = { x, y, width: Math.max(1, Math.min(Math.round(rect.width * factor), cw - x)), height: Math.max(1, Math.min(Math.round(rect.height * factor), ch - y)) };
     target.view.setBounds(bounds);
-    if (Math.abs(target.contents.getZoomFactor() - zoom) > 0.001) target.contents.setZoomFactor(zoom);
+    target.zoom = zoom;
+    this.rezoom(target);
     if (!target.shown) {
       void target.contents.debugger.sendCommand("Emulation.clearDeviceMetricsOverride").catch(() => undefined);
       // Only one page shows in a place: another one the UI forgot to hide goes.
@@ -694,6 +719,10 @@ export class BrowserPanel {
         if (other !== target && other.shown && overlaps(other.view.getBounds(), bounds)) this.park(other);
       }
       target.shown = true;
+      // Back from under a menu, tooltip or toast that came while the user was in the page: the
+      // keyboard goes back to it, unless the user has done something in the app meanwhile.
+      if (refocus && target.hadFocus && win.isFocused()) target.contents.focus();
+      target.hadFocus = false;
     }
   }
 
@@ -704,6 +733,7 @@ export class BrowserPanel {
     const { width, height } = target.view.getBounds();
     target.size = { width: Math.max(width, 100), height: Math.max(height, 100) };
     const focused = target.contents.isFocused();
+    target.hadFocus = focused;
     target.view.setBounds({ x: PARK_X, y: 0, ...target.size });
     void this.parkedSize(target);
     const ui = this.options.window()?.webContents;
@@ -715,12 +745,12 @@ export class BrowserPanel {
     return target.contents.debugger.sendCommand("Emulation.setDeviceMetricsOverride", { ...target.size, deviceScaleFactor: 0, mobile: false }).then(() => undefined, () => undefined);
   }
 
-  place(projectId: string, tabId: string, rect: Rect | null, zoom = 1): void {
+  place(projectId: string, tabId: string, rect: Rect | null, zoom = 1, refocus = false): void {
     const label = `${projectId}\u0001${tabId}`;
     const z = Number.isFinite(zoom) ? Math.min(Math.max(zoom, 0.25), 5) : 1;
     if (rect) this.placements.set(label, { rect, zoom: z });
     else this.placements.delete(label);
-    for (const target of this.targets.values()) if (target.label === label) this.apply(target, rect, z);
+    for (const target of this.targets.values()) if (target.label === label) this.apply(target, rect, z, refocus);
   }
 
   // A picture of the page as it is on screen, for the UI to show while a menu covers the panel.
@@ -743,9 +773,9 @@ export class BrowserPanel {
 
   // The UI's calls, from the main frame of the app's window only (main.ts's trusted()).
   listen(ipcMain: IpcMain, trusted: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean): void {
-    ipcMain.on("browser-panel:place", (event, value: { projectId?: unknown; tabId?: unknown; rect?: unknown; zoom?: unknown }) => {
+    ipcMain.on("browser-panel:place", (event, value: { projectId?: unknown; tabId?: unknown; rect?: unknown; zoom?: unknown; refocus?: unknown }) => {
       if (!trusted(event) || !value || typeof value.projectId !== "string" || typeof value.tabId !== "string") return;
-      this.place(value.projectId, value.tabId, cleanRect(value.rect), Number(value.zoom) || 1);
+      this.place(value.projectId, value.tabId, cleanRect(value.rect), Number(value.zoom) || 1, value.refocus === true);
     });
     ipcMain.handle("browser-panel:freeze", (event, value: { projectId?: unknown; tabId?: unknown }) => {
       if (!trusted(event) || !value || typeof value.projectId !== "string" || typeof value.tabId !== "string") return null;

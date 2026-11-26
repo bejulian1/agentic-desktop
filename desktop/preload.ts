@@ -35,8 +35,8 @@ contextBridge.exposeInMainWorld("agenticDesktop", {
   // SPEC 29.3: where the Browser panel's page shows in the window (null hides it), and a picture of
   // it to show while a menu covers the panel.
   browserPanel: {
-    place: (projectId: string, tabId: string, rect: { x: number; y: number; width: number; height: number } | null, zoom = 1) =>
-      ipcRenderer.send("browser-panel:place", { projectId: String(projectId), tabId: String(tabId), rect: rect ? { x: Number(rect.x), y: Number(rect.y), width: Number(rect.width), height: Number(rect.height) } : null, zoom: Number(zoom) || 1 }),
+    place: (projectId: string, tabId: string, rect: { x: number; y: number; width: number; height: number } | null, zoom = 1, refocus = false) =>
+      ipcRenderer.send("browser-panel:place", { projectId: String(projectId), tabId: String(tabId), rect: rect ? { x: Number(rect.x), y: Number(rect.y), width: Number(rect.width), height: Number(rect.height) } : null, zoom: Number(zoom) || 1, refocus: refocus === true }),
     freeze: (projectId: string, tabId: string): Promise<string | null> => ipcRenderer.invoke("browser-panel:freeze", { projectId: String(projectId), tabId: String(tabId) }),
   },
   // Only on the app's own error page.

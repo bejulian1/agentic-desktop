@@ -4508,6 +4508,7 @@
   "Utdrag av samtalen og åpen kodefil sendes til denne modellen. Du kan følge samtalemodellen eller velge en egen.": "会話の抜粋と開いているコードファイルをこのモデルに送信します。会話と同じモデルを使うことも、別のモデルを選ぶこともできます。",
   "Uten {tool} kan ikke informasjonskapsler som er låst med nøkkelringen, leses. Resten importeres.": "{tool} がないと、キーリングでロックされた Cookie は読み取れません。それ以外はインポートされます。",
   "Uten Chat/Kode-bryteren og radene Ny tråd, Artifacts og Skills. Et søkefelt med knapper for nytt prosjekt og ny tråd står øverst, og bunnen er bare ikoner. Alt finnes fortsatt i menyen.": "チャット/コードの切り替えと「新しいスレッド」「アーティファクト」「Skills」の行を表示しません。上部に新しいプロジェクトと新しいスレッドのボタン付き検索欄、下部はアイコンのみになります。すべてメニューから使えます。",
+  "Uten Chromium-sandkassen vises sidene her fra en hodeløs Chrome, som noen nettsteder avviser, for eksempel når de sjekker at du er et menneske. Innstillinger → Om viser hvordan sandkassen slås på.": "Chromium のサンドボックスがない場合、ここのページはヘッドレス Chrome から表示されます。人間であることの確認などで、一部のサイトはこれを拒否します。サンドボックスを有効にする方法は「設定」→「アプリ情報」にあります。",
   "Uten prosjekt kan bare filer med full sti åpnes.": "プロジェクトがない場合、フルパスのあるファイルのみ開けます。",
   "Uten prosjekt starter terminalen i hjemmemappen": "プロジェクトがない場合、端末はホームフォルダーで起動します",
   "Uten tittel": "無題",

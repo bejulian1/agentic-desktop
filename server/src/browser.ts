@@ -78,6 +78,8 @@ interface Session {
   pushAgain: boolean;
   width: number;
   height: number;
+  viewport?: { width: number; height: number }; // the size the page was last given
+  resizing?: Promise<void>;
   downloadStaging?: string; // where Chrome writes downloads for this page, see downloads.ts
 }
 
@@ -614,12 +616,22 @@ export class BrowserManager implements BrowserTools {
   }
 
   // In the Electron window the page is as large as the view the UI places; nothing to emulate.
+  // A panel that is dragged sends sizes close together. They are given to the page one at a time,
+  // each with the size wanted when its turn comes, so the page always ends at the last one: two
+  // setViewportSize calls under way at once could finish in either order.
   resize(projectId: string, width: number, height: number, tabId?: string): Promise<void> {
     if (this.native) return Promise.resolve();
     return this.use(projectId, async (session) => {
       session.width = Math.min(Math.max(Math.round(width) || DEFAULT_SIZE.width, 100), 4096);
       session.height = Math.min(Math.max(Math.round(height) || DEFAULT_SIZE.height, 100), 4096);
-      await session.page.setViewportSize({ width: session.width, height: session.height });
+      const turn = (session.resizing ?? Promise.resolve()).then(async () => {
+        const { width, height } = session;
+        if (session.viewport?.width === width && session.viewport.height === height) return;
+        await session.page.setViewportSize({ width, height });
+        session.viewport = { width, height };
+      });
+      session.resizing = turn.catch(() => undefined);
+      await turn;
     }, tabId);
   }
 

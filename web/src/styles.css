@@ -1050,7 +1050,7 @@ button.context-chip:hover, .context-chip[aria-expanded="true"] { background: var
 .browser-bar { flex: none; display: flex; align-items: center; gap: 2px; padding: var(--space-1) 6px; border-bottom: 1px solid var(--border); }
 .input.address { height: 28px; margin-left: var(--space-1); font-size: var(--text-sm); border-radius: var(--radius-full); padding: 0 var(--space-3); }
 .browser-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--surface-2); contain: strict; }
-.browser-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; outline: none; object-fit: contain; }
+.browser-canvas { position: absolute; left: 0; top: 0; display: block; max-width: none; outline: none; } /* its size is the frame's, at the zoom's scale (Browser.tsx) */
 .browser-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: var(--space-4); color: var(--text-3); text-align: center; }
 
 .team-head { flex: none; padding: 10px var(--space-3) 6px; border-bottom: 1px solid var(--border); }

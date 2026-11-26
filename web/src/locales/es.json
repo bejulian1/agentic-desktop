@@ -4508,6 +4508,7 @@
   "Utdrag av samtalen og åpen kodefil sendes til denne modellen. Du kan følge samtalemodellen eller velge en egen.": "Se envían a este modelo fragmentos de la conversación y el archivo de código abierto. Puedes seguir el modelo de la conversación o elegir uno propio.",
   "Uten {tool} kan ikke informasjonskapsler som er låst med nøkkelringen, leses. Resten importeres.": "Sin {tool} no se pueden leer las cookies bloqueadas con el llavero. El resto se importa.",
   "Uten Chat/Kode-bryteren og radene Ny tråd, Artifacts og Skills. Et søkefelt med knapper for nytt prosjekt og ny tråd står øverst, og bunnen er bare ikoner. Alt finnes fortsatt i menyen.": "Sin el selector Chat/Código ni las filas Nuevo hilo, Artefactos y Skills. Arriba hay un campo de búsqueda con botones para un nuevo proyecto y un nuevo hilo, y abajo solo iconos. Todo sigue en el menú.",
+  "Uten Chromium-sandkassen vises sidene her fra en hodeløs Chrome, som noen nettsteder avviser, for eksempel når de sjekker at du er et menneske. Innstillinger → Om viser hvordan sandkassen slås på.": "Sin el sandbox de Chromium, las páginas se muestran aquí desde un Chrome sin interfaz, que algunos sitios rechazan, por ejemplo al comprobar que eres una persona. Configuración → Acerca de muestra cómo activar el sandbox.",
   "Uten prosjekt kan bare filer med full sti åpnes.": "Sin un proyecto, solo se pueden abrir archivos con ruta completa.",
   "Uten prosjekt starter terminalen i hjemmemappen": "Sin proyecto, la terminal se inicia en la carpeta personal",
   "Uten tittel": "Sin título",
