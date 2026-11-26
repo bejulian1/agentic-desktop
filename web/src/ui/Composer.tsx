@@ -12,7 +12,8 @@ import { composerLarge, composerSimple } from "../state/workspace-look";
 import { untitled } from "../state/app";
 import { app, effectiveProjectOrder, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
 import { actions, forkThread } from "../state/actions";
-import { gridFor } from "../state/grid";
+import { createModelComparison, sendComparison } from "../state/compare-models";
+import { gridFor, MAX_PANES } from "../state/grid";
 import { createThreadFor, newChatIn, newThreadIn, openThread } from "../state/navigate";
 import { peekModel } from "../state/thread-model";
 import { pendingModelSelection, selectThreadModel } from "../state/thread-model-selection";
@@ -505,7 +506,7 @@ function FolderPicker(props: { projectId: string; onPick: (item: MentionItem) =>
 let modelMenuSeq = 0;
 // v1.4.1: the menu is also where effort and permissions are set (Tenkeinnsats, Tillatelsesmodus):
 // the sections come in as children, under the list, and a choice there keeps the menu open.
-function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void; onManage: () => void; children?: JSX.Element }) {
+function ModelMenu(props: { chosen: string | null; comparing: string[]; allowCompare: boolean; onPick: (id: string, shift: boolean) => void; onManage: () => void; children?: JSX.Element }) {
   const listId = `model-list-${++modelMenuSeq}`;
   const [query, setQuery] = createSignal("");
   const [active, setActive] = createSignal<string | null>(props.chosen);
@@ -530,6 +531,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
   createEffect(on(flat, (ids) => {
     if (!ids.includes(active() ?? "")) setActive(ids[0] ?? null);
   }));
+  const selected = (id: string) => props.comparing.length >= 2 ? props.comparing.includes(id) : props.chosen === id;
   const optionId = (id: string) => `${listId}-${encodeURIComponent(id)}`;
   const reveal = () => {
     cancelAnimationFrame(frame);
@@ -590,12 +592,12 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
             } else if (e.key === "Enter" && !e.isComposing) {
               e.preventDefault();
               const id = active();
-              if (id) props.onPick(id);
+              if (id) props.onPick(id, e.shiftKey);
             }
           }}
         />
       </label>
-      <div class="model-list" role="listbox" aria-label={t("Modeller")} id={listId} ref={list}>
+      <div class="model-list" role="listbox" aria-multiselectable={props.allowCompare} aria-label={t("Modeller")} id={listId} ref={list}>
         <For each={groups()} fallback={<p class="model-none">{t("Ingen modeller passer «{query}».", { query: query().trim() })}</p>}>
           {(group) => (
             <div role="group" aria-label={group.localKind ? t("{name} (lokal)", { name: group.name }) : group.name} class="model-group">
@@ -609,16 +611,16 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
                     id={optionId(model.id)}
                     class="menu-item model-option"
                     classList={{ active: active() === model.id }}
-                    aria-selected={props.chosen === model.id}
+                    aria-selected={selected(model.id)}
                     title={model.model === "mock" ? modelDisplayName(model) : `${model.name} (${model.model})`}
                     onPointerMove={() => active() !== model.id && setActive(model.id)}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => props.onPick(model.id)}
+                    onClick={event => props.onPick(model.id, event.shiftKey)}
                   >
                     <ProviderIcon brand={providerBrand(group.provider, model)} size={14} decorative />
                     <span class="menu-name">{modelDisplayName(model)}</span>
                     <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? t("Verktøy på") : t("Verktøy av")}</span></Show>
-                    <span class="menu-check"><Show when={props.chosen === model.id}><IconCheck size={14} /></Show></span>
+                    <span class="menu-check"><Show when={selected(model.id)}><IconCheck size={14} /></Show></span>
                   </button>
                 )}
               </For>
@@ -628,6 +630,7 @@ function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void;
       </div>
       <Show when={props.children}><div class="model-extra">{props.children}</div></Show>
       <div class="model-foot">
+        <Show when={props.allowCompare && app.models.length > 1}><p class="model-compare-hint">{t("Shift+klikk for å sammenligne modeller (maks 4)")}</p></Show>
         <button type="button" class="menu-item model-manage" onMouseDown={(e) => e.preventDefault()} onClick={props.onManage}><IconSliders size={15} /><span class="menu-name">{t("Administrer modeller")}</span></button>
       </div>
     </div>
@@ -882,6 +885,16 @@ export function Composer(props: {
     const id = props.threadId();
     return id ? pendingModelSelection(id)?.modelId ?? thread()?.modelId ?? null : draftModel();
   });
+  const chooseSingleModel = (id: string) => {
+    const current = props.threadId();
+    if (current) selectThreadModel(current, id);
+    else setDraftModel(id);
+  };
+  const comparison = createModelComparison(() => modelFor(modelId())?.id, chooseSingleModel);
+  // Detached windows have no grid. The thread creation API cannot carry an agent thread's permission cap.
+  const allowCompare = () => !props.detached && !thread()?.permissionCap;
+  const comparing = () => allowCompare() && comparison.ids().length >= 2;
+  const buttonLabel = () => comparing() ? t("Sammenlign ({count})", { count: comparison.ids().length }) : modelName(modelId());
   // Kontekstoverføring venter: the thread has answered with one model and the selector now shows
   // another. The next message hands the conversation over; until then a calm line says so, with
   // Angre to go back. It goes the moment the message is sent or the old model is chosen again.
@@ -1785,7 +1798,7 @@ export function Composer(props: {
   // the second waits for the same promise instead of making a thread of its own.
   let creating: Promise<string> | null = null;
   let createdHere: string | null = null;
-  const ensureThread = (sourceKey = draftKey()): Promise<string> => {
+  const ensureThread = (sourceKey = draftKey(), selectedModel = draftModel()): Promise<string> => {
     const existing = props.threadId();
     if (existing) return Promise.resolve(existing);
     creating ??= (async () => {
@@ -1795,7 +1808,7 @@ export function Composer(props: {
       const reasoning = draftReasoning();
       const chosen = draftPersonality();
       const tools = chatTools.draft();
-      const created = await createThreadFor(projectId, draftModel(), { code, chatProjectId });
+      const created = await createThreadFor(projectId, selectedModel, { code, chatProjectId });
       if (reasoning !== undefined) await patch(`/api/threads/${created.id}`, { reasoning }).catch(report);
       if (chosen && !projectId && !chatProjectId) await patch(`/api/threads/${created.id}`, { personality: chosen }).catch(report);
       if (tools && !code) await patch(`/api/threads/${created.id}`, { chatTools: tools }).catch(report);
@@ -1814,8 +1827,9 @@ export function Composer(props: {
     return creating;
   };
 
+  const [startingComparison, setStartingComparison] = createSignal(false);
   const submit = async () => {
-    if (locked() || resolvingCommand()) return;
+    if (locked() || resolvingCommand() || startingComparison()) return;
     const sourceId = props.threadId();
     const sourceKey = draftKey();
     const raw = textarea.value;
@@ -1884,18 +1898,33 @@ export function Composer(props: {
     // While the agent works, the setting decides whether the message waits or goes in at once.
     if (deliveryOverride !== undefined) body.steer = deliveryOverride;
     else if (running() && !("shell" in body)) body.steer = busyMode() === "steer";
+    const models = comparing() && !/^[/$]/.test(text) && !("shell" in body) ? comparison.ids() : [];
+    const grid = models.length ? gridFor(scopeOf({ projectId: props.projectId, mode: kode() ? "code" : "chat" })) : null;
+    let paneId = "";
+    if (grid) {
+      setStartingComparison(true);
+      try {
+        await grid.loaded;
+        if (!sideAlive || draftKey() !== sourceKey || textarea.value !== raw || chips() !== startingChips || skill() !== startingSkill || comparison.ids() !== models) return;
+        if (!grid.canAddPanes(models.length - 1)) return toast(t("Det er plass til {count} ruter i et vindu.", { count: MAX_PANES }), "info");
+        // The project landing opens its first accepted chat in the focused Chat pane.
+        paneId = (sourceId && grid.paneWith(sourceId)?.id) || (props.onAccepted ? grid.focused() : props.paneKey);
+      } finally { setStartingComparison(false); }
+    }
     const failedDraft = { text: raw, chips: startingChips, skill: startingSkill };
-    if (sourceId) setHandoffSent(handoffKey(sourceId, modelId()));
+    if (sourceId) setHandoffSent(handoffKey(sourceId, models[0] ?? modelId()));
     reset();
     props.onSent();
     let saveFailed = false;
     let restoreKey = sourceKey;
     let accepted: string | null = null;
-    try {
-      const id = sourceId ?? await ensureThread(sourceKey);
+    const prepareFirst = async () => {
+      const id = sourceId ?? await ensureThread(sourceKey, models[0] ?? draftModel());
       if (createdHere === id) restoreKey = id;
-      // The run must see the model and effort shown in the composer. A failed save
-      // follows the regular send-failure path below, which preserves the unsent draft.
+      if (models.length && (pendingModelSelection(id)?.modelId ?? app.threads[id]?.modelId) !== models[0]) {
+        selectThreadModel(id, models[0]);
+      }
+      // The run must see the model and effort shown in the composer.
       for (;;) {
         const modelWrite = pendingModelSelection(id)?.saved;
         if (modelWrite) {
@@ -1910,12 +1939,44 @@ export function Composer(props: {
         const failure = await effortWrite.done;
         if (failure) { saveFailed = true; throw failure; }
       }
-      await post(`/api/threads/${id}/messages`, body);
-      accepted = id;
-    } catch (err) {
-      restoreSentDraft(restoreKey, failedDraft);
-      setHandoffSent("");
-      if (!saveFailed) report(err);
+      return id;
+    };
+    if (grid) {
+      const source = thread();
+      const context = {
+        projectId: props.projectId, mode: kode() ? "code" as const : "chat" as const,
+        chatProjectId: source?.chatProjectId ?? props.chatProjectId,
+        temporarySource: source?.temporary ? source.id : undefined,
+        chatTools: kode() ? undefined : chatTools.tools(),
+        planMode: source?.planMode ?? false, reasoning: chosenEffort(),
+        personality: source?.personality ?? draftPersonality(),
+      };
+      setStartingComparison(true);
+      const sent = await sendComparison({
+        grid, paneId, modelIds: models, context, first: prepareFirst(), body,
+        restoreDraft(index, threadId) {
+          if (threadId || index === 0) restoreSentDraft(threadId ?? restoreKey, failedDraft);
+          if (index === 0) setHandoffSent("");
+        },
+      }).finally(() => {
+        if (comparison.ids() === models) comparison.clear();
+        setStartingComparison(false);
+      });
+      // Even if the first send failed, reveal its draft beside any successful replies.
+      if (sent.length && sideAlive && props.onAccepted) {
+        accepted = props.threadId();
+        if (!accepted && app.threads[sent[0]]) void openThread(app.threads[sent[0]]).catch(report);
+      }
+    } else {
+      try {
+        const id = await prepareFirst();
+        await post(`/api/threads/${id}/messages`, body);
+        accepted = id;
+      } catch (err) {
+        restoreSentDraft(restoreKey, failedDraft);
+        setHandoffSent("");
+        if (!saveFailed) report(err);
+      }
     }
     // Keep a landing composer alive until attachments added during the request finish uploading.
     // Its cleanup can then hand the complete next draft to the opened thread.
@@ -2002,9 +2063,8 @@ export function Composer(props: {
   const setModel = (id: string) => {
     setModelOpen(false);
     modelButton.focus({ preventScroll: true });
-    const current = props.threadId();
-    if (current) selectThreadModel(current, id);
-    else setDraftModel(id);
+    comparison.clear();
+    chooseSingleModel(id);
   };
 
   onMount(() => {
@@ -2199,6 +2259,18 @@ export function Composer(props: {
           void addTextFiles(files);
         }}
       >
+        <Show when={comparing()}>
+          <div class="compare-models" role="group" aria-label={buttonLabel()} data-testid="compare-models">
+            <For each={comparison.ids()}>{id => {
+              const model = () => modelFor(id);
+              return <button type="button" class="compare-model-chip" aria-label={t("Fjern {name}", { name: modelName(id) })} onClick={() => comparison.toggle(id)}>
+                <ProviderIcon brand={providerBrand(app.providers.find(p => p.id === model()?.providerId), model())} size={14} decorative />
+                <span>{modelName(id)}</span><IconClose size={10} />
+              </button>;
+            }}</For>
+            <button type="button" class="compare-clear" onClick={comparison.clear}>{t("Avbryt")}</button>
+          </div>
+        </Show>
         <Show when={menu()}>
           <div ref={slashMenu} id={menuId} class="slash-menu" role={hasSuggestions() ? "listbox" : undefined} aria-label={t("Kommandoer, skills og vedlegg")} data-testid="composer-menu">
             <Show when={hasSuggestions() && itemCount() > 0}>
@@ -2535,22 +2607,24 @@ export function Composer(props: {
             portal
             returnFocus
             trigger={
-              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={t("{model}: velg modell", { model: modelName(modelId()) })} aria-label={t("Velg modell: {model}", { model: modelName(modelId()) })} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }} onKeyDown={(event) => {
+              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={t("{model}: velg modell", { model: buttonLabel() })} aria-label={t("Velg modell: {model}", { model: buttonLabel() })} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }} onKeyDown={(event) => {
                 if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
                 event.preventDefault();
                 setEffortOpen(false);
                 setModelOpen(true);
               }}>
-                <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={14} decorative />}</Show>
-                <span class="model-label">{modelName(modelId())}</span>
-                <Show when={composerLarge() && steps().length}><span class="model-effort" data-testid="model-button-effort">{effortLabel(chosenEffort()) || t("Standard")}</span></Show>
+                <Show when={modelFor(comparison.ids()[0] ?? modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={14} decorative />}</Show>
+                <span class="model-label">{buttonLabel()}</span>
+                <Show when={!comparing() && composerLarge() && steps().length}><span class="model-effort" data-testid="model-button-effort">{effortLabel(chosenEffort()) || t("Standard")}</span></Show>
                 <IconChevronDown size={12} />
               </button>
             }
           >
             <ModelMenu
               chosen={modelId() ?? app.settings.defaultModelId}
-              onPick={setModel}
+              comparing={comparison.ids()}
+              allowCompare={allowCompare()}
+              onPick={(id, shift) => shift && allowCompare() ? comparison.toggle(id) : setModel(id)}
               onManage={() => { setModelOpen(false); setSettingsOpen("models"); }}
             >
               <Show when={steps().length}>
@@ -2578,7 +2652,7 @@ export function Composer(props: {
             <button type="button" class="send-button stop" title={t("Stopp kjøringen")} aria-label={t("Stopp")} onClick={stop}><IconStop size={14} /></button>
           </Show>
           <Show when={!running() || hasText()}>
-            <button type="submit" class="send-button" title={t("Send meldingen ({shortcut})", { shortcut: displayKeys(sendKeys()) })} data-keys={displayKeys(sendKeys())} aria-label={t("Send")} disabled={locked() || (!hasText() && !skill())}><IconSend /></button>
+            <button type="submit" class="send-button" title={t("Send meldingen ({shortcut})", { shortcut: displayKeys(sendKeys()) })} data-keys={displayKeys(sendKeys())} aria-label={t("Send")} disabled={locked() || startingComparison() || (!hasText() && !skill())}><IconSend /></button>
           </Show>
         </div>
       </form>
