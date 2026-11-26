@@ -299,6 +299,8 @@ export interface Thread {
   updatedAt: number;
   running: boolean;
   parentThreadId: string | null; // the thread that created this one
+  worktreePath?: string | null;
+  worktreeBranch?: string | null;
   origin: "user" | "agent";
   permissionCap: PermissionMode | null; // never runs above this, set on agent-made threads
   pendingApprovals: number; // for the badge in the sidebar

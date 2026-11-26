@@ -1,9 +1,13 @@
 // Runs a shell command in its own process group, so stop and timeout reach everything it started.
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { bwrapExecutable } from "../chat-python.ts";
 
 export interface CommandOptions {
   command: string;
   cwd: string;
+  confined?: boolean; // A delegated Git worktree.
   env: Record<string, string>;
   timeoutMs: number;
   signal: AbortSignal;
@@ -33,10 +37,33 @@ export function killGroup(pid: number, signal: NodeJS.Signals): void {
 }
 
 export function runCommand(options: CommandOptions): Promise<CommandResult> {
+  let executable = "bash";
+  let args = ["-c", options.command];
+  let env = options.env;
+  if (options.confined) {
+    const bwrap = bwrapExecutable();
+    if (!bwrap) return Promise.reject(new Error("Worktree commands require bubblewrap on Linux."));
+    executable = bwrap;
+    const node = path.basename(process.execPath) === "node" && !process.execPath.startsWith("/usr/")
+      ? ["--ro-bind", process.execPath, "/toolchain/node"] : [];
+    const systemLinks = ["/bin", "/sbin", "/lib", "/lib64"].filter(dir => existsSync(dir))
+      .flatMap(dir => ["--ro-bind", dir, dir]);
+    args = [
+      "--unshare-all", "--share-net", "--unshare-user", "--disable-userns", "--cap-drop", "ALL", "--die-with-parent",
+      "--ro-bind", "/usr", "/usr", ...systemLinks, ...node, "--proc", "/proc", "--dev", "/dev",
+      "--tmpfs", "/tmp",
+      "--ro-bind-try", "/etc/ssl/certs", "/etc/ssl/certs",
+      "--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
+      "--ro-bind-try", "/etc/hosts", "/etc/hosts",
+      "--bind", options.cwd, options.cwd, "--remount-ro", "/", "--chdir", options.cwd,
+      "/bin/bash", ...args,
+    ];
+    env = { PATH: "/toolchain:/usr/local/bin:/usr/bin:/bin", HOME: "/tmp", LANG: "C.UTF-8" };
+  }
   return new Promise((resolve) => {
-    const child = spawn("bash", ["-c", options.command], {
+    const child = spawn(executable, args, {
       cwd: options.cwd,
-      env: options.env,
+      env,
       detached: true, // A new process group, led by the child.
       stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });

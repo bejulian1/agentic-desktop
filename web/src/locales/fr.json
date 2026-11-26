@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "Dossier du projet introuvable.",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "Dossier du projet introuvable. Choisissez d’abord de nouveau le dossier.",
   "Prosjektmappen mangler. Velg mappen på nytt.": "Dossier du projet introuvable. Choisissez de nouveau le dossier.",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "Le dossier du projet doit exister dans le commit Git pour créer un arbre de travail isolé.",
   "Prosjektmapper": "Dossiers de projet",
   "Prosjektminner krever et prosjekt": "Les souvenirs de projet nécessitent un projet",
   "Prosjektnavn": "Nom du projet",

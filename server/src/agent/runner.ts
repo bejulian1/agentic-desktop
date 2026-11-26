@@ -10,7 +10,7 @@ import { REPO_ROOT } from "../config.ts";
 import { cleanName } from "../names.ts";
 import { historyFrom } from "./fork.ts";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type {
   ApprovalDecision,
@@ -29,9 +29,11 @@ import type {
   ToolStatus,
   Usage,
 } from "../../../shared/protocol.ts";
-import type { Store } from "../db.ts";
+import type { Store, ThreadPatch } from "../db.ts";
 import { HttpError } from "../errors.ts";
-import { LOCAL_PANEL, PathError } from "../paths.ts";
+import type { GitWorkspace } from "../git-workspace.ts";
+import type { Schedules } from "../schedules.ts";
+import { guardProjectRoot, LOCAL_PANEL, PathError } from "../paths.ts";
 import { ProviderError, type Block, type ImageData, type Message, type Provider, type StopReason, type ToolDef } from "../providers/types.ts";
 import { MAX_ATTACHMENTS, DEFAULT_MAX_STEPS_PER_TURN, agentSettingsOf, modelContextOf } from "../../../shared/protocol.ts";
 import { discoverSkills, renderSkill, SkillChanges, SkillStore, PROJECT_DIRS, type Skill } from "../skills.ts";
@@ -145,6 +147,8 @@ interface ActiveRun {
   job: Job;
   pendingReceipts: string[]; // accepted messages awaiting a substantive provider response
   skillInstructions: string[];
+  discoveredThreads: Set<string>;
+  inboxOnFinish?: Pick<ThreadPatch, "archived" | "snoozedUntil">;
   suggestedMemory?: { text: string; sourceIndex: number; previous?: ChatProjectMemory };
   chatMemoryTexts: string[] | null; // accepted user messages actually consumed by this Chat turn
   contextKey: string;
@@ -200,6 +204,9 @@ export interface RunnerDeps {
   // need it.
   listModels?: (providerId: string, signal: AbortSignal) => Promise<ListedModel[]>;
   modelsChanged?: () => void; // a helper's model was added to the user's models
+  gitWorkspace?: () => GitWorkspace;
+  schedules?: () => Schedules;
+  knownSecrets?: () => string[];
   env: () => Record<string, string>;
   threadChanged: (threadId: string) => void;
   filesChanged: (projectId: string, paths: string[]) => void;
@@ -312,6 +319,12 @@ export class Runner {
       isBusy: (threadId) => this.active.has(threadId),
       waitIdle: (threadId, ms, signal, requesterId) => this.waitIdle(threadId, ms, signal, requesterId),
       hasIncomingMessage: (threadId) => this.hasIncomingMessage(threadId),
+      hasUserSteering: (threadId) => this.hasUserSteering(threadId),
+      stop: (threadId) => this.stop(threadId),
+      cancel: (threadId, reason) => this.cancelHelper(threadId, reason),
+      deferInboxPatch: (threadId, patch, defer) => this.deferInboxPatch(threadId, patch, defer),
+      gitWorkspace: deps.gitWorkspace,
+      knownSecrets: deps.knownSecrets,
       threadChanged: deps.threadChanged,
       listProviderModels: deps.listModels,
       modelsChanged: deps.modelsChanged,
@@ -582,9 +595,17 @@ export class Runner {
     }
   }
 
-  // The folder a thread's tools work in: its project, or Denne datamaskinen for Kode without one.
-  projectOf(thread: Pick<Thread, "projectId" | "mode">): Project | undefined {
-    if (thread.projectId) return this.store.project(thread.projectId);
+  projectOf(thread: Pick<Thread, "projectId" | "mode" | "worktreePath">): Project | undefined {
+    if (thread.projectId) {
+      const project = this.store.project(thread.projectId);
+      if (!project || !thread.worktreePath) return project;
+      const folder = thread.worktreePath;
+      let folderMissing = true;
+      try {
+        folderMissing = guardProjectRoot(folder, this.deps.dataDir) !== folder || !statSync(folder).isDirectory();
+      } catch { /* An unavailable worktree never falls back to the project checkout. */ }
+      return { ...project, path: folder, folderMissing };
+    }
     return thread.mode === "code" ? this.localProject() : undefined;
   }
 
@@ -641,8 +662,8 @@ export class Runner {
     if (this.autoSkills() === "off") hidden.add("propose_skill").add("propose_skill_edit");
     if (thread.planMode) hidden.add("update_plan"); // plan mode answers with its plan as text
     // Denne datamaskinen is not a project in the store: no helper threads, task list or browser tab.
-    if (project.id === LOCAL_PANEL) for (const tool of CODE_TOOLS) if (/^(?:thread_|task_|browser_)/.test(tool.def.name)) hidden.add(tool.def.name);
-    if (!agentBrowserAllowed(this.store.settings(), project)) for (const tool of CODE_TOOLS) if (tool.def.name.startsWith("browser_")) hidden.add(tool.def.name);
+    if (project.id === LOCAL_PANEL) for (const tool of CODE_TOOLS) if (/^(?:thread_(?:models|list|create|send|wait|cancel)$|task_|browser_)/.test(tool.def.name)) hidden.add(tool.def.name);
+    if (thread.worktreePath || !agentBrowserAllowed(this.store.settings(), project)) for (const tool of CODE_TOOLS) if (tool.def.name.startsWith("browser_")) hidden.add(tool.def.name);
     return [...CODE_TOOLS.filter((t) => !hidden.has(t.def.name) && (!thread.planMode || READ_ONLY_TOOLS.has(t.def.name))),...mods, ...this.mcpTools(thread)];
   }
 
@@ -680,7 +701,7 @@ export class Runner {
 
   // Tools from MCP servers switched on for this mode, never in plan mode (they are not read-only).
   private mcpTools(thread: Thread): Tool[] {
-    if (!this.deps.mcp || (thread.mode === "code" && thread.planMode)) return [];
+    if (!this.deps.mcp || (thread.mode === "code" && (thread.planMode || thread.worktreePath))) return [];
     return this.deps.mcp.tools(thread.mode === "chat" ? "chat" : "code");
   }
 
@@ -970,6 +991,7 @@ export class Runner {
       job,
       pendingReceipts: job.kind === "message" && job.modelText && !heldPrompt ? [job.id] : [],
       skillInstructions: job.skillInstruction ? [job.skillInstruction] : [],
+      discoveredThreads: new Set(),
       chatMemoryTexts: thread.mode === "chat" ? (job.kind === "message" && !job.from && job.modelText ? [job.text] : []) : null,
       contextKey: this.contextKey(thread),
       abort: new AbortController(),
@@ -1001,7 +1023,7 @@ export class Runner {
   // Does a user message wait for UserPromptSubmit hooks before it may reach the model? Only one
   // with text for the model (text: what will be appended).
   private promptHeld(thread: Thread, job: Job, text = job.modelText): boolean {
-    return job.kind === "message" && !!text && !!this.deps.hooks?.has("UserPromptSubmit", thread.mode);
+    return job.kind === "message" && !!text && !(thread.origin === "agent" && thread.planMode) && !!this.deps.hooks?.has("UserPromptSubmit", thread.mode);
   }
 
   // UI event only: model choices never add metadata or instructions to model-visible messages.
@@ -1068,6 +1090,12 @@ export class Runner {
       this.finishTurn(thread, runId, active.turnId);
       this.store.finishRun(runId, status, error);
       this.log.append(threadId, { type: "run.finished", runId, status, ...(error ? { error } : {}) });
+      // Apply the thread's own snooze after its completion event, which wakes existing snoozes.
+      const inbox = active.inboxOnFinish;
+      if (inbox) this.store.updateThread(threadId, {
+        archived: inbox.archived,
+        snoozedUntil: inbox.snoozedUntil && inbox.snoozedUntil > Date.now() ? inbox.snoozedUntil : undefined,
+      });
       this.store.touchThread(threadId);
       // After a stop, the queue is emptied while the thread still counts as running, so nothing
       // new starts in between. Its UserPromptSubmit hooks get a fresh signal: Stop again cancels them.
@@ -1084,7 +1112,7 @@ export class Runner {
       this.agentQueueSlots.delete(threadId);
       return this.wake(threadId);
     }
-    if (status === "done" && active.job.kind === "message") this.afterTurn(thread, active);
+    if (status === "done" && active.job.kind === "message" && !active.inboxOnFinish?.archived) this.afterTurn(thread, active);
     this.deps.threadChanged(threadId);
     if (this.closing) {
       this.agentQueueSlots.delete(threadId);
@@ -1763,12 +1791,14 @@ export class Runner {
       files: this.files,
       browser: this.deps.browser,
       collab: this.collab,
+      discoveredThreads: active.discoveredThreads,
+      schedules: this.deps.schedules?.(),
       tasks: this.deps.tasks,
       env: this.deps.env,
       commandTimeoutMs: this.deps.commandTimeoutMs,
       skills: () => skills,
       output: this.outputWriter(active, call.id),
-      filesChanged: (paths) => this.deps.filesChanged(project.id, paths),
+      filesChanged: (paths) => { if (!thread.worktreePath) this.deps.filesChanged(project.id, paths); },
       saveScreenshot: (png) => this.saveScreenshot(png),
       web: call.name === "web_search" ? this.codeWeb(thread) : undefined,
       memories: this.memoriesOn() ? this.memories : undefined,
@@ -1831,6 +1861,7 @@ export class Runner {
       return finish("denied", { text: `Planmodus er på, så ${call.name} er ikke tilgjengelig. Svar med en plan.`, isError: true });
     }
     const currentProject = this.projectOf(currentThread)!;
+    if (currentProject.folderMissing) return finish("error", { text: "Prosjektmappen mangler. Velg mappen på nytt.", isError: true });
     if (call.name.startsWith("browser_") && !agentBrowserAllowed(this.store.settings(), currentProject)) {
       return finish("denied", { text: sourceText("Tilgang til den delte nettleseren er slått av for agenter i innstillingene."), isError: true });
     }
@@ -1841,6 +1872,8 @@ export class Runner {
     if (selected && this.hasUserSteering(threadId)) return finish("denied", { text: "Hjelperen ble ikke startet: brukeren styrte turen. Vurder den nye meldingen først.", isError: true });
     if (selected && destination(draft ?? this.store.model(selected.id)) !== target) return finish("error", { text: "Modellen eller leverandøren er endret. Velg modell på nytt.", isError: true });
     if (draft) call.input = { ...call.input, model: this.collab.saveDraft(draft).id };
+    ctx.project = currentProject;
+    ctx.thread = currentThread;
     if (call.name === "propose_skill_edit") {
       if (currentThread.archived || currentThread.planMode || this.autoSkills() === "off" || this.hasUserSteering(threadId)) {
         return finish("denied", { text: "Skillen ble ikke endret. Turen, innstillingene eller brukerens instruksjoner har endret seg.", isError: true });
@@ -1851,7 +1884,7 @@ export class Runner {
       // run_command stops itself and kills its group. Other tools, such as a page that never
       // loads, must not hold up Stop.
       const running = tool.run(call.input, ctx);
-      const raw = call.name === "run_command" ? await running : await Promise.race([running, rejectOnAbort(abort.signal)]);
+      const raw = call.name === "run_command" || call.name === "thread_create" ? await running : await Promise.race([running, rejectOnAbort(abort.signal)]);
       // No single result may crowd out the conversation in a small context window.
       let result = { ...raw, text: clip(raw.text, ctx.maxResultChars) };
       if (abort.signal.aborted) return finish("cancelled", result);
@@ -1968,7 +2001,7 @@ export class Runner {
   // history rebuilt from the events (fork.ts) leaves out a message a hook stopped.
   private async runHooks(active: ActiveRun, thread: Thread, event: HookEvent, payload: Record<string, unknown>, toolName?: string, callId?: string, messageId?: string): Promise<HookBatch | undefined> {
     const hooks = this.deps.hooks;
-    if (!hooks?.has(event, thread.mode, toolName)) return undefined;
+    if ((thread.origin === "agent" && thread.planMode) || !hooks?.has(event, thread.mode, toolName)) return undefined;
     const project = this.projectOf(thread);
     const batch = await hooks.run({ event, mode: thread.mode, threadId: thread.id, cwd: project?.path, signal: active.abort.signal, toolName, payload });
     for (const result of batch.results) {
@@ -2098,7 +2131,7 @@ export class Runner {
 
   private async runShell(active: ActiveRun): Promise<void> {
     const thread = this.store.thread(active.threadId)!;
-    const project = this.store.project(thread.projectId!)!;
+    const project = this.projectOf(thread)!;
     const command = active.job.shell!;
     const callId = randomUUID();
     const { result, status } = await this.runTool(active, thread, project, [], { id: callId, name: "run_command", input: { command }, fromUser: true });
@@ -2189,7 +2222,34 @@ export class Runner {
 
   // Stop and undo
 
-  stop(threadId: string): boolean {
+  clearPendingInboxPatch(threadId: string, patch: Pick<ThreadPatch, "archived" | "snoozedUntil">): void {
+    const pending = this.active.get(threadId)?.inboxOnFinish;
+    if (!pending) return;
+    if (patch.archived !== undefined) delete pending.archived;
+    if (patch.snoozedUntil !== undefined) delete pending.snoozedUntil;
+  }
+
+  private deferInboxPatch(threadId: string, patch: Pick<ThreadPatch, "archived" | "snoozedUntil">, defer: boolean): boolean {
+    this.clearPendingInboxPatch(threadId, patch);
+    const active = this.active.get(threadId);
+    if (!defer || !active || (!patch.archived && !patch.snoozedUntil)) return false;
+    active.inboxOnFinish = { ...active.inboxOnFinish, ...patch };
+    return true;
+  }
+
+  private cancelHelper(threadId: string, reason?: string): boolean {
+    const removed = this.store.takeQueued<Job>(threadId, () => true);
+    for (const job of removed) this.log.append(threadId, { type: "user.queue-removed", messageId: job.id });
+    this.agentQueueSlots.delete(threadId);
+    const stopped = this.stop(threadId, reason);
+    if (removed.length) {
+      this.deps.threadChanged(threadId);
+      if (!stopped) this.wake(threadId);
+    }
+    return stopped || removed.length > 0;
+  }
+
+  stop(threadId: string, reason = "Stoppet"): boolean {
     const active = this.active.get(threadId);
     if (!active) {
       const thread = this.store.thread(threadId);
@@ -2201,7 +2261,7 @@ export class Runner {
       this.wake(threadId);
       return true;
     }
-    active.abort.abort(new DOMException("Stoppet", "AbortError"));
+    active.abort.abort(new DOMException(reason || "Stoppet", "AbortError"));
     return true;
   }
 
@@ -2231,7 +2291,7 @@ export class Runner {
     this.store.markTurnReverted(turnId);
     this.store.appendMessage(thread.id, { role: "user", content: [{ type: "text", text: `[Brukeren angret filendringene fra en tidligere tur: ${paths.join(", ")}]` }] });
     this.log.append(thread.id, { type: "turn.reverted", turnId });
-    this.deps.filesChanged(project.id, paths);
+    if (!thread.worktreePath) this.deps.filesChanged(project.id, paths);
   }
 
   // Lifecycle

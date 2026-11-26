@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "Cartella del progetto mancante.",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "Cartella del progetto mancante. Scegli prima di nuovo la cartella.",
   "Prosjektmappen mangler. Velg mappen på nytt.": "Cartella del progetto mancante. Scegli di nuovo la cartella.",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "La cartella del progetto deve essere presente nel commit Git per creare un albero di lavoro isolato.",
   "Prosjektmapper": "Cartelle di progetto",
   "Prosjektminner krever et prosjekt": "I ricordi del progetto richiedono un progetto",
   "Prosjektnavn": "Nome del progetto",

@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "The project folder is missing.",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "The project folder is missing. Select the folder again first.",
   "Prosjektmappen mangler. Velg mappen på nytt.": "The project folder is missing. Select the folder again.",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "The project folder must exist in the Git commit to create an isolated worktree.",
   "Prosjektmapper": "Project folders",
   "Prosjektminner krever et prosjekt": "Project memories require a project",
   "Prosjektnavn": "Project name",

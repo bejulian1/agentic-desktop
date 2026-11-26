@@ -3,10 +3,15 @@
 // run away and get expensive.
 import { DEFAULT_LOCAL_CONTEXT_WINDOW, type ListedModel, type ModelConfig, type Thread, type ThreadRef } from "../../../shared/protocol.ts";
 import { DEFAULT_CONTEXT_WINDOW, localKindFor, tableContext } from "../providers/presets.ts";
-import type { Store } from "../db.ts";
+import type { Store, ThreadPatch } from "../db.ts";
+import type { GitWorkspace } from "../git-workspace.ts";
+import { looksSecret } from "../memory.ts";
+import { cleanName } from "../names.ts";
+import { parseSnoozedUntil } from "../thread-inbox.ts";
 import type { EventLog } from "./events.ts";
 import { effectiveMode } from "./permissions.ts";
 import { blocksText } from "./context.ts";
+import { historyFrom } from "./fork.ts";
 import { clip, MAX_RESULT_CHARS, type CollabTools, type ToolResult } from "./tools.ts";
 
 export const MAX_DEPTH = 2;
@@ -29,6 +34,29 @@ export function validModelId(value: unknown): value is string {
 // with. It is saved as an ordinary model (Innstillinger → Modeller) only when the helper starts.
 export interface DraftModel extends ModelConfig { draft: true }
 
+export interface CreateThreadInput {
+  title: string;
+  task: string;
+  model: string;
+  role?: "research" | "review" | "implementation";
+  readOnly?: boolean;
+  isolation?: "shared" | "worktree";
+}
+
+export interface SearchThreadsInput {
+  query?: string;
+  projectId?: string;
+  includeArchived?: boolean;
+  limit?: number;
+}
+
+export interface OrganizeThreadInput {
+  threadId?: string;
+  action: "settle" | "archive" | "unsettle" | "unarchive" | "snooze" | "unsnooze" | "pin" | "unpin" | "rename";
+  snoozedUntil?: string | number;
+  title?: string;
+}
+
 export interface CollabHost {
   sendFromThread(threadId: string, text: string, from: ThreadRef, chainId: string): void;
   chainOf(threadId: string): string;
@@ -37,7 +65,13 @@ export interface CollabHost {
   isBusy(threadId: string): boolean;
   waitIdle(threadId: string, timeoutMs: number, signal: AbortSignal, requestingThreadId?: string): Promise<boolean>;
   hasIncomingMessage?(threadId: string): boolean;
+  hasUserSteering?(threadId: string): boolean;
   threadChanged(threadId: string): void;
+  gitWorkspace?: () => GitWorkspace;
+  stop?(threadId: string): boolean;
+  cancel?(threadId: string, reason?: string): boolean;
+  deferInboxPatch?(threadId: string, patch: Pick<ThreadPatch, "archived" | "snoozedUntil">, defer: boolean): boolean;
+  knownSecrets?(): string[];
   // The provider's own model list (its /models endpoint). Absent in tests that do not need it.
   listProviderModels?(providerId: string, signal: AbortSignal): Promise<ListedModel[]>;
   modelsChanged?(): void;
@@ -116,6 +150,91 @@ export class Collab implements CollabTools {
         return `${t.id}  ${status}  ${JSON.stringify(t.title)}${marks ? `  (${marks})` : ""}`;
       })
       .join("\n");
+  }
+
+  search(input: SearchThreadsInput, discovered?: Set<string>, maxChars = MAX_RESULT_CHARS): ToolResult {
+    const { query = "", projectId, includeArchived = false, limit = 20 } = input;
+    if (typeof query !== "string" || (projectId !== undefined && (typeof projectId !== "string" || !projectId.trim())) ||
+        typeof includeArchived !== "boolean" || !Number.isSafeInteger(limit) || limit < 1) {
+      return fail("Use a text query, a project ID, a boolean includeArchived and a positive integer limit.");
+    }
+    const search = query.trim().toLowerCase();
+    const projects = new Map(this.store.projects().map(project => [project.id, project.name]));
+    const chatProjects = new Map(this.store.chatProjects().map(project => [project.id, project.name]));
+    const redact = this.redactor();
+    const matches: string[] = [];
+    let chars = 2; // JSON array brackets.
+    for (const t of this.store.threads()) {
+      if (t.temporary || (!includeArchived && t.archived) || (projectId !== undefined && (t.projectId ?? t.chatProjectId) !== projectId)) continue;
+      const title = redact(t.title).slice(0, 160);
+      const name = projects.get(t.projectId ?? "") ?? chatProjects.get(t.chatProjectId ?? "");
+      const projectName = name ? redact(name).slice(0, 160) : null;
+      if (search && ![t.id, title, projectName].some(value => value?.toLowerCase().includes(search))) continue;
+      const result = JSON.stringify({
+        id: t.id, title, mode: t.mode, projectName,
+        status: t.pendingApprovals ? "awaiting-approval" : t.pendingQuestions ? "awaiting-input" : t.running ? "running" : t.lastStatus ?? "idle",
+        pinned: !!t.pinned, archived: t.archived, snoozedUntil: t.snoozedUntil ?? null, updatedAt: t.updatedAt,
+      });
+      chars += result.length + Number(matches.length > 0);
+      if (chars > maxChars) break;
+      matches.push(result);
+      discovered?.add(t.id);
+      if (matches.length === Math.min(limit, 50)) break;
+    }
+    return { text: `[${matches.join(",")}]` };
+  }
+
+  organize(thread: Thread, input: OrganizeThreadInput): ToolResult {
+    const target = input.threadId === undefined ? this.store.thread(thread.id)
+      : typeof input.threadId === "string" ? this.store.thread(input.threadId) : undefined;
+    if (!target || target.temporary) return fail("Fant ikke tråden");
+    let patch: ThreadPatch;
+    switch (input.action) {
+      case "settle": case "archive": patch = { archived: true }; break;
+      case "unsettle": case "unarchive": patch = { archived: false }; break;
+      case "pin": case "unpin": patch = { pinned: input.action === "pin" }; break;
+      case "unsnooze": patch = { snoozedUntil: null }; break;
+      case "snooze": {
+        const until = parseSnoozedUntil(input.snoozedUntil);
+        if (until === null) return fail("Velg et gyldig tidspunkt i fremtiden");
+        patch = { snoozedUntil: until };
+        break;
+      }
+      case "rename": {
+        const title = typeof input.title === "string" ? cleanName(input.title) : "";
+        if (!title) return fail("Tittelen er tom");
+        patch = { title };
+        break;
+      }
+      default: return fail("Choose a valid thread action.");
+    }
+    const result = { threadId: target.id, ...patch, ...(patch.title ? { title: this.redactor()(patch.title) } : {}) };
+    if (this.host.deferInboxPatch?.(target.id, patch, target.id === thread.id)) {
+      return { text: JSON.stringify({ ...result, onCompletion: true }) };
+    }
+    if (patch.archived && (!target.running || target.pendingQuestions)) this.host.stop?.(target.id);
+    this.store.updateThread(target.id, patch);
+    this.host.threadChanged(target.id);
+    return { text: JSON.stringify(result) };
+  }
+
+  cancel(thread: Thread, input: { threadId: string; reason?: string }): ToolResult {
+    const other = this.peer(thread, input.threadId);
+    if ("text" in other) return other;
+    if (other.origin !== "agent" || !this.hasAncestor(other, thread.id)) return fail("Only descendant helper threads can be cancelled.");
+    if (input.reason !== undefined && typeof input.reason !== "string") return fail("Use text for the cancellation reason.");
+    const cancelled = this.host.cancel?.(other.id, input.reason?.trim().slice(0, 200)) ?? false;
+    return { text: JSON.stringify({ threadId: other.id, cancelled }) };
+  }
+
+  private redactor(): (value: string) => string {
+    const known = this.host.knownSecrets?.().filter(Boolean) ?? [];
+    return (value) => {
+      if (/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(value)) return "[redacted]";
+      const containsSecret = (line: string) => known.some(secret => secret.length >= 4
+        ? line.includes(secret) : line.split(/[\s"'=:,;]+/).includes(secret));
+      return value.split("\n").map(line => containsSecret(line) || looksSecret(line) ? "[redacted]" : line).join("\n");
+    };
   }
 
   // Configured models across providers, and with available: true also what the running provider
@@ -219,7 +338,7 @@ export class Collab implements CollabTools {
     return this.store.model(model.id)!;
   }
 
-  create(thread: Thread, runId: string, parentModelId: string, input: { title: string; task: string; model: string }): ToolResult {
+  create(thread: Thread, runId: string, parentModelId: string, input: CreateThreadInput, signal: AbortSignal): ToolResult | Promise<ToolResult> {
     const currentThread = this.store.thread(thread.id);
     const project = currentThread?.projectId ? this.store.project(currentThread.projectId) : undefined;
     if (!currentThread || currentThread.archived || currentThread.planMode || !project || project.folderMissing) return fail("Hjelpetråder krever en aktiv Kode-tråd i et tilgjengelig prosjekt, uten planmodus.");
@@ -230,23 +349,49 @@ export class Collab implements CollabTools {
     const title = typeof input.title === "string" ? input.title.trim().slice(0, 120) : "";
     const task = typeof input.task === "string" ? input.task.trim() : "";
     if (!title || !task || task.length > 200_000) return fail("title og task må fylles ut, og task kan ikke være over 200 000 tegn.");
+    if (input.role !== undefined && !["research", "review", "implementation"].includes(input.role)) return fail("Choose research, review or implementation for role.");
+    if (input.readOnly !== undefined && typeof input.readOnly !== "boolean") return fail("Use a boolean for readOnly.");
+    if (input.isolation !== undefined && !["shared", "worktree"].includes(input.isolation)) return fail("Choose shared or worktree for isolation.");
+    const planMode = input.readOnly === true || input.role === "research" || input.role === "review";
     const model = this.store.model(input.model);
     if (!model) return fail("Den valgte modellen er ikke lenger tilgjengelig.");
     const assigned = this.store.answerModel(model);
-    const child = this.store.createThread(project.id, "code", model.id, {
-      title,
-      parentThreadId: thread.id,
-      permissionCap: effectiveMode(project, currentThread), // Never above the thread that made it.
-    });
-    // The parent's per-thread effort overrides its model default. A helper on the same model
-    // should keep that choice; an explicitly different model keeps its own effort setting.
-    if (model.id === parentModelId && thread.reasoning) this.store.updateThread(child.id, { reasoning: thread.reasoning });
-    const chainId = this.host.chainOf(thread.id);
-    this.count(chainId);
-    this.log.append(thread.id, { type: "thread.spawned", runId, childThreadId: child.id, title, model: assigned });
-    this.host.threadChanged(child.id);
-    this.host.sendFromThread(child.id, task, { threadId: thread.id, title: thread.title }, chainId);
-    return { text: `Tråden ${JSON.stringify(title)} er startet med ${JSON.stringify(assigned.modelName)} (${JSON.stringify(assigned.providerName)}). tråd-id: ${child.id}` };
+    const start = (worktreePath?: string | null, worktreeBranch?: string | null): ToolResult => {
+      signal.throwIfAborted();
+      const parent = this.store.thread(thread.id);
+      const latest = this.store.project(project.id);
+      if (!parent || parent.archived || parent.planMode || parent.projectId !== project.id || !latest || latest.path !== project.path ||
+          latest.folderMissing || this.host.hasUserSteering?.(thread.id)) throw new Error("The parent thread or its project changed before the helper could start.");
+      if (this.host.runningAgentThreads(project.id) >= MAX_AGENT_THREADS) throw new Error("No helper slot is available in this project.");
+      const child = this.store.createThread(project.id, "code", model.id, {
+        title, parentThreadId: thread.id, planMode, worktreePath, worktreeBranch,
+        permissionCap: effectiveMode(latest, parent),
+      });
+      // Keep the parent's per-thread effort when the helper uses the same model.
+      if (model.id === parentModelId && parent.reasoning) this.store.updateThread(child.id, { reasoning: parent.reasoning });
+      const chainId = this.host.chainOf(thread.id);
+      try {
+        this.host.sendFromThread(child.id, task, { threadId: thread.id, title: parent.title }, chainId);
+      } catch (error) {
+        this.store.deleteThread(child.id);
+        throw error;
+      }
+      this.count(chainId);
+      this.log.append(thread.id, { type: "thread.spawned", runId, childThreadId: child.id, title, model: assigned });
+      this.host.threadChanged(child.id);
+      return { text: JSON.stringify({
+        threadId: child.id, planMode, readOnly: planMode, isolation: worktreePath ? "worktree" : "shared",
+        worktreePath: worktreePath ?? null, branch: worktreeBranch ?? null,
+        message: `Tråden ${JSON.stringify(title)} er startet med ${JSON.stringify(assigned.modelName)} (${JSON.stringify(assigned.providerName)}). tråd-id: ${child.id}`,
+      }) };
+    };
+    if (input.isolation !== "worktree") return start(currentThread.worktreePath, currentThread.worktreeBranch);
+    const git = this.host.gitWorkspace?.();
+    if (!git) return fail("Git worktree support is unavailable.");
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "helper";
+    const branch = `agent/${slug}-${crypto.randomUUID().slice(0, 8)}`;
+    const workspace = currentThread.worktreePath ? { ...project, path: currentThread.worktreePath } : project;
+    return git.createAgentWorktree(workspace, branch, folder => start(folder, branch), signal);
   }
 
   send(thread: Thread, _runId: string, input: { threadId: string; text: string }): ToolResult {
@@ -270,15 +415,24 @@ export class Collab implements CollabTools {
     return { text: ancestorReply ? "Meldingen er sendt inn i den overordnede trådens pågående arbeid." : busy ? "Tråden jobber, så meldingen ligger i kø." : "Meldingen er sendt." };
   }
 
-  read(thread: Thread, input: { threadId: string; limit?: number }): ToolResult {
-    const other = this.peer(thread, input.threadId);
-    if ("text" in other) return other;
+  read(thread: Thread, input: { threadId: string; limit?: number }, discovered?: Set<string>): ToolResult {
+    const other = typeof input.threadId === "string" ? this.store.thread(input.threadId) : undefined;
+    if (!other || other.temporary || other.id === thread.id) return fail("Fant ikke tråden");
+    const sameProject = thread.projectId !== null && other.projectId === thread.projectId;
+    if (!sameProject && !discovered?.has(other.id)) return fail("Find the thread with thread_search before reading it.");
     const limit = Math.min(Math.max(Number(input.limit ?? 10), 1), 50);
-    const lines = this.store.messages(other.id)
+    const redact = this.redactor();
+    this.log.flush(other.id);
+    // The visible transcript excludes hidden context, expanded attachments and tool results.
+    const kinds = new Set(["user.message", "user.checked", "text.delta", "history.answer"]);
+    const events = this.store.eventsTail(other.id, 2000).filter(({ event }) => kinds.has(event.type))
+      .map(envelope => envelope.event.type === "user.message"
+        ? { ...envelope, event: { ...envelope.event, attachments: undefined } } : envelope);
+    const lines = historyFrom(events)
       .map((m) => ({ role: m.role, text: blocksText(m.content) }))
       .filter((m) => m.text)
       .slice(-limit)
-      .map((m) => `${m.role === "user" ? "Bruker" : "Assistent"}: ${m.text}`);
+      .map((m) => `${m.role === "user" ? "Bruker" : "Assistent"}: ${redact(m.text)}`);
     return { text: clip(lines.join("\n\n")) || "(ingen meldinger)" };
   }
 

@@ -334,6 +334,8 @@ export class Store {
     add("threads", "goal_elapsed_ms", "INTEGER NOT NULL DEFAULT 0");
     add("threads", "chapters", "TEXT");
     add("threads", "plan_mode", "INTEGER NOT NULL DEFAULT 0");
+    add("threads", "worktree_path", "TEXT");
+    add("threads", "worktree_branch", "TEXT");
     add("threads", "plan", "TEXT");
     add("threads", "reasoning", "TEXT");
     add("threads", "personality", "TEXT");
@@ -702,6 +704,7 @@ export class Store {
     running: this.isRunning(row.id),
     promptHistoryReady: this.promptHistoryReady(row.id),
     parentThreadId: row.parent_thread_id,
+    ...(row.worktree_path ? { worktreePath: row.worktree_path, worktreeBranch: row.worktree_branch } : {}),
     origin: row.origin,
     permissionCap: row.permission_cap,
     pendingApprovals: this.pendingApprovals(row.id),
@@ -753,15 +756,18 @@ export class Store {
     projectId: string | null,
     mode: Mode,
     modelId: string | null,
-    options: { title?: string; parentThreadId?: string; permissionCap?: PermissionMode; origin?: "user" | "agent" } = {},
+    options: { title?: string; parentThreadId?: string; permissionCap?: PermissionMode; origin?: "user" | "agent";
+      planMode?: boolean; worktreePath?: string | null; worktreeBranch?: string | null } = {},
   ): Thread {
     const id = randomUUID();
     const now = Date.now();
     this.q(
-      `INSERT INTO threads (id, project_id, mode, title, model_id, created_at, updated_at, parent_thread_id, origin, permission_cap)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO threads (id, project_id, mode, title, model_id, created_at, updated_at, parent_thread_id, origin, permission_cap,
+          plan_mode, worktree_path, worktree_branch)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(id, projectId, mode, options.title ?? "Ny tråd", modelId, now, now, options.parentThreadId ?? null,
-      options.origin ?? (options.parentThreadId ? "agent" : "user"), options.permissionCap ?? null);
+      options.origin ?? (options.parentThreadId ? "agent" : "user"), options.permissionCap ?? null,
+      options.planMode ? 1 : 0, options.worktreePath ?? null, options.worktreeBranch ?? null);
     return this.thread(id)!;
   }
 

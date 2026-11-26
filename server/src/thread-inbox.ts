@@ -2,11 +2,27 @@ import { pullKey, pullUrl } from "../../shared/linked-pr.ts";
 import type { LinkedPr, PullWatchStatus, Thread, ThreadEventEnvelope } from "../../shared/protocol.ts";
 import type { Store } from "./db.ts";
 import { GitHubError } from "./github.ts";
+import { HttpError } from "./errors.ts";
 
 const HOUR = 3_600_000;
 const SWEEP_EVERY = 5 * 60_000;
 const WAKE_EVENTS = new Set(["user.message", "user.queued", "run.finished", "approval.requested", "question.requested"]);
 const PARENT_WAKE_EVENTS = new Set(["run.finished", "approval.requested", "question.requested"]);
+
+export function validateSnoozedUntil(value: unknown): number | null {
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= Date.now() || value > 8.64e15) {
+    throw new HttpError(400, "Velg et gyldig tidspunkt i fremtiden");
+  }
+  return value;
+}
+
+export function parseSnoozedUntil(value: unknown): number | null {
+  if (typeof value !== "string") return validateSnoozedUntil(value);
+  const iso = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
+  const day = iso && new Date(`${iso[1]}T00:00:00Z`);
+  return validateSnoozedUntil(day && Number.isFinite(+day) && day.toISOString().startsWith(iso[1]) ? Date.parse(value) : NaN);
+}
 
 function canSettle(thread: Thread, now: number): boolean {
   return !thread.archived && !thread.temporary && !thread.pinned && !thread.running &&

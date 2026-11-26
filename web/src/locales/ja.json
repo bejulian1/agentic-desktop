@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "プロジェクトフォルダーが見つかりません。",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "プロジェクトフォルダーが見つかりません。先にフォルダーを選び直してください。",
   "Prosjektmappen mangler. Velg mappen på nytt.": "プロジェクトフォルダーが見つかりません。フォルダーを選び直してください。",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "分離された作業ツリーを作成するには、プロジェクトフォルダーが Git のコミット内に存在する必要があります。",
   "Prosjektmapper": "プロジェクトフォルダ",
   "Prosjektminner krever et prosjekt": "プロジェクトメモリを使うにはプロジェクトが必要です",
   "Prosjektnavn": "プロジェクト名",

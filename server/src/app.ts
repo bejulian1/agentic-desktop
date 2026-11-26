@@ -128,11 +128,12 @@ async function startAppWithClaim(
   const security = new Security(config.dataDir);
   const configDirs = new ConfigDirs(options.configDir ?? defaultGlobalConfigDir(), config.dataDir);
 
+  const knownSecrets = () => [security.token, ...secrets.values(), ...store.providers().flatMap(p => apiKeyFor(p, secrets) ?? [])];
   const env = () => {
     const providers = store.providers();
     return childEnv({
       names: providers.flatMap((p) => (p.apiKeyEnv ? [p.apiKeyEnv] : [])),
-      values: [security.token, ...secrets.values(), ...providers.flatMap((p) => apiKeyFor(p, secrets) ?? [])],
+      values: knownSecrets(),
     });
   };
 
@@ -287,6 +288,9 @@ async function startAppWithClaim(
       return fetchModelList(provider, apiKeyFor(provider, secrets), signal);
     },
     modelsChanged: () => api.settingsChangedFromKeyring(),
+    gitWorkspace: () => api.gitWorkspaces,
+    schedules: () => api.schedules,
+    knownSecrets,
     threadChanged,
     filesChanged: (projectId, paths) => {
       api.invalidateFiles(projectId);

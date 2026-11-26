@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "找不到项目文件夹。",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "找不到项目文件夹。请先重新选择文件夹。",
   "Prosjektmappen mangler. Velg mappen på nytt.": "找不到项目文件夹。请重新选择文件夹。",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "项目文件夹必须存在于 Git 提交中，才能创建隔离的工作树。",
   "Prosjektmapper": "项目文件夹",
   "Prosjektminner krever et prosjekt": "使用项目记忆需要选择项目",
   "Prosjektnavn": "项目名称",

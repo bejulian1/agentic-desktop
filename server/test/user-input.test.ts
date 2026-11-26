@@ -33,7 +33,8 @@ test("spørsmål i lokal Kode respekterer planmodus, avviser fremmede svar og le
   const path = `/api/threads/${thread.id}/questions/${request.requestId}`;
   const names = llm.requests[0].body.tools.map((tool: any) => tool.function.name);
   assert.ok(names.includes("request_user_input") && names.includes("read_file"));
-  assert.ok(!names.some((name: string) => /^(thread_|task_|browser_|run_command$)/.test(name)));
+  assert.ok(names.includes("thread_search") && names.includes("schedule_list"));
+  assert.ok(!names.some((name: string) => /^(thread_(?!search$|read$)|task_|browser_|run_command$|schedule_(?!list$))/.test(name)));
   assert.equal((await rawRequest(h.app.port, "POST", path, { headers: { origin: h.origin } })).status, 401);
   await assert.rejects(h.api("POST", path, { runId: "feil", answers: answer }), { status: 409 });
   await assert.rejects(h.api("POST", path, { runId: request.runId, answers: [{ ...answer[0], selectedOptions: ["Kort", "Langt"] }] }), { status: 400 });
