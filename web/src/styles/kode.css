@@ -608,3 +608,14 @@ button.pinned-item:hover { background: var(--hover); color: var(--text); }
 .memory-review p { margin: 3px 0; overflow-wrap: anywhere; }
 .memory-review select { max-width: 100%; }
 .memory-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.model-compare-hint { margin: 2px 8px 5px; color: var(--text-3); font-size: var(--text-xs); }
+.compare-models { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding-bottom: 4px; }
+.compare-model-chip, .compare-clear {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 24px;
+  padding: 2px 6px; border-radius: var(--radius-md); color: var(--text-2); font-size: var(--text-xs);
+}
+.compare-model-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compare-model-chip svg { flex: none; }
+.compare-clear { margin-left: auto; color: var(--text-3); }
+.compare-model-chip:hover, .compare-clear:hover { color: var(--text); background: var(--hover); }

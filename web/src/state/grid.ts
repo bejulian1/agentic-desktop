@@ -323,6 +323,10 @@ export class Grid {
     return collect(this.root()).length;
   }
 
+  canAddPanes(count: number): boolean {
+    return this.count() + count <= MAX_PANES;
+  }
+
   focus(paneId: string): void {
     if (this.focused() !== paneId) this.setFocused(paneId);
   }
@@ -343,7 +347,7 @@ export class Grid {
   }
 
   split(paneId: string, side: Side, threadId: string | null = null, takeFocus = true): string | null {
-    if (this.count() >= MAX_PANES) {
+    if (!this.canAddPanes(1)) {
       toast(t("Det er plass til {count} ruter i et vindu.", { count: MAX_PANES }), "info");
       return null;
     }
@@ -387,7 +391,7 @@ export class Grid {
 
   // A new pane along a whole edge of the grid.
   splitEdge(side: Side, threadId: string | null = null): string | null {
-    if (this.count() >= MAX_PANES) {
+    if (!this.canAddPanes(1)) {
       toast(t("Det er plass til {count} ruter i et vindu.", { count: MAX_PANES }), "info");
       return null;
     }
