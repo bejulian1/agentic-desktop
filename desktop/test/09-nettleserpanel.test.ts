@@ -11,8 +11,10 @@ import { alive, apiCall, closeAll, launch, ROOT, sandbox, waitFor, type Running 
 import { openaiText, openaiToolCall, sse, startFakeLlm } from "../../server/test/fake-llm.ts";
 
 // A local site: a page with a button that counts, a second page and a file to download.
-function testSite(): Promise<{ url: string; server: Server }> {
+function testSite(): Promise<{ url: string; server: Server; agents: string[] }> {
+  const agents: string[] = []; // what each request said it came from
   const server = createServer((req, res) => {
+    agents.push(req.headers["user-agent"] ?? "");
     if (req.url === "/andre") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       return res.end("<!doctype html><title>Andre side</title><h1>Andre side</h1>");
@@ -28,7 +30,7 @@ button{position:absolute;left:40px;top:60px;width:200px;height:60px}</style></he
 <a id="lenke" href="/andre" style="position:absolute;left:40px;top:160px">Andre side</a>
 <a id="fil" href="/fil" style="position:absolute;left:40px;top:200px">Last ned</a></body></html>`);
   });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${(server.address() as { port: number }).port}/`, server })));
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${(server.address() as { port: number }).port}/`, server, agents })));
 }
 
 // A WebSocket to the server from the UI's own page, like the panel's: browser.* messages are kept,
@@ -63,6 +65,8 @@ interface PanelPage {
   shown: boolean;
   pid: number;
   bounds: { x: number; y: number; width: number; height: number };
+  zoom: number;
+  focused: boolean;
 }
 const panelOf = (app: ElectronApplication) => <T,>(expr: string) =>
   app.evaluate((_e, source) => new Function("p", `return (${source});`)((globalThis as any).__agenticBrowserPanel), expr) as Promise<T>;
@@ -360,12 +364,16 @@ test("UI-et: panelet følger rammen, viker for menyer og annotering med et still
     };
     await waitFor(matches, "siden vises der panelet er");
     assert.equal(await browser.getByTestId("browser-canvas").isHidden(), true, "ingen bilder på lerretet");
+    // To the web the panel is the Chromium it is: no app name and no Electron in what it sends.
+    assert.match(site.agents.at(-1)!, /^Mozilla\/5\.0 \([^)]+\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/);
 
     // A menu over the panel: the page is a still picture until the menu goes.
     await browser.getByRole("button", { name: "Mer for nettleseren" }).click();
     await page.getByRole("menu", { name: "Nettlesermeny" }).waitFor();
     await waitFor(async () => (await view())?.shown === false, "visningen viker for menyen");
     assert.equal(await browser.locator("img.browser-still").count(), 1, "stillbildet vises i stedet");
+    const stillWidth = await browser.locator("img.browser-still").evaluate((img: HTMLImageElement) => img.style.width);
+    assert.equal(stillWidth, `${(await stageRect()).width}px`, "stillbildet har sidens egen størrelse og strekkes ikke med panelet");
     await page.keyboard.press("Escape");
     await waitFor(matches, "siden er tilbake når menyen er lukket");
     await waitFor(async () => (await browser.locator("img.browser-still").count()) === 0, "stillbildet er borte");
@@ -391,6 +399,29 @@ test("UI-et: panelet følger rammen, viker for menyer og annotering med et still
     await page.getByTestId("selection-native-overlap").getByRole("button").click();
     await page.getByTestId("selection-native-overlap").evaluate((toolbar) => toolbar.remove());
     await waitFor(matches, "siden kommer tilbake etter markeringsmenyen");
+
+    // A toast over the page while the user is in it: the page steps aside, and has the keyboard
+    // again afterwards. Not when the user has used the app meanwhile.
+    const toastOver = () => browser.locator(".browser-stage").evaluate((stage) => {
+      const rect = stage.getBoundingClientRect();
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.dataset.testid = "toast-native-overlap";
+      toast.textContent = "Varsel i integrasjonsprøven";
+      Object.assign(toast.style, { position: "fixed", left: `${rect.left + 8}px`, top: `${rect.top + 8}px` });
+      document.body.append(toast);
+    });
+    for (const touched of [false, true]) {
+      await panel(`p.focus(${JSON.stringify((await view())!.targetId)})`);
+      await waitFor(async () => (await view())?.focused === true, "siden har tastaturet");
+      await toastOver();
+      await waitFor(async () => (await view())?.shown === false, "visningen viker for varselet");
+      assert.equal((await view())?.focused, false, "tastene går til appen mens siden er et bilde");
+      if (touched) await page.keyboard.press("Shift");
+      await page.getByTestId("toast-native-overlap").evaluate((toast) => toast.remove());
+      await waitFor(matches, "siden kommer tilbake etter varselet");
+      await waitFor(async () => (await view())?.focused === !touched, touched ? "appen beholder tastaturet når den er brukt i mellomtiden" : "siden får tastaturet tilbake etter varselet");
+    }
 
     // Full view: a larger stage, and the page follows.
     const before = await stageRect();
@@ -435,6 +466,20 @@ test("UI-et: panelet følger rammen, viker for menyer og annotering med et still
     await page.keyboard.press("Control+Shift+B");
     await page.getByTestId("browser-panel").waitFor();
     await waitFor(matches, "tilbake med sidepanelet");
+
+    // Zoom follows the page to another site. Chromium keeps zoom per site, and the new site would
+    // show at 100 % until the panel next changed size.
+    const panelNow = page.getByTestId("browser-panel");
+    await panelNow.getByRole("button", { name: "Mer for nettleseren" }).click();
+    await page.getByRole("menu", { name: "Nettlesermeny" }).getByRole("button", { name: "Zoom inn" }).click();
+    await page.keyboard.press("Escape");
+    await waitFor(async () => Math.abs(((await view())?.zoom ?? 0) - 1.1) < 0.01, "siden har panelets zoom");
+    const other = site.url.replace("127.0.0.1", "localhost");
+    await panelNow.getByLabel("Adresse").fill(`${other}andre`);
+    await panelNow.getByLabel("Adresse").press("Enter");
+    const moved = async () => (await panel<PanelPage[]>("p.pages()")).find((p) => p.url.startsWith(other));
+    await waitFor(async () => (await moved())?.title === "Andre side", "siden på det andre nettstedet er åpen");
+    await waitFor(async () => Math.abs(((await moved())?.zoom ?? 0) - 1.1) < 0.01, "zoomen følger med til et annet nettsted");
   } finally {
     await closeAll(running);
     site.server.close();

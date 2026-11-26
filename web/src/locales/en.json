@@ -4508,6 +4508,7 @@
   "Utdrag av samtalen og åpen kodefil sendes til denne modellen. Du kan følge samtalemodellen eller velge en egen.": "Excerpts from the conversation and open code file are sent to this model. Use the conversation model or select a different one.",
   "Uten {tool} kan ikke informasjonskapsler som er låst med nøkkelringen, leses. Resten importeres.": "Without {tool}, cookies locked by the keyring can't be read. The rest will be imported.",
   "Uten Chat/Kode-bryteren og radene Ny tråd, Artifacts og Skills. Et søkefelt med knapper for nytt prosjekt og ny tråd står øverst, og bunnen er bare ikoner. Alt finnes fortsatt i menyen.": "Without the Chat/Code switch and the New thread, Artifacts and Skills rows. A search field with buttons for a new project and a new thread sits at the top, and the bottom is icons only. Everything is still in the menu.",
+  "Uten Chromium-sandkassen vises sidene her fra en hodeløs Chrome, som noen nettsteder avviser, for eksempel når de sjekker at du er et menneske. Innstillinger → Om viser hvordan sandkassen slås på.": "Without the Chromium sandbox, pages here are shown from a headless Chrome, which some sites turn away, for example when they check that you are human. Settings → About shows how to turn the sandbox on.",
   "Uten prosjekt kan bare filer med full sti åpnes.": "Without a project, only files with a full path can be opened.",
   "Uten prosjekt starter terminalen i hjemmemappen": "Without a project, the terminal starts in your home folder",
   "Uten tittel": "Untitled",

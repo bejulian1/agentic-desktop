@@ -4508,6 +4508,7 @@
   "Utdrag av samtalen og åpen kodefil sendes til denne modellen. Du kan følge samtalemodellen eller velge en egen.": "对话摘录和当前打开的代码文件会发送给此模型。可使用当前对话的模型，也可另选模型。",
   "Uten {tool} kan ikke informasjonskapsler som er låst med nøkkelringen, leses. Resten importeres.": "没有 {tool} 时，无法读取由密钥环锁定的 Cookie。其余内容仍会导入。",
   "Uten Chat/Kode-bryteren og radene Ny tråd, Artifacts og Skills. Et søkefelt med knapper for nytt prosjekt og ny tråd står øverst, og bunnen er bare ikoner. Alt finnes fortsatt i menyen.": "不显示聊天/代码切换以及“新建会话”“制品”“Skills”这几行。顶部是带有新建项目和新建会话按钮的搜索框，底部只有图标。所有功能仍可在菜单中找到。",
+  "Uten Chromium-sandkassen vises sidene her fra en hodeløs Chrome, som noen nettsteder avviser, for eksempel når de sjekker at du er et menneske. Innstillinger → Om viser hvordan sandkassen slås på.": "没有 Chromium 沙盒时，这里的页面由无头 Chrome 显示，部分网站会拒绝它，例如在验证你是真人时。“设置”→“关于”说明了如何启用沙盒。",
   "Uten prosjekt kan bare filer med full sti åpnes.": "未选择项目时，只能打开包含完整路径的文件。",
   "Uten prosjekt starter terminalen i hjemmemappen": "未选择项目时，终端在主文件夹中启动",
   "Uten tittel": "无标题",

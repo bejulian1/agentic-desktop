@@ -19,7 +19,7 @@ interface Rect {
 }
 
 interface NativeBridge {
-  place: (projectId: string, tabId: string, rect: Rect | null, zoom?: number) => void;
+  place: (projectId: string, tabId: string, rect: Rect | null, zoom?: number, refocus?: boolean) => void;
   freeze: (projectId: string, tabId: string) => Promise<string | null>;
 }
 
@@ -55,6 +55,14 @@ function mayCover(node: Node): boolean {
   return node instanceof Element && (node.matches(OVERLAYS) || node.matches(".app-tooltip") || !!node.querySelector(OVERLAYS));
 }
 
+// The picture of the page, with the size the page had on screen when it was taken. It is shown at
+// that size, never stretched to a stage that has changed since.
+export interface Still {
+  url: string;
+  width: number;
+  height: number;
+}
+
 export interface NativePlacement {
   measure: () => void;
   stop: () => void;
@@ -67,13 +75,18 @@ export function placeNative(options: {
   tab: () => string | null;
   wanted: () => boolean;
   zoom: () => number;
-  still: (url: string | null) => void;
+  still: (still: Still | null) => void;
 }): NativePlacement {
   const bridge = nativeBridge!;
   const { stage, projectId } = options;
   let placedTab: string | null = null; // the tab the app shows now, if any
   let lastKey = "";
+  let placedSize = { width: 0, height: 0 };
   let frozen: string | null = null; // the tab shown as a picture
+  // The page gives the keyboard to the app while it is a picture. It gets it back afterwards if the
+  // user has not used the app meanwhile: a toast or a tooltip must not end what they were typing.
+  let untouched = false;
+  const touched = () => { untouched = false; };
   let freezing = 0;
   let frame = 0;
   let followUntil = 0;
@@ -97,11 +110,13 @@ export function placeNative(options: {
     if (frozen === tab) return;
     frozen = tab;
     const mine = ++freezing;
+    untouched = placedTab === tab;
     if (placedTab !== tab) return hide(); // nothing on screen to take a picture of
+    const size = placedSize;
     void bridge.freeze(projectId, tab).then((url) => {
       if (stopped || mine !== freezing || frozen !== tab) return;
       if (!url) return hide();
-      options.still(url);
+      options.still({ url, ...size });
       // Shown first, then the view steps aside, so the stage never flashes empty.
       const img = new Image();
       img.src = url;
@@ -131,9 +146,10 @@ export function placeNative(options: {
     const zoom = options.zoom();
     const key = `${tab}|${Math.round(rect.x)}|${Math.round(rect.y)}|${Math.round(rect.width)}|${Math.round(rect.height)}|${zoom}`;
     if (key !== lastKey || placedTab !== tab) {
-      bridge.place(projectId, tab, rect, zoom);
+      bridge.place(projectId, tab, rect, zoom, frozen === tab && untouched);
       placedTab = tab;
       lastKey = key;
+      placedSize = { width: rect.width, height: rect.height };
     }
     unfreeze();
   };
@@ -159,6 +175,8 @@ export function placeNative(options: {
   });
   mutations.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open", "class"] });
   const onMotion = () => soon();
+  document.addEventListener("pointerdown", touched, true);
+  document.addEventListener("keydown", touched, true);
   addEventListener("resize", onMotion);
   document.addEventListener("transitionend", onMotion, true);
   document.addEventListener("animationend", onMotion, true);
@@ -173,6 +191,8 @@ export function placeNative(options: {
       clearInterval(timer);
       resize.disconnect();
       mutations.disconnect();
+      document.removeEventListener("pointerdown", touched, true);
+      document.removeEventListener("keydown", touched, true);
       removeEventListener("resize", onMotion);
       document.removeEventListener("transitionend", onMotion, true);
       document.removeEventListener("animationend", onMotion, true);

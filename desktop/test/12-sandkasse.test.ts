@@ -83,6 +83,18 @@ test("uten sandkassen: Om sier det rolig, og nettleserpanelet bruker serverens C
     await waitFor(async () => (await page.evaluate(() => (window as any).__t.frames as number)) > 0, "bilder fra Chrome");
     assert.equal(await panel<number>("p.connects"), 0, "ingen bro til Electron");
     assert.equal(await panel<number>("p.pages().length"), 0, "ingen side i Electron");
+
+    // The Browser panel says it where it is met, with the way to Om, until it is dismissed.
+    await page.locator(".sidebar .mode-button", { hasText: "Kode" }).click();
+    await page.keyboard.press("Control+Alt+4");
+    const fallback = page.getByTestId("browser-fallback-note");
+    await fallback.waitFor();
+    assert.match(await fallback.innerText(), /Uten Chromium-sandkassen vises sidene her fra en hodeløs Chrome/);
+    await fallback.getByRole("button", { name: "Innstillinger", exact: true }).click();
+    await page.getByTestId("about-sandbox").waitFor();
+    await page.keyboard.press("Escape");
+    await fallback.getByRole("button", { name: "Skjul tipset" }).click();
+    await fallback.waitFor({ state: "detached" });
   } finally {
     await closeAll(running);
     web.server.close();

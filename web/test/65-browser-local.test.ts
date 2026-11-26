@@ -31,6 +31,25 @@ flow("nettleseren uten prosjekt viser rammer, tar input og har historikk, søk o
     await waitFor(async () => { const [r, g] = await pixel(page); return r < 40 && g > 120; }, "pekerinput blir sendt til den lokale siden");
     await page.keyboard.press("x");
     await waitFor(async () => { const [r, , b] = await pixel(page); return r < 40 && b > 150; }, "tastaturinput blir sendt til den lokale siden");
+    // A wider panel: the page gets a wider viewport and reflows. The frame is never stretched to the
+    // stage meanwhile, which showed as the page growing and shrinking while the panel changed size.
+    const canvas = page.getByTestId("browser-canvas");
+    const frameWidth = () => canvas.evaluate((el: HTMLCanvasElement) => el.width);
+    const narrow = await frameWidth();
+    await canvas.evaluate((el: HTMLCanvasElement) => {
+      const w = window as unknown as { __scale: number[] };
+      w.__scale = [];
+      const sample = () => { w.__scale.push(el.getBoundingClientRect().width / el.width); requestAnimationFrame(sample); };
+      sample();
+    });
+    await page.getByRole("button", { name: "Fullvisning", exact: true }).first().click();
+    await waitFor(async () => (await frameWidth()) > narrow + 100, "siden får en bredere visningsflate når panelet blir bredere");
+    const stageWidth = await page.locator(".browser-stage").evaluate((el) => Math.round(el.getBoundingClientRect().width));
+    await waitFor(async () => Math.abs((await frameWidth()) - stageWidth) <= 1, "visningsflaten er like bred som panelet");
+    const scales = await page.evaluate(() => (window as unknown as { __scale: number[] }).__scale);
+    assert.ok(scales.length > 3 && scales.every((scale) => Math.abs(scale - 1) < 0.01), `bildet av siden holder målestokken mens panelet endrer størrelse: ${Math.max(...scales)}`);
+    await page.getByRole("button", { name: "Avslutt fullvisning", exact: true }).first().click();
+    await waitFor(async () => Math.abs((await frameWidth()) - narrow) <= 1, "og smalere igjen");
     await address.fill(`${origin}/to`);
     await address.press("Enter");
     await waitFor(async () => (await address.inputValue()).endsWith("/to"), "side to er åpen");

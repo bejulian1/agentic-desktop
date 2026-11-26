@@ -1083,6 +1083,13 @@ Brukeren har sagt ja til å porte appen til Electron og legge den ferdige appen 
 - **Minne (PSS for hele prosesstreet, målt under xvfb):** panelet med én enkel side koster rundt 56 MB som `WebContentsView`, mot rundt 270 MB med serverens headless Chrome. Uten panelet er det ingen forskjell, og playwright-core lastes først når nettleseren brukes.
 - **Kjent grense:** mens vinduet er skjult i statusfeltet eller minimert, tegnes ikke sidene. Agenten kan fortsatt navigere, lese og klikke, men et skjermbilde svarer straks med en feil som sier at vinduet må vises.
 
+**Rettet (26. november 2026).** Panelet skal oppføre seg som en vanlig nettleser når et menneske bruker det.
+- **Størrelse uten zoom (bildene fra headless Chrome).** Bildet av siden tegnes i zoomens egen målestokk fra øverste venstre hjørne og strekkes aldri til panelets nye størrelse. Før dekket bildet hele flaten (`object-fit: cover`) og ble forstørret til siden fikk ny visningsflate, som først skjedde 120 ms etter at dra-bevegelsen stoppet. Nå følger visningsflaten panelet fortløpende (høyst hvert 50. ms), så siden flyter om mens skilleveggen dras. Serveren gir siden størrelsene én om gangen, så den alltid ender på den siste.
+- **Zoom følger siden (viewet).** Chromium husker zoom per nettsted. En side som gikk til et annet nettsted, sto på 100 % til panelet neste gang endret størrelse, og hoppet da. Siden som vises, får panelets zoom igjen ved hver navigering.
+- **Hva panelet sier at det er.** Viewet sender Chromiums vanlige, forkortede User-Agent uten appens navn og `Electron/…`, som mange nettsteder avviser eller gir en dårligere side. Ingenting annet er endret: `navigator.webdriver` og `Sec-CH-UA` er som Chromium selv setter dem.
+- **Tastaturet kommer tilbake.** Når et varsel eller et verktøytips la seg over siden mens brukeren skrev i den, ble tastaturet værende i appen etterpå. Nå får siden det tilbake, med mindre brukeren har brukt appen i mellomtiden. Stillbildet vises i den størrelsen siden hadde, og strekkes ikke.
+- **Uten sandkassen sier panelet fra.** Reserveløsningen fra 29.2 er en automatisert, hodeløs Chrome, og sier det selv (`HeadlessChrome`, `navigator.webdriver`). Nettsteder som sjekker at den besøkende er et menneske, avviser den, og det skal ikke skjules eller omgås. Panelet viser i stedet én linje som forklarer det og viser veien til kommandoen i Innstillinger → Om, til brukeren skjuler den.
+
 ### 29.4 Testing
 - Alt testes **uten vinduer på brukerens skjerm**, med `xvfb-run` (finnes på maskinen) eller `--ozone-platform=headless`, og Playwrights `_electron`.
 - Midlertidige `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME` og `AD_DATA_DIR`.

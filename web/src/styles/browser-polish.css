@@ -11,5 +11,4 @@
 .browser-navigation-error { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); text-align: center; background: var(--bg-panel); color: var(--text-2); }
 .browser-navigation-error h3 { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--text); }
 .browser-navigation-error p { max-width: 48ch; font-size: var(--text-sm); overflow-wrap: anywhere; }
-
-.browser-panel .browser-canvas { object-fit: cover; object-position: top left; }
+.browser-fallback-note { flex: none; margin: 0 6px 6px; }

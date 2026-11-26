@@ -597,10 +597,6 @@
 .toasts > .toast { animation-name: ad-toast-top; }
 @keyframes ad-toast-top { from { opacity: 0; transform: translateY(-10px) scale(0.98); } }
 
-/* The Browser panel: the frame covers the stage from the top left, so a frame from before the panel
-   changed height is cropped for a moment instead of shown with grey bands. */
-.browser-canvas { object-fit: cover; object-position: left top; }
-
 /* Rediger prosjekt: three tabs over one body, and the Agent tab. */
 .edit-project-tabs { display: flex; gap: 2px; margin: 0 0 var(--space-3); padding: 2px; border-radius: var(--radius-md); background: var(--surface-2); width: fit-content; }
 .edit-project-tab { height: 26px; padding: 0 12px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--text-2); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
