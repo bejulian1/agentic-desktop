@@ -1,7 +1,7 @@
 import { languages } from "../../../shared/i18n.ts";
 import { BUILTIN_COMMANDS } from "../../../shared/slash-commands.ts";
 import { parsePullUrl, pullKey, validPullReference } from "../../../shared/linked-pr.ts";
-import type { ThreadInbox } from "../thread-inbox.ts";
+import { validateSnoozedUntil, type ThreadInbox } from "../thread-inbox.ts";
 import { transcribe } from '../dictation.ts';
 import { Schedules } from '../schedules.ts';
 import type {UiMods} from "../ui-mods.ts";
@@ -195,7 +195,7 @@ export class Api {
   private fileCache = new Map<string, { at: number; files: string[] }>();
   private artifacts: Artifacts;
   private folderPicker: NativeFolderPicker;
-  private gitWorkspaces: GitWorkspace;
+  readonly gitWorkspaces: GitWorkspace;
   readonly schedules: Schedules;
 
   constructor(deps: ApiDeps) {
@@ -203,7 +203,7 @@ export class Api {
     this.schedules = new Schedules(deps.store, item => {
       const project = item.projectId ? this.project(item.projectId) : undefined;
       if (project?.folderMissing) throw new HttpError(409, 'Prosjektmappen mangler.');
-      const thread = deps.store.createThread(item.projectId, project ? 'code' : 'chat', item.modelId, { title: item.name });
+      const thread = deps.store.createThread(item.projectId, project ? 'code' : 'chat', item.modelId, { title: item.name, permissionCap: item.permissionCap });
       try {
         deps.store.setScheduleNotice(thread.id, true);
         deps.runner.send(thread.id, { text: item.prompt });
@@ -880,6 +880,7 @@ export class Api {
         store.updateThread(params.id, { chatTools: body.chatTools === null ? null : chatToolsFromBody(body.chatTools, chatToolsOf(current, store.settings())) });
       }
       if (changes.archived === true && (!current.running || current.pendingQuestions)) runner.stop(current.id);
+      runner.clearPendingInboxPatch(current.id, changes);
       store.updateThread(params.id, changes);
       if (body.modelId !== undefined) runner.recordModelChange(params.id, current.modelId);
       threadChanged(params.id);
@@ -1657,11 +1658,7 @@ function threadPatch(body: any, mode: Thread["mode"]): ThreadPatch {
     patch.personality = id === "standard" ? null : id;
   }
   if (body.pinned !== undefined) patch.pinned = body.pinned === true;
-  if (body.snoozedUntil !== undefined) {
-    if (body.snoozedUntil !== null && (typeof body.snoozedUntil !== "number" || !Number.isSafeInteger(body.snoozedUntil) ||
-        body.snoozedUntil <= Date.now() || body.snoozedUntil > 8.64e15)) throw new HttpError(400, "Velg et gyldig tidspunkt i fremtiden");
-    patch.snoozedUntil = body.snoozedUntil;
-  }
+  if (body.snoozedUntil !== undefined) patch.snoozedUntil = validateSnoozedUntil(body.snoozedUntil);
   if (body.linkedPr !== undefined) patch.linkedPr = linkedPrPatch(body.linkedPr);
   return patch;
 }

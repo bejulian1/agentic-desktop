@@ -412,7 +412,7 @@ function collaborate(done: DoneCall[]): Step {
     };
   }
   if (created.isError) return { text: `Fikk ikke laget hjelpetråden: ${created.result}` };
-  const threadId = /tråd-id: (\S+)/.exec(created.result)?.[1] ?? "";
+  const threadId = /tråd-id: ([\w-]+)/.exec(created.result)?.[1] ?? "";
   const waited = done.find((d) => d.name === "thread_wait");
   if (!waited) return { text: "Jeg venter på hjelpetråden.", call: { name: "thread_wait", input: { threadId, timeoutSeconds: 120 } } };
   return { thinking: "Hjelpetråden er ferdig, så jeg kan oppsummere.", text: `Samarbeidet er ferdig. Hjelpetråden svarte:\n\n> ${waited.result.replace(/\n+/g, " ")}` };
@@ -485,7 +485,7 @@ function allSteps(done: DoneCall[], tools: string[]): Step {
   if (tools.includes("thread_create")) {
     const made = done.find((d) => d.name === "thread_create");
     if (!made) return { text: "Til slutt ber jeg en underagent se over mappen.", call: { name: "thread_create", input: { title: "Underagent: se over demo-mappen", task: "Se over prosjektmappen og gi en kort oversikt." } } };
-    const threadId = /tråd-id: (\S+)/.exec(made.result)?.[1] ?? "";
+    const threadId = /tråd-id: ([\w-]+)/.exec(made.result)?.[1] ?? "";
     if (!made.isError && !count("thread_wait")) return { call: { name: "thread_wait", input: { threadId, timeoutSeconds: 120 } } };
   }
   return {
@@ -559,7 +559,7 @@ function team(done: DoneCall[]): Step {
     const i = created.length;
     return { text: i ? undefined : "Så lager jeg to hjelpetråder.", call: { name: "thread_create", input: { title: `Team: ${titles[i]}`, task: `${titles[i]}. Oppgave-id ${tasks[i]} i teamets oppgaveliste.` } } };
   }
-  const ids = created.map((c) => /tråd-id: (\S+)/.exec(c.result)?.[1] ?? "");
+  const ids = created.map((c) => /tråd-id: ([\w-]+)/.exec(c.result)?.[1] ?? "");
   const owners = done.filter((d) => d.name === "task_update" && d.input?.status === "doing").length;
   if (owners < tasks.length) return { call: { name: "task_update", input: { id: tasks[owners], status: "doing", owner: ids[owners] } } };
   const waited = done.filter((d) => d.name === "thread_wait");

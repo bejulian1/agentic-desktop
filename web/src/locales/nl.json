@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "De projectmap ontbreekt.",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "De projectmap ontbreekt. Kies eerst de map opnieuw.",
   "Prosjektmappen mangler. Velg mappen på nytt.": "De projectmap ontbreekt. Kies de map opnieuw.",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "De projectmap moet in de Git-commit aanwezig zijn om een geïsoleerde werkboom te maken.",
   "Prosjektmapper": "Projectmappen",
   "Prosjektminner krever et prosjekt": "Projectherinneringen vereisen een project",
   "Prosjektnavn": "Projectnaam",

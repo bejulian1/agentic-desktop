@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Recurrence, Schedule, ScheduleInput } from '../../shared/schedules.ts';
+import type { PermissionMode } from '../../shared/protocol.ts';
+import { lowerMode } from './agent/permissions.ts';
 import type { Store } from './db.ts';
 import { HttpError } from './errors.ts';
 
@@ -35,14 +37,23 @@ export class Schedules {
   constructor(store: Store, launch: (item: Schedule) => void, now = Date.now) { this.store = store; this.launch = launch; this.now = now; }
   close() { clearTimeout(this.timer); }
   list() { return this.store.schedules(); }
-  private get(id: string) { const item = this.list().find(item => item.id === id); if (!item) throw new HttpError(404, 'Fant ikke den planlagte oppgaven.'); return item; }
-  save(input: ScheduleInput, id?: string) {
+  get(id: string) { const item = this.list().find(item => item.id === id); if (!item) throw new HttpError(404, 'Fant ikke den planlagte oppgaven.'); return item; }
+  save(input: ScheduleInput, id?: string, options: { enabled?: boolean; permissionCap?: PermissionMode } = {}) {
     const previous = id ? this.get(id) : null;
     if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 100 || typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 32000) throw new HttpError(400, 'Skriv et navn og en melding til oppgaven.');
     if (typeof input.modelId !== 'string' || !this.store.model(input.modelId)) throw new HttpError(400, 'Velg en modell.');
     if (input.projectId !== null && (typeof input.projectId !== 'string' || !this.store.project(input.projectId))) throw new HttpError(400, 'Velg Chat eller et eksisterende prosjekt.');
     const rule = ruleFrom(input.rule);
-    const item: Schedule = { id: previous?.id ?? randomUUID(), name: input.name.trim(), prompt: input.prompt.trim(), modelId: input.modelId, projectId: input.projectId, rule, next: previous && JSON.stringify(previous.rule) === JSON.stringify(rule) ? previous.next : nextTime(rule, this.now()), last: previous?.last ?? null, paused: previous?.paused ?? false, error: null };
+    if (options.enabled !== undefined && typeof options.enabled !== 'boolean') throw new HttpError(400, 'Ugyldig pausevalg.');
+    const paused = options.enabled === undefined ? previous?.paused ?? false : !options.enabled;
+    const keepNext = previous && (!previous.paused || paused) && JSON.stringify(previous.rule) === JSON.stringify(rule);
+    const permissionCap = options.permissionCap && previous?.permissionCap
+      ? lowerMode(options.permissionCap, previous.permissionCap) : options.permissionCap ?? previous?.permissionCap;
+    const item: Schedule = {
+      id: previous?.id ?? randomUUID(), name: input.name.trim(), prompt: input.prompt.trim(), modelId: input.modelId, projectId: input.projectId,
+      rule, next: keepNext ? previous.next : nextTime(rule, this.now()), last: previous?.last ?? null, paused, error: null,
+      ...(permissionCap ? { permissionCap } : {}),
+    };
     this.store.saveSchedule(item); this.arm(); return item;
   }
   pause(id: string, paused: boolean) {

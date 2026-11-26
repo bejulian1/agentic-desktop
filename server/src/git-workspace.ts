@@ -84,13 +84,13 @@ export class GitWorkspace {
     if ((await this.git(root, ["check-ref-format", "--branch", value], true))?.trim() !== value) throw new HttpError(400, "Ugyldig Git-grennavn");
     return value;
   }
-  private async mutation<T>(project: Project, work: (state: GitWorkspaceState) => Promise<T>): Promise<T> {
+  private async mutation<T>(project: Project, work: (state: GitWorkspaceState) => Promise<T>, newAgentWorktree = false): Promise<T> {
     if (this.busy) throw new HttpError(409, "En Git-handling pågår. Vent til den er ferdig.");
     this.busy = true;
     try {
       const state = await this.status(project);
       if (!state.repository || !state.hasCommits) throw new HttpError(409, "Prosjektet må være et Git-repo med minst én commit");
-      for (const active of this.options.activeProjects()) {
+      for (const active of newAgentWorktree ? [] : this.options.activeProjects()) {
         const other = active.id === project.id ? state : await this.status(active);
         if (other.commonDir === state.commonDir) throw new HttpError(409, "En modell jobber i dette repoet. Stopp eller vent til arbeidet er ferdig.");
       }
@@ -113,19 +113,41 @@ export class GitWorkspace {
       return this.status(project);
     });
   }
+  private async addWorktree(state: GitWorkspaceState, input: { branch: unknown; path?: unknown; base?: unknown; existing?: boolean }): Promise<string> {
+    const branch = await this.name(state.root, input.branch);
+    if (input.existing ? !state.branches.includes(branch) : state.branches.includes(branch)) throw new HttpError(409, input.existing ? "Grenen finnes ikke" : "Grenen finnes allerede. Velg en ny gren eller bruk en eksisterende.");
+    if (state.worktrees.some((tree) => tree.branch === branch)) throw new HttpError(409, "Grenen er allerede åpen i et arbeidstre");
+    const fallback = path.join(state.suggestedParent, `${path.basename(state.root)}-${branch.replaceAll("/", "-")}-${Date.now().toString(36)}`);
+    if (input.path !== undefined && typeof input.path !== "string") throw new HttpError(400, "Ugyldig sti for arbeidstreet");
+    const target = guardProjectRoot(typeof input.path === "string" && input.path.trim() ? input.path.trim() : fallback, this.options.dataDir);
+    if (isInside(state.root, target) || isInside(target, state.root) || existsSync(target)) throw new HttpError(409, "Velg en ny mappe utenfor repoet. Eksisterende mapper blir ikke overskrevet.");
+    const base = input.base === undefined || input.base === "HEAD" ? "HEAD" : typeof input.base === "string" && state.branches.includes(input.base) ? input.base : null;
+    if (!base) throw new HttpError(400, "Startgrenen finnes ikke. Oppfrisk grenlisten.");
+    await this.git(state.root, ["worktree", "add", ...(input.existing ? [] : ["--no-track", "-b", branch]), "--", target, input.existing ? branch : base]);
+    return realpathSync(target);
+  }
   createWorktree(project: Project, input: { branch: unknown; path?: unknown; base?: unknown; existing?: boolean }): Promise<{ path: string; state: GitWorkspaceState }> {
+    return this.mutation(project, async (state) => ({ path: await this.addWorktree(state, input), state: await this.status(project) }));
+  }
+  createAgentWorktree<T>(project: Project, branch: string, start: (worktreePath: string) => T, signal: AbortSignal): Promise<T> {
+    // Adding a new worktree at HEAD leaves active checkouts and their branches alone.
     return this.mutation(project, async (state) => {
-      const branch = await this.name(state.root, input.branch);
-      if (input.existing ? !state.branches.includes(branch) : state.branches.includes(branch)) throw new HttpError(409, input.existing ? "Grenen finnes ikke" : "Grenen finnes allerede. Velg en ny gren eller bruk en eksisterende.");
-      if (state.worktrees.some((tree) => tree.branch === branch)) throw new HttpError(409, "Grenen er allerede åpen i et arbeidstre");
-      const fallback = path.join(state.suggestedParent, `${path.basename(state.root)}-${branch.replaceAll("/", "-")}-${Date.now().toString(36)}`);
-      if (input.path !== undefined && typeof input.path !== "string") throw new HttpError(400, "Ugyldig sti for arbeidstreet");
-      const target = guardProjectRoot(typeof input.path === "string" && input.path.trim() ? input.path.trim() : fallback, this.options.dataDir);
-      if (isInside(state.root, target) || isInside(target, state.root) || existsSync(target)) throw new HttpError(409, "Velg en ny mappe utenfor repoet. Eksisterende mapper blir ikke overskrevet.");
-      const base = input.base === undefined || input.base === "HEAD" ? "HEAD" : typeof input.base === "string" && state.branches.includes(input.base) ? input.base : null;
-        if (!base) throw new HttpError(400, "Startgrenen finnes ikke. Oppfrisk grenlisten.");
-      await this.git(state.root, ["worktree", "add", ...(input.existing ? [] : ["--no-track", "-b", branch]), "--", target, input.existing ? branch : base]);
-      return { path: realpathSync(target), state: await this.status(project) };
-    });
+      const relative = path.relative(state.root, realpathSync(project.path));
+      if (relative && (await this.git(state.root, ["cat-file", "-t", `HEAD:${relative}`], true))?.trim() !== "tree") {
+        throw new HttpError(409, "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.");
+      }
+      signal.throwIfAborted();
+      const root = await this.addWorktree(state, { branch });
+      try {
+        signal.throwIfAborted();
+        return start(path.join(root, relative));
+      } catch (error) {
+        // Only remove our newly created worktree if it is still clean.
+        if (await this.git(state.root, ["worktree", "remove", "--", root], true) !== null) {
+          await this.git(state.root, ["branch", "-d", "--", branch], true);
+        }
+        throw error;
+      }
+    }, true);
   }
 }

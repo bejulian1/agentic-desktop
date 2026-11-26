@@ -56,7 +56,7 @@ export function threadChoices(thread: Thread, canInspect = true): string[] {
   return parts;
 }
 
-export const READ_ONLY_TOOLS = new Set(["request_user_input", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);
+export const READ_ONLY_TOOLS = new Set(["request_user_input", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "thread_search", "task_list", "schedule_list"]);
 
 // Tools that only look, so several in one step can run at the same time.
 export const PARALLEL_TOOLS = new Set(["thread_models", "read_file", "list_dir", "search", "glob", "use_skill", "thread_list", "thread_read", "task_list"]);

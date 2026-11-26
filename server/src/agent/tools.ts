@@ -6,6 +6,8 @@ import { requestUserInputTool } from "./user-input.ts";
 // Code and Codex use: each error says what went wrong and what to do instead, and every result
 // has a size limit with a note on how to get the rest (see docs/research/harness.md).
 import type { TaskBoard } from "./tasks.ts";
+import type { CreateThreadInput, OrganizeThreadInput, SearchThreadsInput } from "./collab.ts";
+import type { Schedules } from "../schedules.ts";
 import { spawn } from "node:child_process";
 import { constants as fsConstants, existsSync } from "node:fs";
 import { lstat, mkdir, open, readFile, stat, unlink } from "node:fs/promises";
@@ -64,10 +66,13 @@ export interface BrowserTools {
 export interface CollabTools {
   list(thread: Thread): string;
   models(query?: unknown, offset?: unknown, maxChars?: number, options?: { modelId?: string; available?: unknown; signal?: AbortSignal }): ToolResult | Promise<ToolResult>;
-  create(thread: Thread, runId: string, parentModelId: string, input: { title: string; task: string; model: string }): ToolResult;
+  create(thread: Thread, runId: string, parentModelId: string, input: CreateThreadInput, signal: AbortSignal): ToolResult | Promise<ToolResult>;
   send(thread: Thread, runId: string, input: { threadId: string; text: string }): ToolResult;
-  read(thread: Thread, input: { threadId: string; limit?: number }): ToolResult;
+  read(thread: Thread, input: { threadId: string; limit?: number }, discovered?: Set<string>): ToolResult;
   wait(thread: Thread, input: { threadId: string; timeoutSeconds?: number }, signal: AbortSignal): Promise<ToolResult>;
+  search(input: SearchThreadsInput, discovered?: Set<string>, maxChars?: number): ToolResult;
+  organize(thread: Thread, input: OrganizeThreadInput): ToolResult;
+  cancel(thread: Thread, input: { threadId: string; reason?: string }): ToolResult;
 }
 
 export interface ToolContext {
@@ -83,6 +88,8 @@ export interface ToolContext {
   files: FileState;
   browser: BrowserTools;
   collab: CollabTools;
+  discoveredThreads?: Set<string>;
+  schedules?: Schedules;
   tasks: TaskBoard;
   env: () => Record<string, string>;
   commandTimeoutMs: number;
@@ -483,7 +490,7 @@ const runCommandTool: Tool = {
       "Run a shell command (bash) with the project folder as working directory, for tests, builds, type checks, git status and the like. " +
       "Prefer read_file, search and glob over cat, grep and find. Long output is shortened in the middle, so pipe through tail or grep when you only need part of it. " +
       "Use file tools for intentional source edits: shell writes are not reliably tracked in the changes card or undo. " +
-      "The project is the working directory, not an OS filesystem sandbox; follow the current task scope and permission policy. " +
+      "In a delegated worktree, the command runs inside a filesystem sandbox with system tools and a private temporary folder. The lead thread can inspect and commit worktree changes with Git. Shared workspace commands use the host user's OS access. " +
       "Background jobs are stopped when the command ends, and nothing interactive works.",
     parameters: schema({ command: str("The command"), timeoutSeconds: int("Time limit, default 120, maximum 600") }, ["command"]),
   },
@@ -495,6 +502,7 @@ const runCommandTool: Tool = {
     const result = await runCommand({
       command: input.command,
       cwd: ctx.project.path,
+      confined: !!ctx.thread.worktreePath,
       env: ctx.env(),
       timeoutMs,
       signal: ctx.signal,
@@ -625,7 +633,7 @@ const browserTools: Tool[] = [
   },
 ];
 
-const threadId = str("Thread id from thread_list or thread_create");
+const threadId = str("Thread ID from thread_search, thread_list or thread_create");
 
 const threadTools: Tool[] = [
   {
@@ -652,12 +660,19 @@ const threadTools: Tool[] = [
     kind: "exec",
     can: "start and follow helper threads that work in parallel", def: {
       name: "thread_create",
-      description: "Start a helper thread (subagent) in this project with its own task. It works in parallel in the same folder and cannot see this conversation, so the task must stand on its own: the goal, the files or area, what done looks like and which files it may change. Start several for independent parts that can run at the same time. Use it for an independent part of a large task or for an independent review; do small things yourself. By default it runs on your own model; pass model to choose another one. Get its answer with thread_wait.",
-      parameters: schema({ title: str("Short title"), task: str("What the thread should do"), model: str("Omit to inherit the running model. Otherwise a configured model id from thread_models, an unambiguous exact display/API name, or the API model ID of another model on your current provider (it then runs on the same provider and is added to the user's models). A configured model on another provider asks the user first") }, ["title", "task"]),
+      description: "Start a helper thread (subagent) in this project with its own task. Include the goal, relevant files, what done looks like and any edit restrictions. Research and review roles use read-only plan mode. Worktree isolation starts on a new Git branch from the current committed HEAD. A shared helper inherits your checkout. Get its answer with thread_wait.",
+      parameters: schema({
+        title: str("Short title"),
+        task: str("What the thread should do"),
+        model: str("Omit to inherit the running model. Otherwise use a configured model ID from thread_models, an unambiguous exact display or API name, or a model ID at your current provider. A configured model on another provider asks the user first."),
+        role: { type: "string", enum: ["research", "review", "implementation"] },
+        readOnly: bool("Use read-only plan mode even for an implementation helper"),
+        isolation: { type: "string", enum: ["shared", "worktree"] },
+      }, ["title", "task"]),
     },
     summary: (input) => String(input.title ?? ""),
     async run(input, ctx) {
-      return ctx.collab.create(ctx.thread, ctx.runId, ctx.modelId!, input);
+      return ctx.collab.create(ctx.thread, ctx.runId, ctx.modelId!, input, ctx.signal);
     },
   },
   {
@@ -676,12 +691,12 @@ const threadTools: Tool[] = [
     kind: "read",
     can: "start and follow helper threads that work in parallel", def: {
       name: "thread_read",
-      description: "Read the latest messages in another thread, without tool details. Use it to check on a helper thread without waiting for it.",
+      description: "Read recent conversational text in another non-temporary thread, including across projects. Use thread_search to find its ID. Tool details, attachments and credentials are omitted.",
       parameters: schema({ threadId, limit: int("Number of messages, default 10") }, ["threadId"]),
     },
     summary: (input) => String(input.threadId ?? ""),
     async run(input, ctx) {
-      return ctx.collab.read(ctx.thread, input);
+      return ctx.collab.read(ctx.thread, input, ctx.discoveredThreads);
     },
   },
   {
@@ -694,6 +709,137 @@ const threadTools: Tool[] = [
     summary: (input) => String(input.threadId ?? ""),
     async run(input, ctx) {
       return ctx.collab.wait(ctx.thread, input, ctx.signal);
+    },
+  },
+  {
+    kind: "exec",
+    can: "start and follow helper threads that work in parallel", def: {
+      name: "thread_cancel",
+      description: "Stop a descendant helper in this project and remove its queued messages.",
+      parameters: schema({ threadId, reason: str("Optional reason for stopping the helper") }, ["threadId"]),
+    },
+    summary: input => String(input.threadId ?? ""),
+    async run(input, ctx) {
+      return ctx.collab.cancel(ctx.thread, input);
+    },
+  },
+  {
+    kind: "read",
+    can: "find threads across projects", def: {
+      name: "thread_search",
+      description: "Find non-temporary threads across projects by thread title, ID or project name. Archived threads are excluded by default.",
+      parameters: schema({ query: str("Optional search text"), projectId: str("Filter to one Kode or Chat project ID"),
+        includeArchived: bool("Include archived threads"), limit: int("Default 20, maximum 50") }, []),
+    },
+    summary: input => String(input.query ?? "").slice(0, 100),
+    async run(input, ctx) {
+      return ctx.collab.search(input, ctx.discoveredThreads, ctx.maxResultChars);
+    },
+  },
+  {
+    kind: "exec",
+    can: "organize threads in the inbox", def: {
+      name: "thread_organize",
+      description: "Archive, restore, snooze, pin or rename a thread. Settling or snoozing your own thread takes effect when the current run finishes.",
+      parameters: schema({
+        threadId,
+        action: { type: "string", enum: ["settle", "archive", "unsettle", "unarchive", "snooze", "unsnooze", "pin", "unpin", "rename"] },
+        snoozedUntil: { anyOf: [{ type: "string" }, { type: "integer" }], description: "For snooze, an ISO timestamp with a time zone or future epoch milliseconds" },
+        title: str("New title for rename"),
+      }, ["action"]),
+    },
+    summary: input => `${input.action ?? ""} ${input.threadId ?? "(current thread)"}`,
+    async run(input, ctx) {
+      return ctx.collab.organize(ctx.thread, input);
+    },
+  },
+];
+
+const recurrence = {
+  ...schema({
+    kind: { type: "string", enum: ["interval", "daily", "weekly"] },
+    hours: int("For interval, 1 to 8760 hours"),
+    time: str("For daily or weekly, local time HH:mm"),
+    days: { type: "array", items: { type: "integer" }, description: "For weekly, weekdays 0 (Sunday) through 6 (Saturday)" },
+  }, ["kind"]),
+  description: "When the task repeats",
+};
+const scheduleFields = {
+  name: str("Schedule name, at most 100 characters"),
+  prompt: str("Message to run on schedule, at most 32000 characters"),
+  rule: recurrence,
+  enabled: bool("Whether the schedule is active"),
+};
+const scheduleId = str("Scheduled task ID from schedule_list");
+
+const scheduleTools: Tool[] = [
+  {
+    kind: "read",
+    can: "list scheduled tasks", def: {
+      name: "schedule_list",
+      description: "List schedules and their next run, for all projects by default or only the current project. Omits task prompts.",
+      parameters: schema({ scope: { type: "string", enum: ["all", "project"] } }, []),
+    },
+    summary: input => String(input.scope ?? "all"),
+    async run(input, ctx) {
+      if (!ctx.schedules) return fail("The scheduler is unavailable.");
+      if (input.scope !== undefined && input.scope !== "all" && input.scope !== "project") return fail("Choose all or project for scope.");
+      const items = ctx.schedules.list().filter(item => input.scope !== "project" || item.projectId === ctx.thread.projectId);
+      return { text: JSON.stringify(items.map(({ id, name, projectId, rule, paused, next, last }) => ({
+        id, name, projectId, mode: projectId === null ? "chat" : "code", rule, enabled: !paused, next, last,
+      })), null, 2) };
+    },
+  },
+  {
+    kind: "exec",
+    can: "manage scheduled tasks", def: {
+      name: "schedule_create",
+      description: "Create a recurring task with the current model. Defaults to the current project or Chat when there is no project.",
+      parameters: schema({
+        ...scheduleFields, mode: { type: "string", enum: ["code", "chat"] },
+        projectId: { type: ["string", "null"], description: "Project ID for Kode, or null for Chat" },
+      }, ["name", "prompt", "rule"]),
+    },
+    summary: input => String(input.name ?? ""),
+    async run(input, ctx) {
+      if (!ctx.schedules) return fail("The scheduler is unavailable.");
+      const projectId = input.projectId !== undefined ? input.projectId : input.mode === "chat" ? null : ctx.thread.projectId;
+      const mode = projectId === null ? "chat" : "code";
+      if (input.mode !== undefined && input.mode !== mode) return fail("Use a project ID for Kode or null for Chat.");
+      const item = ctx.schedules.save({ name: input.name, prompt: input.prompt, rule: input.rule, projectId, modelId: ctx.modelId! },
+        undefined, { enabled: input.enabled, permissionCap: effectiveMode(ctx.project, ctx.thread) });
+      return { text: JSON.stringify({ id: item.id, name: item.name, mode, projectId, enabled: !item.paused, next: item.next }) };
+    },
+  },
+  {
+    kind: "exec",
+    can: "manage scheduled tasks", def: {
+      name: "schedule_update",
+      description: "Update a scheduled task. Omitted fields keep their current values.",
+      parameters: schema({ id: scheduleId, ...scheduleFields }, ["id"]),
+    },
+    summary: input => String(input.id ?? ""),
+    async run(input, ctx) {
+      if (!ctx.schedules) return fail("The scheduler is unavailable.");
+      const item = ctx.schedules.get(input.id);
+      const { name = item.name, prompt = item.prompt, rule = item.rule } = input;
+      const updated = ctx.schedules.save({ ...item, name, prompt, rule }, item.id,
+        { enabled: input.enabled, permissionCap: effectiveMode(ctx.project, ctx.thread) });
+      return { text: JSON.stringify({ id: updated.id, name: updated.name, enabled: !updated.paused, next: updated.next }) };
+    },
+  },
+  {
+    kind: "exec",
+    can: "manage scheduled tasks", def: {
+      name: "schedule_delete",
+      description: "Delete a scheduled task by ID.",
+      parameters: schema({ id: scheduleId }, ["id"]),
+    },
+    summary: input => String(input.id ?? ""),
+    async run(input, ctx) {
+      if (!ctx.schedules) return fail("The scheduler is unavailable.");
+      ctx.schedules.remove(input.id);
+      return { text: JSON.stringify({ id: input.id, deleted: true }) };
     },
   },
 ];
@@ -1008,6 +1154,7 @@ export const CODE_TOOLS: Tool[] = [
   webSearchTool, // offered only when the thread has a way to search (Runner.toolDefs)
   ...browserTools,
   ...threadTools,
+  ...scheduleTools,
   ...taskTools,
   useSkillTool,
   updatePlanTool,

@@ -3461,6 +3461,7 @@
   "Prosjektmappen mangler.": "Projektmappen mangler.",
   "Prosjektmappen mangler. Velg mappen på nytt først.": "Projektmappen mangler. Vælg først mappen igen.",
   "Prosjektmappen mangler. Velg mappen på nytt.": "Projektmappen mangler. Vælg mappen igen.",
+  "Prosjektmappen må finnes i Git-commiten for å lage et isolert arbeidstre.": "Projektmappen skal findes i Git-committet for at oprette et isoleret arbejdstræ.",
   "Prosjektmapper": "Projektmapper",
   "Prosjektminner krever et prosjekt": "Projektminder kræver et projekt",
   "Prosjektnavn": "Projektnavn",
