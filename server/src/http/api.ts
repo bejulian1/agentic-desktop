@@ -16,7 +16,7 @@ import { NativeFolderPicker } from "../native-folder.ts";
 import { spawn } from "node:child_process";
 import { createReadStream, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import path from "node:path";
 import type {
   Bootstrap,
@@ -457,6 +457,7 @@ export class Api {
       uiMods:this.deps.uiMods?.snapshot(),
       mcp: this.deps.mcp?.snapshot(),
       build: loadBuildInfo(this.deps.webDist),
+      hostname: hostname(),
       settings: store.settings(),
       projects: store.projects(),
       threads: store.threads(),
@@ -823,6 +824,7 @@ export class Api {
         publish({ type: "chat-project.changed", project: store.chatProject(inChatProject)! });
       }
       if (side?.temporary) store.markTemporary(thread.id);
+      if (mode === "code" && body.planMode === true) store.updateThread(thread.id, { planMode: true });
       // v1.3.0: a new Kode thread starts with the project's effort, or else the app's default.
       // The composer's own choice is sent right after (PATCH), and wins.
       if (mode === "code" && !side) {
@@ -885,6 +887,16 @@ export class Api {
       threadChanged(params.id);
       if (changes.linkedPr && store.settings().autoSettleOnPrClose) void this.deps.threadInbox.checkThreadPull(params.id);
       return this.thread(params.id);
+    });
+
+    this.route("GET", "/api/threads/agent-previews", ({ query }) => {
+      const ids = new Set((query.get("ids") ?? "").split(",").slice(0, 48));
+      return Object.fromEntries([...ids].flatMap((id) => {
+        const thread = store.thread(id);
+        if (thread?.origin !== "agent" || thread.temporary) return [];
+        const text = store.latestUserText(id, 180)?.replace(/\s+/g, " ").trim();
+        return text ? [[id, text]] : [];
+      }));
     });
 
     this.route("GET", "/api/threads/inbox-preview", ({ query }) => {

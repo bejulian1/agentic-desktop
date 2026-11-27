@@ -1,49 +1,10 @@
-/* The project permission control belongs to the Kode prompt footer. The popup is portalled
-   above its trigger to stay within the window in narrow or scrolling panes. */
-.composer-foot .permission-anchor { flex: none; min-width: 0; }
-/* v1.4.1: a flat ghost at rest; only hover and the open menu tint it. */
-.composer-foot .foot-chip.permission-chip {
-  width: auto; height: 27px; gap: 5px; padding-inline: 9px; border-radius: var(--radius-full);
-  background: transparent; border-color: transparent; color: var(--text-2); font-size: var(--text-sm);
-}
-.composer-foot .permission-chip span { display: inline; overflow: visible; text-overflow: clip; }
-.composer-foot .permission-chip .icon { flex: none; }
-.composer-foot .permission-chip:hover, .composer-foot .permission-chip[aria-expanded="true"] { background: var(--hover); color: var(--text); }
-.composer-foot .permission-chip:disabled { opacity: .55; cursor: not-allowed; }
-.composer-foot .permission-chip[data-mode="full"], .composer-foot .permission-chip[data-mode="full"] .icon { color: var(--warn); }
-.permission-popover {
-  position: fixed; z-index: 100; box-sizing: border-box; width: min(416px, calc(100vw - 16px));
-  padding: 8px 5px 5px; overflow: auto; overscroll-behavior: contain;
-  background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong);
-  border-radius: 16px; box-shadow: var(--shadow-pop);
-}
-.permission-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 1px 7px 5px; color: var(--text-3); font-size: var(--text-sm); line-height: 1.45; }
-.permission-more { flex: none; padding: 0; color: var(--text-3); text-decoration: underline; text-underline-offset: 2px; font-size: inherit; }
-.permission-more:hover { color: var(--text); }
-.permission-explanation, .permission-cap, .permission-status, .permission-error { margin: 3px 7px 7px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-2); }
-.permission-cap { padding: 6px 8px; background: var(--surface-3); border-radius: 8px; }
-.permission-error { color: var(--danger); }
-.permission-choice { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px; border-radius: 10px; text-align: left; }
-.permission-choice:hover:not(:disabled), .permission-choice:focus-visible { background: var(--hover); }
-.permission-choice:disabled { opacity: .5; cursor: not-allowed; }
-.permission-choice-icon { display: inline-flex; flex: none; color: var(--text-2); }
-.permission-choice-text { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
-.permission-choice .permission-choice-name { color: var(--text); font-size: var(--text-md); line-height: 1.35; white-space: normal; overflow: visible; }
-.permission-choice .permission-choice-description { color: var(--text-3); font-size: var(--text-sm); line-height: 1.4; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
-.permission-choice-check { display: flex; flex: none; width: 16px; color: var(--text-2); }
-.permission-choice[data-mode="full"] .permission-choice-name,
-.permission-choice[data-mode="full"] .permission-choice-description,
-.permission-choice[data-mode="full"] .permission-choice-icon { color: var(--warn); }
-@container (max-width: 560px) {
-  .composer-foot .foot-chip.permission-chip { width: 28px; padding: 0; justify-content: center; }
-  .composer-foot .permission-chip span { display: none; }
-}
+.permission-error { color: var(--danger); font-size: var(--text-sm); }
 
 /* One persisted, exclusive default for future Code projects. */
 .default-code-permissions { border-top: 1px solid var(--border); }
 .default-code-permissions .setting:has(input:checked) { background: var(--hover); }
 
-/* 1.2.0: what "Tillat alltid" covers, the line about projects on another mode, and saved rules. */
+/* What «Tillat alltid» covers and how saved rules are shown. */
 .approval-always { margin: 6px 0 0; font-size: var(--text-xs); line-height: 1.45; color: var(--text-3); text-wrap: pretty; overflow-wrap: anywhere; }
 .approval-always code, .permission-rule-value {
   padding: 0 4px; border-radius: var(--radius-xs); background: var(--surface-3); color: var(--text-2);

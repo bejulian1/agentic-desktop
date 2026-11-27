@@ -258,7 +258,7 @@ flow("høyre panel: Oversikt med kontekst, bakgrunnsoppgaver og utdata, endrings
   const chip = page.getByTestId("changes-chip");
   await chip.getByText("· 1 fil").waitFor();
   await chip.click();
-  await toolShown(page, "Endringer");
+  await toolShown(page, "Diff");
 
   await openTool(page, "Oversikt");
   const overview = page.getByTestId("overview-panel");
@@ -323,7 +323,7 @@ flow("smart sidefane: kort for det som trenger deg, Utsett og hent tilbake, og f
   await smart.locator(`.smart-scroll [data-smart-card="${thread.id}"]`).waitFor();
 
   // A card opens its thread.
-  await page.getByRole("button", { name: "Ny tråd", exact: true }).first().click();
+  await page.keyboard.press("Control+Alt+n");
   await smart.locator(`.smart-scroll [data-smart-card="${thread.id}"] .smart-card-title`).click();
   await page.getByTestId("topbar-title").getByText("hjelp").waitFor();
 

@@ -198,7 +198,7 @@ flow("Ny fane: verktøy og forslag tilpasser seg bredden med ⋯ bare når noe i
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
 });
 
-flow("sidefanen uten tomtekst, modellvelger med søk og grupper, innsats uten lyn, rolige ruteknapper og profilmenyen i sidefanen", async (h) => {
+flow("sidefanen uten tomtekst, modellvelger med søk og leverandører, rolige ruteknapper og profilmenyen i sidefanen", async (h) => {
   const { page } = h;
   await kode(page);
   // 23.2: no empty text, and no Denne datamaskinen before it has a thread.
@@ -214,14 +214,14 @@ flow("sidefanen uten tomtekst, modellvelger med søk og grupper, innsats uten ly
   await button.getByText("Demo-modell").waitFor();
   const provider = await h.api("POST", "/api/providers", { kind: "openai-compatible", name: "Lokal test", baseUrl: "http://127.0.0.1:9/v1" });
   for (const name of ["Alfa rask", "Beta stor", "Gamma liten"]) await h.api("POST", "/api/models", { providerId: provider.id, name, model: name.toLowerCase().replace(" ", "-"), contextWindow: 100000 });
+  await h.api("PATCH", "/api/settings", { defaultModelId: "mock-demo" });
   await button.click();
   const search = page.getByRole("combobox", { name: "Søk etter modeller" });
   await waitFor(async () => page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Søk etter modeller"), "søkefeltet har fokus");
   const list = page.getByRole("listbox", { name: "Modeller" });
-  await list.getByRole("group", { name: "Demo" }).getByRole("option", { name: /Demo-modell/ }).waitFor();
-  await list.getByRole("group", { name: "Lokal test" }).getByRole("option", { name: "Beta stor" }).waitFor();
-  assert.equal(await list.getByRole("option", { selected: true }).count(), 1, "én valgt");
-  await list.getByRole("option", { selected: true }).locator(".menu-check svg").waitFor();
+  await list.getByRole("option", { name: /Demo-modell/, selected: true }).locator(".menu-check svg").waitFor();
+  await page.getByTestId("model-menu").getByRole("button", { name: /^Lokal test/ }).click();
+  await list.getByRole("option", { name: /Beta stor/ }).waitFor();
   // Search, and Enter picks the marked row.
   await search.fill("gam");
   await waitFor(async () => (await list.getByRole("option").count()) === 1, "ett treff");
@@ -234,9 +234,9 @@ flow("sidefanen uten tomtekst, modellvelger med søk og grupper, innsats uten ly
   assert.equal(await list.count(), 0, "lukket etter valget");
   // ↓ and Enter: from the chosen one to the next.
   await button.click();
-  await list.getByRole("option", { name: "Beta stor", selected: true }).waitFor();
+  await list.getByRole("option", { name: /Beta stor/, selected: true }).waitFor();
   await search.press("ArrowDown");
-  assert.equal(await list.locator(".model-option.active").textContent(), "Gamma liten");
+  assert.equal(await list.locator(".model-option.active .menu-name").textContent(), "Gamma liten");
   await search.press("Enter");
   await button.getByText("Gamma liten").waitFor();
   // The button that opened it closes it; Esc closes it.
@@ -257,15 +257,6 @@ flow("sidefanen uten tomtekst, modellvelger med søk og grupper, innsats uten ly
   await page.getByRole("button", { name: "Administrer modeller" }).click();
   await page.locator(".settings-title", { hasText: "Modeller" }).waitFor();
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
-
-  // 23.4: no bolt and no grey box in the effort picker.
-  await page.getByTestId("effort-button").click();
-  const effort = page.getByTestId("effort-picker");
-  await effort.waitFor();
-  assert.equal(await effort.locator(".effort-bolt").count(), 0);
-  const mid = await effort.locator(".effort-mid").evaluate((el) => getComputedStyle(el).backgroundColor);
-  assert.ok(mid === "rgba(0, 0, 0, 0)" || mid === "transparent", `ingen bakgrunn: ${mid}`);
-  await page.keyboard.press("Escape");
 
   // 23.5: two panes. The buttons stand in both, and nothing changes when the pointer comes and goes.
   await page.getByTestId("new-pane").click();
@@ -479,7 +470,7 @@ flow("glimt på statusteksten mens turen kjører, borte når den er ferdig, og s
   // Reduced motion: the text stands still, muted.
   await h.api("PATCH", "/api/settings", { reduceMotion: true });
   await waitFor(async () => (await page.evaluate(() => document.documentElement.dataset.motion)) === "reduce", "redusert bevegelse");
-  await page.locator(".sidebar-nav").getByRole("button", { name: "Ny tråd", exact: true }).click();
+  await page.keyboard.press("Control+Alt+n");
   await send(page, "lag en side");
   const still = page.locator(".work-label.shimmer");
   await still.waitFor();

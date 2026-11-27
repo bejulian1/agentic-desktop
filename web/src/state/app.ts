@@ -31,6 +31,7 @@ import { beginNavigation, closeChatProjectPage, closeGitHubRoom, closeProfile } 
 import { applyLook, applyStartMode } from "./look";
 
 interface AppState {
+  hostname: string;
   build: BuildInfo | null;
   settings: Settings;
   projects: Record<string, Project>;
@@ -46,6 +47,7 @@ interface AppState {
 
 export const [app, setApp] = createStore<AppState>({
   build: null,
+  hostname: "",
   settings: { theme: "system", defaultModelId: null, defaultPermissionMode: "ask", autoOpenAgentThreads: true },
   projects: {},
   chatProjects: {},
@@ -341,6 +343,7 @@ export function applyBootstrap(boot: Bootstrap): void {
   if (boot.mcp) setMcpState(boot.mcp);
   setApp({
     build: boot.build,
+    hostname: boot.hostname?.trim() ?? "",
     settings: boot.settings,
     projects: Object.fromEntries(boot.projects.map((p) => [p.id, p])),
     chatProjects: Object.fromEntries((boot.chatProjects ?? []).map((p) => [p.id, p])),

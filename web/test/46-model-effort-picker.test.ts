@@ -1,35 +1,63 @@
 import assert from "node:assert/strict";
 import { flow, threadItem, waitFor } from "./harness.ts";
 
-flow("modellvelgeren: søk på leverandør, avhuking og fokus tilbake til modellpillen", async (h) => {
+flow("modellvelgeren: leverandørfilter, favoritter, tastatur og oppsett i Chat og Kode", async (h) => {
   const { page } = h;
   const provider = await h.api("POST", "/api/providers", { kind: "openai-compatible", name: "OpenRouter test", baseUrl: "http://127.0.0.1:9/v1" });
-  const model = await h.api("POST", "/api/models", { providerId: provider.id, name: "Beta stor", model: "beta-stor", contextWindow: 100000 });
+  await h.api("POST", "/api/models", { providerId: provider.id, name: "Beta stor", model: "beta-stor", contextWindow: 100000 });
+  await h.api("PATCH", "/api/settings", { defaultModelId: "mock-demo" });
   const button = page.getByTestId("model-button");
-  assert.equal(await button.locator(".provider-glyph").count(), 0, "Chat viser modellnavnet uten leverandørmerke");
-  await button.focus();
-  await page.keyboard.press("ArrowDown");
+  await button.press("ArrowDown");
+  const menu = page.getByTestId("model-menu");
   const search = page.getByRole("combobox", { name: "Søk etter modeller" });
   await waitFor(() => search.evaluate((element) => element === document.activeElement), "søkefeltet får fokus");
   const list = page.getByRole("listbox", { name: "Modeller" });
-  await list.getByRole("group", { name: provider.name }).waitFor();
+  await list.getByRole("option", { name: /Demo-modell/, selected: true }).waitFor();
+  assert.equal(await menu.getByTestId("model-permissions").count(), 0, "Chat har egne verktøyvalg");
+  const columns = await menu.evaluate((el) => [".model-extra", ".model-middle", ".model-providers"].map((selector) => el.querySelector(selector)!.getBoundingClientRect().left));
+  assert.ok(columns[0] < columns[1] && columns[1] < columns[2], "innstillinger, modeller og leverandører ligger i tre kolonner");
+  const favoriteTab = menu.getByRole("button", { name: /Favoritter/ });
+  await favoriteTab.click();
+  await menu.getByText(/Ingen favoritter ennå/).waitFor();
+  await menu.getByRole("button", { name: /^OpenRouter test/ }).click();
   await search.fill("openrouter beta");
-  await waitFor(async () => (await list.getByRole("option").count()) === 1, "leverandør og modell filtreres sammen");
+  const beta = list.getByRole("option", { name: "Beta stor" });
+  await beta.waitFor();
+  assert.equal(await list.getByRole("option").count(), 1);
+  const star = menu.getByRole("button", { name: "Favoritt: Beta stor" });
+  await star.click();
+  await star.and(menu.locator('[aria-pressed="true"]')).waitFor();
   await search.press("Enter");
   await list.waitFor({ state: "detached" });
   assert.equal(await button.evaluate((element) => element === document.activeElement), true);
-  await button.getByText(model.name, { exact: true }).waitFor();
+  await button.getByText("Beta stor", { exact: true }).waitFor();
   await button.click();
-  const chosen = list.getByRole("option", { selected: true });
-  assert.equal(await chosen.count(), 1);
-  assert.equal(await chosen.innerText(), model.name);
-  assert.equal(await chosen.locator(".menu-check svg").count(), 1);
+  await favoriteTab.and(menu.locator('[aria-pressed="true"]')).waitFor();
+  await beta.and(menu.locator('[aria-selected="true"]')).waitFor();
   await page.keyboard.press("Escape");
-  await list.waitFor({ state: "detached" });
+
+  await h.reload();
+  await page.locator(".sidebar .mode-button", { hasText: "Kode" }).click();
+  await button.click();
+  const codeMenu = menu.getByTestId("model-permissions");
+  await codeMenu.getByRole("radio", { name: "Be om godkjenning", checked: true }).waitFor();
+  await favoriteTab.click();
+  await beta.waitFor();
+  await star.click();
+  await menu.getByText(/Ingen favoritter ennå/).waitFor();
+  await page.keyboard.press("Escape");
   assert.equal(await button.evaluate((element) => element === document.activeElement), true);
+  await button.click();
+  await codeMenu.getByRole("button", { name: "Planmodus" }).click();
+  await codeMenu.getByRole("button", { name: "Planmodus", pressed: true }).waitFor();
+  await page.keyboard.press("Escape");
+  const field = page.getByLabel("Melding", { exact: true });
+  await field.fill("hjelp");
+  await field.press("Enter");
+  await waitFor(async () => (await h.api("GET", "/api/bootstrap")).threads.some((thread: any) => thread.mode === "code" && thread.planMode), "planmodus brukes fra første melding");
 });
 
-flow("modell og innsats: menyene holder seg ved knappen gjennom filtrering, smalt vindu og nivåvalg", async (h) => {
+flow("modell og innsats: menyen holder seg ved knappen gjennom filtrering, smalt vindu og nivåvalg", async (h) => {
   const { page } = h;
   const provider = await h.api("POST", "/api/providers", { kind: "openai-compatible", name: "Lokal liste", baseUrl: "http://127.0.0.1:9/v1" });
   for (let index = 0; index < 18; index++) {
@@ -40,6 +68,7 @@ flow("modell og innsats: menyene holder seg ved knappen gjennom filtrering, smal
   const popup = page.locator(".popover:has(.model-menu)");
   const search = page.getByRole("combobox", { name: "Søk etter modeller" });
   await popup.waitFor();
+  await popup.getByRole("button", { name: /^Lokal liste/ }).click();
   await page.waitForFunction(() => document.getAnimations().length === 0);
   assert.equal(await popup.evaluate((element) => element.closest(".pane") === null), true, "menyen slipper ut av rutens contain:strict");
   const before = (await popup.boundingBox())!;
@@ -60,23 +89,12 @@ flow("modell og innsats: menyene holder seg ved knappen gjennom filtrering, smal
   }, "menyen følger knappen og holder seg i det smale vinduet");
   await page.keyboard.press("Escape");
 
-  const effortButton = page.getByTestId("effort-button");
-  await effortButton.focus();
-  await page.keyboard.press("ArrowUp");
-  const effort = page.getByTestId("effort-picker");
-  const slider = page.getByRole("slider", { name: "Innsats", exact: true });
-  await waitFor(() => slider.evaluate((element) => element === document.activeElement), "innsatsslideren får fokus");
-  await page.waitForFunction(() => document.getAnimations().length === 0);
-  const effortBefore = (await effort.boundingBox())!;
-  await slider.press("Home");
-  await page.getByTestId("effort-name").getByText("Lav", { exact: true }).waitFor();
-  await slider.press("End");
-  await page.getByTestId("effort-name").getByText("Høy", { exact: true }).waitFor();
-  const effortAfter = (await effort.boundingBox())!;
-  assert.ok(Math.abs(effortBefore.x - effortAfter.x) < 1, "innsatsvalget flytter ikke popupen");
-  await effort.getByRole("button", { name: /^Velg modell\./ }).click();
-  await effort.waitFor({ state: "detached" });
-  await waitFor(() => search.evaluate((element) => element === document.activeElement), "modellvelgeren får fokus fra innsatsvelgeren");
+  await button.press("ArrowUp");
+  const effort = popup.getByTestId("model-effort");
+  await effort.getByRole("radio", { name: "Lav", exact: true }).click();
+  await effort.getByRole("radio", { name: "Lav", checked: true, exact: true }).waitFor();
+  await effort.getByRole("radio", { name: "Standard", exact: true }).click();
+  await effort.getByRole("radio", { name: "Standard", checked: true, exact: true }).waitFor();
   await page.keyboard.press("Escape");
   assert.equal(await button.evaluate((element) => element === document.activeElement), true);
 });
@@ -89,11 +107,12 @@ flow("innsats på eksisterende tråd: raske valg og nullstilling lagrer alltid s
   await h.api("PATCH", `/api/threads/${thread.id}`, { modelId: model.id, reasoning: "xhigh" });
   await h.reload();
   await threadItem(page, thread.id).locator(".thread-text").click();
-  const button = page.getByTestId("effort-button");
+  const button = page.getByTestId("model-button");
   await button.getByText("Ekstra høy", { exact: true }).waitFor();
   await button.click();
-  const slider = page.getByRole("slider", { name: "Innsats", exact: true });
-  const label = page.getByTestId("effort-name");
+  const effort = page.getByTestId("model-effort");
+  const level = (name: string) => effort.getByRole("radio", { name, exact: true });
+  const chosen = (name: string) => effort.getByRole("radio", { name, exact: true, checked: true });
   const requested: Array<string | null> = [];
   let release!: () => void;
   let blocked = new Promise<void>((resolve) => { release = resolve; });
@@ -107,28 +126,27 @@ flow("innsats på eksisterende tråd: raske valg og nullstilling lagrer alltid s
   });
   const savedEffort = async () => (await h.api("GET", "/api/bootstrap")).threads.find((item: any) => item.id === thread.id).reasoning;
   try {
-    await slider.press("End");
+    await level("Maks").click();
     await waitFor(() => requested.length === 1, "Maks-forespørselen holdes tilbake");
-    await label.getByText("Maks", { exact: true }).waitFor();
-    await slider.press("ArrowLeft");
-    await label.getByText("Ekstra høy", { exact: true }).waitFor();
+    await chosen("Maks").waitFor();
+    await level("Ekstra høy").click();
+    await chosen("Ekstra høy").waitFor();
     assert.deepEqual(requested, ["max"], "nytt valg sendes etter forrige forespørsel");
     release();
     await waitFor(async () => requested.length === 2 && await savedEffort() === "xhigh", "returen til allerede lagret nivå blir sist lagret");
     assert.deepEqual(requested, ["max", "xhigh"]);
-    await label.getByText("Ekstra høy", { exact: true }).waitFor();
+    await chosen("Ekstra høy").waitFor();
     await button.getByText("Ekstra høy", { exact: true }).waitFor();
 
     blocked = new Promise<void>((resolve) => { release = resolve; });
-    await slider.press("End");
+    await level("Maks").click();
     await waitFor(() => requested.length === 3, "andre Maks-forespørsel holdes tilbake");
-    await page.getByRole("button", { name: "Tilbake til modellens standard", exact: true }).click();
-    await label.getByText("Standard (middels)", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "Tilbake til modellens standard", exact: true }).isDisabled(), true);
+    await level("Standard").click();
+    await chosen("Standard").waitFor();
     release();
     await waitFor(async () => requested.length === 4 && await savedEffort() === null, "nullstilling kommer etter det eldre Maks-valget");
     assert.deepEqual(requested, ["max", "xhigh", "max", null]);
-    await label.getByText("Standard (middels)", { exact: true }).waitFor();
+    await chosen("Standard").waitFor();
   } finally {
     release();
     await page.unroute(`**/api/threads/${thread.id}`);
@@ -148,8 +166,8 @@ flow("innsats på eksisterende tråd: raske valg og nullstilling lagrer alltid s
     await route.continue();
   });
   try {
-    await slider.press("End");
-    await label.getByText("Maks", { exact: true }).waitFor();
+    await level("Maks").click();
+    await chosen("Maks").waitFor();
     await page.keyboard.press("Escape");
     const field = page.getByLabel("Melding", { exact: true });
     await field.fill("Melding etter innsatsvalg");
@@ -166,7 +184,7 @@ flow("innsats på eksisterende tråd: raske valg og nullstilling lagrer alltid s
   }
 
   await button.click();
-  await page.getByRole("button", { name: "Tilbake til modellens standard", exact: true }).click();
+  await level("Standard").click();
   await waitFor(async () => await savedEffort() === null, "standard er lagret før feilprøven");
   h.allow(/status of 503/);
   let releaseError!: () => void;
@@ -177,7 +195,7 @@ flow("innsats på eksisterende tråd: raske valg og nullstilling lagrer alltid s
     await route.fulfill({ status: 503, json: { error: "Innsats kunne ikke lagres" } });
   });
   try {
-    await slider.press("Home");
+    await level("Lav").click();
     await page.keyboard.press("Escape");
     const field = page.getByLabel("Melding", { exact: true });
     await field.fill("Utkast ved lagrefeil");
@@ -188,7 +206,7 @@ flow("innsats på eksisterende tråd: raske valg og nullstilling lagrer alltid s
     await waitFor(async () => await field.inputValue() === "Utkast ved lagrefeil", "lagrefeil beholder usendt utkast");
     assert.equal(messageCount, 1, "meldingen ved lagrefeil ble ikke sendt");
     await button.click();
-    await label.getByText("Standard (middels)", { exact: true }).waitFor();
+    await chosen("Standard").waitFor();
     assert.equal(await savedEffort(), null, "lagrefeil viser serverens bekreftede standard");
   } finally {
     releaseError();

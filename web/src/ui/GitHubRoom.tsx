@@ -15,7 +15,7 @@ import { createThreadFor, openThread } from "../state/navigate";
 import { setStudioOpen } from "../state/studio";
 import { confirmDialog, promptDialog } from "./dialogs";
 import { githubTitle } from "./GitHubNavigation";
-import { errorTitle, IconDraft, IconPullRequest, resetText } from "./GitHubShared";
+import { errorTitle, githubReferenceUrl, githubStateTitle, IconDraft, IconPullRequest, resetText } from "./GitHubShared";
 import { IconBack, IconBookmark, IconChat, IconCheck, IconChevronDown, IconClose, IconCompose, IconGitHub, IconIssue, IconReload, IconSearch, IconSort, IconTrash } from "./icons";
 import { Popover } from "./Popover";
 import { fullTime } from "./rows";
@@ -139,17 +139,8 @@ function Author(props: { login: string | null; avatarId: number | null }) {
   </Show>;
 }
 
-function stateTitle(state: GitHubRow["state"]) {
-  switch (state) {
-    case "open": return t("Åpen");
-    case "closed": return t("Lukket");
-    case "merged": return t("Slått sammen");
-    case "draft": return t("Utkast");
-  }
-}
-
 function StateIcon(props: { item: GitHubRow }) {
-  return <span class="github-row-state" data-state={props.item.state} title={stateTitle(props.item.state)} role="img" aria-label={stateTitle(props.item.state)}>
+  return <span class="github-row-state" data-state={props.item.state} title={githubStateTitle(props.item.state)} role="img" aria-label={githubStateTitle(props.item.state)}>
     {props.item.kind === "issues" ? <IconIssue size={17} /> : props.item.state === "draft" ? <IconDraft size={17} /> : <IconPullRequest size={17} />}
   </span>;
 }
@@ -404,9 +395,6 @@ function ListRoom(props: { kind: GitHubKind; initialProject?: string; status?: R
   );
 }
 
-function refUrl(path: string, ref: GitHubReference) {
-  return `/api/github/${path}/${ref.kind}?${new URLSearchParams({ repo: ref.repo, number: String(ref.number) })}`;
-}
 
 function pullDiff(patch: string) {
   return patch.split("\n").flatMap<DiffLineInfo>(line => {
@@ -441,10 +429,10 @@ function DetailRoom(props: { reference: GitHubReference; revision?: number; onSt
   const [part, setPart] = createSignal<DetailTab>("timeline");
   const [detail, { refetch }] = createResource<Result<GitHubDetail>, { reference: GitHubReference; revision?: number }>(
     () => ({ reference: props.reference, revision: props.revision }),
-    ({ reference }, { refetching }) => load<GitHubDetail>(`${refUrl("detail", reference)}&refresh=${refetching === true ? "1" : "0"}`),
+    ({ reference }, { refetching }) => load<GitHubDetail>(`${githubReferenceUrl("detail", reference)}&refresh=${refetching === true ? "1" : "0"}`),
   );
-  const comments = usePages<GitHubComment>(() => !!detail()?.value && refUrl("comments", props.reference));
-  const files = usePages<GitHubFile>(() => part() === "files" && refUrl("files", props.reference));
+  const comments = usePages<GitHubComment>(() => !!detail()?.value && githubReferenceUrl("comments", props.reference));
+  const files = usePages<GitHubFile>(() => part() === "files" && githubReferenceUrl("files", props.reference));
   const [starting, setStarting] = createSignal(false);
 
   const start = async (item: GitHubDetail, projectId: string) => {
@@ -474,7 +462,7 @@ function DetailRoom(props: { reference: GitHubReference; revision?: number; onSt
           <div class="github-detail-heading">
             <h2><StateIcon item={item()} /> <span>{item().title} <small>#{item().number}</small></span></h2>
             <p class="github-row-meta">
-              <span>{item().repo}</span><span>{stateTitle(item().state)}</span>
+              <span>{item().repo}</span><span>{githubStateTitle(item().state)}</span>
               <Author login={item().author} avatarId={item().avatarId} />
               <span>{t("Opprettet {date}", { date: dateAt(item().createdAt) })}</span>
               <span>{t("Oppdatert {date}", { date: dateAt(item().updatedAt) })}</span>

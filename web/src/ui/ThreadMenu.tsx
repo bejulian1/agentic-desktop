@@ -1,14 +1,15 @@
 // The thread menu, on right-click and on ⋯ in the sidebar: one list of entries for both, and for
 // the cards in the smart sidebar.
 import { t } from "../lib/i18n";
-import { parsePullUrl, pullUrl } from "../../../shared/linked-pr";
+import { pullUrl } from "../../../shared/linked-pr";
+import { editThreadPull, updateThreadPull } from "./thread-pull";
 import type { Thread } from "../../../shared/protocol";
 import { app, deleteThread, moveToSection, report, sectionsFor, sortedChatProjects } from "../state/app";
 import { patch } from "../lib/api";
 import { finished, markSeen, markUnread } from "../state/home";
 import { newChatProject } from "./chat-projects";
 import { chooseSnoozeTime, copyThread, forkFromLast, forkWhole, openInPane, openInWindow, setPinned, setSnoozed, sideChat, snoozeTimes, toggleArchived } from "../state/thread-actions";
-import { confirmDialog, promptDialog } from "./dialogs";
+import { confirmDialog } from "./dialogs";
 import { newSection } from "./sidebar-sections";
 import { IconArchive, IconAt, IconDownload, IconEye, IconBranch, IconClose, IconCode, IconCopy, IconFile, IconFolder, IconGlobe, IconPin, IconPlus, IconPlusCircle, IconSection, IconSplitRight, IconTrash } from "./icons";
 import type { MenuEntry } from "./ContextMenu";
@@ -122,19 +123,10 @@ export function threadMenuEntries(thread: Thread, startRename: () => void): Menu
 
 function pullEntries(thread: Thread): MenuEntry[] {
   const linked = thread.linkedPr;
-  const update = (linkedPr: Thread["linkedPr"]) => patch(`/api/threads/${thread.id}`, { linkedPr }).catch(report);
   const link = {
     label: linked ? t("Endre GitHub-PR…") : t("Knytt til GitHub-PR…"),
     icon: IconBranch,
-    run: async () => {
-      const value = await promptDialog({
-        title: t("Lenke til GitHub-PR"),
-        value: linked ? linked.url ?? pullUrl(linked) : "",
-        confirm: t("Lagre"),
-        validate: (value) => parsePullUrl(value) ? undefined : t("Lim inn en gyldig lenke til en GitHub-PR."),
-      });
-      if (value) await update(parsePullUrl(value));
-    },
+    run: () => editThreadPull(thread),
   };
   if (!linked) return [link];
   const openUrl = linked.url ?? pullUrl(linked);
@@ -145,7 +137,7 @@ function pullEntries(thread: Thread): MenuEntry[] {
     children: [
       { label: t("Åpne på GitHub"), icon: IconGlobe, run: () => { window.open(openUrl, "_blank", "noopener,noreferrer"); } },
       link,
-      { label: t("Fjern PR-tilknytning"), run: () => update(null) },
+      { label: t("Fjern PR-tilknytning"), run: () => updateThreadPull(thread.id, null) },
     ],
   }];
 }

@@ -44,7 +44,7 @@ flow("lag prosjekt, godkjenn, se filen og diffen, og angre turen", async (h) => 
   await page.locator(".cm-content", { hasText: "Hei fra demo-modellen" }).waitFor();
   await page.locator(".cm-content .tok-typeName, .cm-content .tok-keyword").first().waitFor(); // The language loads on demand.
 
-  await openTool(page, "Endringer");
+  await openTool(page, "Diff");
   await page.locator('[data-testid="diff-file"][data-path="index.html"]').waitFor();
   await page.locator(".diff-line.add", { hasText: "Hei fra demo-modellen" }).waitFor();
   assert.match(await page.locator(".changes-note").textContent() ?? "", /kommandoer fanges ikke/);

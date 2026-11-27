@@ -28,6 +28,8 @@ const BrowserPanel = lazy(() => import("../panels/Browser"));
 const TeamPanel = lazy(() => import("../panels/Team"));
 const OverviewPanel = lazy(() => import("../panels/Overview"));
 const GitHubPanel = lazy(() => import("./GitHubPanel")); // round 8, agent G
+const AgentsPanel = lazy(() => import("./AgentsPanel"));
+const LinkedPullRequestsPanel = lazy(() => import("./LinkedPullRequestsPanel"));
 const SessionPanel = lazy(() => import("./SessionPanel").then((m) => ({ default: m.SessionPanel }))); // round 12
 
 interface Suggestion {
@@ -166,34 +168,39 @@ function go(projectId: string, url: string): void {
 export function ToolView(props: { tool: PanelTab; projectId: string | null; threadId: () => string | null; head?: () => HTMLElement | undefined; sharedTabs?: boolean; visible?: boolean }) {
   return (
     <Suspense fallback={<div class="panel-empty" role="status">{t("Åpner verktøy…")}</div>}>
-      <Show
-        when={props.projectId}
-        keyed
-        fallback={
-          <Switch>
-            <Match when={props.tool === "files"}><FilesPanel projectId={LOCAL_SCOPE} threadId={props.threadId} /></Match>
-            <Match when={props.tool === "changes"}><ChangesPanel threadId={props.threadId} /></Match>
-            <Match when={props.tool === "overview"}><LocalOverview threadId={props.threadId} /></Match>
-            <Match when={props.tool === "team" || props.tool === "github"}><ProjectContext tool={props.tool as "team" | "github"} /></Match>
-            <Match when={props.tool === "terminal"}><TerminalPanel projectId={LOCAL_SCOPE} place="Denne datamaskinen" head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
-            <Match when={props.tool === "browser"}><BrowserPanel projectId={LOCAL_SCOPE} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
-            <Match when={props.tool === "session"}><Session threadId={props.threadId} /></Match>
-          </Switch>
-        }
-      >
-        {(projectId) => (
-          <Switch>
-            <Match when={props.tool === "files"}><FilesPanel projectId={projectId} threadId={props.threadId} /></Match>
-            <Match when={props.tool === "changes"}><ChangesPanel threadId={props.threadId} /></Match>
-            <Match when={props.tool === "terminal"}><TerminalPanel projectId={projectId} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
-            <Match when={props.tool === "browser"}><BrowserPanel projectId={projectId} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
-            <Match when={props.tool === "team"}><TeamPanel projectId={projectId} /></Match>
-            <Match when={props.tool === "overview"}><OverviewPanel projectId={projectId} threadId={props.threadId} /></Match>
-            <Match when={props.tool === "github"}><GitHubPanel projectId={projectId} /></Match>
-            <Match when={props.tool === "session"}><Session threadId={props.threadId} /></Match>
-          </Switch>
-        )}
-      </Show>
+      <Switch fallback={
+          <Show
+            when={props.projectId}
+            keyed
+            fallback={
+              <Switch>
+                <Match when={props.tool === "files"}><FilesPanel projectId={LOCAL_SCOPE} threadId={props.threadId} /></Match>
+                <Match when={props.tool === "changes"}><ChangesPanel threadId={props.threadId} /></Match>
+                <Match when={props.tool === "overview"}><LocalOverview threadId={props.threadId} /></Match>
+                <Match when={props.tool === "team" || props.tool === "github"}><ProjectContext tool={props.tool as "team" | "github"} /></Match>
+                <Match when={props.tool === "terminal"}><TerminalPanel projectId={LOCAL_SCOPE} place="Denne datamaskinen" head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
+                <Match when={props.tool === "browser"}><BrowserPanel projectId={LOCAL_SCOPE} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
+                <Match when={props.tool === "session"}><Session threadId={props.threadId} /></Match>
+              </Switch>
+            }
+          >
+            {(projectId) => (
+              <Switch>
+                <Match when={props.tool === "files"}><FilesPanel projectId={projectId} threadId={props.threadId} /></Match>
+                <Match when={props.tool === "changes"}><ChangesPanel threadId={props.threadId} /></Match>
+                <Match when={props.tool === "terminal"}><TerminalPanel projectId={projectId} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
+                <Match when={props.tool === "browser"}><BrowserPanel projectId={projectId} head={props.head} sharedTabs={props.sharedTabs} visible={props.visible} /></Match>
+                <Match when={props.tool === "team"}><TeamPanel projectId={projectId} /></Match>
+                <Match when={props.tool === "overview"}><OverviewPanel projectId={projectId} threadId={props.threadId} /></Match>
+                <Match when={props.tool === "github"}><GitHubPanel projectId={projectId} /></Match>
+                <Match when={props.tool === "session"}><Session threadId={props.threadId} /></Match>
+              </Switch>
+            )}
+          </Show>
+      }>
+        <Match when={props.tool === "agents"}><AgentsPanel projectId={props.projectId} threadId={props.threadId} /></Match>
+        <Match when={props.tool === "linked-prs"}><LinkedPullRequestsPanel threadId={props.threadId} /></Match>
+      </Switch>
     </Suspense>
   );
 }

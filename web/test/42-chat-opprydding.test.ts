@@ -194,9 +194,9 @@ flow("Chat-opprydding: Kode beholder modellvalg, tillatelsesvalg og sidefanen si
   assert.equal(await page.getByTestId("personality-button").count(), 0);
   await page.getByTestId("model-button").getByText("Demo-modell (uten API)", { exact: true }).waitFor();
   assert.equal(await page.getByTestId("model-button").locator(".provider-glyph").count(), 0);
-  await page.getByTestId("permission-button").getByText("Be om godkjenning", { exact: true }).waitFor();
-  await page.getByTestId("permission-button").click();
-  assert.equal(await page.getByRole("menu", { name: "Tillatelser", exact: true }).getByRole("menuitemradio").count(), 3);
+  await page.getByTestId("model-button").click();
+  await page.getByTestId("model-permissions").getByRole("radio", { name: "Be om godkjenning", checked: true }).waitFor();
+  assert.equal(await page.getByTestId("model-permissions").getByRole("radio").count(), 3);
   await page.keyboard.press("Escape");
   assert.equal(await page.locator('.sidebar [data-section="projects"]').count(), 0, "Kode får ingen Chat-prosjektseksjon");
   assert.equal(await page.locator('.sidebar [data-chat-project="Bare Chat"]').count(), 0);

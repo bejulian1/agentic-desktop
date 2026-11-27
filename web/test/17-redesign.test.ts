@@ -51,7 +51,9 @@ flow("startsiden: hilsen og eksempler i Chat, stort spørsmål og prosjektvelger
   await picker.getByLabel("Søk i prosjekter").fill("dem");
   await picker.getByRole("option", { name: "Demo" }).click();
   await page.getByRole("button", { name: "Kode", exact: true, pressed: true }).waitFor();
-  await page.getByTestId("permission-button").getByText("Be om godkjenning").waitFor();
+  await page.getByTestId("model-button").click();
+  await page.getByTestId("model-permissions").getByRole("radio", { name: "Be om godkjenning", checked: true }).waitFor();
+  await page.keyboard.press("Escape");
 });
 
 flow("godkjenningskortet ligger rett over meldingsfeltet, og varsler viser det som venter", async (h) => {

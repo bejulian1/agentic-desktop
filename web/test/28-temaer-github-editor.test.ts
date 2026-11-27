@@ -92,7 +92,7 @@ flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", a
   writeFileSync(path.join(h.projectDir, ".git/config"), `[remote "origin"]\n\turl = git@github.com:acme/rakett.git\n`);
   await openProject(h);
   const panel = page.getByTestId("github-panel");
-  await openTool(page, "GitHub");
+  await openTool(page, "Pull requests");
   await panel.getByText("acme/rakett").waitFor();
   await panel.getByText("Ikke koblet til GitHub").waitFor();
   assert.equal(await panel.getByText("Beta", { exact: true }).count(), 0);
@@ -114,7 +114,7 @@ flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", a
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
 
   // The lists, newest first, with drafts, labels and comments.
-  await openTool(page, "GitHub");
+  await openTool(page, "Pull requests");
   await panel.getByRole("button", { name: "Hent på nytt" }).click();
   const items = panel.locator(".github-item");
   await waitFor(async () => (await items.count()) === 2, "to pull requests");
@@ -157,7 +157,7 @@ flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", a
   await toolShown(page, "Nettleser");
   await waitFor(() => fake.requests.some((r) => r.path === "/acme/rakett/pull/42"), "siden ble åpnet i nettleserpanelet", 30_000);
 
-  await openTool(page, "GitHub");
+  await openTool(page, "Pull requests");
   if (await panel.getByTestId("github-inline").count()) await panel.getByRole("button", { name: "Tilbake" }).click();
   await panel.getByRole("button", { name: "Vis i appen" }).click();
   const room = page.getByTestId("github-room");
@@ -167,7 +167,7 @@ flow("GitHub: koble til med token, se pull requests og issues, og tåle feil", a
   // Not a GitHub repo.
   writeFileSync(path.join(h.projectDir, ".git/config"), `[remote "origin"]\n\turl = https://gitlab.com/acme/rakett.git\n`);
   await room.getByRole("button", { name: "Lukk", exact: true }).click();
-  await openTool(page, "GitHub");
+  await openTool(page, "Pull requests");
   await page.getByTestId("github-panel").getByText("Ikke et GitHub-repo").waitFor();
   await page.getByTestId("github-panel").getByText("Ingen remote peker til GitHub.").waitFor();
 }, { env: { AD_GITHUB_API: fake.url } });

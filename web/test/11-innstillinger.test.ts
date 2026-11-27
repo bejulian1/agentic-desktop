@@ -55,7 +55,9 @@ flow("tillatelsesmodus styrer om appen spør", async (h) => {
   await page.getByRole("button", { name: "Tillatelser for Demo" }).click();
   await page.getByRole("menuitemradio", { name: "Full tilgang" }).click();
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
-  await page.getByTestId("permission-button").getByText("Full tilgang").waitFor();
+  await page.getByTestId("model-button").click();
+  await page.getByTestId("model-permissions").getByRole("radio", { name: "Full tilgang", checked: true }).waitFor();
+  await page.keyboard.press("Escape");
   await page.getByLabel("Melding").fill("lag en side");
   await page.getByLabel("Melding").press("Enter");
   await page.getByText("Ferdig. ").waitFor({ timeout: 30_000 });
@@ -67,8 +69,9 @@ flow("tillatelsesmodus styrer om appen spør", async (h) => {
   const second = await h.context.newPage();
   await second.goto(h.origin);
   await second.waitForSelector(".app");
-  await page.getByTestId("permission-button").click();
-  await page.getByRole("menu", { name: "Tillatelser", exact: true }).getByRole("menuitemradio").filter({ has: page.locator(".menu-name", { hasText: /^Be om godkjenning$/ }) }).click();
+  await page.getByTestId("model-button").click();
+  await page.getByTestId("model-permissions").getByRole("radio", { name: "Be om godkjenning" }).click();
+  await page.keyboard.press("Escape");
   await waitFor(async () => (await second.locator(`.group[data-project="Demo"]`).count()) === 1, "prosjektet er i det andre vinduet");
   // An empty thread has no title and is not listed (SPEC 23.8); this one gets a name, as a first message would give it.
   const thread = await h.createThread(project.id);

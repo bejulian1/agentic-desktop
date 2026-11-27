@@ -142,7 +142,7 @@ flow("Ekte filendring beholder ett kort med diff og Angre, mens senere tekstsvar
   assert.equal(await card.count(), 1, "rent tekstsvar legger ikke til et tomt kort");
   assert.equal(await summary.count(), 1);
   await card.getByRole("button", { name: "Vis endringer", exact: true }).click();
-  await toolShown(page, "Endringer");
+  await toolShown(page, "Diff");
   const diff = page.locator('[data-testid="diff-file"][data-path="index.html"]');
   await diff.waitFor();
   assert.match(await diff.innerText(), /Originalen|Hei fra demo-modellen/);

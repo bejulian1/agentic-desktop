@@ -51,6 +51,12 @@ export function openChatProject(id: string): void {
   });
 }
 
+export function switchProject(id: string): void {
+  cancelPendingThreadOpen();
+  batch(() => showScope(id));
+  void refreshProject(id);
+}
+
 // Chat, Kode in a project, or Kode on Denne datamaskinen.
 function showScope(key: string): void {
   if (key === "chat") return setMode("chat");
@@ -81,16 +87,27 @@ export async function newThreadIn(projectId: string | null, code = false, chatPr
   });
 }
 
-export async function createThreadFor(projectId: string | null, modelId: string | null, options: { code?: boolean; chatProjectId?: string | null; title?: string } = {}): Promise<Thread> {
+export async function createThreadFor(projectId: string | null, modelId: string | null, options: { code?: boolean; planMode?: boolean; chatProjectId?: string | null; title?: string } = {}): Promise<Thread> {
   const thread = await post<Thread>("/api/threads", {
     projectId,
     mode: projectId || options.code ? "code" : "chat",
     modelId: modelId ?? undefined,
     title: options.title,
+    ...(options.planMode ? { planMode: true } : {}),
     ...(options.chatProjectId ? { chatProjectId: options.chatProjectId } : {}),
   });
   await loadModel(thread.id, thread.mode === "code");
   return thread;
+}
+
+export async function openNewProjectThread(projectId: string | null, chatProjectId: string | null = null): Promise<void> {
+  if (projectId && app.projects[projectId]?.defaultWorkspaceMode === "worktree") {
+    await newThreadIn(projectId, true);
+    return;
+  }
+  const seq = beginNavigation();
+  const thread = await createThreadFor(projectId, null, { chatProjectId });
+  if (seq === currentNavigationGeneration()) await openThread(thread);
 }
 
 // Round 9: a new chat in a Chat project. The empty pane remembers the project until its first

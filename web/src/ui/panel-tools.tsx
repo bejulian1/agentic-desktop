@@ -6,6 +6,7 @@ import { mode, panelOpen, setPanelOpen } from "../state/app";
 import { closePanelTool, onPanelHome, panelTab, showPanel, type PanelTab } from "../state/panel";
 import { inStack, stacking } from "../state/stack";
 import { displayKeys, keysFor } from "../state/shortcuts";
+import { IconLink } from "./nav-icons";
 import { IconPullRequest } from "./GitHubShared";
 import { IconDiff, IconFile, IconGauge, IconGlobe, IconList, IconTerminal, IconUsers } from "./icons";
 
@@ -24,11 +25,13 @@ export const PANEL_TOOLS: PanelTool[] = [
   { id: "session", get label() { return t("Økt"); }, icon: IconGauge, keys: "panel.session", get tip() { return t("Økt: miljø, kontekst, tilkoblinger og oppgaver i bakgrunnen"); } },
   { id: "overview", get label() { return t("Oversikt"); }, icon: IconList, keys: "panel.overview", get tip() { return t("Oversikt: miljø, kontekst og filer tråden har endret"); } },
   { id: "files", get label() { return t("Filer"); }, icon: IconFile, keys: "panel.files", get tip() { return t("Åpne filer i prosjektet eller på denne datamaskinen"); } },
-  { id: "changes", get label() { return t("Endringer"); }, icon: IconDiff, keys: "panel.changes", get tip() { return t("Endringer: diff per tur, med Angre og Gjennomgå"); } },
+  { id: "changes", get label() { return t("Diff"); }, icon: IconDiff, keys: "panel.changes", get tip() { return t("Diff per tur, med Angre og Gjennomgå"); } },
   { id: "terminal", get label() { return t("Terminal"); }, icon: IconTerminal, keys: "panel.terminal", get tip() { return t("Terminal i prosjektmappen, eller i hjemmemappen uten prosjekt"); } },
   { id: "browser", get label() { return t("Nettleser"); }, icon: IconGlobe, keys: "panel.browser", get tip() { return t("Nettleser: siden agenten og Playtest bruker"); } },
   { id: "team", get label() { return t("Team"); }, icon: IconUsers, keys: "panel.team", get tip() { return t("Team: den delte oppgavelisten"); } },
-  { id: "github", get label() { return t("GitHub"); }, icon: IconPullRequest, get tip() { return t("Pull requests og issues for prosjektets repo"); } },
+  { id: "github", get label() { return t("Pull requests"); }, icon: IconPullRequest, get tip() { return t("Pull requests og issues for prosjektets repo"); } },
+  { id: "agents", get label() { return t("Agenter"); }, icon: IconUsers, get tip() { return t("Agenter i tråden og prosjektet"); } },
+  { id: "linked-prs", get label() { return t("Tilknyttede pull requests"); }, icon: IconLink, get tip() { return t("Pull requests knyttet til tråden"); } },
 ];
 
 export const toolById = (id: PanelTab) => PANEL_TOOLS.find((t) => t.id === id)!;

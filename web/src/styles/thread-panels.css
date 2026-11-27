@@ -1,0 +1,20 @@
+.thread-panel { display: flex; flex-direction: column; gap: 10px; padding: 10px; min-width: 0; }
+.thread-panel-section h3 { margin: 2px 0 6px; color: var(--text-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.thread-panel-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.thread-panel-card {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 9px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  color: var(--text); text-align: start;
+}
+.agent-panel-row:hover { background: var(--hover); }
+.agent-panel-row > .icon { flex: none; margin-top: 2px; color: var(--text-2); }
+.thread-panel-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.thread-panel-title { font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.thread-panel-meta, .thread-panel-preview { font-size: var(--text-xs); color: var(--text-2); overflow-wrap: anywhere; }
+.thread-panel-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; }
+.thread-panel-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.thread-panel-status { flex: none; max-width: 40%; padding: 2px 6px; border-radius: var(--radius-full); background: var(--surface-3); color: var(--text); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.thread-panel-status[data-state="running"], .thread-panel-status[data-state="open"] { background: var(--accent-soft); color: var(--accent-text); }
+.thread-panel-status[data-state="error"] { background: var(--danger-soft); color: var(--danger); }
+.thread-panel-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.linked-pr-empty p { margin: 0 0 8px; }

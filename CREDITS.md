@@ -30,6 +30,8 @@ Commits fra dette arbeidet har en `Co-Authored-By`-linje til Claude.
 
 Codex med GPT 6.2 Sol implementerte GitHub CLI-innlogging, pull request- og issue-visningene og de isolerte testene (v1.1.0), og i en egen underagent velkomstskjermen og importen av prosjekter og samtaler fra Claude Code, Codex CLI, Gemini CLI og Pi.
 
+Codex med GPT 6.2 Sol implementerte modell- og prosjektvelgerne, vertsnavn i Kode-sidefanen og sidepanelverktøyene for diff, pull requests og agenter i 1.4.1, med isolerte UI- og serverkontroller.
+
 GPT 6.2 Astra implementerte diktering med valgt taleleverandør og planlagte Chat- og Kode-tråder, og fjernet uvirksomme betjeningselementer.
 
 Videreutviklingen fra v0.11.0 til v0.24.0, samt v0.24.2 og v0.24.3, er gjort med Codex, blant annet med GPT 6.1 Sol og underagenter: Chat-/Kode-flyt, harness og kontekst, skills, meldingsfelt, sidepanel, annotering, Git-grener/arbeidstrær, gjennomgang og feilrettinger. Codex har også hjulpet med dokumentasjon, skjermbilder, bygg og publisering til GitHub.

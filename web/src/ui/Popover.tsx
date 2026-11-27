@@ -1,4 +1,4 @@
-import { createEffect, onCleanup, Show, type JSX } from "solid-js";
+import { createEffect, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 
 // A menu anchored to its trigger. The document listener exists only while it is open.
@@ -77,9 +77,15 @@ export function Popover(props: { open: boolean; onClose: () => void; trigger: JS
       document.removeEventListener("keydown", onKey);
     });
   });
-  const Panel = () => (
-    <div class={`popover ${props.panelClass ?? ""}`} classList={{ right: props.align === "right", fixed: props.fixed, below: props.below, "stable-geometry": props.stable }} ref={(element) => { popup = element; place(element); }}>{props.children}</div>
-  );
+  const Panel = () => {
+    let element!: HTMLDivElement;
+    onMount(() => { if (props.portal) place(element); });
+    return <div
+      class={`popover ${props.panelClass ?? ""}`}
+      classList={{ right: props.align === "right", fixed: props.fixed, below: props.below, "stable-geometry": props.stable }}
+      ref={(node) => { popup = element = node; if (!props.portal) place(node); }}
+    >{props.children}</div>;
+  };
   return (
     <div class={`popover-anchor ${props.class ?? ""}`} ref={root}>
       {props.trigger}

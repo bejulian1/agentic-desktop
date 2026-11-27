@@ -6,7 +6,7 @@ import { artifactPanel, closeArtifactPanel } from "./artifact-panel";
 import { studioOpen, setStudioOpen, setStudioTool } from "./studio";
 
 // Round 12 (SPEC 26.2): "session" is Økt.
-export type PanelTab = "files" | "changes" | "terminal" | "browser" | "team" | "overview" | "github" | "session";
+export type PanelTab = "files" | "changes" | "terminal" | "browser" | "team" | "overview" | "github" | "session" | "agents" | "linked-prs";
 
 // Each code scope remembers its own tabs and chooser. Tool contents still use the selected
 // scope's projectId, so reopening a tab can never reattach another project's terminal/browser.

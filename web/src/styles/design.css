@@ -29,23 +29,11 @@
    (App.tsx sets --toasts-down while that is the case). */
 .toasts { top: calc(var(--topbar-h) + var(--space-2) + var(--toasts-down, 0px)); }
 
-/* D3. The message field's bottom row: Innsats keeps its whole word, and the model's name gives way
-   first. */
-.composer-foot .popover-anchor.effort-anchor { flex: none; }
-.effort-chip-short { display: none; }
-@container (max-width: 520px) {
-  .effort-chip-full { display: none; }
-  .effort-chip-short { display: inline; }
-}
-
 /* D7. Durations on steps are text, so they get the quiet text colour that holds AA, not --text-4. */
 .step-duration { color: var(--text-3); }
 
 /* D9. A hint that wraps does not leave «+» alone on its own line. */
 .sidebar-empty { text-wrap: pretty; }
-
-/* D10. A tool's name on the side panel's start page ends with … rather than being cut off. */
-.panel-tool-name { text-overflow: ellipsis; }
 
 /* The thread title and its editor sit a little higher in Chat and Kode. Only their anchor moves;
    the window's drag region and the remaining header controls keep their established geometry. */

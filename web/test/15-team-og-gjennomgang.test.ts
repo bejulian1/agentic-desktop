@@ -7,7 +7,7 @@ flow("Gjennomgå i Endringer, Agent Teams i Team-panelet og nettlesermenyen", as
   await send(page, "lag en side");
   await approveUntil(page, async () => (await page.getByText("Ferdig. ").count()) > 0, "siden er laget");
 
-  await openTool(page, "Endringer");
+  await openTool(page, "Diff");
   await page.getByRole("button", { name: "Gjennomgå" }).click();
   await page.locator(".row-user .user-text", { hasText: "/review" }).waitFor();
   await page.locator(".row-text", { hasText: "Kodegjennomgang" }).waitFor();

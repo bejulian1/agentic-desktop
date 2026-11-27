@@ -73,7 +73,8 @@ flow("kontekstoverføring venter når modellen byttes i en besvart tråd, og Ang
   const handoff = page.getByTestId("context-handoff");
   assert.equal(await handoff.count(), 0);
   await page.getByTestId("model-button").click();
-  await page.locator(".model-menu").getByRole("option", { name: "Annen modell" }).click();
+  await page.getByTestId("model-menu").getByRole("button", { name: /^Annen / }).click();
+  await page.getByTestId("model-menu").getByRole("option", { name: "Annen modell" }).click();
   await handoff.waitFor();
   assert.match(await handoff.innerText(), /Kontekstoverføring venter/);
   assert.match(await handoff.innerText(), /Bytter fra Demo-modell \(uten API\) til Annen modell ved neste melding/);
@@ -82,7 +83,8 @@ flow("kontekstoverføring venter når modellen byttes i en besvart tråd, og Ang
   await waitFor(async () => /Demo-modell/.test(await page.getByTestId("model-button").innerText()), "the old model is back");
 
   await page.getByTestId("model-button").click();
-  await page.locator(".model-menu").getByRole("option", { name: "Annen modell" }).click();
+  await page.getByTestId("model-menu").getByRole("button", { name: /^Annen / }).click();
+  await page.getByTestId("model-menu").getByRole("option", { name: "Annen modell" }).click();
   await handoff.waitFor();
   await send(page, "fortsett");
   await handoff.waitFor({ state: "detached" });

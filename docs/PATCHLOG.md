@@ -4,6 +4,15 @@ Hva som er lagt til, runde for runde. Nyeste øverst. Plassholdere er merket **D
 
 
 
+## 1.4.1: Modellvelger, prosjektvalg og sidepanel (27. november 2026)
+
+Endringer under utvikling.
+
+- **Modellvelger i Chat og Kode.** Tenkeinnsats og Kode-tillatelser står til venstre. Søk og modellvalg står i midten, og favoritter og leverandører står til høyre. Stjernemerking huskes på tvers av økter. [Skjermbilde](bilder/modellvelger.png)
+- **Ny tråd og Prosjekter.** Ny tråd åpner en søkbar prosjektvelger, med egne valg for Chat og Kode uten prosjektmappe. Prosjektknappen åpner et eksisterende prosjekt eller dialogen for å legge til en mappe. Hurtigtasten beholder direkte opprettelse av et utkast. [Skjermbilde](bilder/sidefane-prosjektvelger.png)
+- **Vertsnavn i Kode.** Trådrader uten Git-gren viser maskinens vertsnavn.
+- **Sidepanel i Kode.** Diff viser endringer per tur. Pull requests åpner prosjektets GitHub-liste med tilgang til Issues. Agenter viser status og oppgaveutdrag fra hjelpetråder, og Tilknyttede pull requests lar deg oppdatere eller endre trådens PR-kobling. [Skjermbilde](bilder/sidepanel-agenter-pr.png)
+
 ## 1.4.0: Enkel Kode-fokus, justerbar terminalskuff nederst, fargede prosjektikoner, tolinjers Kode-rader, tråd-innboks og `/grill-me` (25. november 2026, bygg 86)
 
 En stor arbeidsflate- og ergonomi-oppdatering som gjør det mulig å kjøre appen enten like innholdsrik som før (**Full**) eller i en stram, rolig **Enkel (Kode-fokus)**-stil, uten å forke komponenter — alt styres med brytere i Innstillinger:

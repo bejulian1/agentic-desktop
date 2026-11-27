@@ -39,9 +39,9 @@ flow('Prosjektutkast: Chat, prosjekt A og B, vedlegg, tilbake/frem og reload hol
  await open(h,'Prosjekt A');assert.equal(await landing(page).getByLabel('Melding',{exact:true}).inputValue(),'Utkast A');assert.equal(await landing(page).getByTestId('image-chip').count(),1);
  await page.getByRole('button',{name:'Forrige tråd',exact:true}).click();await landing(page).getByRole('heading',{name:'Prosjekt B',exact:true}).waitFor();assert.equal(await landing(page).getByLabel('Melding',{exact:true}).inputValue(),'Utkast B');
  await page.getByRole('button',{name:'Neste tråd',exact:true}).click();await landing(page).getByRole('heading',{name:'Prosjekt A',exact:true}).waitFor();
- await page.locator('.sidebar-nav').getByRole('button',{name:'Ny tråd',exact:true}).click();await waitFor(async()=>await landing(page).count()===0,'vanlig Chat-utkast');assert.equal(await page.getByLabel('Melding',{exact:true}).filter({visible:true}).inputValue(),'Vanlig Chat-utkast');await open(h,'Prosjekt A');
+ await page.keyboard.press("Control+Alt+n");await waitFor(async()=>await landing(page).count()===0,'vanlig Chat-utkast');assert.equal(await page.getByLabel('Melding',{exact:true}).filter({visible:true}).inputValue(),'Vanlig Chat-utkast');await open(h,'Prosjekt A');
  await h.reload();await landing(page).getByRole('heading',{name:'Prosjekt A',exact:true}).waitFor();assert.equal((await h.api('GET','/api/bootstrap')).threads.length,0);
- await page.locator('.sidebar-nav').getByRole('button',{name:'Ny tråd',exact:true}).click();await waitFor(async()=>await landing(page).count()===0,'til vanlig Chat');
+ await page.keyboard.press("Control+Alt+n");await waitFor(async()=>await landing(page).count()===0,'til vanlig Chat');
  // Ordinary draft persistence is in-memory; reload intentionally clears unsent text.
  assert.equal(await page.getByLabel('Melding',{exact:true}).filter({visible:true}).inputValue(),'');
 }, {viewport:{width:1000,height:860}});

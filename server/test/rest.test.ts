@@ -2,12 +2,26 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { REPO_ROOT } from "../src/config.ts";
 import { needsBuild, productionBuild } from "../../scripts/build-lib.ts";
 import { httpError, openaiText, sse, startFakeLlm } from "./fake-llm.ts";
 import { login, rawRequest, startHarness, tempDir, until } from "./helpers.ts";
+
+test("bootstrap reports the server hostname and agent previews contain bounded user text", async (t) => {
+  const h = await startHarness(t);
+  assert.equal((await h.api("GET", "/api/bootstrap")).hostname, hostname());
+  const project = await h.project();
+  const parent = await h.thread(project.id);
+  const child = h.app.store.createThread(project.id, "code", null, { title: "Review", parentThreadId: parent.id });
+  h.app.store.appendEvent(child.id, { type: "user.message", messageId: "first", text: "Older task" });
+  h.app.store.appendEvent(child.id, { type: "user.message", messageId: "latest", text: "Review\n  the examples " + "x".repeat(300) });
+  h.app.store.appendEvent(parent.id, { type: "user.message", messageId: "parent", text: "The parent’s message" });
+  const previews = await h.api("GET", `/api/threads/agent-previews?ids=${child.id},${parent.id},unknown`);
+  assert.deepEqual(previews, { [child.id]: "Review the examples " + "x".repeat(158) });
+});
 
 test("projects: create, folder is made, rename, permission, delete leaves the folder", async (t) => {
   const h = await startHarness(t);
