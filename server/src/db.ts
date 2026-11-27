@@ -682,6 +682,13 @@ export class Store {
     return false;
   }
 
+  latestUserText(threadId: string, limit: number): string | undefined {
+    const row = this.q(`SELECT substr(json_extract(event, '$.text'), 1, ?) AS text FROM events
+      WHERE thread_id = ? AND event LIKE '{"type":"user.message"%'
+      ORDER BY seq DESC LIMIT 1`).get(limit, threadId);
+    return typeof row?.text === "string" ? row.text : undefined;
+  }
+
   recentMessages(threadId: string, limit = 12): Message[] {
     return (this.q("SELECT role, content FROM messages WHERE thread_id = ? ORDER BY idx DESC LIMIT ?").all(threadId, Math.min(32, Math.max(1, limit))) as Array<{ role: Message["role"]; content: string }>).reverse()
       .map((row) => ({ role: row.role, content: JSON.parse(row.content) }));

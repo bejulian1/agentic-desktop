@@ -1,3 +1,4 @@
+import { NewThreadProjectButton, SidebarProjectsButton } from "./SidebarProjectPicker";
 // The smart sidebar, chosen in Settings: cards for the threads that need you now (an approval
 // waits, finished and not seen, recently active), and below them three groups that fold: Jobber
 // (running, out of the way until they need you), Utsatt (snoozed until a time) and Avsluttet.
@@ -9,7 +10,7 @@ import type { Thread } from "../../../shared/protocol";
 import { get } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import { on } from "../lib/socket";
-import { app, listed, renameThread, report, scope, scopeOf, setFolderPickerOpen, setSettingsOpen } from "../state/app";
+import { app, listed, renameThread, report, scope, scopeOf, setSettingsOpen } from "../state/app";
 import { actions } from "../state/actions";
 import { applyDrop, beginDrag } from "../state/drag";
 import { gridFor } from "../state/grid";
@@ -24,8 +25,8 @@ import { closeArtifacts, openArtifacts } from "../state/artifacts";
 import { ContextMenu, type MenuAnchor } from "./ContextMenu";
 import { promptDialog } from "./dialogs";
 import { hideHoverCard, hoverIn, hoverOut, suppressHoverCards } from "./HoverCard";
-import { IconArchive, IconArtifact, IconBranch, IconChat, IconCheck, IconChevron, IconCompose, IconDiff, IconDots, IconSearch, IconSliders, IconPin, IconWarn } from "./icons";
-import { IconChart, IconFilter, IconFolderPlus } from "./nav-icons";
+import { IconArchive, IconArtifact, IconBranch, IconChat, IconCheck, IconChevron, IconDiff, IconDots, IconSearch, IconSliders, IconPin, IconWarn } from "./icons";
+import { IconChart, IconFilter } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { afterPick } from "./Sidebar";
@@ -302,8 +303,8 @@ export function SmartSidebar(props: { activeIds: ReadonlySet<string> }) {
         >
           <IconFilter size={16} />
         </button>
-        <button type="button" class="icon-button" title={t("Nytt prosjekt")} aria-label={t("Nytt prosjekt")} onClick={() => setFolderPickerOpen(true)}><IconFolderPlus size={16} /></button>
-        <button type="button" class="icon-button" title={t("Ny tråd")} aria-label={t("Ny tråd")} onClick={() => { actions.newThread(); afterPick(); }}><IconCompose size={16} /></button>
+        <NewThreadProjectButton class="icon-button" onPick={afterPick} />
+        <SidebarProjectsButton class="icon-button" onPick={afterPick} />
         <Show when={filterMenu()}>
           {(anchor) => (
             <ContextMenu

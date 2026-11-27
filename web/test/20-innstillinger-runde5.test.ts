@@ -291,7 +291,7 @@ flow("hurtigtastene for panelet åpner fanene", async (h) => {
   if (!(await page.getByTestId("panel-home").isVisible())) await page.keyboard.press("Control+Shift+b");
   await page.getByTestId("panel-home").waitFor();
   await page.keyboard.press("Control+Alt+2");
-  await toolShown(page, "Endringer");
+  await toolShown(page, "Diff");
   await page.keyboard.press("Control+Alt+1");
   await toolShown(page, "Filer");
 });

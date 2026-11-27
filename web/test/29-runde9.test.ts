@@ -40,7 +40,7 @@ flow("Kode-startsiden: hilsen uten prosjekt, prosjektkortet med miljø og GitHub
   await card.getByTestId("local-environment").waitFor();
   // GitHub: not connected, and a click opens the GitHub tab.
   await page.getByTestId("home-github").getByText("Koble til GitHub").click();
-  await toolShown(page, "GitHub");
+  await toolShown(page, "Pull requests");
 
   // Innstillinger → Kode, from the gear in Kode, with its own tip.
   const gear = page.getByTestId("settings-gear");
@@ -203,53 +203,17 @@ flow("Chat: prosjekter med + og navn, ny chat i prosjektet, flytt fra trådmenye
   await page.getByRole("region", { name: "Innstillinger" }).locator(".settings-title", { hasText: "Chat" }).waitFor();
 });
 
-flow("innsatsvelgeren: Velg innsats, popover med modell og nullstill, glidebryter med mus og taster, og Ny rute", async (h) => {
+flow("modellvelgeren: modellens innsatsnivåer, nullstilling og Ny rute", async (h) => {
   const { page } = h;
   await openProject(h);
-  const button = page.getByTestId("effort-button");
-  await button.getByText("Velg innsats").waitFor();
+  const button = page.getByTestId("model-button");
   await button.click();
-  const picker = page.getByTestId("effort-picker");
-  const slider = picker.getByRole("slider", { name: "Innsats" });
-  assert.equal(await slider.getAttribute("aria-valuemax"), "5", "Ingen til Maks for demo-modellen");
-  assert.equal(await picker.locator(".effort-dot").count(), 6);
-  // A click on the track picks the nearest step.
-  const box = (await slider.boundingBox())!;
-  await page.mouse.click(box.x + box.width - 6, box.y + box.height / 2);
-  await picker.getByTestId("effort-name").getByText("Maks").waitFor();
-  await button.getByText("Maks").waitFor();
-  // A drag to the start.
-  await page.mouse.move(box.x + box.width - 14, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 4, box.y + box.height / 2, { steps: 6 });
-  await page.mouse.up();
-  await picker.getByTestId("effort-name").getByText("Ingen").waitFor();
-  await slider.focus();
-  await page.keyboard.press("ArrowRight");
-  await picker.getByTestId("effort-name").getByText("Lav").waitFor();
-  await page.keyboard.press("End");
-  await picker.getByTestId("effort-name").getByText("Maks").waitFor();
-  await page.keyboard.press("ArrowLeft");
-  await picker.getByTestId("effort-name").getByText("Ekstra høy").waitFor();
-  await button.getByText("Ekstra høy").waitFor();
-  await page.keyboard.press("Home");
-  await picker.getByTestId("effort-name").getByText("Ingen").waitFor();
-  // The level is in the accent colour.
-  const color = await picker.getByTestId("effort-name").evaluate((el) => getComputedStyle(el).color);
-  const accent = await page.evaluate(() => {
-    const probe = document.createElement("span");
-    probe.style.color = "var(--accent-text)";
-    document.body.append(probe);
-    const c = getComputedStyle(probe).color;
-    probe.remove();
-    return c;
-  });
-  assert.equal(color, accent);
-  // Reset, and › opens the model menu.
-  await picker.getByRole("button", { name: "Tilbake til modellens standard" }).click();
-  await button.getByText("Velg innsats").waitFor();
-  await picker.getByRole("button", { name: /Demo-modell/ }).click();
-  await page.getByRole("combobox", { name: "Søk etter modeller" }).waitFor();
+  const picker = page.getByTestId("model-effort");
+  assert.equal(await picker.getByRole("radio").count(), 7, "Standard og nivåene Ingen til Maks");
+  await picker.getByRole("radio", { name: "Maks", exact: true }).click();
+  await button.getByText("Maks", { exact: true }).waitFor();
+  await picker.getByRole("radio", { name: "Standard", exact: true }).click();
+  await button.getByText("Standard", { exact: true }).waitFor();
   await page.keyboard.press("Escape");
 
   // Del til høyre (round 11): the pane buttons stand left of the panel buttons, with the shortcut in

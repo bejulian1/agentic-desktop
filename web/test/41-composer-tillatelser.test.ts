@@ -10,14 +10,16 @@ const LABELS: Record<PermissionMode, string> = {
   "accept-edits": "Godkjenn for meg",
   full: "Full tilgang",
 };
-const menu = (page: Page) => page.getByRole("menu", { name: "Tillatelser", exact: true });
-const row = (page: Page, mode: PermissionMode) => menu(page).getByRole("menuitemradio").filter({ has: page.locator(".menu-name", { hasText: new RegExp(`^${LABELS[mode]}$`) }) });
+const menu = (page: Page) => page.getByTestId("model-permissions");
+const row = (page: Page, mode: PermissionMode) => menu(page).getByRole("radio", { name: LABELS[mode], exact: true });
+const buttonFor = (page: Page) => page.getByTestId("model-button");
 
 async function choose(h: Harness, mode: PermissionMode): Promise<void> {
-  await h.page.getByTestId("permission-button").click();
+  await buttonFor(h.page).click();
   await row(h.page, mode).click();
+  await menu(h.page).getByRole("radio", { name: LABELS[mode], exact: true, checked: true }).waitFor();
+  await h.page.keyboard.press("Escape");
   await menu(h.page).waitFor({ state: "detached" });
-  await waitFor(async () => (await h.page.getByTestId("permission-button").getAttribute("data-mode")) === mode, `${mode} vises i feltet`);
 }
 
 async function storedMode(h: Harness, projectId: string): Promise<PermissionMode> {
@@ -27,21 +29,25 @@ async function storedMode(h: Harness, projectId: string): Promise<PermissionMode
 flow("tillatelser uten prosjekt: ny standard lagres, synkroniseres med Generelt og bevarer eksisterende prosjekt", async (h) => {
   const { page } = h;
   const existing = await h.createProject("Eksisterende");
-  assert.equal(await page.getByTestId("permission-button").count(), 0, "Chat har ikke prosjektets tillatelsesvalg");
+  await buttonFor(page).click();
+  assert.equal(await menu(page).count(), 0, "Chat har ikke prosjektets tillatelsesvalg");
+  await page.keyboard.press("Escape");
   await page.locator(".sidebar .mode-button", { hasText: "Kode" }).click();
-  const button = page.getByTestId("permission-button");
+  const button = buttonFor(page);
   await button.waitFor();
   assert.equal(await button.isDisabled(), false);
   await button.click();
+  await menu(page).getByRole("button", { name: "Les mer" }).click();
   assert.match(await menu(page).innerText(), /nye prosjekter og alle Kode-tråder på Denne datamaskinen/);
-  assert.match(await row(page, "full").innerText(), /kjøre kommandoer i hjemmemappen uten å spørre/);
+  assert.match((await row(page, "full").getAttribute("aria-description")) ?? "", /kjøre kommandoer i hjemmemappen uten å spørre/);
   await page.keyboard.press("Escape");
   await choose(h, "full");
   assert.equal((await h.api("GET", "/api/bootstrap")).settings.defaultPermissionMode, "full");
   assert.equal(await storedMode(h, existing.id), "ask");
   await h.reload();
-  await button.getByText(LABELS.full, { exact: true }).waitFor();
   await button.click();
+  await menu(page).getByRole("radio", { name: LABELS.full, checked: true }).waitFor();
+  await menu(page).getByRole("button", { name: "Les mer" }).click();
   assert.match(await menu(page).innerText(), /nye prosjekter/);
   assert.match(await menu(page).innerText(), /også eksisterende/);
   await page.keyboard.press("Escape");
@@ -56,12 +62,15 @@ flow("tillatelser uten prosjekt: ny standard lagres, synkroniseres med Generelt 
   await modes.getByRole("radio", { name: /^Godkjenn for meg/ }).check();
   await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.defaultPermissionMode === "accept-edits", "standard lagres i Generelt");
   await page.getByRole("button", { name: "Tilbake til appen", exact: true }).click();
-  await button.getByText(LABELS["accept-edits"], { exact: true }).waitFor();
+  await button.click();
+  await menu(page).getByRole("radio", { name: LABELS["accept-edits"], checked: true }).waitFor();
+  await page.keyboard.press("Escape");
   const newProject = await h.api("POST", "/api/projects", { name: "Ny standard", path: h.home });
   assert.equal(newProject.permissionMode, "accept-edits", "nye prosjekter får valgt standard");
   assert.equal(await storedMode(h, existing.id), "ask");
   await page.locator(".sidebar .mode-button", { hasText: "Chat" }).click();
-  assert.equal(await button.count(), 0);
+  await button.click();
+  assert.equal(await menu(page).count(), 0);
 });
 
 flow("tillatelser uten prosjekt: lagrefeil beholder valgt nivå og kan prøves igjen", async (h) => {
@@ -71,10 +80,10 @@ flow("tillatelser uten prosjekt: lagrefeil beholder valgt nivå og kan prøves i
   let fail = true;
   await page.route("**/api/settings", (route) => fail && route.request().method() === "PATCH"
     ? route.fulfill({ status: 503, json: { error: "Test: standard kunne ikke lagres" } }) : route.continue());
-  await page.getByTestId("permission-button").click();
+  await buttonFor(page).click();
   await row(page, "full").click();
   await page.getByText("Test: standard kunne ikke lagres", { exact: true }).waitFor();
-  assert.equal(await page.getByTestId("permission-button").getAttribute("data-mode"), "ask");
+  assert.equal(await row(page, "ask").getAttribute("aria-checked"), "true");
   assert.equal((await h.api("GET", "/api/bootstrap")).settings.defaultPermissionMode, "ask");
   fail = false;
   if (await menu(page).count()) await page.keyboard.press("Escape");
@@ -96,10 +105,9 @@ flow("tillatelser i feltet: utkast og eksisterende tråd lagrer prosjektet, ikke
   assert.equal(await storedMode(h, project.id), "accept-edits");
   assert.equal((await h.api("GET", "/api/bootstrap")).threads.length, 0, "tillatelsesvalget lager ingen tråd");
   await h.reload();
-  await page.getByTestId("permission-button").getByText(LABELS["accept-edits"], { exact: true }).waitFor();
-  await page.getByTestId("permission-button").click();
+  await buttonFor(page).click();
   assert.equal(await row(page, "accept-edits").getAttribute("aria-checked"), "true");
-  assert.equal(await menu(page).getByRole("menuitemradio", { checked: true }).count(), 1);
+  assert.equal(await menu(page).getByRole("radio", { checked: true }).count(), 1);
   await page.keyboard.press("Escape");
 
   const thread = await h.createThread(project.id);
@@ -108,7 +116,6 @@ flow("tillatelser i feltet: utkast og eksisterende tråd lagrer prosjektet, ikke
   await choose(h, "full");
   assert.equal(await storedMode(h, project.id), "full");
   await h.reload();
-  await page.getByTestId("permission-button").getByText(LABELS.full, { exact: true }).waitFor();
   await choose(h, "ask");
   assert.equal(await storedMode(h, project.id), "ask");
   assert.deepEqual(patches, [{ permissionMode: "accept-edits" }, { permissionMode: "full" }, { permissionMode: "ask" }]);
@@ -120,15 +127,15 @@ flow("tillatelser i feltet: utkast og eksisterende tråd lagrer prosjektet, ikke
 flow("tillatelser i feltet: tydelige nivåer, vernede filer og Les mer", async (h) => {
   const { page } = h;
   await openProject(h);
-  await page.getByTestId("permission-button").click();
-  assert.equal(await menu(page).getByRole("menuitemradio").count(), 3);
+  await buttonFor(page).click();
+  assert.equal(await menu(page).getByRole("radio").count(), 3);
   for (const mode of Object.keys(LABELS) as PermissionMode[]) {
     await row(page, mode).getByText(LABELS[mode], { exact: true }).waitFor();
-    assert.ok((await row(page, mode).locator(".menu-desc").innerText()).trim().length > 30, `${mode} forklares`);
+    assert.ok(((await row(page, mode).getAttribute("aria-description")) ?? "").trim().length > 30, `${mode} forklares`);
   }
   assert.match(await row(page, "ask").innerText(), /spør|godkjenn/i);
-  assert.match(await row(page, "accept-edits").innerText(), /rediger|fil/i);
-  assert.match(await row(page, "accept-edits").innerText(), /kommando/i);
+  assert.match((await row(page, "accept-edits").getAttribute("aria-description")) ?? "", /rediger|fil/i);
+  assert.match((await row(page, "accept-edits").getAttribute("aria-description")) ?? "", /kommando/i);
   const more = menu(page).getByRole("button", { name: "Les mer", exact: true });
   assert.equal(await more.getAttribute("aria-expanded"), "false");
   await more.click();
@@ -137,16 +144,17 @@ flow("tillatelser i feltet: tydelige nivåer, vernede filer og Les mer", async (
   assert.match(await menu(page).innerText(), /Lagrede godkjenninger/);
   assert.match(await menu(page).innerText(), /\.env/);
   assert.match(await menu(page).innerText(), /\.git\/hooks/);
-  assert.equal(await menu(page).getByRole("menuitemradio").count(), 3, "forklaringen beholder valgene tilgjengelige");
+  assert.equal(await menu(page).getByRole("radio").count(), 3, "forklaringen beholder valgene tilgjengelige");
 });
 
 flow("tillatelser i feltet: tastatur, Escape, fokus og klikk utenfor", async (h) => {
   const { page } = h;
   const project = await openProject(h);
-  const button = page.getByTestId("permission-button");
+  const button = buttonFor(page);
   await button.focus();
   await page.keyboard.press("Enter");
-  await waitFor(() => row(page, "ask").evaluate((el) => el === document.activeElement), "valgt nivå får fokus");
+  await page.getByRole("combobox", { name: "Søk etter modeller" }).waitFor();
+  await row(page, "ask").focus();
   await page.keyboard.press("ArrowDown");
   assert.equal(await row(page, "accept-edits").evaluate((el) => el === document.activeElement), true);
   await page.keyboard.press("End");
@@ -163,11 +171,11 @@ flow("tillatelser i feltet: tastatur, Escape, fokus og klikk utenfor", async (h)
   await menu(page).waitFor({ state: "detached" });
   await button.focus();
   await page.keyboard.press("Enter");
-  await waitFor(() => row(page, "ask").evaluate((el) => el === document.activeElement), "menyen har flyttet fokus før neste tast");
+  await row(page, "ask").focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await waitFor(async () => (await storedMode(h, project.id)) === "accept-edits", "Enter velger fokusert nivå");
-  assert.equal(await button.evaluate((el) => el === document.activeElement), true);
+  assert.equal(await menu(page).isVisible(), true, "valget lar modellvelgeren stå åpen");
 });
 
 flow("tillatelser i feltet: mislykket lagring beholder nivået og kan prøves igjen", async (h) => {
@@ -179,11 +187,11 @@ flow("tillatelser i feltet: mislykket lagring beholder nivået og kan prøves ig
     if (route.request().method() === "PATCH" && fail) return route.fulfill({ status: 503, json: { error: "Kunne ikke lagre tillatelser i testen" } });
     return route.continue();
   });
-  await page.getByTestId("permission-button").click();
+  await buttonFor(page).click();
   await row(page, "full").click();
   await page.getByText("Kunne ikke lagre tillatelser i testen", { exact: true }).waitFor();
   assert.equal(await storedMode(h, project.id), "ask");
-  assert.equal(await page.getByTestId("permission-button").getAttribute("data-mode"), "ask");
+  assert.equal(await row(page, "ask").getAttribute("aria-checked"), "true");
   fail = false;
   if (await menu(page).count()) await page.keyboard.press("Escape");
   await choose(h, "full");
@@ -216,12 +224,12 @@ flow("tillatelser i feltet: hjelpetrådens tak vises selv når prosjektet får f
   await h.api("PATCH", `/api/projects/${project.id}`, { permissionMode: "full" });
   await threadItem(page, child.id).click();
   const childPane = pane(page, child.id);
-  const button = childPane.getByTestId("permission-button");
+  const button = childPane.getByTestId("model-button");
   await button.waitFor();
-  assert.match(`${await button.innerText()} ${await button.getAttribute("title")} ${await button.getAttribute("aria-label")}`, /tak|høyst|begrens/i);
   await button.click();
   assert.match(await menu(page).innerText(), /tak|høyst|begrens/i);
   assert.match(await menu(page).innerText(), /Godkjenn for meg/);
+  assert.equal(await row(page, "full").isDisabled(), true);
   assert.equal(await storedMode(h, project.id), "full");
   assert.equal((await h.api("GET", "/api/bootstrap")).threads.find((t: any) => t.id === child.id).permissionCap, "accept-edits");
 });
@@ -234,12 +242,14 @@ flow("tillatelser i feltet: menyen og alle valg får plass i smale vinduer", asy
     const hide = page.getByRole("button", { name: "Lukk sidefanen", exact: true });
     // Resizing may remove the scrim between visibility and click; setup only needs it closed.
     await hide.evaluateAll((buttons) => buttons.forEach((button) => (button as HTMLButtonElement).click()));
-    await page.getByTestId("permission-button").click();
+    await buttonFor(page).click();
     await menu(page).waitFor();
-    const bounds = (await menu(page).boundingBox())!;
-    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `${width}: menyen er innenfor bredden`);
-    assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= 641, `${width}: menyen er innenfor høyden`);
+    await waitFor(async () => {
+      const bounds = (await page.getByTestId("model-menu").boundingBox())!;
+      return bounds.x >= 7 && bounds.x + bounds.width <= width - 7 && bounds.y >= 7 && bounds.y + bounds.height <= 633;
+    }, `${width}: menyen er innenfor vinduet`);
     for (const mode of Object.keys(LABELS) as PermissionMode[]) {
+      await row(page, mode).scrollIntoViewIfNeeded();
       const item = (await row(page, mode).boundingBox())!;
       assert.ok(item.x >= 0 && item.x + item.width <= width + 1 && item.y >= 0 && item.y + item.height <= 641, `${width}: ${mode} er synlig`);
     }

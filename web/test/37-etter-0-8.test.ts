@@ -1,27 +1,5 @@
-// After 0.8 (user report 6 November 2026): the effort popover stays where it is when a level is picked,
-// the thumb is there from the first moment, ☰ stands in the corner above the row of icons, and a start
-// page says where you are at the top left.
 import assert from "node:assert/strict";
 import { flow, openProject } from "./harness.ts";
-
-flow("innsatsvelgeren: popoveren står stille når du velger, og bryteren er der fra start", async (h) => {
-  const { page } = h;
-  await page.getByRole("button", { name: "Kode", exact: true }).first().click();
-  await page.getByTestId("effort-button").click();
-  const picker = page.getByTestId("effort-picker");
-  await picker.waitFor();
-  await page.waitForFunction(() => document.getAnimations().length === 0);
-  const thumb = picker.locator(".effort-thumb");
-  assert.ok(Number(await thumb.evaluate((el) => getComputedStyle(el).opacity)) > 0.3, "the thumb is visible before anything is chosen");
-  const before = (await picker.boundingBox())!;
-  const slider = (await page.getByTestId("effort-slider").boundingBox())!;
-  await page.mouse.click(slider.x + 8, slider.y + slider.height / 2);
-  await page.getByTestId("effort-name").getByText("Ingen", { exact: true }).waitFor();
-  await page.waitForFunction(() => document.getAnimations().length === 0);
-  const after = (await picker.boundingBox())!;
-  assert.ok(Math.abs(after.x - before.x) < 1, `the popover stays put (${before.x} → ${after.x})`);
-  assert.equal(await thumb.evaluate((el) => getComputedStyle(el).opacity), "1");
-});
 
 flow("toppfeltet: ☰ står i hjørnet over ikonraden, og startsiden sier Kode › Denne datamaskinen", async (h) => {
   const { page } = h;

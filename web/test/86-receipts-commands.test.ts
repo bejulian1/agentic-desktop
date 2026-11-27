@@ -57,9 +57,9 @@ flow("Nye slash-snarveier åpner ekte prosjektpaneler og kontekst uten nye model
   await h.page.getByRole("dialog").filter({ hasText: "Komprimeringsreserve" }).waitFor();
   await h.page.keyboard.press("Escape");
   await send(h.page, "/agents");
-  await h.page.getByRole("tab", { name: /Team/ }).waitFor();
+  await h.page.getByRole("tab", { name: /Agenter/ }).waitFor();
   await send(h.page, "/diff");
-  await h.page.getByRole("tab", { name: /Endringer/ }).waitFor();
+  await h.page.getByRole("tab", { name: /Diff/ }).waitFor();
   await send(h.page, "/stop");
   assert.equal((await h.events(thread.id)).filter((e) => e.event.type === "run.started").length, before);
 });

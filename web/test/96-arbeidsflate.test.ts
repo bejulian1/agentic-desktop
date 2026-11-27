@@ -111,7 +111,7 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   const quick = page.getByTestId("sidebar-quick");
   await quick.getByRole("searchbox", { name: "Søk i tråder" }).waitFor();
   await quick.getByRole("button", { name: "Ny tråd", exact: true }).waitFor();
-  await quick.getByRole("button", { name: "Ny tråd i et nytt prosjekt" }).waitFor();
+  await quick.getByRole("button", { name: "Prosjekter" }).waitFor();
   assert.equal(await page.locator(".topbar-sidebar-tools").getByRole("button", { name: "Søk", exact: true }).count(), 0, "søkefeltet står alltid i sidefanen");
   await page.locator(".topbar-sidebar-tools").getByTestId("sidebar-menu").waitFor();
   // The message field: one calm box once the thread has started.
@@ -124,7 +124,7 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   const chooser = page.waitForEvent("filechooser");
   await composer.getByTestId("attach-files").click();
   assert.equal((await chooser).isMultiple(), true, "filvelgeren åpnes direkte");
-  for (const gone of ["effort-button"]) assert.equal(await composer.getByTestId(gone).count(), 0, gone);
+  for (const gone of ["effort-button", "permission-button"]) assert.equal(await composer.getByTestId(gone).count(), 0, gone);
   await composer.getByTestId("model-button").click();
   const menu = page.getByTestId("model-menu");
   const permissions = menu.getByTestId("model-permissions");
@@ -133,7 +133,6 @@ flow("Arbeidsflate: fargede prosjektikoner, tolinjers Kode-rader, verktøy og br
   await permissions.getByRole("radio", { name: "Godkjenn for meg", checked: true }).waitFor();
   assert.equal(await menu.isVisible(), true, "menyen er fortsatt åpen");
   await page.keyboard.press("Escape");
-  await composer.getByTestId("permission-button").getByText("Godkjenn for meg").waitFor();
   // Search from the field still finds the thread.
   await quick.getByRole("searchbox", { name: "Søk i tråder" }).fill("demo");
   await page.locator(".sidebar .section-label", { hasText: "Treff" }).waitFor();

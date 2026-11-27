@@ -1,7 +1,7 @@
 import { language, t } from "../lib/i18n.ts";
 // Small pieces for GitHub shared by the panel and Innstillinger (round 8, agent G). The icons
 // are plain line drawings of a pull request and an issue, not anyone's logo.
-import type { GitHubProject } from "../../../shared/protocol";
+import type { GitHubProject, GitHubReference, GitHubState } from "../../../shared/protocol";
 
 type P = { size?: number };
 
@@ -38,4 +38,17 @@ export function errorTitle(error: NonNullable<GitHubProject["error"]>): string {
     case "not-connected": return t("Ikke koblet til GitHub");
     default: return t("GitHub svarte med en feil");
   }
+}
+
+export function githubStateTitle(state: GitHubState) {
+  switch (state) {
+    case "open": return t("Åpen");
+    case "closed": return t("Lukket");
+    case "merged": return t("Slått sammen");
+    case "draft": return t("Utkast");
+  }
+}
+
+export function githubReferenceUrl(path: string, ref: GitHubReference) {
+  return `/api/github/${path}/${ref.kind}?${new URLSearchParams({ repo: ref.repo, number: String(ref.number) })}`;
 }

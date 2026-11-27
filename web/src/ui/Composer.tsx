@@ -1,13 +1,13 @@
 // The message field. The textarea is uncontrolled, so typing costs what typing costs in a plain
 // textarea: nothing reactive runs on a keystroke unless the word under the caret starts with / or @.
-import { lookupMessage, language, t } from "../lib/i18n";
+import { lookupMessage, t } from "../lib/i18n";
 import { Dictation } from './Dictation';
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack } from "solid-js";
-import type { Accessor, JSX } from "solid-js";
+import type { Accessor } from "solid-js";
 import { ApiError, del, get, patch, post } from "../lib/api";
 import { on as onSocket, onOpen } from "../lib/socket";
-import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, LocalProviderKind, MentionItem, ModelConfig, ProviderConfig, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
-import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, modelAllowsTools, PERSONALITIES } from "../../../shared/protocol";
+import type { Attachment, AttachmentRef, BusyMessages, CommandInfo, ContextUsage, MentionItem, QueueSnapshot, ReasoningEffort, Thread } from "../../../shared/protocol";
+import { CHAT_PERSONALITIES, chatPersonalityId, effortSteps, MAX_ATTACHMENTS, MAX_IMAGE_BYTES, MAX_TEXT_UPLOAD_BYTES, PERSONALITIES } from "../../../shared/protocol";
 import { composerLarge, composerSimple } from "../state/workspace-look";
 import { untitled } from "../state/app";
 import { app, effectiveProjectOrder, scopeOf, LOCAL_SCOPE, modelDisplayName, modelFor, modelName, report, setApp, setMode, mode, projectId as selectedProjectId, setProjectId, setSettingsOpen, sortedProjects, setFolderPickerOpen, settingsOpen, toast } from "../state/app";
@@ -23,15 +23,16 @@ import {
   IconFile, IconFolder, IconBranch, IconSend, IconStop, IconCode, IconSpark, IconClose, IconTerminal, IconChevronDown, IconCheck, IconList, IconPlus,
   IconLaptop, IconBolt, IconSearch, IconImage, IconReset, IconBack, IconSliders,
   IconNewThread, IconBrain, IconInfo, IconTarget, IconBook, IconArchive, IconHelp, IconChat, IconPlay, IconUndo, IconEye, IconUsers, IconSplitRight,
-  IconMonitor, IconChevron, IconWarn, IconDots, IconPencil, IconTrash, IconPaperclip,
+  IconMonitor, IconWarn, IconAlert, IconDots, IconPencil, IconTrash, IconPaperclip,
 } from "./icons";
 import { GoalLine } from "./Goal";
 import { ChatToolButton, useChatTools } from "./ChatToolMenu";
 import { ContextMenu, type MenuAnchor, type MenuEntry } from "./ContextMenu";
 import "../styles/queue.css";
 import { Popover } from "./Popover";
-import { PermissionChoices, PermissionPicker } from "./PermissionPicker";
-import { ProviderIcon, providerBrand, type ProviderBrand } from "./ProviderIcon";
+import { PermissionChoices } from "./PermissionPicker";
+import { ModelMenu } from "./ModelMenu";
+import { ProviderIcon, providerBrand } from "./ProviderIcon";
 import "../styles/permissions.css";
 import "../styles/composer-t3.css";
 import "../styles/handoff-agents.css";
@@ -498,276 +499,7 @@ function FolderPicker(props: { projectId: string; onPick: (item: MentionItem) =>
   );
 }
 
-// Round 10 (SPEC 23.3): the model list. A search field on top, the models grouped under a heading per
-// provider, a check on the chosen one and «Administrer modeller» at the bottom. The keyboard stays in
-// the search field: ↑ and ↓ move the marked row (aria-activedescendant), Enter picks it, Esc closes.
-// The list scrolls on its own between the field and the bottom row.
-let modelMenuSeq = 0;
-// v1.4.1: the menu is also where effort and permissions are set (Tenkeinnsats, Tillatelsesmodus):
-// the sections come in as children, under the list, and a choice there keeps the menu open.
-function ModelMenu(props: { chosen: string | null; onPick: (id: string) => void; onManage: () => void; children?: JSX.Element }) {
-  const listId = `model-list-${++modelMenuSeq}`;
-  const [query, setQuery] = createSignal("");
-  const [active, setActive] = createSignal<string | null>(props.chosen);
-  let search!: HTMLInputElement;
-  let list!: HTMLDivElement;
-  let frame = 0;
-  const groups = createMemo(() => {
-    const words = query().trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const out: Array<{ name: string; localKind?: LocalProviderKind; provider: ProviderConfig; brand: ProviderBrand; models: ModelConfig[] }> = [];
-    for (const provider of app.providers) {
-      const models = app.models.filter((m) => {
-        if (m.providerId !== provider.id) return false;
-        const hay = `${modelDisplayName(m)} ${m.model} ${provider.name}`.toLowerCase();
-        return words.every((w) => hay.includes(w));
-      });
-      if (models.length) out.push({ name: provider.name, localKind: provider.localKind, provider, brand: providerBrand(provider), models });
-    }
-    return out;
-  });
-  const flat = createMemo(() => groups().flatMap((g) => g.models.map((m) => m.id)));
-  // The marked row follows the filter: it stays when it is still there, else the first.
-  createEffect(on(flat, (ids) => {
-    if (!ids.includes(active() ?? "")) setActive(ids[0] ?? null);
-  }));
-  const optionId = (id: string) => `${listId}-${encodeURIComponent(id)}`;
-  const reveal = () => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      const row = list?.querySelector<HTMLElement>(".model-option.active");
-      if (!row) return;
-      const box = list.getBoundingClientRect();
-      const item = row.getBoundingClientRect();
-      // Scroll only the model list. scrollIntoView can also move the surrounding pane.
-      if (item.top < box.top) list.scrollTop -= box.top - item.top;
-      else if (item.bottom > box.bottom) list.scrollTop += item.bottom - box.bottom;
-    });
-  };
-  const move = (step: number) => {
-    const ids = flat();
-    if (!ids.length) return;
-    const at = ids.indexOf(active() ?? "");
-    setActive(ids[at < 0 ? 0 : (at + step + ids.length) % ids.length]);
-    reveal();
-  };
-  onMount(() => {
-    search.focus({ preventScroll: true });
-    reveal();
-  });
-  onCleanup(() => cancelAnimationFrame(frame));
-  createEffect(on(query, reveal, { defer: true }));
-  return (
-    <div class="model-menu" data-testid="model-menu">
-      <div class="model-heading">{t("Modell")}</div>
-      <label class="model-search">
-        <IconSearch size={14} />
-        <input
-          ref={search}
-          type="text"
-          role="combobox"
-          aria-label={t("Søk etter modeller")}
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={active() ? optionId(active()!) : undefined}
-          placeholder={t("Søk etter modeller")}
-          spellcheck={false}
-          autocomplete="off"
-          value={query()}
-          onInput={(e) => setQuery(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-              e.preventDefault();
-              move(e.key === "ArrowDown" ? 1 : -1);
-            } else if (e.key === "Home" && !query()) {
-              e.preventDefault();
-              setActive(flat()[0] ?? null);
-              reveal();
-            } else if (e.key === "End" && !query()) {
-              e.preventDefault();
-              setActive(flat().at(-1) ?? null);
-              reveal();
-            } else if (e.key === "Enter" && !e.isComposing) {
-              e.preventDefault();
-              const id = active();
-              if (id) props.onPick(id);
-            }
-          }}
-        />
-      </label>
-      <div class="model-list" role="listbox" aria-label={t("Modeller")} id={listId} ref={list}>
-        <For each={groups()} fallback={<p class="model-none">{t("Ingen modeller passer «{query}».", { query: query().trim() })}</p>}>
-          {(group) => (
-            <div role="group" aria-label={group.localKind ? t("{name} (lokal)", { name: group.name }) : group.name} class="model-group">
-              <div class="model-group-head" aria-hidden="true"><ProviderIcon brand={group.brand} size={14} decorative /><span>{group.name}</span><Show when={group.localKind}><span class="model-source">{t("Lokal")}</span></Show></div>
-              <For each={group.models}>
-                {(model) => (
-                  <button
-                    type="button"
-                    role="option"
-                    tabindex="-1"
-                    id={optionId(model.id)}
-                    class="menu-item model-option"
-                    classList={{ active: active() === model.id }}
-                    aria-selected={props.chosen === model.id}
-                    title={model.model === "mock" ? modelDisplayName(model) : `${model.name} (${model.model})`}
-                    onPointerMove={() => active() !== model.id && setActive(model.id)}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => props.onPick(model.id)}
-                  >
-                    <ProviderIcon brand={providerBrand(group.provider, model)} size={14} decorative />
-                    <span class="menu-name">{modelDisplayName(model)}</span>
-                    <Show when={group.localKind}><span class="model-tools">{modelAllowsTools(model, group.localKind) ? t("Verktøy på") : t("Verktøy av")}</span></Show>
-                    <span class="menu-check"><Show when={props.chosen === model.id}><IconCheck size={14} /></Show></span>
-                  </button>
-                )}
-              </For>
-            </div>
-          )}
-        </For>
-      </div>
-      <Show when={props.children}><div class="model-extra">{props.children}</div></Show>
-      <div class="model-foot">
-        <button type="button" class="menu-item model-manage" onMouseDown={(e) => e.preventDefault()} onClick={props.onManage}><IconSliders size={15} /><span class="menu-name">{t("Administrer modeller")}</span></button>
-      </div>
-    </div>
-  );
-}
-
 const effortLabel = (value: ReasoningEffort | null | undefined) => EFFORTS.find((e) => e.id === value)?.label ?? "";
-
-// Innsats (SPEC 21.3, 23.4): a popover over the field. In the middle, straight on the popover, the level in the
-// accent colour and the model's name, with › to the model menu; a reset on the right; and under them
-// a slider with a dot per step the model takes, from Ingen to Maks. Mouse, drag, the arrow keys and
-// Home/End all move it. A drag shows the level as it goes and is saved when it is let go.
-function EffortPicker(props: {
-  steps: ReasoningEffort[];
-  chosen: ReasoningEffort | null;
-  modelDefault: ReasoningEffort | null;
-  modelName: string;
-  onPick: (value: ReasoningEffort | null) => void;
-  onModel: () => void;
-}) {
-  const [preview, setPreview] = createSignal<number | null>(null);
-  // The dragged value stands until the choice has come back, so the thumb never jumps back.
-  createEffect(on(() => props.chosen, () => setPreview(null), { defer: true }));
-  const last = () => props.steps.length - 1;
-  // Legacy/custom values outside this provider's scale still get a stable position.
-  const positionOf = (value: ReasoningEffort | null): number | null => {
-    if (!value) return null;
-    const at = props.steps.indexOf(value);
-    if (at >= 0) return at;
-    const high = props.steps.indexOf("high");
-    return value === "xhigh" && high >= 0 ? Math.min(last(), high + 0.5) : null;
-  };
-  // Nothing chosen and no known standard: the thumb waits in the middle, so it is there
-  // from the first moment and slides from there to what is picked.
-  const middle = () => {
-    const at = props.steps.indexOf("medium");
-    return at >= 0 ? at : Math.floor(last() / 2);
-  };
-  const position = () => preview() ?? positionOf(props.chosen) ?? positionOf(props.modelDefault) ?? middle();
-  const standard = () => preview() === null && props.chosen === null;
-  // The model's standard is not a known level: the thumb waits in the middle until one is
-  // chosen, and the arrows start from there.
-  const unset = () => standard() && positionOf(props.modelDefault) === null;
-  const name = () => {
-    const p = preview();
-    if (p !== null) return effortLabel(props.steps[p]);
-    if (props.chosen) return effortLabel(props.chosen);
-    const fallback = effortLabel(props.modelDefault);
-    return fallback ? t("Standard ({effort})", { effort: fallback.toLocaleLowerCase(language()) }) : t("Modellens standard");
-  };
-  const fraction = () => (last() > 0 ? position() / last() : 0);
-  let track!: HTMLDivElement;
-  onMount(() => track.focus({ preventScroll: true }));
-  const stepAt = (clientX: number) => {
-    const rail = track.querySelector<HTMLElement>(".effort-rail")!.getBoundingClientRect();
-    const x = (clientX - rail.left) / Math.max(1, rail.width);
-    return Math.max(0, Math.min(last(), Math.round(x * last())));
-  };
-  const commit = (index: number) => {
-    const value = props.steps[index];
-    // The parent keeps the optimistic choice while persistence is pending. Always commit,
-    // including a return to the stored level while an earlier choice is still being saved.
-    props.onPick(value);
-    setPreview(null);
-  };
-  const onPointerDown = (event: PointerEvent) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    const element = event.currentTarget as HTMLElement;
-    element.focus({ preventScroll: true });
-    element.setPointerCapture(event.pointerId);
-    setPreview(stepAt(event.clientX));
-    const move = (e: PointerEvent) => setPreview(stepAt(e.clientX));
-    const end = (e: PointerEvent) => {
-      element.removeEventListener("pointermove", move);
-      element.removeEventListener("pointerup", end);
-      element.removeEventListener("pointercancel", end);
-      if (e.type === "pointercancel") return setPreview(null);
-      commit(stepAt(e.clientX));
-    };
-    element.addEventListener("pointermove", move);
-    element.addEventListener("pointerup", end);
-    element.addEventListener("pointercancel", end);
-  };
-  const onKeyDown = (event: KeyboardEvent) => {
-    const now = Math.round(position());
-    if (unset() && /^Arrow/.test(event.key)) {
-      event.preventDefault();
-      const middle = props.steps.indexOf("medium");
-      return commit(middle >= 0 ? middle : Math.floor(last() / 2));
-    }
-    const next =
-      event.key === "ArrowRight" || event.key === "ArrowUp" ? Math.min(last(), Math.floor(position()) + 1)
-      : event.key === "ArrowLeft" || event.key === "ArrowDown" ? Math.max(0, Math.ceil(position()) - 1)
-      : event.key === "Home" || event.key === "PageDown" ? 0
-      : event.key === "End" || event.key === "PageUp" ? last()
-      : null;
-    if (next === null) return;
-    event.preventDefault();
-    if (next !== now || standard() || position() % 1) commit(next);
-  };
-  return (
-    <div class="effort-pop" data-testid="effort-picker" role="dialog" aria-label={t("Innsats")}>
-      <div class="effort-head">
-        <button type="button" class="effort-mid" title={t("Velg en annen modell")} aria-label={t("Velg modell. Nåværende modell: {model}", { model: props.modelName })} onClick={props.onModel}>
-          <span class="effort-level" data-testid="effort-name" classList={{ standard: standard() }}>{name()}</span>
-          <span class="effort-model"><span class="effort-model-name">{props.modelName}</span><IconChevron size={12} /></span>
-        </button>
-        <button type="button" class="icon-button effort-reset" title={t("Tilbake til modellens standard")} aria-label={t("Tilbake til modellens standard")} disabled={props.chosen === null} onClick={() => { setPreview(null); props.onPick(null); }}>
-          <IconReset size={15} />
-        </button>
-      </div>
-      <div
-        ref={track}
-        class="effort-slider"
-        classList={{ dragging: preview() !== null, standard: standard(), unset: unset() }}
-        role="slider"
-        tabindex="0"
-        aria-label={t("Innsats")}
-        aria-valuemin={0}
-        aria-valuemax={last()}
-        aria-valuenow={position()}
-        aria-valuetext={name()}
-        data-testid="effort-slider"
-        style={{ "--pos": fraction(), "--steps": last() }}
-        onPointerDown={onPointerDown}
-        onKeyDown={onKeyDown}
-      >
-        <div class="effort-track" aria-hidden="true">
-          <div class="effort-rail"><span class="effort-fill" /></div>
-          <For each={props.steps}>
-            {(_, i) => <span class="effort-dot" classList={{ on: i() <= position() }} style={{ "--at": last() > 0 ? i() / last() : 0 }} />}
-          </For>
-        </div>
-        <div class="effort-rail effort-thumb-rail" aria-hidden="true"><span class="effort-thumb" /></div>
-      </div>
-      <div class="effort-scale" aria-hidden="true"><span>{effortLabel(props.steps[0])}</span><span>{effortLabel(props.steps[last()])}</span></div>
-    </div>
-  );
-}
 
 function chipAttachment(chip: Chip): Attachment {
   if (chip.kind === "thread") return { kind: "thread", label: chip.label, threadId: chip.threadId };
@@ -839,12 +571,12 @@ export function Composer(props: {
   const [hasText, setHasText] = createSignal(false);
   const [draftModel, setDraftModel] = createSignal<string | null>(null);
   const [modelOpen, setModelOpen] = createSignal(false);
-  const [effortOpen, setEffortOpen] = createSignal(false);
   let modelButton!: HTMLButtonElement;
   const [helpQuery, setHelpQuery] = createSignal<string | null>(null);
   const [attachOpen, setAttachOpen] = createSignal(false);
   // Chosen before the thread exists: applied when the first message creates it.
   const [draftReasoning, setDraftReasoning] = createSignal<ReasoningEffort | null | undefined>(undefined);
+  const [draftPlan, setDraftPlan] = createSignal(false);
   const [draftPersonality, setDraftPersonality] = createSignal<string | null>(null);
   const projectPicker = useProjectPicker(() => props.paneKey, "composer");
   const pickerOpen = projectPicker.open;
@@ -880,7 +612,7 @@ export function Composer(props: {
   }));
   const modelId = createMemo(() => {
     const id = props.threadId();
-    return id ? pendingModelSelection(id)?.modelId ?? thread()?.modelId ?? null : draftModel();
+    return id ? pendingModelSelection(id)?.modelId ?? thread()?.modelId ?? null : draftModel() ?? (kode() ? project()?.defaultModelId ?? null : null);
   });
   // Kontekstoverføring venter: the thread has answered with one model and the selector now shows
   // another. The next message hands the conversation over; until then a calm line says so, with
@@ -936,10 +668,16 @@ export function Composer(props: {
     const provider = app.providers.find((p) => p.id === model?.providerId);
     return model ? effortSteps(provider?.kind, model, provider?.baseUrl) : [];
   });
-  // «Høy», or «Velg innsats» while the model's own standard is used.
-  const effortChip = () => effortLabel(chosenEffort()) || t("Velg innsats");
-  const setEffort = (value: ReasoningEffort | null, close = true) => {
-    if (close) setEffortOpen(false);
+  const fullAccess = () => {
+    if (!kode()) return false;
+    const raw = project()?.permissionMode ?? app.settings.defaultPermissionMode;
+    const cap = thread()?.permissionCap;
+    const order = ["ask", "accept-edits", "full"] as const;
+    const effective = cap && order.indexOf(raw) > order.indexOf(cap) ? cap : raw;
+    return effective === "full";
+  };
+  const visibleEffort = () => chosenEffort();
+  const setEffort = (value: ReasoningEffort | null) => {
     const id = props.threadId();
     if (!id) return setDraftReasoning(value);
     setPendingEffort((pending) => ({ ...pending, [id]: value }));
@@ -1318,6 +1056,7 @@ export function Composer(props: {
     if (chatProjectPageId() && inChatProject()) await openThread(created);
   };
 
+  const panelPlan = () => kode() && (thread()?.planMode ?? draftPlan());
   const setPlan = async (next: boolean) => {
     if (running()) return toast(t("Vent til kjøringen er ferdig, eller stopp den før du endrer planmodus."), "info");
     await patchThread({ planMode: next });
@@ -1458,7 +1197,7 @@ export function Composer(props: {
           break;
         }
         case "agents":
-          showPanel("team");
+          showPanel("agents");
           break;
         case "diff":
           showPanel("changes");
@@ -1793,9 +1532,10 @@ export function Composer(props: {
       const code = kode();
       const chatProjectId = props.chatProjectId;
       const reasoning = draftReasoning();
+      const planMode = code && draftPlan();
       const chosen = draftPersonality();
       const tools = chatTools.draft();
-      const created = await createThreadFor(projectId, draftModel(), { code, chatProjectId });
+      const created = await createThreadFor(projectId, draftModel(), { code, chatProjectId, planMode });
       if (reasoning !== undefined) await patch(`/api/threads/${created.id}`, { reasoning }).catch(report);
       if (chosen && !projectId && !chatProjectId) await patch(`/api/threads/${created.id}`, { personality: chosen }).catch(report);
       if (tools && !code) await patch(`/api/threads/${created.id}`, { chatTools: tools }).catch(report);
@@ -2475,75 +2215,29 @@ export function Composer(props: {
             </Show>
           </Popover>
           </Show>
-          <Show when={kode() && !composerLarge()}>
-            <PermissionPicker project={project()} cap={thread()?.permissionCap} />
-          </Show>
           <Show when={!kode()}>
             <ChatToolButton state={chatTools} chatProject={chatProject()} open={toolsOpen} setOpen={setToolsOpen} />
           </Show>
-          <Show when={kode() && thread()?.planMode}>
-            <button type="button" class="pill pill-accent" title={t("Planmodus: modellen planlegger uten å endre filer. Trykk for å slå av.")} onClick={() => void setPlan(false).catch(report)}><IconList size={12} />{t("Plan")}</button>
-          </Show>
           <span class="composer-spacer" />
-          <Show when={steps().length && !composerLarge()}>
-            <Popover
-              class="effort-anchor"
-              stable
-              align="right"
-              fixed
-              portal
-              returnFocus
-              open={effortOpen()}
-              onClose={() => setEffortOpen(false)}
-              trigger={
-                <button
-                  type="button"
-                  class="foot-chip effort-chip"
-                  data-testid="effort-button"
-                  data-chosen={chosenEffort() ? "" : undefined}
-                  title={t("Innsats: hvor mye modellen tenker før den svarer")}
-                  aria-haspopup="dialog"
-                  aria-expanded={effortOpen()}
-                  onClick={() => { setModelOpen(false); setEffortOpen(!effortOpen()); }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-                    event.preventDefault();
-                    setModelOpen(false);
-                    setEffortOpen(true);
-                  }}
-                >
-                  <span class="effort-chip-label"><Show when={effortLabel(chosenEffort())} fallback={<><span class="effort-chip-full">{t("Velg innsats")}</span><span class="effort-chip-short">{t("Innsats")}</span></>}>{effortChip()}</Show></span><IconChevronDown size={12} />
-                </button>
-              }
-            >
-              <EffortPicker
-                steps={steps()}
-                chosen={chosenEffort()}
-                modelDefault={modelFor(modelId())?.effort ?? null}
-                modelName={modelName(modelId())}
-                onPick={(value) => setEffort(value, false)}
-                onModel={() => { setEffortOpen(false); setModelOpen(true); }}
-              />
-            </Popover>
-          </Show>
           <Popover
             open={modelOpen()}
             onClose={() => setModelOpen(false)}
             align="right"
+            stable
             class="model-anchor"
             fixed
             portal
             returnFocus
             trigger={
-              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={t("{model}: velg modell", { model: modelName(modelId()) })} aria-label={t("Velg modell: {model}", { model: modelName(modelId()) })} aria-haspopup="listbox" aria-expanded={modelOpen()} onClick={() => { setEffortOpen(false); setModelOpen(!modelOpen()); }} onKeyDown={(event) => {
+              <button type="button" ref={modelButton} class="foot-chip model-button" data-testid="model-button" title={t("{model}: velg modell", { model: modelName(modelId()) })} aria-label={t("Velg modell: {model}", { model: modelName(modelId()) })} aria-haspopup="dialog" aria-expanded={modelOpen()} onClick={() => setModelOpen(!modelOpen())} onKeyDown={(event) => {
                 if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
                 event.preventDefault();
-                setEffortOpen(false);
                 setModelOpen(true);
               }}>
                 <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={14} decorative />}</Show>
                 <span class="model-label">{modelName(modelId())}</span>
-                <Show when={composerLarge() && steps().length}><span class="model-effort" data-testid="model-button-effort">{effortLabel(chosenEffort()) || t("Standard")}</span></Show>
+                <Show when={steps().length || panelPlan()}><span class="model-effort" data-testid="model-button-effort">{panelPlan() ? t("Plan") : effortLabel(visibleEffort()) || t("Standard")}</span></Show>
+                <Show when={fullAccess()}><span class="model-full-warn" data-testid="model-button-full-warn" title={t("Full tilgang")} aria-label={t("Full tilgang")}><IconAlert size={13} /></span></Show>
                 <IconChevronDown size={12} />
               </button>
             }
@@ -2553,25 +2247,22 @@ export function Composer(props: {
               onPick={setModel}
               onManage={() => { setModelOpen(false); setSettingsOpen("models"); }}
             >
-              <Show when={steps().length}>
+              <Show when={steps().length} fallback={<div class="model-section"><div class="model-section-head">{t("Tenkeinnsats")}</div><p class="model-none">{t("Modellens standard")}</p></div>}>
                 <div class="model-section" data-testid="model-effort">
                   <div class="model-section-head" id={`${menuId}-effort-head`}>{t("Tenkeinnsats")}</div>
                   <div class="effort-pills" role="radiogroup" aria-labelledby={`${menuId}-effort-head`}>
-                    <button type="button" role="radio" class="effort-pill" aria-checked={chosenEffort() === null} onClick={() => setEffort(null, false)}>{t("Standard")}</button>
+                    <button type="button" role="radio" class="effort-pill" aria-checked={visibleEffort() === null} onClick={() => setEffort(null)}>{t("Standard")}</button>
                     <For each={steps()}>{(step) => (
-                      <button type="button" role="radio" class="effort-pill" aria-checked={chosenEffort() === step} onClick={() => setEffort(step, false)}>{effortLabel(step)}</button>
+                      <button type="button" role="radio" class="effort-pill" aria-checked={visibleEffort() === step} onClick={() => setEffort(step)}>{effortLabel(step)}</button>
                     )}</For>
                   </div>
                 </div>
               </Show>
               <Show when={kode()}>
-                <PermissionChoices project={project()} cap={thread()?.permissionCap} />
+                <PermissionChoices project={project()} cap={thread()?.permissionCap} plan={panelPlan()} planDisabled={running()} onPlan={(next) => { if (props.threadId()) void setPlan(next).catch(report); else setDraftPlan(next); }} />
               </Show>
             </ModelMenu>
           </Popover>
-          <Show when={kode() && composerLarge()}>
-            <PermissionPicker project={project()} cap={thread()?.permissionCap} />
-          </Show>
           <ContextRing threadId={props.threadId} modelId={modelId} projectId={props.projectId} />
           <Dictation draft={draftKey()} disabled={locked()} error={text => setInfo({ title: t("Diktering"), text })} insert={text => { textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end'); onInput(); textarea.focus(); }} />
           <Show when={running()}>

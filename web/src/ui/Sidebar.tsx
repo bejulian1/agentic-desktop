@@ -1,3 +1,4 @@
+import { NewThreadProjectButton, SidebarProjectsButton } from "./SidebarProjectPicker";
 import { GitHubNavigation } from "./GitHubNavigation";
 import { language, plural, t } from "../lib/i18n.ts";
 // The sidebar, from the top: the app name, search, notifications and ⋯ in one calm row; Chat and
@@ -25,7 +26,7 @@ import { onNextFrame } from "../lib/frame";
 import { confirmDialog } from "./dialogs";
 import { editChatProject, newChatProject, removeChatProject } from "./chat-projects";
 import {
-  IconArtifact, IconBell, IconBranch, IconChevron, IconClose, IconCompose, IconDots, IconHelp, IconPlus, IconPlusCircle, IconSearch,
+  IconArtifact, IconBell, IconBranch, IconChevron, IconClose, IconDots, IconHelp, IconPlus, IconSearch,
   IconSettings, IconSpark, IconWarn, IconCheck,
 } from "./icons";
 import { artifactCount, closeArtifacts, openArtifacts, room } from "../state/artifacts";
@@ -288,7 +289,7 @@ function ThreadItem(props: { thread: Thread; active: boolean; depth?: number; sh
                 <Show when={project()} fallback={<IconMonitor size={12} />}>{(p) => <ProjectGlyph project={p()} size={12} />}</Show>
                 <Show when={listContext()}><span class="thread-where-name">{project()?.name ?? t("Denne datamaskinen")}</span></Show>
               </span>
-              <Show when={branch()} fallback={<Show when={!listContext()}><span class="thread-where-name">{t("Lokal")}</span></Show>}>
+              <Show when={branch()} fallback={<Show when={!listContext()}><span class="thread-where-name" title={app.hostname || undefined}>{app.hostname || t("Lokal")}</span></Show>}>
                 {(name) => <span class="thread-branch" title={t("Gren: {name}", { name: name() })}><IconBranch size={10} /><span>{name()}</span></span>}
               </Show>
               <Show when={thread.linkedPr}>
@@ -1176,8 +1177,8 @@ export function Sidebar() {
               if (e.key === "Escape") closeSearch();
             }}
           />
-          <button type="button" class="icon-button" title={t("Ny tråd i et nytt prosjekt")} aria-label={t("Ny tråd i et nytt prosjekt")} onClick={() => setFolderPickerOpen(true)}><IconFolderPlus size={15} /></button>
-          <button type="button" class="icon-button" aria-label={t("Ny tråd")} title={t("Ny tråd ({keys})", { keys: displayKeys(keysFor("thread.new")) })} onClick={() => { actions.newThread(); afterPick(); }}><IconCompose size={15} /></button>
+          <NewThreadProjectButton class="icon-button" size={15} onPick={afterPick} />
+          <SidebarProjectsButton class="icon-button" size={15} onPick={afterPick} />
         </div>
       </Show>
       <Show when={searchOpen() && !smart() && !simple()}>
@@ -1202,10 +1203,8 @@ export function Sidebar() {
         <Show when={!simple()}>
         <nav class="sidebar-nav" aria-label={t("Navigasjon")}>
           <div class="nav-row">
-            <button type="button" class="nav-item" aria-label={t("Ny tråd")} title={t("Ny tråd ({keys})", { keys: displayKeys(keysFor("thread.new")) })} onClick={() => { actions.newThread(); afterPick(); }}>
-              <IconCompose size={16} /><span>{t("Ny tråd")}</span>
-            </button>
-            <button type="button" class="icon-button nav-row-extra" title={t("Ny tråd i et nytt prosjekt")} aria-label={t("Ny tråd i et nytt prosjekt")} onClick={() => setFolderPickerOpen(true)}><IconPlusCircle size={16} /></button>
+            <NewThreadProjectButton class="nav-item" showLabel onPick={afterPick} />
+            <SidebarProjectsButton class="icon-button nav-row-extra" onPick={afterPick} />
           </div>
           <button
             type="button"

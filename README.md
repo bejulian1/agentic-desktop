@@ -14,6 +14,8 @@ Agentic Desktop is open source under the [MIT License](LICENSE). The current rel
 
 *Click a screenshot for full size. These views use temporary demo data and predate some of the 1.2–1.3 settings pages.*
 
+The upcoming 1.4.1 update adds a three-column model picker with favorites, a searchable project picker, hostnames on Code threads without a Git branch, and dedicated agent and linked pull request panels. [Model picker](docs/bilder/modellvelger.png) · [Project picker](docs/bilder/sidefane-prosjektvelger.png) · [Side panel](docs/bilder/sidepanel-agenter-pr.png)
+
 ## What's New in 1.2.0 – 1.4.0
 
 - **Simple Code-Focus workspace & customizable chrome (v1.4.0).** Under **Settings → Appearance → Workspace (`Arbeidsflate`)**, switch in one click between **Full** and **Simple (Code focus)**—or toggle **Minimal top bar**, **Split-pane buttons**, **Simple sidebar**, and **Simple composer** individually. Search, notifications, and `⋯` move up into the sidebar top bar on wide screens, and `[project icon] Project / Thread` breadcrumbs lead the title.
@@ -181,7 +183,7 @@ The project owner credits the following AI models for development assistance (se
 - **Anthropic Claude Sonnet 5.5** — built PR #6 for 1.2.0: the Ocean, Pink, Forest, Ember, and Iris themes, contrast/width/math controls, the first Projects settings page, monogram and uploaded project icons, expanded favicons, smart link/file chips, inline GitHub detail view, and the floating Thread details panel.
 - **Anthropic Claude Fable 5.2** — used with Claude Code from v0.24.1 onward (glass backgrounds, MCP servers, hooks, the v0.26.0 harness, built-in skills, Chat personalities, "This machine" mode without a project, and release packaging).
 - **OpenAI GPT 6.1 Sol** — used with Codex and sub-agents for ongoing feature development, reviews, and fixes (including v0.11.0–v0.24.0, v0.27.0–v0.29.0, agent communication, and parent chains).
-- **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff. GPT 6.2 Sol built the 1.1.0 GitHub CLI integration, the welcome screen with project and conversation import, and the terminal drawer in Code.
+- **OpenAI GPT 6.2 Sol and GPT 6.2 Astra** — used with Codex for the command guide, skills, and conversation and project commands. Codex also implemented inline charts and reviewed and hardened the data-directory lock, reconnect behavior, and system-browser handoff. GPT 6.2 Sol built the 1.1.0 GitHub CLI integration, the welcome screen with project and conversation import, and the terminal drawer in Code. GPT 6.2 Sol also implemented the 1.4.1 model and project pickers, hostname display, and side-panel tools.
 - **Google Gemini** — contributed the initial data-directory reservation, history-reconnect fix, and system-browser action. **Gemini 4 Neon** finished Kode Studio, built the 1.1.0 diff, browser, notification, and sidebar settings, built the lighter Ocean theme and colored favicons in 1.2.1, and, working in Google Antigravity, coordinated 1.2.0–1.3.1: merging PRs, translating new text into all 11 locales, fixes and design polish after the 1.3.1 review, testing, release, and packaging.
 
 GPT 6.2 Sol and GPT 6.2 Astra also contributed provider catalog entries, API compatibility, setup, and local model discovery and recommendations.

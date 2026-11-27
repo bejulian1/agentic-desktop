@@ -33,7 +33,7 @@ export const stacking = () => app.settings.panelButtons === "separate" && !narro
 
 const KEY = "ad-panel-stack:";
 const EMPTY: StackLayout = { columns: [], maximized: null };
-const KNOWN = new Set<PanelTab>(["session", "overview", "files", "changes", "terminal", "browser", "team", "github"]);
+const KNOWN = new Set<PanelTab>(["session", "overview", "files", "changes", "terminal", "browser", "team", "github", "agents", "linked-prs"]);
 const COLUMN_PX = 340; // what a new column adds to the panel's width, as far as the window allows
 
 const scopeKey = () => currentProject()?.id ?? LOCAL_SCOPE;

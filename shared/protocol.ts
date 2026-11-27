@@ -1072,6 +1072,7 @@ export interface TurnDiff {
 }
 
 export interface Bootstrap {
+  hostname?: string;
   uiMods?: UiModsState;
   mcp?: McpState; // MCP servers, masked (shared/mcp.ts)
   build: BuildInfo;

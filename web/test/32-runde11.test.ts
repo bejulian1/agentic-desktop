@@ -110,8 +110,8 @@ flow("panelknapper: Samlet og Hver for seg, valgt i Utseende uten omstart", asyn
   // + lists the panels with their keys, and where the panel stands.
   await group.getByRole("button", { name: "Legg til sidepanel" }).click();
   const add = page.getByRole("menu", { name: "Legg til sidepanel" });
-  for (const name of ["Oversikt", "Filer", "Endringer", "Terminal", "Nettleser", "Team", "GitHub", "Til høyre", "Fullvisning"]) await add.getByRole("menuitemradio", { name: new RegExp(`^${name}`) }).waitFor();
-  await add.getByRole("menuitemradio", { name: /^Endringer/ }).locator("kbd", { hasText: "Ctrl+Alt+2" }).waitFor();
+  for (const name of ["Oversikt", "Filer", "Diff", "Terminal", "Nettleser", "Team", "Pull requests", "Agenter", "Tilknyttede pull requests", "Til høyre", "Fullvisning"]) await add.getByRole("menuitemradio", { name: new RegExp(`^${name}`) }).waitFor();
+  await add.getByRole("menuitemradio", { name: /^Diff/ }).locator("kbd", { hasText: "Ctrl+Alt+2" }).waitFor();
   await add.getByRole("menuitemradio", { name: /^Filer/ }).click();
   await toolShown(page, "Filer");
   await group.getByRole("button", { name: "Legg til sidepanel" }).click();
@@ -129,7 +129,7 @@ flow("panelknapper: Samlet og Hver for seg, valgt i Utseende uten omstart", asyn
   await waitFor(async () => (await h.api("GET", "/api/bootstrap")).settings.panelButtons === "separate", "lagret");
   await page.getByRole("button", { name: "Tilbake til appen" }).click();
   await waitFor(async () => (await group.getAttribute("data-style")) === "separate", "Hver for seg");
-  assert.deepEqual(await group.locator("button").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label"))), ["Flere valg", "Øktpanel", "Terminal", "Endringer", "Nettleser", "Filer", "Legg til sidepanel"]);
+  assert.deepEqual(await group.locator("button").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label"))), ["Flere valg", "Øktpanel", "Terminal", "Diff", "Nettleser", "Filer", "Legg til sidepanel"]);
   // The tips name the panel and its keys; the one that is open is marked.
   assert.match((await group.getByRole("button", { name: "Terminal" }).getAttribute("title")) ?? "", /^Terminal \(Ctrl\+Alt\+3\)$/);
   await group.getByRole("button", { name: "Filer", pressed: true }).waitFor();
@@ -150,8 +150,8 @@ flow("panelknapper: Samlet og Hver for seg, valgt i Utseende uten omstart", asyn
   assert.match((await group.getByRole("button", { name: "Øktpanel" }).getAttribute("title")) ?? "", /^Skjul øktpanel/);
   // The shortcuts still work.
   await page.keyboard.press("Control+Alt+2");
-  await toolShown(page, "Endringer");
-  await group.getByRole("button", { name: "Endringer", pressed: true }).waitFor();
+  await toolShown(page, "Diff");
+  await group.getByRole("button", { name: "Diff", pressed: true }).waitFor();
   // In a narrow window the separate buttons would not fit: Samlet there.
   await page.setViewportSize({ width: 800, height: 800 });
   await waitFor(async () => (await group.getAttribute("data-style")) === "together", "Samlet i smalt vindu");
@@ -173,9 +173,9 @@ flow("sidepanelet: startside med verktøy som tilpasser seg bredden, uten tom si
   assert.equal(await page.locator(".right-panel").getByRole("button", { name: "Velg prosjekt" }).count(), 0);
   assert.equal(await page.locator(".right-panel [role=tab]").count(), 0, "ingen fanelinje");
   const tiles = () => home.locator(".panel-tool").evaluateAll((els) => els.map((el) => `${el.getAttribute("data-tool")}:${el.getAttribute("aria-disabled") ?? ""}`));
-  assert.deepEqual(await tiles(), ["session:", "overview:", "files:", "changes:", "terminal:", "browser:", "side:true", "team:", "github:"]);
+  assert.deepEqual(await tiles(), ["session:", "overview:", "files:", "changes:", "terminal:", "browser:", "side:true", "team:", "github:", "agents:", "linked-prs:"]);
   await home.locator('.panel-tool[data-tool="changes"]').click();
-  await toolShown(page, "Endringer");
+  await toolShown(page, "Diff");
   await page.locator(".right-panel").getByRole("button", { name: "Åpne verktøy", exact: true }).click();
   await home.waitFor();
   await openTool(page, "Terminal");

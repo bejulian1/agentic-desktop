@@ -78,15 +78,14 @@ flow("Jobbet i, grupperte steg, redigerte filer-kortet, og tillatelses- og model
   const { page } = h;
   const project = await openProject(h);
 
-  // The permission menu: three levels with icon, explanation and a check on the chosen one.
-  await page.getByTestId("permission-button").click();
-  const menu = page.getByRole("menu", { name: "Tillatelser" });
-  await menu.getByText("Hvordan skal handlinger godkjennes?").waitFor();
-  assert.equal(await menu.getByRole("menuitemradio").count(), 3);
-  assert.equal(await menu.getByRole("menuitemradio", { checked: true }).getByText("Be om godkjenning", { exact: true }).count(), 1);
-  await menu.getByRole("menuitemradio").filter({ hasText: "Full tilgang" }).click();
-  await page.getByTestId("permission-button").getByText("Full tilgang").waitFor();
+  await page.getByTestId("model-button").click();
+  const menu = page.getByTestId("model-permissions");
+  assert.equal(await menu.getByRole("radio").count(), 3);
+  await menu.getByRole("radio", { name: "Be om godkjenning", checked: true }).waitFor();
+  await menu.getByRole("radio", { name: "Full tilgang" }).click();
+  await menu.getByRole("radio", { name: "Full tilgang", checked: true }).waitFor();
   assert.equal((await h.api("GET", "/api/bootstrap")).projects.find((p: any) => p.id === project.id).permissionMode, "full");
+  await page.keyboard.press("Escape");
 
   await send(page, "lag en side");
   await page.getByText("Ferdig. ").waitFor({ timeout: 30_000 });
@@ -121,22 +120,14 @@ flow("Jobbet i, grupperte steg, redigerte filer-kortet, og tillatelses- og model
   assert.equal(await page.locator(".row-steps").count(), 0, "gamle kjøringer starter foldet");
   await page.getByText("Ferdig. ").waitFor();
 
-  // Model: the heading and the check. Effort: its own button and popover (round 9, SPEC 21.3).
+  // Model and supported effort levels share the same menu.
   await page.getByTestId("model-button").click();
-  await page.getByRole("combobox", { name: "Søk etter modeller" }).waitFor();
-  const option = page.getByRole("option", { name: /Demo-modell/ });
-  assert.equal(await option.getAttribute("aria-selected"), "true");
-  await page.keyboard.press("Escape");
-  await page.getByTestId("effort-button").click();
-  const slider = page.getByRole("slider", { name: "Innsats" });
-  await slider.focus();
-  await page.keyboard.press("Home");
-  await page.getByTestId("effort-name").getByText("Ingen").waitFor();
-  await page.keyboard.press("ArrowRight");
-  await page.getByTestId("effort-name").getByText("Lav").waitFor();
-  await page.getByTestId("effort-button").getByText("Lav").waitFor();
-  await page.keyboard.press("End");
-  await page.getByTestId("effort-name").getByText("Maks").waitFor();
+  await page.getByRole("option", { name: /Demo-modell/, selected: true }).waitFor();
+  const effort = page.getByTestId("model-effort");
+  await effort.getByRole("radio", { name: "Lav", exact: true }).click();
+  await page.getByTestId("model-button-effort").getByText("Lav").waitFor();
+  await effort.getByRole("radio", { name: "Maks", exact: true }).click();
+  await effort.getByRole("radio", { name: "Maks", checked: true, exact: true }).waitFor();
   const threadId = await page.locator(".pane-inner.focused").getAttribute("data-thread-id");
   await waitFor(async () => (await h.api("GET", "/api/bootstrap")).threads.find((t: any) => t.id === threadId).reasoning === "max", "innsatsen er lagret");
 });

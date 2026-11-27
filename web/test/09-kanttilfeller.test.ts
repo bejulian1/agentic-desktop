@@ -28,7 +28,7 @@ flow("tom tilstand", async (h) => {
   await page.getByTestId("pane-empty").locator(".home-title", { hasText: "Hva skal vi jobbe med i Demo?" }).waitFor();
   assert.equal(await page.getByRole("textbox", { name: "Melding", exact: true }).inputValue(), "lag en side", "teksten ble med");
   await page.getByRole("textbox", { name: "Melding", exact: true }).fill("");
-  await openTool(page, "Endringer");
+  await openTool(page, "Diff");
   await page.getByText("Ingen filendringer i denne tråden ennå.").waitFor();
   await openTool(page, "Filer");
   await page.getByText("Mappen er tom").waitFor();

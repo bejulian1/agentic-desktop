@@ -107,7 +107,7 @@ flow("Kode: stegtyper med ikon og verb, like steg samlet, nå-linjen, Venter på
   await settled(page);
   await shot(page, "02-kode-tur-ferdig.png");
   await summary.locator(".summary-line").click();
-  await toolShown(page, "Endringer");
+  await toolShown(page, "Diff");
   await page.locator('[data-testid="diff-file"][data-path="demo/app.js"]').waitFor();
 
   // Narrow: the lines keep to one row each, and the summary keeps its words.
@@ -177,7 +177,7 @@ flow("Chat: verktøymenyen ved + og valg som gjelder per tråd, med standard fra
   await waitFor(async () => (await h.api("GET", "/api/bootstrap")).threads.find((t: any) => t.id === first).chatTools?.memory === false, "lagret på tråden");
 
   // A new chat starts from the defaults again.
-  await page.locator(".sidebar-nav").getByRole("button", { name: "Ny tråd", exact: true }).click();
+  await page.keyboard.press("Control+Alt+n");
   await page.getByTestId("chat-tools-button").click();
   assert.equal(await toolItem(page, "Nettsøk").getAttribute("aria-checked"), "false");
   assert.equal(await toolItem(page, "Minne").getAttribute("aria-checked"), "true");

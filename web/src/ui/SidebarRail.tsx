@@ -1,3 +1,4 @@
+import { NewThreadProjectButton } from "./SidebarProjectPicker";
 import { GitHubNavigation } from "./GitHubNavigation";
 import { t } from "../lib/i18n";
 import { studioOpen } from "../state/studio";
@@ -21,7 +22,7 @@ import { ProjectGlyph } from "./ProjectGlyph";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { preloadSettings } from "./lazy-views";
 import { Notifications, ProfileMenu } from "./Sidebar";
-import { IconArtifact, IconChat, IconCode, IconCompose, IconPin, IconSearch, IconSettings, IconSidebar, IconSpark, IconStudio } from "./icons";
+import { IconArtifact, IconChat, IconCode, IconPin, IconSearch, IconSettings, IconSidebar, IconSpark, IconStudio } from "./icons";
 
 const tip = (name: string, keys?: string) => (keys && keysFor(keys) ? `${name} (${displayKeys(keysFor(keys))})` : name);
 
@@ -47,7 +48,7 @@ export function SidebarRail() {
           <button type="button" class="icon-button rail-button" aria-label={t("Kode")} title={tip(t("Kode"), "view.mode")} aria-pressed={code() && !studioOpen()} onClick={() => enterMode("code")}><IconCode size={16} /></button>
           <button type="button" class="icon-button rail-button" aria-label={t("Studio")} title={tip(t("Kode Studio"), "view.mode")} aria-pressed={code() && studioOpen()} onClick={enterStudio}><IconStudio size={16} /></button>
         </div>
-        <button type="button" class="icon-button rail-button" aria-label={t("Ny tråd")} title={tip(t("Ny tråd"), "thread.new")} onClick={() => actions.newThread()}><IconCompose size={16} /></button>
+        <NewThreadProjectButton class="icon-button rail-button" />
         <button type="button" class="icon-button rail-button" aria-label={t("Søk i tråder")} title={tip(t("Søk i tråder"), "thread.search")} onClick={() => actions.searchThreads()}><IconSearch size={16} /></button>
         <button type="button" class="icon-button rail-button" aria-label={t("Artifacts")} title={t("Artifacts")} aria-current={room() ? "page" : undefined} onClick={() => { closeProfile(); openArtifacts(); }}><IconArtifact size={16} /></button>
         <button type="button" class="icon-button rail-button" aria-label={t("Skills")} title={t("Skills")} aria-current={skillsOpen() ? "page" : undefined} onClick={() => actions.skills()}><IconSpark size={16} /></button>

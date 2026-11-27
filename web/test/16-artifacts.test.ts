@@ -176,7 +176,7 @@ flow("html i chatten gir en artifact-boks som åpner forhåndsvisningen, lagres,
   await box.locator(".artifact-box-saved:not([hidden])").waitFor();
   await panel.getByRole("button", { name: "Åpne i Artifacts" }).waitFor();
   // Another thread closes it: it belongs to its thread.
-  await page.getByRole("button", { name: "Ny tråd" }).first().click();
+  await page.keyboard.press("Control+Alt+n");
   await panel.waitFor({ state: "detached" });
 });
 

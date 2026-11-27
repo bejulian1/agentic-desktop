@@ -35,7 +35,7 @@ async function run(theme: "light" | "dark", options: HarnessOptions = {}): Promi
     await idle(page, "svaret er ferdig");
     await settled(page);
     await shot(page, `${t}-04-chat`);
-    await page.locator(".sidebar-nav").getByRole("button", { name: "Ny tråd", exact: true }).click();
+    await page.keyboard.press("Control+Alt+n");
     await page.getByTestId("examples").waitFor();
     await settled(page);
     await shot(page, `${t}-01-start-chat`);
@@ -95,7 +95,7 @@ async function run(theme: "light" | "dark", options: HarnessOptions = {}): Promi
     await send(page, "rediger");
     await page.getByRole("button", { name: "Tillat", exact: true }).click();
     await page.getByText("Overskriften er endret").waitFor();
-    await openTool(page, "Endringer");
+    await openTool(page, "Diff");
     await page.locator(".diff-line.add").first().waitFor();
     await settled(page);
     await shot(page, `${t}-11-endringer`);
