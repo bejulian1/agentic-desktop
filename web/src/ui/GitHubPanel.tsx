@@ -16,13 +16,15 @@ import { IconExpand } from "./nav-icons";
 import { ProjectGlyph } from "./ProjectGlyph";
 import { Rich } from "./settings/parts";
 
+const memory = new Map<string, "pulls" | "issues">();
+
 // One pull request or issue in the panel itself: title, checks, description, files and comments,
 // the same view as in the full GitHub room, loaded when the first one is opened.
 const GitHubDetailView = lazy(() => import("./GitHubRoom").then((m) => ({ default: m.GitHubDetailView })));
 
 export default function GitHubPanel(props: { projectId: string }) {
   const [refreshing, setRefreshing] = createSignal(false);
-  const [list, setList] = createSignal<"pulls" | "issues">("pulls");
+  const [list, setList] = createSignal<"pulls" | "issues">(memory.get(props.projectId) ?? "pulls");
   // The pull request or issue open in the panel, or none (the list).
   const [selected, setSelected] = createSignal<{ reference: GitHubReference; url: string } | null>(null);
   const [data, { mutate }] = createResource(
@@ -52,6 +54,11 @@ export default function GitHubPanel(props: { projectId: string }) {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const choose = (value: "pulls" | "issues") => {
+    memory.set(props.projectId, value);
+    setList(value);
   };
 
   const openLink = (url: string) => {
@@ -153,8 +160,8 @@ export default function GitHubPanel(props: { projectId: string }) {
           </Show>
           <Show when={!selected() && (data()!.pulls || data()!.issues)}>
             <div class="segmented github-switch" role="group" aria-label={t("Liste")}>
-              <button type="button" class="segment" aria-pressed={list() === "pulls"} onClick={() => setList("pulls")}>{t("Pull requests")}<span class="count">{data()!.pulls?.length ?? 0}</span></button>
-              <button type="button" class="segment" aria-pressed={list() === "issues"} onClick={() => setList("issues")}>{t("Issues")}<span class="count">{data()!.issues?.length ?? 0}</span></button>
+              <button type="button" class="segment" aria-pressed={list() === "pulls"} onClick={() => choose("pulls")}>{t("Pull requests")}<span class="count">{data()!.pulls?.length ?? 0}</span></button>
+              <button type="button" class="segment" aria-pressed={list() === "issues"} onClick={() => choose("issues")}>{t("Issues")}<span class="count">{data()!.issues?.length ?? 0}</span></button>
             </div>
             <ul class="github-list" aria-label={list() === "pulls" ? t("Åpne pull requests") : t("Åpne issues")}>
               <For each={items()} fallback={<li class="github-none">{list() === "pulls" ? t("Ingen åpne pull requests.") : t("Ingen åpne issues.")}</li>}>

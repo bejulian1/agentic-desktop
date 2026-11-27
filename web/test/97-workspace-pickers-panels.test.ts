@@ -20,13 +20,23 @@ flow("Ny tråd velger prosjekt i full, enkel, smart og skjult sidefane", async (
   await search.press("ArrowDown");
   await search.press("Enter");
   await picker.waitFor({ state: "detached" });
+  await page.locator(".home-project").getByText(beta.name, { exact: true }).waitFor();
+  assert.equal((await h.api("GET", "/api/bootstrap")).threads.length, 0, "valg åpner et utkast uten å lagre tom tråd");
+  await send(page, "hei fra beta");
   const lookup = async (predicate: (thread: Thread) => boolean) =>
     (await h.api("GET", "/api/bootstrap")).threads.find(predicate);
-  const betaThread = await lookup((thread) => thread.projectId === beta.id);
-  assert.ok(betaThread, "valg oppretter en tråd i prosjektet");
+  await waitFor(async () => Boolean(await lookup((thread) => thread.projectId === beta.id)), "første melding oppretter tråden i Beta");
+  const betaThread = (await lookup((thread) => thread.projectId === beta.id))!;
   await pane(page, betaThread.id).waitFor();
   await h.api("PATCH", `/api/threads/${betaThread.id}`, { title: "Beta-arbeid" });
   await threadItem(page, betaThread.id).getByTestId("thread-meta").getByText(hostname(), { exact: true }).waitFor();
+
+  // Pressing Enter in Kode keeps the current Kode project instead of jumping to Chat.
+  await newThread(".sidebar-nav").click();
+  await search.press("Enter");
+  await picker.waitFor({ state: "detached" });
+  await page.locator(".home-project").getByText(beta.name, { exact: true }).waitFor();
+  assert.equal((await h.api("GET", "/api/bootstrap")).threads.length, 1);
 
   await page.keyboard.press("Control+Alt+n");
   await pane(page, betaThread.id).waitFor({ state: "detached" });
@@ -57,8 +67,11 @@ flow("Ny tråd velger prosjekt i full, enkel, smart og skjult sidefane", async (
   await h.api("PATCH", "/api/settings", { sidebarSimple: false, sidebarLayout: "smart" });
   await newThread(".smart-sidebar").click();
   await picker.getByRole("option", { name: /Ferie/ }).click();
-  const chatThread = await lookup((thread) => thread.chatProjectId === chat.id);
-  assert.ok(chatThread);
+  await picker.waitFor({ state: "detached" });
+  assert.equal((await h.api("GET", "/api/bootstrap")).threads.length, 1, "chat-prosjekt åpner utkast uten å lagre tom tråd");
+  await send(page, "hei fra ferie");
+  await waitFor(async () => Boolean(await lookup((thread) => thread.chatProjectId === chat.id)), "første melding oppretter tråden i chat-prosjektet");
+  const chatThread = (await lookup((thread) => thread.chatProjectId === chat.id))!;
   await pane(page, chatThread.id).waitFor();
   const rail = page.getByTestId("sidebar-rail");
   if (!await rail.isVisible()) await page.getByRole("button", { name: "Vis eller skjul sidefanen" }).first().click();

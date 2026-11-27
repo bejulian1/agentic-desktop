@@ -2,8 +2,8 @@ import { createMemo, createSignal, createUniqueId, For, onMount, Show, type JSX 
 import { Portal } from "solid-js/web";
 import type { ChatProject, Project } from "../../../shared/protocol";
 import { t } from "../lib/i18n";
-import { app, listed, mode, report, setFolderPickerOpen, sortedChatProjects, sortedProjects } from "../state/app";
-import { newThreadIn, openChatProject, openNewProjectThread, openThread, switchProject } from "../state/navigate";
+import { app, listed, mode, projectId, report, setFolderPickerOpen, sortedChatProjects, sortedProjects } from "../state/app";
+import { newThreadIn, openChatProject, openThread, switchProject } from "../state/navigate";
 import { displayKeys, keysFor } from "../state/shortcuts";
 import { ChatProjectGlyph } from "./ChatProjectGlyph";
 import { IconChat, IconClose, IconCompose, IconFolder, IconMonitor, IconSearch } from "./icons";
@@ -15,7 +15,7 @@ import "../styles/sidebar-project-picker.css";
 type Entry = { id: string; label: string; detail?: string; icon: () => JSX.Element; run: () => void | Promise<void>; disabled?: boolean };
 
 async function openProject(project: Project, create: boolean): Promise<void> {
-  if (create) return openNewProjectThread(project.id);
+  if (create) return newThreadIn(project.id, true);
   const latest = Object.values(app.threads)
     .filter((thread) => listed(thread) && !thread.archived && thread.projectId === project.id)
     .sort((a, b) => b.updatedAt - a.updatedAt)[0];
@@ -24,14 +24,19 @@ async function openProject(project: Project, create: boolean): Promise<void> {
 }
 
 async function openChat(project: ChatProject, create: boolean): Promise<void> {
-  if (create) await openNewProjectThread(null, project.id);
-  else openChatProject(project.id);
+  if (create) return newThreadIn(null, false, project.id);
+  openChatProject(project.id);
 }
 
 function ProjectChoices(props: { create: boolean; title: string; onPick: () => void }) {
   const listId = `sidebar-projects-${createUniqueId()}`;
   const [query, setQuery] = createSignal("");
-  const [active, setActive] = createSignal<string | null>(null);
+  const defaultActive = () => {
+    if (!props.create) return null;
+    if (mode() === "code") return projectId() ? `code:${projectId()}` : "local";
+    return "chat";
+  };
+  const [active, setActive] = createSignal<string | null>(defaultActive());
   let search!: HTMLInputElement;
   let list!: HTMLDivElement;
   const entries = createMemo<Entry[]>(() => {
@@ -52,8 +57,13 @@ function ProjectChoices(props: { create: boolean; title: string; onPick: () => v
       (entry) => words.every((word) => `${entry.label} ${entry.detail}`.toLowerCase().includes(word)),
     );
     if (props.create && !words.length) {
-      if (code) projects.unshift({ id: "local", label: t("Denne datamaskinen"), icon: () => <IconMonitor size={19} />, run: () => newThreadIn(null, true) });
-      projects.unshift({ id: "chat", label: t("Ny chat uten prosjekt"), icon: () => <IconChat size={19} />, run: () => newThreadIn(null) });
+      const chatEntry: Entry = { id: "chat", label: t("Ny chat uten prosjekt"), icon: () => <IconChat size={19} />, run: () => newThreadIn(null) };
+      if (code) {
+        const localEntry: Entry = { id: "local", label: t("Denne datamaskinen"), icon: () => <IconMonitor size={19} />, run: () => newThreadIn(null, true) };
+        projects.unshift(localEntry, chatEntry);
+      } else {
+        projects.unshift(chatEntry);
+      }
     }
     return projects;
   });

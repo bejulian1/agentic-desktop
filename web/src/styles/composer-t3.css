@@ -13,6 +13,7 @@
 .composer-large .composer-foot .model-button { gap: 6px; }
 .model-button .model-effort { font-weight: var(--weight-regular); }
 .model-button .model-effort::before { content: "·"; margin-right: 6px; color: var(--text-4); }
+.model-button .model-full-warn { display: inline-flex; align-items: center; color: var(--warn); flex: none; }
 
 .popover.stable-geometry { animation: ad-fade var(--dur-1) var(--ease-out); transform: none; translate: none; scale: none; }
 

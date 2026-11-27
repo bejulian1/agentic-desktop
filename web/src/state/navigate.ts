@@ -100,16 +100,6 @@ export async function createThreadFor(projectId: string | null, modelId: string 
   return thread;
 }
 
-export async function openNewProjectThread(projectId: string | null, chatProjectId: string | null = null): Promise<void> {
-  if (projectId && app.projects[projectId]?.defaultWorkspaceMode === "worktree") {
-    await newThreadIn(projectId, true);
-    return;
-  }
-  const seq = beginNavigation();
-  const thread = await createThreadFor(projectId, null, { chatProjectId });
-  if (seq === currentNavigationGeneration()) await openThread(thread);
-}
-
 // Round 9: a new chat in a Chat project. The empty pane remembers the project until its first
 // message makes the thread there.
 const [paneChatProjects, setPaneChatProjects] = createSignal<Record<string, string>>({});

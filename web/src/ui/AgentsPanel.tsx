@@ -23,7 +23,7 @@ export default function AgentsPanel(props: { projectId: string | null; threadId:
       { title: t("Andre agenter i prosjektet"), agents: others.slice(0, 24) },
     ];
   });
-  const request = createMemo(() => groups().flatMap((group) => group.agents.map((agent) => `${agent.id}:${agent.updatedAt}:${agent.running}`)).join(","));
+  const request = createMemo(() => groups().flatMap((group) => group.agents.map((agent) => `${agent.id}:${agent.running ? 1 : 0}:${agent.lastStatus ?? ""}`)).join(","));
   const [previews] = createResource(
     () => request() || false,
     (key) => {

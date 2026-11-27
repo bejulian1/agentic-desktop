@@ -23,7 +23,7 @@ import {
   IconFile, IconFolder, IconBranch, IconSend, IconStop, IconCode, IconSpark, IconClose, IconTerminal, IconChevronDown, IconCheck, IconList, IconPlus,
   IconLaptop, IconBolt, IconSearch, IconImage, IconReset, IconBack, IconSliders,
   IconNewThread, IconBrain, IconInfo, IconTarget, IconBook, IconArchive, IconHelp, IconChat, IconPlay, IconUndo, IconEye, IconUsers, IconSplitRight,
-  IconMonitor, IconWarn, IconDots, IconPencil, IconTrash, IconPaperclip,
+  IconMonitor, IconWarn, IconAlert, IconDots, IconPencil, IconTrash, IconPaperclip,
 } from "./icons";
 import { GoalLine } from "./Goal";
 import { ChatToolButton, useChatTools } from "./ChatToolMenu";
@@ -668,10 +668,15 @@ export function Composer(props: {
     const provider = app.providers.find((p) => p.id === model?.providerId);
     return model ? effortSteps(provider?.kind, model, provider?.baseUrl) : [];
   });
-  const visibleEffort = () => {
-    const value = chosenEffort();
-    return value && steps().includes(value) ? value : null;
+  const fullAccess = () => {
+    if (!kode()) return false;
+    const raw = project()?.permissionMode ?? app.settings.defaultPermissionMode;
+    const cap = thread()?.permissionCap;
+    const order = ["ask", "accept-edits", "full"] as const;
+    const effective = cap && order.indexOf(raw) > order.indexOf(cap) ? cap : raw;
+    return effective === "full";
   };
+  const visibleEffort = () => chosenEffort();
   const setEffort = (value: ReasoningEffort | null) => {
     const id = props.threadId();
     if (!id) return setDraftReasoning(value);
@@ -2232,6 +2237,7 @@ export function Composer(props: {
                 <Show when={modelFor(modelId())}>{(chosen) => <ProviderIcon brand={providerBrand(app.providers.find((p) => p.id === chosen().providerId), chosen())} size={14} decorative />}</Show>
                 <span class="model-label">{modelName(modelId())}</span>
                 <Show when={steps().length || panelPlan()}><span class="model-effort" data-testid="model-button-effort">{panelPlan() ? t("Plan") : effortLabel(visibleEffort()) || t("Standard")}</span></Show>
+                <Show when={fullAccess()}><span class="model-full-warn" data-testid="model-button-full-warn" title={t("Full tilgang")} aria-label={t("Full tilgang")}><IconAlert size={13} /></span></Show>
                 <IconChevronDown size={12} />
               </button>
             }

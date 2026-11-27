@@ -94,6 +94,11 @@ export function ModelMenu(props: { chosen: string | null; onPick: (id: string) =
       if (index >= 0) props.onPick(options[index].model.id);
       return;
     }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+      event.preventDefault();
+      if (index >= 0) toggleFavorite(options[index].model.id);
+      return;
+    }
     let next: number;
     if (event.key === "ArrowDown") next = (index + 1) % options.length;
     else if (event.key === "ArrowUp") next = (index - 1 + options.length) % options.length;
@@ -159,9 +164,11 @@ export function ModelMenu(props: { chosen: string | null; onPick: (id: string) =
                 </button>
                 <button
                   type="button"
+                  tabindex="-1"
                   class="icon-button model-favorite"
                   aria-label={t("Favoritt: {model}", { model: modelDisplayName(model) })}
                   aria-pressed={starred()}
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
                     if (tab() === null) search.focus({ preventScroll: true });
                     toggleFavorite(model.id);
